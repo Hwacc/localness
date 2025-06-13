@@ -11,12 +11,9 @@ import {
 import '@leafer-in/view'
 import '@leafer-in/viewport'
 import '@leafer-in/editor'
+import EditorBase from './EditorBase'
 
-class Editor {
-  private app: App
-  private groupTree: Group
-  private image: Image
-  private groupTag: Group
+class Editor extends EditorBase {
   private tag: Rect = new Rect()
   private view: HTMLDivElement
   private mode: 'drag' | 'draw'
@@ -26,9 +23,9 @@ class Editor {
   }
 
   constructor(view: HTMLDivElement, mode: 'drag' | 'draw') {
+    super()
     this.view = view
     this.mode = mode
-
     this.app = new App({
       view,
       tree: {
@@ -36,7 +33,6 @@ class Editor {
       },
       // editor: {},
     })
-
     this.groupTree = new Group({
       x: 0,
       y: 0,
@@ -53,7 +49,6 @@ class Editor {
     })
 
     this.registerListeners()
-
     this.groupTree.add(this.image)
     this.groupTree.add(this.groupTag)
     this.app.tree.add(this.groupTree)
@@ -145,6 +140,8 @@ class Editor {
       })
       this.app.tree.zoom(1)
     }
+
+    this.emit('auto-fit', this.app.tree.scale)
   }
 
   private handleDragStart(_: LeaferDragEvent) {
@@ -186,32 +183,20 @@ class Editor {
       }
     }
   }
-
   public resize(size: IScreenSizeData) {
     this.app.resize(size)
   }
-
   public setImage(url: string) {
     this.image.set({ url })
   }
-
-  get getApp() {
-    return this.app
-  }
-  get getGroupTree() {
-    return this.groupTree
-  }
-  get getImage() {
-    return this.image
-  }
-  get getGroupTags() {
-    return this.groupTag
-  }
-  get ready() {
-    return this.app.tree.ready
-  }
-  set setMode(mode: 'drag' | 'draw') {
+  public setMode(mode: 'drag' | 'draw') {
     this.mode = mode
+  }
+  public setScale(scale: number) {
+    this.app.tree.set({ scale })
+  }
+  public get ready() {
+    return this.app.tree.ready
   }
 }
 

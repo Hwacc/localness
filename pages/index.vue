@@ -2,14 +2,14 @@
 import { useDebounceFn, useResizeObserver } from '@vueuse/core'
 import type { Editor } from '~/core/Editor'
 
+let editor: Editor
 const editorContainer = useTemplateRef<HTMLDivElement>('editor-container')
-const editor = ref<Editor>()
 
 useResizeObserver(
   editorContainer,
   useDebounceFn(() => {
-    if (editor.value?.ready) {
-      editor.value.autoFitImage()
+    if (editor.ready) {
+      editor.autoFitImage()
     }
   }, 200)
 )
@@ -17,9 +17,12 @@ useResizeObserver(
 onMounted(async () => {
   const module = await import('~/core/Editor')
   if (!editorContainer.value) return
-  editor.value = new module.Editor(editorContainer.value, 'draw')
+  editor = new module.Editor(editorContainer.value, 'draw')
+  editor.setImage('/sample.png')
 
-  editor.value.setImage('/sample-image.jpg')
+  editor.on('auto-fit', (e) => {
+    console.log('auto-fit', e)
+  })
 })
 </script>
 
@@ -30,10 +33,7 @@ onMounted(async () => {
       <AppToolbar />
       <div class="flex-1 p-2 bg-gray-100">
         <client-only>
-          <div
-            ref="editor-container"
-            class="size-full"
-          />
+          <div ref="editor-container" class="size-full" />
         </client-only>
       </div>
     </div>
