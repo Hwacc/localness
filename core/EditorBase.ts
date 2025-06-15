@@ -1,6 +1,11 @@
 import mitt, { type EventType, type Handler } from 'mitt'
 import type { App, Group, Image } from 'leafer-ui'
 
+interface EditorEvents {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  [event: EventType]: any // 支持任意事件名
+}
+
 class EditorBase {
   protected app!: App
   protected groupTree!: Group
@@ -22,11 +27,22 @@ class EditorBase {
     return this.groupTag
   }
 
-  public on<T extends Handler>(event: EventType, callback: T) {
+  public on<E extends EventType>(
+    event: E,
+    callback: Handler<EditorEvents[E]>
+  ): void {
     this.emitter.on(event, callback)
   }
-  public emit<T>(event: EventType, data?: T) {
+
+  public emit<E extends EventType>(event: E, data?: EditorEvents[E]) {
     this.emitter.emit(event, data)
+  }
+
+  public off<E extends EventType>(
+    event: E,
+    callback?: Handler<EditorEvents[E]>
+  ) {
+    this.emitter.off(event, callback)
   }
 }
 

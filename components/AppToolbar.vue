@@ -5,7 +5,7 @@
   <div class="flex flex-col bg-gray-50">
     <!-- Top Navigation -->
     <div class="flex items-center justify-center py-4 bg-white shadow">
-      Toolbar
+      <slot/>
     </div>
   </div>
 </template>
