@@ -1,10 +1,29 @@
 <script setup lang="ts">
 import { useDebounceFn, useResizeObserver } from '@vueuse/core'
+import { merge } from 'lodash-es'
+import TagInfoModal from '~/components/TagInfoModal.vue'
 import type { Editor, EditorMode } from '~/core/Editor'
+import type { ITag } from '~/types/interfaces'
 
 let editor: Editor
 const editorContainer = useTemplateRef<HTMLDivElement>('editor-container')
 const isEditorReady = ref(false)
+
+const lineWidth = ref(2)
+const lineWidthOptions = ref([
+  {
+    label: '1px',
+    value: 1,
+  },
+  {
+    label: '2px',
+    value: 2,
+  },
+  {
+    label: '4px',
+    value: 4,
+  },
+])
 
 const scale = ref<number>(1)
 const scaleOptions = ref([
@@ -44,11 +63,22 @@ useResizeObserver(
   }, 200)
 )
 
+const tagList = ref<ITag[]>([])
+const tagOverlay = useOverlay()
+
+const openTagInfoModal = (props: {
+  tag: ITag
+  onSave: (newTag: ITag) => void
+}) => {
+  tagOverlay.create(TagInfoModal, { props }).open()
+}
+
 onMounted(async () => {
   const module = await import('~/core/Editor')
   if (!editorContainer.value) return
   editor = new module.Editor(editorContainer.value, mode.value)
   editor.setImage('/sample.png')
+  editor.setLineWidth(lineWidth.value)
 
   editor.on('ready', () => {
     isEditorReady.value = true
@@ -57,18 +87,29 @@ onMounted(async () => {
     mode.value = _mode
   })
   editor.on('scale-change', (_scale: number) => (scale.value = _scale))
-  
-  editor.on('tag-add', (tag: unknown) => {
-    console.log('tag-add', tag)
+
+  editor.on('tag-add', (tag: ITag) => {
+    tagList.value = [...tagList.value, tag]
   })
-  editor.on('tag-info', (tag: unknown) => {
-    console.log('tag-info', tag)
+  editor.on('tag-info', (tag: ITag) => {
+    openTagInfoModal({
+      tag,
+      onSave: (newTag) => {
+        tagList.value = tagList.value.map((t) =>
+          t.id === newTag.id ? newTag : t
+        )
+      },
+    })
   })
-  editor.on('tag-remove', (tag: unknown) => {
-    console.log('tag-remove', tag)
+  editor.on('tag-remove', (tag: ITag) => {
+    tagList.value = tagList.value.filter((t) => t.id !== tag.id)
   })
-  editor.on('tag-change', (tag: { type: string; target: unknown }) => {
-    console.log('tag-change', tag.type, tag.target)
+  editor.on('tag-change', (arg: { action: string; tag: ITag }) => {
+    console.log('tag-change', arg.action, arg.tag)
+    const { tag } = arg
+    tagList.value = tagList.value.map((t) =>
+      t.id === tag.id ? merge(t, tag) : t
+    )
   })
 })
 </script>
@@ -150,6 +191,29 @@ onMounted(async () => {
               @click="() => editor.setMode('edit')"
             />
           </UTooltip>
+          <USelect
+            class="w-38"
+            :model-value="lineWidth"
+            :items="lineWidthOptions"
+            size="md"
+            :disabled="!isEditorReady"
+            @update:model-value="
+              (line) => {
+                lineWidth = line
+                editor?.setLineWidth(line)
+              }
+            "
+          >
+            <template #default="{ modelValue }">
+              <OptionLineWidthSign
+                :value="lineWidthOptions.find((i) => i.value === modelValue)!.value"
+                :label="lineWidthOptions.find((i) => i.value === modelValue)!.label"
+              />
+            </template>
+            <template #item="{ item }">
+              <OptionLineWidthSign :value="item.value" :label="item.label" />
+            </template>
+          </USelect>
         </div>
       </AppToolbar>
       <div class="flex-1 p-2 bg-gray-100">

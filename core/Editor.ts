@@ -37,6 +37,7 @@ class Editor extends EditorBase {
   private idCounter = 0
   private editorDeleteButton: Box
   private editorInfoButton: Box
+  private lineWidth = 2
 
   constructor(view: HTMLDivElement, mode: EditorMode) {
     super()
@@ -151,8 +152,8 @@ class Editor extends EditorBase {
     )
     this.editorInfoButton.on(PointerEvent.TAP, this.handleInfoClick.bind(this))
     const debounceTagChangeEvent = debounce(
-      (type: string, target: IUI) => {
-        this.emit('tag-change', { type, target: target.toJSON() })
+      (action: string, target: IUI) => {
+        this.emit('tag-change', { action, tag: target.toJSON() })
       },
       200,
       {
@@ -294,9 +295,21 @@ class Editor extends EditorBase {
     this.tag = new Rect({
       id: `Tag${this.idCounter++}`,
       className: 'tag',
-      fill: '#32cd79',
+      fill: 'transparent',
+      cornerRadius: 4,
+      stroke: {
+        type: 'linear',
+        from: 'left',
+        to: 'right',
+        stops: [
+          { offset: 0, color: '#FEB027' },
+          { offset: 1, color: '#79CB4D' },
+        ],
+      },
+      strokeWidth: this.lineWidth,
       editable: false,
     })
+    this.tag.on(PointerEvent.DOUBLE_TAP, () => this.handleInfoClick())
     this.groupTag.add(this.tag)
   }
 
@@ -373,9 +386,11 @@ class Editor extends EditorBase {
   public resize(size: IScreenSizeData) {
     this.app.resize(size)
   }
+
   public setImage(url: string) {
     this.image.set({ url })
   }
+
   public setMode(mode: EditorMode) {
     const handleModeChange = () => {
       if (mode === 'drag') {
@@ -396,6 +411,7 @@ class Editor extends EditorBase {
     }
     handleModeChange()
   }
+
   public setScale(scale: number) {
     if (!this.app.tree.ready) {
       this.app.tree.waitReady(() => this.app.tree.set({ scale }))
@@ -403,6 +419,11 @@ class Editor extends EditorBase {
     }
     this.app.tree.set({ scale })
   }
+
+  public setLineWidth(width: number) {
+    this.lineWidth = width
+  }
+
   public get ready() {
     return this.app.tree.ready
   }
