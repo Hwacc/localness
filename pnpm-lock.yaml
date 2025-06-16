@@ -47,6 +47,9 @@ importers:
       leafer-ui:
         specifier: ^1.7.0
         version: 1.7.0
+      leafer-x-dot-matrix:
+        specifier: ^1.0.2
+        version: 1.0.2(@leafer-ui/core@1.7.0)(@leafer-ui/interface@1.7.0)
       lodash-es:
         specifier: ^4.17.21
         version: 4.17.21
@@ -3208,6 +3211,12 @@ packages:
 
   leafer-ui@1.7.0:
     resolution: {integrity: sha512-cDWOeYldpKYVdnKNyWDZXiQmb500wyhi50GBUZDcEF1gg3Lf/l8wWy9bVH1CSYIMe7Wo14NVlpOkj2fJq/jzEw==}
+
+  leafer-x-dot-matrix@1.0.2:
+    resolution: {integrity: sha512-fWnuuoEzs9ZkaJL/gsIx7YjE7r6Hp9QT50lZTqMqPk6SctfWwH52671NkGsKCC1hM/+58OJPkmyHEZik1lWYMw==}
+    peerDependencies:
+      '@leafer-ui/core': '>=1.0.9'
+      '@leafer-ui/interface': '>=1.0.9'
 
   levn@0.4.1:
     resolution: {integrity: sha512-+bT2uH4E5LGE7h/n3evcS/sQlJXCpIp6ym8OWJ5eV6+67Dsql/LaaT7qJBAt2rzfoa/5QBGBhxDix1dMt2kQKQ==}
@@ -8616,6 +8625,11 @@ snapshots:
       '@leafer/core': 1.7.0
       '@leafer/interface': 1.7.0
       '@leafer/partner': 1.7.0
+
+  leafer-x-dot-matrix@1.0.2(@leafer-ui/core@1.7.0)(@leafer-ui/interface@1.7.0):
+    dependencies:
+      '@leafer-ui/core': 1.7.0
+      '@leafer-ui/interface': 1.7.0
 
   levn@0.4.1:
     dependencies:

@@ -23,6 +23,7 @@
     "cropperjs": "^2.0.0",
     "eslint": "^9.28.0",
     "leafer-ui": "^1.7.0",
+    "leafer-x-dot-matrix": "^1.0.2",
     "lodash-es": "^4.17.21",
     "mitt": "^3.0.1",
     "nuxt": "^3.17.5",

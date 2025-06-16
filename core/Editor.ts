@@ -24,6 +24,7 @@ import {
   EditorRotateEvent,
   EditorScaleEvent,
 } from '@leafer-in/editor'
+import { DotMatrix } from 'leafer-x-dot-matrix'
 
 export type EditorMode = 'drag' | 'draw' | 'edit'
 class Editor extends EditorBase {
@@ -38,6 +39,7 @@ class Editor extends EditorBase {
   private editorDeleteButton: Box
   private editorInfoButton: Box
   private lineWidth = 2
+  private dotMatrix: DotMatrix
 
   constructor(view: HTMLDivElement, mode: EditorMode) {
     super()
@@ -120,6 +122,9 @@ class Editor extends EditorBase {
     this.app.tree.add(this.groupTree)
     this.app.editor.buttons.add(this.editorDeleteButton)
     this.app.editor.buttons.add(this.editorInfoButton)
+
+    this.dotMatrix = new DotMatrix(this.app)
+    this.dotMatrix.enableDotMatrix(true)
 
     this.idCounter = 0
   }
@@ -229,35 +234,17 @@ class Editor extends EditorBase {
         width: e.image.width,
         height: e.image.height,
         draggable: this.mode === 'drag',
-        strokeWidth: 4,
-        strokeAlign: 'inside',
-        stroke: {
-          type: 'solid',
-          color: '#333',
-        },
       })
 
       this.image.set({
         width: e.image.width,
         height: e.image.height,
-        strokeWidth: 4,
-        strokeAlign: 'inside',
-        stroke: {
-          type: 'solid',
-          color: '#32cd79',
-        },
       })
 
       this.groupTag.set({
         width: e.image.width,
         height: e.image.height,
         fill: 'transparent',
-        strokeWidth: 4,
-        strokeAlign: 'inside',
-        stroke: {
-          type: 'solid',
-          color: '#000',
-        },
         zIndex: 10,
       })
       this.autoFitImage()
