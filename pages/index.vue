@@ -38,7 +38,7 @@ const mode = ref<EditorMode>('draw')
 useResizeObserver(
   editorContainer,
   useDebounceFn(() => {
-    if (editor.ready) {
+    if (editor?.ready) {
       editor.autoFitImage()
     }
   }, 200)
@@ -53,10 +53,22 @@ onMounted(async () => {
   editor.on('ready', () => {
     isEditorReady.value = true
   })
-  editor.on('scale-change', (_scale: number) => (scale.value = _scale))
   editor.on('mode-change', (_mode: EditorMode) => {
-    console.log('mode-change', _mode)
     mode.value = _mode
+  })
+  editor.on('scale-change', (_scale: number) => (scale.value = _scale))
+  
+  editor.on('tag-add', (tag: unknown) => {
+    console.log('tag-add', tag)
+  })
+  editor.on('tag-info', (tag: unknown) => {
+    console.log('tag-info', tag)
+  })
+  editor.on('tag-remove', (tag: unknown) => {
+    console.log('tag-remove', tag)
+  })
+  editor.on('tag-change', (tag: { type: string; target: unknown }) => {
+    console.log('tag-change', tag.type, tag.target)
   })
 })
 </script>

@@ -11,6 +11,9 @@ class EditorBase {
   protected groupTree!: Group
   protected image!: Image
   protected groupTag!: Group
+  //TODO: 保存撤销和重做列表
+  protected undoList: unknown[] = []
+  protected redoList: unknown[] = []
 
   private emitter = mitt()
 
