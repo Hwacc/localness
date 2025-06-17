@@ -24,6 +24,7 @@ const projectMenuItems: DropdownMenuItem[] = [
           props: {
             onSave: (p: IProject) => {
               console.log(p)
+              curProject.value = p
               //TODO: save new project
             },
           },
