@@ -1,11 +1,126 @@
-<script setup lang="ts"></script>
+<script setup lang="ts">
+import { injectEditorContext } from '~/context/EditorProvider.vue'
+import { SCALE_OPTIONS, LINE_OPTIONS } from '~/constants'
+import type { EditorMode } from '~/core/Editor'
 
+const { editor, ready, scale, mode, line } = injectEditorContext()
+
+// scale
+const scaleText = computed(() => `${Math.trunc(scale.value * 100)}%`)
+const handleScaleChange = (type: 'plus' | 'minus' | 'set', s?: number) => {
+  const _scale = Math.trunc(scale.value * 10) / 10
+  if (type === 'plus') {
+    editor.value?.setScale(_scale + 0.1)
+  } else if (type === 'minus') {
+    editor.value?.setScale(_scale - 0.1)
+  } else {
+    editor.value?.setScale(s ?? 1)
+  }
+}
+
+// mode
+const handleModeChange = (m: EditorMode) => {
+  editor.value?.setMode(m)
+}
+
+// line
+const handleLineChange = (l: number) => {
+  line.value = l
+  editor.value?.setLineWidth(l)
+}
+</script>
 
 <template>
   <div class="flex flex-col bg-gray-50">
     <!-- Top Navigation -->
     <div class="flex items-center justify-center py-4 bg-white shadow">
-      <slot/>
+      <div class="flex items-center gap-4">
+        <div class="flex items-center gap-2">
+          <UTooltip text="Zoom Out">
+            <UButton
+              icon="i-lucide:minus"
+              size="md"
+              color="neutral"
+              variant="outline"
+              :disabled="!ready || scale <= 0.1"
+              @click="() => handleScaleChange('minus')"
+            />
+          </UTooltip>
+          <USelect
+            class="w-30"
+            :model-value="scale"
+            :items="SCALE_OPTIONS"
+            size="md"
+            :disabled="!ready"
+            @update:model-value="(s) => handleScaleChange('set', s)"
+          >
+            <template #default>
+              <div>{{ scaleText }}</div>
+            </template>
+          </USelect>
+          <UTooltip text="Zoom In">
+            <UButton
+              icon="i-lucide:plus"
+              size="md"
+              color="neutral"
+              variant="outline"
+              :disabled="!ready || scale > 3"
+              @click="() => handleScaleChange('plus')"
+            />
+          </UTooltip>
+        </div>
+        <UTooltip text="Drag">
+          <UButton
+            :class="[mode === 'drag' && 'bg-green-400 text-white']"
+            icon="i-lucide:hand"
+            size="md"
+            color="neutral"
+            variant="outline"
+            :disabled="!ready || scale > 3"
+            @click="() => handleModeChange('drag')"
+          />
+        </UTooltip>
+        <UTooltip text="Add Tag">
+          <UButton
+            :class="[mode === 'draw' && 'bg-green-400 text-white']"
+            icon="i-lucide:pencil-ruler"
+            size="md"
+            color="neutral"
+            variant="outline"
+            :disabled="!ready"
+            @click="() => handleModeChange('draw')"
+          />
+        </UTooltip>
+        <UTooltip text="Edit Tags">
+          <UButton
+            :class="[mode === 'edit' && 'bg-green-400 text-white']"
+            icon="i-lucide:square-pen"
+            size="md"
+            color="neutral"
+            variant="outline"
+            :disabled="!ready"
+            @click="() => handleModeChange('edit')"
+          />
+        </UTooltip>
+        <USelect
+          class="w-38"
+          :model-value="line"
+          :items="LINE_OPTIONS"
+          size="md"
+          :disabled="!ready"
+          @update:model-value="handleLineChange"
+        >
+          <template #default="{ modelValue }">
+            <OptionLineWidthSign
+              :value="LINE_OPTIONS.find((o) => o.value === modelValue)!.value"
+              :label="LINE_OPTIONS.find((o) => o.value === modelValue)!.label"
+            />
+          </template>
+          <template #item="{ item }">
+            <OptionLineWidthSign :value="item.value" :label="item.label" />
+          </template>
+        </USelect>
+      </div>
     </div>
   </div>
 </template>
