@@ -5,10 +5,12 @@ const prismaClientSingleton = () => {
 }
 
 declare const globalThis: {
-  prismaGlobal: ReturnType<typeof prismaClientSingleton>;
-} & typeof global;
+  prismaGlobal: ReturnType<typeof prismaClientSingleton>
+} & typeof global
 
 const prisma = globalThis.prismaGlobal ?? prismaClientSingleton()
+
+export type CustomPrismaClient = ReturnType<typeof prismaClientSingleton>
 
 export default prisma
 

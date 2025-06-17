@@ -3,7 +3,6 @@
 
 generator client {
   provider = "prisma-client-js"
-  output   = "../.prisma"
 }
 
 datasource db {
@@ -11,18 +10,38 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-model User {
-  id    Int     @id @default(autoincrement())
-  email String  @unique
-  name  String?
-  posts Post[]
+model Project {
+  id       Int      @id @default(autoincrement())
+  createAt DateTime @default(now())
+  updateAt DateTime @updatedAt
+  name     String
+  pages    Page[]
 }
 
-model Post {
-  id        Int     @id @default(autoincrement())
-  title     String
-  content   String?
-  published Boolean @default(false)
-  author    User    @relation(fields: [authorId], references: [id])
-  authorId  Int
+model Page {
+  id        Int      @id @default(autoincrement())
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  name      String
+  image     String?
+  Project   Project? @relation(fields: [projectId], references: [id])
+  projectId Int?
+  Tag       Tag[]
+}
+
+model Tag {
+  id        Int      @id @default(autoincrement())
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  x         Float
+  y         Float
+  width     Float
+  height    Float
+  editable  Boolean
+  className String
+  fill      String
+  stroke    String
+  i18nKey   String?
+  Page      Page?    @relation(fields: [pageId], references: [id])
+  pageId    Int?
 }

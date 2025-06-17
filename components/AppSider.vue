@@ -1,8 +1,8 @@
 <script setup lang="ts">
-import { ProjectModal } from '#components'
 import type { DropdownMenuItem } from '@nuxt/ui'
 import { injectProjectContext } from '~/context/ProjectProvider.vue'
 import type { IProject } from '~/types/interfaces'
+import ProjectModal from '~/components/ProjectModal.vue'
 
 const { curProject } = injectProjectContext()
 
