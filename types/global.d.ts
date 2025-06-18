@@ -1,6 +1,10 @@
+import type dayjs from 'dayjs'
+import type { PrismaClient } from '@prisma/client'
+
 declare module '#app' {
   interface NuxtApp {
-    $prisma: import('@prisma/client').PrismaClient
+    $prisma: PrismaClient
+    $dayjs: typeof dayjs
   }
 }
 

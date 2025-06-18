@@ -1,6 +1,9 @@
+import type { ID } from "./global"
+
 export interface IProject {
   id: ID
   name: string
+  description: string
   pages: IPage[]
   createdAt?: string
   updatedAt?: string

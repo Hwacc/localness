@@ -7,7 +7,7 @@ export default defineEventHandler(async () => {
         pages: true,
       },
       orderBy: {
-        updateAt: 'desc',
+        updatedAt: 'desc',
       },
     })
     return projects

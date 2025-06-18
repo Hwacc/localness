@@ -11,11 +11,12 @@ datasource db {
 }
 
 model Project {
-  id       Int      @id @default(autoincrement())
-  createAt DateTime @default(now())
-  updateAt DateTime @updatedAt
-  name     String
-  pages    Page[]
+  id          Int      @id @default(autoincrement())
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  name        String
+  description String?
+  pages       Page[]
 }
 
 model Page {

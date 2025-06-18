@@ -7,6 +7,7 @@ async function main() {
   const project = await prisma.project.create({
     data: {
       name: 'Test Project',
+      description: 'This is a test project',
     },
   })
 

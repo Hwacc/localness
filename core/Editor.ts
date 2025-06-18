@@ -134,8 +134,8 @@ class Editor extends EditorBase {
     this.app.tree.on(LeaferEvent.READY, () => {
       this.emit('ready')
     })
-    this.app.tree.on(KeyEvent.DOWN, this.handleKeyDown.bind(this))
-    this.app.tree.on(KeyEvent.UP, this.handleKeyUp.bind(this))
+    this.app.tree.on(KeyEvent.DOWN, this.onKeyDown.bind(this))
+    this.app.tree.on(KeyEvent.UP, this.onKeyUp.bind(this))
     this.app.tree.on(PropertyEvent.CHANGE, (e: PropertyEvent) => {
       if (e.attrName === 'scaleX') {
         this.emit('scale-change', parseFloat((e.newValue as number).toFixed(2)))
@@ -143,19 +143,19 @@ class Editor extends EditorBase {
     })
 
     // image events
-    this.image.once(ImageEvent.LOADED, this.handleImageLoaded.bind(this))
+    this.image.once(ImageEvent.LOADED, this.onImageLoaded.bind(this))
 
     // groupTree events
-    this.groupTree.on(LeaferDragEvent.START, this.handleDragStart.bind(this))
-    this.groupTree.on(LeaferDragEvent.DRAG, this.handleDrag.bind(this))
-    this.groupTree.on(LeaferDragEvent.END, this.handleDragEnd.bind(this))
+    this.groupTree.on(LeaferDragEvent.START, this.onDragStart.bind(this))
+    this.groupTree.on(LeaferDragEvent.DRAG, this.onDrag.bind(this))
+    this.groupTree.on(LeaferDragEvent.END, this.onDragEnd.bind(this))
 
     // editor events
     this.editorDeleteButton.on(
       PointerEvent.TAP,
-      this.handleDeleteClick.bind(this)
+      this.onDeleteClick.bind(this)
     )
-    this.editorInfoButton.on(PointerEvent.TAP, this.handleInfoClick.bind(this))
+    this.editorInfoButton.on(PointerEvent.TAP, this.onInfoClick.bind(this))
     const debounceTagChangeEvent = debounce(
       (action: string, target: IUI) => {
         this.emit('tag-change', { action, tag: target.toJSON() })
@@ -224,7 +224,7 @@ class Editor extends EditorBase {
     })
   }
 
-  private handleImageLoaded(e: ImageEvent) {
+  private onImageLoaded(e: ImageEvent) {
     this.imageSrcSize = {
       width: e.image.width,
       height: e.image.height,
@@ -275,7 +275,7 @@ class Editor extends EditorBase {
     }
   }
 
-  private handleDragStart() {
+  private onDragStart() {
     if (this.mode !== 'draw' || !isEmpty(this.app.editor.list)) return
     this.app.editor.visible = false
     this.app.editor.hittable = false
@@ -296,11 +296,11 @@ class Editor extends EditorBase {
       strokeWidth: this.lineWidth,
       editable: false,
     })
-    this.tag.on(PointerEvent.DOUBLE_TAP, () => this.handleInfoClick())
+    this.tag.on(PointerEvent.DOUBLE_TAP, () => this.onInfoClick())
     this.groupTag.add(this.tag)
   }
 
-  private handleDrag(e: LeaferDragEvent) {
+  private onDrag(e: LeaferDragEvent) {
     if (this.mode !== 'draw') return
     if (this.tag) {
       let { x, y, width, height } = e.getPageBounds()
@@ -332,7 +332,7 @@ class Editor extends EditorBase {
     }
   }
 
-  private handleDragEnd() {
+  private onDragEnd() {
     if (this.mode !== 'draw') return
     if (this.tag) {
       this.app.editor.visible = true
@@ -348,7 +348,7 @@ class Editor extends EditorBase {
     this.tag = null
   }
 
-  private handleDeleteClick() {
+  private onDeleteClick() {
     if (isEmpty(this.app.editor.list)) return
     const target = this.app.editor.list.pop()
     this.emit('tag-remove', target?.toJSON())
@@ -356,17 +356,17 @@ class Editor extends EditorBase {
     this.app.editor.target = undefined
   }
 
-  private handleInfoClick() {
+  private onInfoClick() {
     if (!isEmpty(this.app.editor.list)) {
       this.emit('tag-info', this.app.editor.list[0].toJSON())
     }
   }
 
-  private handleKeyDown() {}
-  private handleKeyUp(e: KeyEvent) {
+  private onKeyDown() {}
+  private onKeyUp(e: KeyEvent) {
     const key = e.key
     if (key === 'Delete') {
-      this.handleDeleteClick()
+      this.onDeleteClick()
     }
   }
 
@@ -379,7 +379,7 @@ class Editor extends EditorBase {
   }
 
   public setMode(mode: EditorMode) {
-    const handleModeChange = () => {
+    const onModeChange = () => {
       if (mode === 'drag') {
         this.app.editor.visible = false
         this.app.editor.hittable = false
@@ -393,10 +393,10 @@ class Editor extends EditorBase {
       this.emit('mode-change', mode)
     }
     if (!this.app.tree.ready) {
-      this.app.tree.waitReady(handleModeChange)
+      this.app.tree.waitReady(onModeChange)
       return
     }
-    handleModeChange()
+    onModeChange()
   }
 
   public setScale(scale: number) {

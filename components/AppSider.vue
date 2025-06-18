@@ -4,26 +4,24 @@ import { injectProjectContext } from '~/context/ProjectProvider.vue'
 import type { IProject } from '~/types/interfaces'
 import ProjectModal from '~/components/ProjectModal.vue'
 
-const { projects, curProject, createProject } = injectProjectContext()
-
-const isShowEditProjectName = ref<boolean>(false)
-const editProjectName = ref<string>(curProject.value?.name ?? '')
-const editProjectNameInput = ref<{ inputRef: HTMLInputElement }>()
+const { projects, curProject, createProject, updateProject } =
+  injectProjectContext()
+const { $dayjs } = useNuxtApp()
 
 const isShowSelectProject = ref<boolean>(false)
 
-const newProjectOverlay = useOverlay()
+const projectOverlay = useOverlay()
 
 const projectMenuItems: DropdownMenuItem[] = [
   {
     label: 'New Project',
     icon: 'i-lucide:folder-plus',
     onSelect: () => {
-      newProjectOverlay
+      projectOverlay
         .create(ProjectModal, {
           props: {
-            onSave: async (p: Omit<IProject, 'id' | 'pages'>) => {
-              console.log('on save ', p)
+            mode: 'create',
+            onSave: async (p) => {
               await createProject(p)
             },
           },
@@ -39,30 +37,25 @@ const projectMenuItems: DropdownMenuItem[] = [
     },
   },
   {
-    label: 'Rename',
+    label: 'Edit Project',
     icon: 'i-lucide:folder-pen',
     onSelect: () => {
-      // after dropdown menu animate end
-      setTimeout(() => {
-        isShowEditProjectName.value = true
-        nextTick(() => {
-          editProjectNameInput.value?.inputRef.focus()
+      projectOverlay
+        .create(ProjectModal, {
+          props: {
+            mode: 'edit',
+            project: curProject.value,
+            onSave: async (p) => {
+              await updateProject({ ...p, id: curProject.value.id })
+            },
+          },
         })
-      }, 200)
+        .open()
     },
   },
 ]
 
-function handleBlur() {
-  if (editProjectName.value) {
-    const _name = editProjectName.value.trim()
-    curProject.value.name = _name ? _name : curProject.value?.name
-    //TODO: save project name
-  }
-  isShowEditProjectName.value = false
-}
-
-function handleSelectProject(p: IProject) {
+function onSelectProject(p: IProject) {
   curProject.value = p
   isShowSelectProject.value = false
 }
@@ -72,17 +65,8 @@ function handleSelectProject(p: IProject) {
   <div class="relative w-[18.75rem] shrink-0 bg-gray-50 shadow">
     <div class="h-full flex flex-col">
       <div class="flex items-center justify-between py-4 px-2 gap-2 shadow">
-        <div class="flex-1 overflow-hidden">
-          <div v-if="!isShowEditProjectName" class="text-base font-bold">
-            {{ curProject.name }}
-          </div>
-          <UInput
-            v-else
-            ref="editProjectNameInput"
-            v-model="editProjectName"
-            placeholder="Project Name"
-            @blur="handleBlur"
-          />
+        <div class="flex-1 text-base font-bold overflow-hidden">
+          {{ curProject.name }}
         </div>
         <UDropdownMenu
           :items="projectMenuItems"
@@ -129,10 +113,16 @@ function handleSelectProject(p: IProject) {
           <li
             v-for="project in projects"
             :key="project.id"
-            class="p-2 cursor-pointer hover:bg-gray-100 hover:text-green-400"
-            @click="handleSelectProject(project)"
+            class="flex flex-col gap-1 p-2 cursor-pointer hover:bg-gray-100 hover:text-green-400"
+            @click="onSelectProject(project)"
           >
-            {{ project.name }}
+            <p class="font-bold">
+              {{ project.name }}
+            </p>
+            <p class="text-xs color-secondary">
+              Last Updated:
+              {{ $dayjs(project.updatedAt).format('YYYY-MM-DD HH:mm:ss') }}
+            </p>
           </li>
         </ul>
       </div>

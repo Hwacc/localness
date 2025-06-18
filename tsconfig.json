@@ -2,7 +2,7 @@
   // https://nuxt.com/docs/guide/concepts/typescript
   "extends": "./.nuxt/tsconfig.json",
   "compilerOptions": {
-    "types": ["./types/global"],
-    "typeRoots": ["./types"]
-  }
+    "types": ["global"],
+    "typeRoots": ["./types", "./node_modules/@types"],
+  },
 }

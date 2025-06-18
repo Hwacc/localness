@@ -7,7 +7,7 @@ const { editor, ready, scale, mode, line } = injectEditorContext()
 
 // scale
 const scaleText = computed(() => `${Math.trunc(scale.value * 100)}%`)
-function handleScaleChange(type: 'plus' | 'minus' | 'set', s?: number) {
+function onScaleChange(type: 'plus' | 'minus' | 'set', s?: number) {
   const _scale = Math.trunc(scale.value * 10) / 10
   if (type === 'plus') {
     editor.value?.setScale(_scale + 0.1)
@@ -18,11 +18,11 @@ function handleScaleChange(type: 'plus' | 'minus' | 'set', s?: number) {
   }
 }
 // mode
-function handleModeChange(m: EditorMode) {
+function onModeChange(m: EditorMode) {
   editor.value?.setMode(m)
 }
 // line
-function handleLineChange(l: number) {
+function onLineChange(l: number) {
   line.value = l
   editor.value?.setLineWidth(l)
 }
@@ -41,7 +41,7 @@ function handleLineChange(l: number) {
               color="neutral"
               variant="outline"
               :disabled="!ready || scale <= 0.1"
-              @click="() => handleScaleChange('minus')"
+              @click="() => onScaleChange('minus')"
             />
           </UTooltip>
           <USelect
@@ -50,7 +50,7 @@ function handleLineChange(l: number) {
             :items="SCALE_OPTIONS"
             size="md"
             :disabled="!ready"
-            @update:model-value="(s: number) => handleScaleChange('set', s)"
+            @update:model-value="(s: number) => onScaleChange('set', s)"
           >
             <template #default>
               <div>{{ scaleText }}</div>
@@ -63,7 +63,7 @@ function handleLineChange(l: number) {
               color="neutral"
               variant="outline"
               :disabled="!ready || scale > 3"
-              @click="() => handleScaleChange('plus')"
+              @click="() => onScaleChange('plus')"
             />
           </UTooltip>
         </div>
@@ -75,7 +75,7 @@ function handleLineChange(l: number) {
             color="neutral"
             variant="outline"
             :disabled="!ready || scale > 3"
-            @click="() => handleModeChange('drag')"
+            @click="() => onModeChange('drag')"
           />
         </UTooltip>
         <UTooltip text="Add Tag">
@@ -86,7 +86,7 @@ function handleLineChange(l: number) {
             color="neutral"
             variant="outline"
             :disabled="!ready"
-            @click="() => handleModeChange('draw')"
+            @click="() => onModeChange('draw')"
           />
         </UTooltip>
         <UTooltip text="Edit Tags">
@@ -97,7 +97,7 @@ function handleLineChange(l: number) {
             color="neutral"
             variant="outline"
             :disabled="!ready"
-            @click="() => handleModeChange('edit')"
+            @click="() => onModeChange('edit')"
           />
         </UTooltip>
         <USelect
@@ -106,7 +106,7 @@ function handleLineChange(l: number) {
           :items="LINE_OPTIONS"
           size="md"
           :disabled="!ready"
-          @update:model-value="handleLineChange"
+          @update:model-value="onLineChange"
         >
           <template #default="{ modelValue }">
             <OptionLineWidthSign

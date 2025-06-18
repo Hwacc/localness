@@ -10,21 +10,27 @@ export function useApi<T>(url: string, options: any = {}) {
         error.message ||
         error.statusMessage ||
         'Request failed, please try again later'
-      toast.add({
-        title: 'Error',
-        description: errorMessage,
-        icon: 'i-lucide:circle-x',
-        color: 'error',
-      })
+
+      if (import.meta.client) {
+        toast.add({
+          title: 'Error',
+          description: errorMessage,
+          icon: 'i-lucide:circle-x',
+          color: 'error',
+        })
+      }
+      console.error('Response error:', errorMessage)
     },
 
     onRequestError({ error }: any) {
-      toast.add({
-        title: 'Error',
-        description: 'Network error, please check your connection',
-        icon: 'i-lucide:circle-x',
-        color: 'error',
-      })
+      if (import.meta.client) {
+        toast.add({
+          title: 'Error',
+          description: 'Network error, please check your connection',
+          icon: 'i-lucide:circle-x',
+          color: 'error',
+        })
+      }
       console.error('Request error:', error)
     },
   }

@@ -1,38 +1,84 @@
 <script setup lang="ts">
 import type { IProject } from '~/types/interfaces'
 import { Project } from '~/types/project'
-import { omit } from 'lodash-es'
+import { z } from 'zod/v4'
+import type { FormSubmitEvent } from '@nuxt/ui'
 
-const project = reactive<IProject>(new Project(''))
+type Mode = 'edit' | 'create' | 'view'
+const { mode, project = new Project('') } = defineProps<{
+  mode: Mode
+  project?: IProject
+}>()
+
+const schema = z.object({
+  name: z.string().min(3),
+  description: z.optional(z.string()),
+})
+type Schema = z.output<typeof schema>
+
+const state = reactive<Schema>({
+  name: project.name,
+  description: project.description || '',
+})
+
+const title = computed(() => {
+  switch (mode) {
+    case 'create':
+    default:
+      return 'New Project'
+    case 'edit':
+      return 'Edit Project'
+    case 'view':
+      return 'View Project'
+  }
+})
 
 const emit = defineEmits<{
   close: [boolean]
-  save: [Omit<IProject, 'id' | 'pages'>]
+  save: [Pick<IProject, 'name' | 'description'>]
 }>()
+
+async function onSubmit(_: FormSubmitEvent<Schema>) {
+  emit('save', state as Pick<IProject, 'name' | 'description'>)
+}
 </script>
 
 <template>
-  <UModal :close="{ onClick: () => emit('close', false) }" title="New Project">
+  <UModal :close="{ onClick: () => emit('close', false) }" :title="title">
     <template #body>
-      <div class="flex flex-col gap-2.5">
-        <UFormField label="Name">
-          <UInput v-model="project.name" class="w-full" />
+      <UForm
+        class="flex flex-col gap-2.5"
+        :schema="schema"
+        :state="state"
+        @submit="onSubmit"
+      >
+        <UFormField label="Name" name="name">
+          <UInput
+            v-model="state.name"
+            class="w-full"
+            :disabled="mode === 'view'"
+          />
         </UFormField>
-      </div>
-    </template>
-    <template #footer>
-      <div class="w-full flex justify-end gap-2">
-        <UButton color="neutral" label="Cancel" @click="emit('close', false)" />
-        <UButton
-          label="Save"
-          @click="
-            () => {
-              emit('save', omit(project, 'id', 'pages'))
-              emit('close', true)
-            }
-          "
-        />
-      </div>
+        <UFormField label="Description" name="description">
+          <UTextarea
+            v-model="state.description"
+            class="w-full"
+            :disabled="mode === 'view'"
+            :rows="3"
+            :maxrows="3"
+            autoresize
+          />
+        </UFormField>
+
+        <div class="w-full flex justify-end gap-4 mt-4">
+          <UButton
+            color="neutral"
+            label="Cancel"
+            @click="emit('close', false)"
+          />
+          <UButton label="Submit" type="submit" />
+        </div>
+      </UForm>
     </template>
   </UModal>
 </template>
