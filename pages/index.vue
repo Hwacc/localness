@@ -27,10 +27,10 @@ useResizeObserver(
 
 const tagList = ref<ITag[]>([])
 const tagOverlay = useOverlay()
-const openTagInfoModal = (props: {
+function openTagInfoModal(props: {
   tag: ITag
   onSave: (newTag: ITag) => void
-}) => {
+}) {
   tagOverlay.create(TagInfoModal, { props }).open()
 }
 

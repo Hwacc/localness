@@ -4,7 +4,7 @@ import { injectProjectContext } from '~/context/ProjectProvider.vue'
 import type { IProject } from '~/types/interfaces'
 import ProjectModal from '~/components/ProjectModal.vue'
 
-const { curProject } = injectProjectContext()
+const { projects, curProject, createProject } = injectProjectContext()
 
 const isShowEditProjectName = ref<boolean>(false)
 const editProjectName = ref<string>(curProject.value?.name ?? '')
@@ -22,10 +22,9 @@ const projectMenuItems: DropdownMenuItem[] = [
       newProjectOverlay
         .create(ProjectModal, {
           props: {
-            onSave: (p: IProject) => {
-              console.log(p)
-              curProject.value = p
-              //TODO: save new project
+            onSave: async (p: Omit<IProject, 'id' | 'pages'>) => {
+              console.log('on save ', p)
+              await createProject(p)
             },
           },
         })
@@ -54,18 +53,17 @@ const projectMenuItems: DropdownMenuItem[] = [
   },
 ]
 
-const handleBlur = () => {
+function handleBlur() {
   if (editProjectName.value) {
     const _name = editProjectName.value.trim()
-    curProject.value.name = _name ? _name : curProject.value.name
+    curProject.value.name = _name ? _name : curProject.value?.name
     //TODO: save project name
   }
   isShowEditProjectName.value = false
 }
 
-const handleSelectProject = (id: string) => {
-  //TODO: load project
-  console.log(id)
+function handleSelectProject(p: IProject) {
+  curProject.value = p
   isShowSelectProject.value = false
 }
 </script>
@@ -129,10 +127,12 @@ const handleSelectProject = (id: string) => {
         <UInput placeholder="Search" />
         <ul class="h-full flex-1 overflow-y-auto overflow-x-hidden">
           <li
+            v-for="project in projects"
+            :key="project.id"
             class="p-2 cursor-pointer hover:bg-gray-100 hover:text-green-400"
-            @click="handleSelectProject('')"
+            @click="handleSelectProject(project)"
           >
-            Project Name
+            {{ project.name }}
           </li>
         </ul>
       </div>

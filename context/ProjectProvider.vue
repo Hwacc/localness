@@ -5,40 +5,50 @@ import { Project } from '~/types/project'
 export interface IProjectContext {
   projects: Ref<IProject[]>
   curProject: Ref<IProject>
+  createProject: (project: Partial<IProject>) => Promise<void>
 }
 
-const injectionKey = Symbol('ProjectContext')
-
-export const injectProjectContext = () => {
-  return inject<IProjectContext>(injectionKey, {} as IProjectContext)
+const injectionKey: InjectionKey<IProjectContext> = Symbol('ProjectContext')
+export function injectProjectContext() {
+  return inject(injectionKey, {
+    projects: ref([]),
+    curProject: ref({} as IProject),
+    createProject: () => Promise.reject(new Error('Not implemented')),
+  })
 }
-export const provideProjectContext = (contextValue: IProjectContext) => {
+export function provideProjectContext(contextValue: IProjectContext) {
   provide(injectionKey, contextValue)
   return contextValue
 }
 </script>
 
 <script setup lang="ts">
-// TODO: Mock project
 const projects = ref<IProject[]>([])
 const curProject = ref<IProject>(new Project())
 
-const { data } = await useFetch('/api/project')
-const { data: idData } = await useFetch('/api/project/1')
-const { data: postData } = await useFetch('/api/project', {
-  method: 'POST',
-  headers: {
-    'Content-Type': 'application/json',
-  },
-  body: JSON.stringify(curProject.value),
-})
-console.log('request', data.value)
-console.log('request id', idData.value)
-console.log('request post', postData.value)
+// 使用包装后的 useApi
+const { data } = await useApi<IProject[]>('/api/project')
+if (data.value) {
+  projects.value = data.value
+  console.log('projects.value', projects.value)
+  if (data.value.length > 0) curProject.value = data.value[0]
+}
+
+async function createProject(project: Partial<IProject>) {
+  const { data } = await useApi<IProject>('/api/project', {
+    method: 'POST',
+    body: project,
+  })
+  if (data.value) {
+    projects.value.push(data.value)
+    curProject.value = data.value
+  }
+}
 
 provideProjectContext({
   projects,
   curProject,
+  createProject,
 })
 </script>
 <template>

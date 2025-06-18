@@ -1,9 +1,7 @@
-declare module 'nitropack' {
-  interface NitroRuntimeConfig {
-    prisma: ReturnType<() => import('@prisma/client').PrismaClient>
-  }
-
-  interface NitroServerContext {
+declare module '#app' {
+  interface NuxtApp {
     $prisma: import('@prisma/client').PrismaClient
   }
 }
+
+declare type ID = string | number

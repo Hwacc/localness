@@ -12,7 +12,7 @@ export interface IEditorContext {
 
 const injectionKey = Symbol('EditorContext')
 
-export const injectEditorContext = () => {
+export function injectEditorContext() {
   return inject<IEditorContext>(injectionKey, {
     editor: shallowRef<Editor>(),
     ready: ref(false),
@@ -22,7 +22,7 @@ export const injectEditorContext = () => {
   } as IEditorContext)
 }
 
-export const provideEditorContext = (contextValue: IEditorContext) => {
+export function provideEditorContext(contextValue: IEditorContext) {
   provide(injectionKey, contextValue)
   return contextValue
 }

@@ -1,10 +1,14 @@
 <script setup lang="ts">
 import type { IProject } from '~/types/interfaces'
 import { Project } from '~/types/project'
+import { omit } from 'lodash-es'
 
-const project = reactive<IProject>(new Project())
+const project = reactive<IProject>(new Project(''))
 
-const emit = defineEmits<{ close: [boolean]; save: [IProject] }>()
+const emit = defineEmits<{
+  close: [boolean]
+  save: [Omit<IProject, 'id' | 'pages'>]
+}>()
 </script>
 
 <template>
@@ -23,7 +27,7 @@ const emit = defineEmits<{ close: [boolean]; save: [IProject] }>()
           label="Save"
           @click="
             () => {
-              emit('save', project)
+              emit('save', omit(project, 'id', 'pages'))
               emit('close', true)
             }
           "

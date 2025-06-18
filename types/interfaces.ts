@@ -1,5 +1,5 @@
 export interface IProject {
-  id: string
+  id: ID
   name: string
   pages: IPage[]
   createdAt?: string
@@ -7,7 +7,7 @@ export interface IProject {
 }
 
 export interface IPage {
-  id: string
+  id: ID
   name: string
   tags: ITag[]
   image: string
@@ -16,7 +16,7 @@ export interface IPage {
 }
 
 export interface ITag {
-  id: string
+  id: ID
   x: number
   y: number
   width: number
@@ -32,7 +32,7 @@ export interface ITag {
 }
 
 export interface ITranslation {
-  id: string
+  id: ID
   key: string
   en: string
   zh: string

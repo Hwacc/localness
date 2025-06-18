@@ -7,7 +7,7 @@ const { editor, ready, scale, mode, line } = injectEditorContext()
 
 // scale
 const scaleText = computed(() => `${Math.trunc(scale.value * 100)}%`)
-const handleScaleChange = (type: 'plus' | 'minus' | 'set', s?: number) => {
+function handleScaleChange(type: 'plus' | 'minus' | 'set', s?: number) {
   const _scale = Math.trunc(scale.value * 10) / 10
   if (type === 'plus') {
     editor.value?.setScale(_scale + 0.1)
@@ -17,14 +17,12 @@ const handleScaleChange = (type: 'plus' | 'minus' | 'set', s?: number) => {
     editor.value?.setScale(s ?? 1)
   }
 }
-
 // mode
-const handleModeChange = (m: EditorMode) => {
+function handleModeChange(m: EditorMode) {
   editor.value?.setMode(m)
 }
-
 // line
-const handleLineChange = (l: number) => {
+function handleLineChange(l: number) {
   line.value = l
   editor.value?.setLineWidth(l)
 }
@@ -52,7 +50,7 @@ const handleLineChange = (l: number) => {
             :items="SCALE_OPTIONS"
             size="md"
             :disabled="!ready"
-            @update:model-value="(s) => handleScaleChange('set', s)"
+            @update:model-value="(s: number) => handleScaleChange('set', s)"
           >
             <template #default>
               <div>{{ scaleText }}</div>
@@ -112,8 +110,8 @@ const handleLineChange = (l: number) => {
         >
           <template #default="{ modelValue }">
             <OptionLineWidthSign
-              :value="LINE_OPTIONS.find((o) => o.value === modelValue)!.value"
-              :label="LINE_OPTIONS.find((o) => o.value === modelValue)!.label"
+              :value="LINE_OPTIONS.find((o: any) => o.value === modelValue)!.value"
+              :label="LINE_OPTIONS.find((o: any) => o.value === modelValue)!.label"
             />
           </template>
           <template #item="{ item }">
