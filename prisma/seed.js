@@ -16,13 +16,33 @@ async function main() {
     data: {
       name: 'Welcome Page',
       image: 'https://example.com/image.png',
-      Project: {
+      project: {
         connect: { id: project.id },
       },
     },
   })
 
-  // 创建多个 Tag 并关联到上面的 Page
+  // 创建 Translations
+  const [welcomeTranslation, buttonTranslation] = await Promise.all([
+    prisma.translation.create({
+      data: {
+        i18nKey: 'welcome.text',
+        origin: 'Welcome to our website',
+        en: 'Welcome to our website',
+        zh: '欢迎访问我们的网站',
+      },
+    }),
+    prisma.translation.create({
+      data: {
+        i18nKey: 'button.submit',
+        origin: 'Submit',
+        en: 'Submit',
+        zh: '提交',
+      },
+    }),
+  ])
+
+  // 创建 Tags
   await prisma.tag.createMany({
     data: [
       {
@@ -36,6 +56,7 @@ async function main() {
         stroke: '#000000',
         i18nKey: 'welcome.text',
         pageId: page.id,
+        translationId: welcomeTranslation.id,
       },
       {
         x: 150,
@@ -46,8 +67,9 @@ async function main() {
         className: 'image-box',
         fill: '#eeeeee',
         stroke: '#111111',
-        i18nKey: null,
+        i18nKey: 'button.submit',
         pageId: page.id,
+        translationId: buttonTranslation.id,
       },
     ],
   })

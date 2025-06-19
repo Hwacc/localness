@@ -28,7 +28,8 @@ export interface ITag {
   className: string
   fill: string
   stroke: string
-  key?: string
+  i18nKey?: string
+  content?: string
   translations?: ITranslation[]
   createdAt?: string
   updatedAt?: string
@@ -36,7 +37,8 @@ export interface ITag {
 
 export interface ITranslation {
   id: ID
-  key: string
+  i18nKey: string
+  origin: string
   en: string
   zh: string
 }

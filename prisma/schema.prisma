@@ -12,8 +12,8 @@ datasource db {
 
 model Project {
   id          Int      @id @default(autoincrement())
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
   name        String
   description String?
   pages       Page[]
@@ -21,28 +21,42 @@ model Project {
 
 model Page {
   id        Int      @id @default(autoincrement())
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
   name      String
   image     String?
-  Project   Project? @relation(fields: [projectId], references: [id])
-  projectId Int?
-  Tag       Tag[]
+  project   Project? @relation(fields: [projectId], references: [id])
+  projectId Int?     @map("project_id")
+  tags      Tag[]
 }
 
 model Tag {
+  id            Int          @id @default(autoincrement())
+  createdAt     DateTime     @default(now()) @map("created_at")
+  updatedAt     DateTime     @updatedAt @map("updated_at")
+  x             Float
+  y             Float
+  width         Float
+  height        Float
+  editable      Boolean
+  className     String
+  fill          String
+  stroke        String
+  i18nKey       String?      @unique @map("i18n_key")
+  content       String?
+  page          Page         @relation(fields: [pageId], references: [id])
+  pageId        Int          @map("page_id")
+  translation   Translation? @relation(fields: [translationId], references: [id])
+  translationId Int?         @map("translation_id")
+}
+
+model Translation {
   id        Int      @id @default(autoincrement())
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-  x         Float
-  y         Float
-  width     Float
-  height    Float
-  editable  Boolean
-  className String
-  fill      String
-  stroke    String
-  i18nKey   String?
-  Page      Page?    @relation(fields: [pageId], references: [id])
-  pageId    Int?
+  i18nKey   String   @unique @map("i18n_key")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+  origin    String
+  en        String
+  zh        String
+  tags      Tag[]
 }
