@@ -74,7 +74,7 @@ const { isOverDropZone } = useDropZone(imageDropZoneRef, {
 function onImageDrop(files: File[] | null) {
   imageFileData.value = null
   if (!isEmpty(files)) {
-    console.log('onImageDrop', files)
+    imageFileData.value = files![0]
     showCreatePageModal()
   }
 }
@@ -84,6 +84,7 @@ function showCreatePageModal() {
     .create(PageModal, {
       props: {
         mode: 'create',
+        file: imageFileData.value,
         onSave: async () => {
           // await createPage(p)
           close()
