@@ -13,22 +13,25 @@ const { $dayjs } = useNuxtApp()
 const overlay = useOverlay()
 
 const showProjectSheet = ref<boolean>(false)
+const projectModal = overlay.create(ProjectModal, {
+  props: {
+    mode: 'create',
+    onSave: () => {},
+  },
+})
 const projectMenuItems: DropdownMenuItem[] = [
   {
     label: 'New Project',
     icon: 'i-lucide:folder-plus',
     onSelect: () => {
-      overlay
-        .create(ProjectModal, {
-          props: {
-            mode: 'create',
-            onSave: async (p, { close }) => {
-              await createProject(p)
-              close()
-            },
-          },
-        })
-        .open()
+      projectModal.patch({
+        mode: 'create',
+        onSave: async (p, { close }) => {
+          await createProject(p)
+          close()
+        },
+      })
+      projectModal.open()
     },
   },
   {
@@ -42,18 +45,15 @@ const projectMenuItems: DropdownMenuItem[] = [
     label: 'Edit Project',
     icon: 'i-lucide:folder-pen',
     onSelect: () => {
-      overlay
-        .create(ProjectModal, {
-          props: {
-            mode: 'edit',
-            project: curProject.value,
-            onSave: async (p, { close }) => {
-              await updateProject({ ...p, id: curProject.value.id })
-              close()
-            },
-          },
-        })
-        .open()
+      projectModal.patch({
+        mode: 'edit',
+        project: curProject.value,
+        onSave: async (p, { close }) => {
+          await updateProject({ ...p, id: curProject.value.id })
+          close()
+        },
+      })
+      projectModal.open()
     },
   },
 ]
