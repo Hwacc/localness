@@ -1,4 +1,4 @@
-import type { ID } from "./global"
+import type { ID } from './global'
 
 export interface IProject {
   id: ID
@@ -16,6 +16,8 @@ export interface IPage {
   image: string
   createdAt?: string
   updatedAt?: string
+  projectId?: ID
+  project?: IProject
 }
 
 export interface ITag {
@@ -30,14 +32,17 @@ export interface ITag {
   stroke: string
   i18nKey?: string
   content?: string
-  translations?: ITranslation[]
   createdAt?: string
   updatedAt?: string
+  translationId?: ID
+  translation?: ITranslation
 }
 
 export interface ITranslation {
   id: ID
   i18nKey: string
+  createdAt?: string
+  updatedAt?: string
   origin: string
   en: string
   zh: string

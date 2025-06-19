@@ -3,26 +3,29 @@ import type { DropdownMenuItem } from '@nuxt/ui'
 import { injectProjectContext } from '~/context/ProjectProvider.vue'
 import type { IProject } from '~/types/interfaces'
 import ProjectModal from '~/components/ProjectModal.vue'
+import { useDropZone } from '@vueuse/core'
+import { isEmpty } from 'lodash-es'
+import { PageModal } from '#components'
 
 const { projects, curProject, createProject, updateProject } =
   injectProjectContext()
+
 const { $dayjs } = useNuxtApp()
+const overlay = useOverlay()
 
-const isShowSelectProject = ref<boolean>(false)
-
-const projectOverlay = useOverlay()
-
+const showProjectSheet = ref<boolean>(false)
 const projectMenuItems: DropdownMenuItem[] = [
   {
     label: 'New Project',
     icon: 'i-lucide:folder-plus',
     onSelect: () => {
-      projectOverlay
+      overlay
         .create(ProjectModal, {
           props: {
             mode: 'create',
-            onSave: async (p) => {
+            onSave: async (p, { close }) => {
               await createProject(p)
+              close()
             },
           },
         })
@@ -33,20 +36,21 @@ const projectMenuItems: DropdownMenuItem[] = [
     label: 'Open Project',
     icon: 'i-lucide:folder-open',
     onSelect: () => {
-      isShowSelectProject.value = true
+      showProjectSheet.value = true
     },
   },
   {
     label: 'Edit Project',
     icon: 'i-lucide:folder-pen',
     onSelect: () => {
-      projectOverlay
+      overlay
         .create(ProjectModal, {
           props: {
             mode: 'edit',
             project: curProject.value,
-            onSave: async (p) => {
+            onSave: async (p, { close }) => {
               await updateProject({ ...p, id: curProject.value.id })
+              close()
             },
           },
         })
@@ -57,7 +61,36 @@ const projectMenuItems: DropdownMenuItem[] = [
 
 function onSelectProject(p: IProject) {
   curProject.value = p
-  isShowSelectProject.value = false
+  showProjectSheet.value = false
+}
+
+const imageFileData = shallowRef<File | null>(null)
+const imageDropZoneRef = useTemplateRef<HTMLElement>('imageDropZoneRef')
+const { isOverDropZone } = useDropZone(imageDropZoneRef, {
+  dataTypes: ['image/png', 'image/jpeg', 'image/jpg'],
+  onDrop: onImageDrop,
+})
+
+function onImageDrop(files: File[] | null) {
+  imageFileData.value = null
+  if (!isEmpty(files)) {
+    console.log('onImageDrop', files)
+    showCreatePageModal()
+  }
+}
+
+function showCreatePageModal() {
+  overlay
+    .create(PageModal, {
+      props: {
+        mode: 'create',
+        onSave: async () => {
+          // await createPage(p)
+          close()
+        },
+      },
+    })
+    .open()
 }
 </script>
 
@@ -88,21 +121,43 @@ function onSelectProject(p: IProject) {
           </template>
         </UDropdownMenu>
       </div>
-      <ul class="flex-1 overflow-y-auto overflow-x-hidden px-2">
-        <li class="py-2">Item 1</li>
-      </ul>
+      <div
+        ref="imageDropZoneRef"
+        class="flex-1 w-full overflow-hidden relative"
+      >
+        <div
+          v-if="isOverDropZone"
+          class="absolute inset-0 bg-gray-50/80 z-10"
+        />
+        <div
+          v-if="curProject.pages.length === 0"
+          class="size-full flex items-center justify-center"
+        >
+          <div
+            class="w-[80%] aspect-square border-2 border-dashed border-gray-200 p-4 flex flex-col gap-2 items-center justify-center text-center"
+          >
+            <UIcon name="i-lucide:upload" size="32" />
+            Drop Image here to create new page
+          </div>
+        </div>
+        <ul v-else class="size-full overflow-y-auto overflow-x-hidden px-2">
+          <li v-for="page in curProject.pages" :key="page.id" class="py-2">
+            {{ page.name }}
+          </li>
+        </ul>
+      </div>
     </div>
     <div
       :class="[
         'absolute inset-0 flex flex-col bg-gray-50 shadow transition-transform',
-        isShowSelectProject ? 'translate-x-0' : 'translate-x-[-100%]',
+        showProjectSheet ? 'translate-x-0' : 'translate-x-[-100%]',
       ]"
     >
       <div class="flex items-center py-4 px-2 gap-4 shadow">
         <UIcon
           class="size-6"
           name="i-lucide:arrow-left"
-          @click="isShowSelectProject = false"
+          @click="showProjectSheet = false"
         />
         <p class="text-base font-bold">Select Project</p>
       </div>

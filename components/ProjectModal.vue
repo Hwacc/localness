@@ -35,11 +35,18 @@ const title = computed(() => {
 
 const emit = defineEmits<{
   close: [boolean]
-  save: [Pick<IProject, 'name' | 'description'>]
+  save: [
+    Pick<IProject, 'name' | 'description'>,
+    {
+      close: () => void
+    }
+  ]
 }>()
 
 async function onSubmit(_: FormSubmitEvent<Schema>) {
-  emit('save', state as Pick<IProject, 'name' | 'description'>)
+  emit('save', state as Pick<IProject, 'name' | 'description'>, {
+    close: () => emit('close', true),
+  })
 }
 </script>
 

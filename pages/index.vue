@@ -8,6 +8,7 @@ import EditorProvider, {
   provideEditorContext,
 } from '~/context/EditorProvider.vue'
 import ProjectProvider from '~/context/ProjectProvider.vue'
+import PageProvider from '~/context/PageProvider.vue'
 
 const editor = shallowRef<Editor>()
 const editorContainer = useTemplateRef<HTMLDivElement>('editor-container')
@@ -83,18 +84,20 @@ onMounted(async () => {
 
 <template>
   <ProjectProvider>
-    <EditorProvider>
-      <div class="flex h-full">
-        <AppSider class="relative z-10" />
-        <div class="relative flex-1 overflow-hidden flex flex-col">
-          <AppToolbar />
-          <div class="flex-1 p-2 bg-gray-100">
-            <client-only>
-              <div ref="editor-container" class="size-full" />
-            </client-only>
+    <PageProvider>
+      <EditorProvider>
+        <div class="flex h-full">
+          <AppSider class="relative z-10" />
+          <div class="relative flex-1 overflow-hidden flex flex-col">
+            <AppToolbar />
+            <div class="flex-1 p-2 bg-gray-100">
+              <client-only>
+                <div ref="editor-container" class="size-full" />
+              </client-only>
+            </div>
           </div>
         </div>
-      </div>
-    </EditorProvider>
+      </EditorProvider>
+    </PageProvider>
   </ProjectProvider>
 </template>
