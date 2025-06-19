@@ -2,10 +2,9 @@
 import type { DropdownMenuItem } from '@nuxt/ui'
 import { injectProjectContext } from '~/context/ProjectProvider.vue'
 import type { IProject } from '~/types/interfaces'
-import ProjectModal from '~/components/ProjectModal.vue'
 import { useDropZone } from '@vueuse/core'
 import { isEmpty } from 'lodash-es'
-import { PageModal } from '#components'
+import { PageModal, ProjectModal } from '#components'
 
 const { projects, curProject, createProject, updateProject } =
   injectProjectContext()
@@ -64,34 +63,36 @@ function onSelectProject(p: IProject) {
   showProjectSheet.value = false
 }
 
-const imageFileData = shallowRef<File | null>(null)
+const imageFileData = shallowRef<File | undefined>()
 const imageDropZoneRef = useTemplateRef<HTMLElement>('imageDropZoneRef')
 const { isOverDropZone } = useDropZone(imageDropZoneRef, {
   dataTypes: ['image/png', 'image/jpeg', 'image/jpg'],
   onDrop: onImageDrop,
 })
-
 function onImageDrop(files: File[] | null) {
-  imageFileData.value = null
+  imageFileData.value = undefined
   if (!isEmpty(files)) {
     imageFileData.value = files![0]
     showCreatePageModal()
   }
 }
-
-function showCreatePageModal() {
-  overlay
-    .create(PageModal, {
-      props: {
-        mode: 'create',
-        file: imageFileData.value,
-        onSave: async () => {
-          // await createPage(p)
-          close()
-        },
-      },
-    })
-    .open()
+const pageModal = overlay.create(PageModal, {
+  props: {
+    mode: 'create',
+    file: imageFileData.value,
+    onSave: async () => {
+      // await createPage(p)
+    },
+    onClose: () => {
+      imageFileData.value = undefined
+    },
+  },
+})
+async function showCreatePageModal() {
+  pageModal.patch({
+    file: imageFileData.value,
+  })
+  pageModal.open()
 }
 </script>
 
@@ -136,6 +137,7 @@ function showCreatePageModal() {
         >
           <div
             class="w-[80%] aspect-square border-2 border-dashed border-gray-200 p-4 flex flex-col gap-2 items-center justify-center text-center"
+            @click="showCreatePageModal"
           >
             <UIcon name="i-lucide:upload" size="32" />
             Drop Image here to create new page

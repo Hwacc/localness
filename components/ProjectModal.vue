@@ -77,9 +77,10 @@ async function onSubmit(_: FormSubmitEvent<Schema>) {
           />
         </UFormField>
 
-        <div class="w-full flex justify-end gap-4 mt-4">
+        <div class="w-full flex justify-end gap-6 mt-4">
           <UButton
             color="neutral"
+            variant="ghost"
             label="Cancel"
             @click="emit('close', false)"
           />

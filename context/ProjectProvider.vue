@@ -1,8 +1,8 @@
 <script lang="ts">
-import { merge } from 'lodash-es'
 import type { ID } from '~/types/global'
 import type { IProject } from '~/types/interfaces'
 import { Project } from '~/types/project'
+import { merge } from 'lodash-es'
 
 export interface IProjectContext {
   projects: Ref<IProject[]>
