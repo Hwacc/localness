@@ -86,6 +86,9 @@ const pageModal = overlay.create(PageModal, {
     onClose: () => {
       imageFileData.value = undefined
     },
+    onDelete: () => {
+      imageFileData.value = undefined
+    },
   },
 })
 async function showCreatePageModal() {

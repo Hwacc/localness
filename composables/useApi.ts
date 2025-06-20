@@ -1,8 +1,11 @@
 export function useApi<T>(url: string, options: any = {}) {
+  const { token } = useAuthStore()
   const toast = useToast()
+
   const defaultOptions = {
     headers: {
       'Content-Type': 'application/json',
+      Authorization: `Bearer ${token}`,
     },
     onResponseError({ response }: any) {
       const error = response._data || 'An error occurred'

@@ -34,7 +34,7 @@ const emit = defineEmits<{ close: [boolean]; save: [ITag] }>()
           </UFormField>
         </div>
         <UFormField label="Key">
-          <UInput v-model="tag.key" class="w-full" />
+          <UInput v-model="tag.i18nKey" class="w-full" />
         </UFormField>
       </div>
     </template>

@@ -1,6 +1,9 @@
 <script setup lang="ts">
 import type { HTMLAttributes } from 'vue'
-import type { Props as ImagePreviewProps } from '~/components/ImagePreview.vue'
+import type {
+  Props as ImagePreviewProps,
+  Emits as ImagePreviewEmits,
+} from '~/components/ImagePreview.vue'
 
 const {
   url = '',
@@ -17,6 +20,14 @@ const {
   }
 >()
 
+const emit = defineEmits<
+  ImagePreviewEmits & {
+    'upload-start': []
+    'upload-end': [string]
+    error: [any]
+  }
+>()
+
 const toast = useToast()
 
 const innerUrl = ref<string>(url)
@@ -27,7 +38,19 @@ const previewUrl = computed(() => {
   return ''
 })
 
-function onInputChange(e: any) {
+const fileInput = shallowRef<HTMLInputElement>()
+async function onClick() {
+  if (disabled) return
+  fileInput.value = document.createElement('input')
+  fileInput.value!.type = 'file'
+  fileInput.value!.accept = 'image/*'
+  fileInput.value!.style.display = 'none'
+  fileInput.value!.addEventListener('change', onInputChange)
+  await nextTick()
+  fileInput.value!.click()
+}
+
+async function onInputChange(e: any) {
   const _file = e.target?.files[0]
   if (!_file) return
   if (_file.type.indexOf('image') < 0) {
@@ -41,20 +64,35 @@ function onInputChange(e: any) {
   innerUrl.value = URL.createObjectURL(_file)
   innerFile.value = _file
   if (autoUpload) {
-    //TODO: upload
+    try {
+      emit('upload-start')
+      await handleUpload()
+      emit('upload-end', 'uploaded url')
+    } catch (error) {
+      toast.add({
+        title: 'Error',
+        description: 'Failed to upload image',
+        color: 'error',
+      })
+      emit('error', error)
+    }
   }
+  fileInput.value = undefined
 }
 
-async function onClick() {
-  if (disabled) return
-  const input = document.createElement('input')
-  input.type = 'file'
-  input.accept = 'image/*'
-  input.style.display = 'none'
-  input.addEventListener('change', onInputChange)
-  await nextTick()
-  input.click()
+function onDelete() {
+  innerUrl.value = ''
+  innerFile.value = undefined
+  emit('delete')
 }
+
+async function handleUpload() {
+  //TODO: handle upload
+}
+
+defineExpose({
+  upload: handleUpload,
+})
 </script>
 
 <template>
@@ -66,13 +104,16 @@ async function onClick() {
       :disabled="disabled"
       :deleteable="deleteable"
       @click="onClick"
+      @delete="onDelete"
     />
     <div
       v-else
-      :class="[
-        'w-full aspect-square bg-gray-50/50 flex items-center justify-center border-1 border-dashed border-gray-200 rounded-md hover:border-black',
-        propsClass,
-      ]"
+      :class="
+        $cn([
+          'w-full aspect-square bg-gray-50/50 flex items-center justify-center border-1 border-dashed border-gray-200 rounded-md hover:border-black',
+          propsClass,
+        ])
+      "
       @click="onClick"
     >
       <UButton v-if="!disabled" color="neutral" label="Upload Image" />

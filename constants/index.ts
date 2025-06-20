@@ -1,3 +1,9 @@
+export enum UserRole {
+  ADMIN = 'ADMIN',
+  USER = 'USER',
+  GUEST = 'GUEST',
+}
+
 export const SCALE_OPTIONS = [
   {
     label: '100%',

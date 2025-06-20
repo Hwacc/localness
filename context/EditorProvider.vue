@@ -10,7 +10,7 @@ export interface IEditorContext {
   line: Ref<number>
 }
 
-const injectionKey = Symbol('EditorContext')
+const injectionKey: InjectionKey<IEditorContext> = Symbol('EditorContext')
 
 export function injectEditorContext() {
   return inject<IEditorContext>(injectionKey, {

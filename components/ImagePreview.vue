@@ -4,25 +4,36 @@ export interface Props {
   disabled?: boolean
   deleteable?: boolean
 }
+export interface Emits {
+  click: []
+  delete: []
+}
 </script>
 
 <script setup lang="ts">
-const { url = '', disabled = false, deleteable = true } = defineProps<Props>()
-const emit = defineEmits<{
-  click: []
-  delete: []
-}>()
+// eslint-disable-next-line import/first
+import type { HTMLAttributes } from 'vue'
+
+const {
+  url = '',
+  disabled = false,
+  deleteable = true,
+  class: propsClass = '',
+} = defineProps<
+  Props & {
+    class?: HTMLAttributes['class']
+  }
+>()
+const emit = defineEmits<Emits>()
 
 function onClick() {
   if (disabled) return
   emit('click')
 }
-
 function onView(e: MouseEvent) {
   e.stopPropagation()
   window.open(url, '_blank')
 }
-
 function onDelete(e: MouseEvent) {
   e.stopPropagation()
   if (deleteable) {
@@ -33,11 +44,16 @@ function onDelete(e: MouseEvent) {
 
 <template>
   <div
-    class="relative flex items-center justify-center size-full group rounded-md"
+    :class="
+      $cn(
+        'relative flex items-center justify-center size-full group rounded-md',
+        propsClass
+      )
+    "
     @click="onClick"
   >
     <img
-      class="w-full max-h-[28.125rem] object-contain"
+      class="w-full max-h-[28.125rem] object-scale-down"
       alt="Preview Image"
       :src="url"
     />

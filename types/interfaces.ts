@@ -1,4 +1,13 @@
+import type { UserRole } from '~/constants'
 import type { ID } from './global'
+
+export interface IUser {
+  id: ID
+  name: string
+  role: UserRole.USER
+  email?: string
+  avatar?: string
+}
 
 export interface IProject {
   id: ID

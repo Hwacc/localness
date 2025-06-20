@@ -18,6 +18,7 @@ const {
 const emit = defineEmits<{
   close: [boolean]
   save: [Pick<IPage, 'name'>, { close: () => void }]
+  delete: []
 }>()
 
 const previewUrl = computed(() => {
@@ -68,11 +69,15 @@ async function onSubmit(_: FormSubmitEvent<Schema>) {
           />
         </UFormField>
         <UFormField label="Image">
-          <ImageUploader
-            :url="previewUrl"
-            :file="file"
-            :disabled="mode === 'view'"
-          />
+          <ClientOnly>
+            <ImageUploader
+              class="w-[200px]"
+              :url="previewUrl"
+              :file="file"
+              :disabled="mode === 'view'"
+              @delete="emit('delete')"
+            />
+          </ClientOnly>
         </UFormField>
         <div class="w-full flex justify-end gap-6 mt-4">
           <UButton
