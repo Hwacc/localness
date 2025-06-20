@@ -69,15 +69,13 @@ async function onSubmit(_: FormSubmitEvent<Schema>) {
           />
         </UFormField>
         <UFormField label="Image">
-          <ClientOnly>
-            <ImageUploader
-              class="w-[200px]"
-              :url="previewUrl"
-              :file="file"
-              :disabled="mode === 'view'"
-              @delete="emit('delete')"
-            />
-          </ClientOnly>
+          <ImageUploader
+            class="w-[200px]"
+            :url="previewUrl"
+            :file="file"
+            :disabled="mode === 'view'"
+            @delete="emit('delete')"
+          />
         </UFormField>
         <div class="w-full flex justify-end gap-6 mt-4">
           <UButton

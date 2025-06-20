@@ -3,10 +3,12 @@ import type { ID } from './global'
 
 export interface IUser {
   id: ID
-  name: string
+  username: string
   role: UserRole.USER
+  nickname?: string
   email?: string
   avatar?: string
+  projects?: IProject[]
 }
 
 export interface IProject {

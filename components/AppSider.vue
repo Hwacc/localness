@@ -11,6 +11,7 @@ const { projects, curProject, createProject, updateProject } =
 
 const { $dayjs } = useNuxtApp()
 const overlay = useOverlay()
+const { user } = useAuthStore()
 
 const showProjectSheet = ref<boolean>(false)
 const projectModal = overlay.create(ProjectModal, {
@@ -91,6 +92,7 @@ const pageModal = overlay.create(PageModal, {
     },
   },
 })
+
 async function showCreatePageModal() {
   pageModal.patch({
     file: imageFileData.value,
@@ -152,7 +154,12 @@ async function showCreatePageModal() {
           </li>
         </ul>
       </div>
+      <div class="flex items-center py-4 px-2 gap-2 shadow">
+        <p>{{ user?.name }}</p>
+      </div>
     </div>
+
+    <!-- Project Sheet -->
     <div
       :class="[
         'absolute inset-0 flex flex-col bg-gray-50 shadow transition-transform',

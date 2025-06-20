@@ -33,3 +33,15 @@ export const LINE_OPTIONS = [
     value: 4,
   },
 ]
+
+export const WELCOME_TEXTS = [
+  'Hello World',
+  '你好世界',
+  'Hallo Welt',
+  'Hola Mundo',
+  'Bonjour le monde',
+  'Olá mundo',
+  'こんにちは世界',
+  '안녕하세요 세계',
+  'Привет, мир'
+]

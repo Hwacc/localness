@@ -3,17 +3,35 @@
 
 @theme inline {
   --animate-aurora: aurora 60s linear infinite;
+  --animate-glow: glow var(--duration) infinite linear;
+
   @keyframes aurora {
     from {
       background-position: 50% 50%, 50% 50%;
     }
+
     to {
       background-position: 350% 50%, 350% 50%;
+    }
+  }
+
+  @keyframes glow {
+    0% {
+      background-position: 0% 0%;
+    }
+
+    50% {
+      background-position: 100% 100%;
+    }
+
+    to {
+      background-position: 0% 0%;
     }
   }
 }
 
 @layer base {
+
   html,
   body {
     @apply m-0 p-0 size-full;

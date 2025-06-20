@@ -38,13 +38,13 @@ export function useApi<T>(url: string, options: any = {}) {
     },
   }
 
-  if (options.method === 'POST' && options.body) {
-    try {
-      options.body = JSON.stringify(options.body)
-    } catch (error) {
-      console.error('Request error:', error)
-      throw new Error('Request body error: ' + error)
-    }
+  if (
+    options.method === 'POST' &&
+    options.body &&
+    typeof options.body === 'object' &&
+    !options.body.toJSON
+  ) {
+    // options.body.toJSON = () => {}
   }
 
   const mergedOptions = {
@@ -60,5 +60,7 @@ export function useApi<T>(url: string, options: any = {}) {
     },
   }
 
-  return useFetch<T>(url, mergedOptions)
+  console.log('useApi', url, mergedOptions)
+
+  return $fetch<T>(url, mergedOptions)
 }

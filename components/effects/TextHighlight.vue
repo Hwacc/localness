@@ -48,8 +48,9 @@ span {
   background-size: 0% 100%;
   background-repeat: no-repeat;
   background-position: left center;
-  animation: background-expand v-bind(durationMs) ease-in-out v-bind(delayMs)
-      forwards,
-    text-color-change v-bind(durationMs) ease-in-out v-bind(delayMs) forwards;
+  animation: background-expand v-bind(durationMs)
+      cubic-bezier(0.68, -0.55, 0.265, 1.55) v-bind(delayMs) forwards,
+    text-color-change v-bind(durationMs) cubic-bezier(0.68, -0.55, 0.265, 1.55)
+      v-bind(delayMs) forwards;
 }
 </style>

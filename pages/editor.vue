@@ -95,9 +95,7 @@ onMounted(async () => {
           <div class="relative flex-1 overflow-hidden flex flex-col">
             <AppToolbar />
             <div class="flex-1 p-2 bg-gray-100">
-              <client-only>
-                <div ref="editor-container" class="size-full" />
-              </client-only>
+              <div ref="editor-container" class="size-full" />
             </div>
           </div>
         </div>
