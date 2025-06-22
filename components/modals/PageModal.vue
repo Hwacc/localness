@@ -3,6 +3,7 @@ import type { IPage } from '~/types/interfaces'
 import type { FormSubmitEvent } from '@nuxt/ui'
 import { Page } from '~/types/page'
 import { z } from 'zod/v4'
+import type { ImageUploader } from '#components'
 
 type Mode = 'edit' | 'create' | 'view'
 const {
@@ -45,7 +46,10 @@ const title = computed(() => {
   }
 })
 
+const uploaderRef =
+  useTemplateRef<InstanceType<typeof ImageUploader>>('uploader')
 async function onSubmit(_: FormSubmitEvent<Schema>) {
+  await uploaderRef.value?.upload()
   emit('save', state as Pick<IPage, 'name'>, {
     close: () => emit('close', true),
   })
@@ -70,10 +74,12 @@ async function onSubmit(_: FormSubmitEvent<Schema>) {
         </UFormField>
         <UFormField label="Image">
           <ImageUploader
+            ref="uploader"
             class="w-[200px]"
             :url="previewUrl"
             :file="file"
             :disabled="mode === 'view'"
+            :auto-upload="false"
             @delete="emit('delete')"
           />
         </UFormField>

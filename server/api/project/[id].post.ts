@@ -11,8 +11,8 @@ export default defineEventHandler(async (event) => {
     })
   }
 
-  const numericId = parseInt(id, 10)
-  if (isNaN(numericId)) {
+  const numericID = parseInt(id, 10)
+  if (isNaN(numericID)) {
     throw createError({
       statusCode: 400,
       statusMessage: 'Invalid id format',
@@ -30,7 +30,7 @@ export default defineEventHandler(async (event) => {
 
   const project = await prisma.project.update({
     where: {
-      id: numericId,
+      id: numericID,
     },
     data: omit(body, 'id', 'pages'),
   })

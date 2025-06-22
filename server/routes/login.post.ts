@@ -1,23 +1,20 @@
 import prisma from '~/lib/prisma'
-import bcrypt from 'bcryptjs'
-import jwt from 'jsonwebtoken'
 import { omit } from 'lodash-es'
+import bcrypt from 'bcryptjs'
+import zod from 'zod'
 
+const zLogin = zod.object({
+  username: zod.string().min(3),
+  password: zod.string().min(3),
+})
 export default defineEventHandler(async (event) => {
-  const { username, password } = await readBody(event)
-  if (!username || !password) {
-    throw createError({
-      statusCode: 400,
-      statusMessage: 'Missing username or password',
-    })
-  }
+  const {username, password} = await readValidatedBody(event, zLogin.parse)
 
   const user = await prisma.user.findUnique({
     where: {
       username: username,
     },
   })
-
   if (!user) {
     throw createError({
       statusCode: 400,
@@ -25,28 +22,25 @@ export default defineEventHandler(async (event) => {
     })
   }
 
-  const verifyPassword = await bcrypt.compare(password, user.password)
-  if (!verifyPassword) {
+  const verified = await bcrypt.compare(password, user.password)
+  if (!verified) {
     throw createError({
       statusCode: 400,
       statusMessage: 'Invalid password',
     })
   }
-
-  const token = jwt.sign(
-    {
+  
+  await setUserSession(event, {
+    user: {
       id: user.id,
       username: user.username,
       role: user.role,
-    },
-    process.env.NUXT_JWT_SECRET as string,
-    {
-      expiresIn: '30d',
     }
-  )
+  }, {
+    maxAge: 60 * 60 * 24 * 30,
+  })
 
   return {
-    token,
     user: omit(user, ['password', 'createdAt', 'updatedAt']),
   }
 })

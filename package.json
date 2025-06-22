@@ -8,7 +8,7 @@
     "generate": "nuxt generate",
     "preview": "nuxt preview",
     "postinstall": "nuxt prepare",
-    "register": "node ./prisma/register.js"
+    "register": "node ./scripts/register.js"
   },
   "dependencies": {
     "@leafer-in/editor": "^1.7.0",
@@ -28,15 +28,16 @@
     "cropperjs": "^2.0.0",
     "dayjs": "^1.11.13",
     "eslint": "^9.28.0",
-    "jsonwebtoken": "^9.0.2",
     "leafer-ui": "^1.7.0",
     "leafer-x-dot-matrix": "^1.0.2",
     "lodash-es": "^4.17.21",
     "mitt": "^3.0.1",
     "motion-v": "^1.3.0",
     "nuxt": "^3.17.5",
+    "nuxt-auth-utils": "0.5.20",
     "pinia": "^3.0.3",
     "qiniu": "^7.14.0",
+    "qiniu-js": "3.4.2",
     "tailwind-merge": "^3.3.1",
     "tailwindcss": "^4.1.8",
     "typescript": "^5.8.3",
@@ -46,7 +47,6 @@
   },
   "packageManager": "pnpm@10.11.0",
   "devDependencies": {
-    "@types/jsonwebtoken": "^9.0.10",
     "dotenv": "^16.5.0",
     "prisma": "6.9.0",
     "readline": "^1.3.0"

@@ -1,20 +1,44 @@
-export function useApi<T>(url: string, options: any = {}) {
-  const { token } = useAuthStore()
-  const toast = useToast()
+import { ErrorCodes } from '~/constants/error-codes'
 
+export function useApi<T>(url: string, options: any = {}) {
+  const toast = useToast()
+  const { logout } = useAuthStore()
   const defaultOptions = {
     headers: {
       'Content-Type': 'application/json',
-      Authorization: `Bearer ${token}`,
     },
     onResponseError({ response }: any) {
       const error = response._data || 'An error occurred'
+      const errorCode = error.code || error.statusCode
       const errorMessage =
         error.message ||
         error.statusMessage ||
         'Request failed, please try again later'
 
+      console.error('Response error:', errorCode, errorMessage)
       if (import.meta.client) {
+        if (errorCode === ErrorCodes.UNAUTHORIZED) {
+          toast.add({
+            title: 'Error',
+            description: errorMessage,
+            icon: 'i-lucide:circle-x',
+            color: 'error',
+            'onUpdate:open': (open) => {
+              if (!open) logout()
+            },
+            actions: [
+              {
+                label: 'Logout',
+                color: 'error',
+                variant: 'solid',
+                onClick: () => {
+                  logout()
+                },
+              },
+            ],
+          })
+          return
+        }
         toast.add({
           title: 'Error',
           description: errorMessage,
@@ -22,7 +46,6 @@ export function useApi<T>(url: string, options: any = {}) {
           color: 'error',
         })
       }
-      console.error('Response error:', errorMessage)
     },
 
     onRequestError({ error }: any) {
@@ -36,15 +59,6 @@ export function useApi<T>(url: string, options: any = {}) {
       }
       console.error('Request error:', error)
     },
-  }
-
-  if (
-    options.method === 'POST' &&
-    options.body &&
-    typeof options.body === 'object' &&
-    !options.body.toJSON
-  ) {
-    // options.body.toJSON = () => {}
   }
 
   const mergedOptions = {

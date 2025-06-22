@@ -1,17 +1,21 @@
 <script setup lang="ts">
 import type { DropdownMenuItem } from '@nuxt/ui'
-import { injectProjectContext } from '~/context/ProjectProvider.vue'
 import type { IProject } from '~/types/interfaces'
 import { useDropZone } from '@vueuse/core'
 import { isEmpty } from 'lodash-es'
 import { PageModal, ProjectModal } from '#components'
+import type { ProjectStore } from '~/stores/project'
 
-const { projects, curProject, createProject, updateProject } =
-  injectProjectContext()
+const projectStore = useProjectStore()
+const { projects, curProject, pageList } =
+  storeToRefs<ProjectStore>(projectStore)
+const { getProjects, createProject, updateProject, setCurrentProject } =
+  projectStore
+
+await getProjects()
 
 const { $dayjs } = useNuxtApp()
 const overlay = useOverlay()
-const { user } = useAuthStore()
 
 const showProjectSheet = ref<boolean>(false)
 const projectModal = overlay.create(ProjectModal, {
@@ -50,7 +54,7 @@ const projectMenuItems: DropdownMenuItem[] = [
         mode: 'edit',
         project: curProject.value,
         onSave: async (p, { close }) => {
-          await updateProject({ ...p, id: curProject.value.id })
+          await updateProject(curProject.value.id, p)
           close()
         },
       })
@@ -60,7 +64,7 @@ const projectMenuItems: DropdownMenuItem[] = [
 ]
 
 function onSelectProject(p: IProject) {
-  curProject.value = p
+  setCurrentProject(p)
   showProjectSheet.value = false
 }
 
@@ -149,13 +153,13 @@ async function showCreatePageModal() {
           </div>
         </div>
         <ul v-else class="size-full overflow-y-auto overflow-x-hidden px-2">
-          <li v-for="page in curProject.pages" :key="page.id" class="py-2">
+          <li v-for="page in pageList" :key="page.id" class="py-2">
             {{ page.name }}
           </li>
         </ul>
       </div>
       <div class="flex items-center py-4 px-2 gap-2 shadow">
-        <p>{{ user?.name }}</p>
+        <p></p>
       </div>
     </div>
 

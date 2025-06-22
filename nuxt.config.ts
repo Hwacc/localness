@@ -10,6 +10,7 @@ export default defineNuxtConfig({
     '@nuxt/eslint',
     '@pinia/nuxt',
     'motion-v/nuxt',
+    'nuxt-auth-utils',
   ],
   css: ['~/assets/css/index.css'],
   imports: {
@@ -28,7 +29,15 @@ export default defineNuxtConfig({
   ],
   routeRules: {
     '/': { prerender: true },
+    '/transfer': { ssr: false },
     '/editor': { ssr: false },
+  },
+  auth: {
+    hash: {
+      scrypt: {
+        saltSize: process.env.NUXT_SALT_SIZE ? parseInt(process.env.NUXT_SALT_SIZE) : 10
+      }
+    }
   },
   pinia: {
     storesDirs: ['./stores/**'],

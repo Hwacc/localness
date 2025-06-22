@@ -87,7 +87,12 @@ function onDelete() {
 }
 
 async function handleUpload() {
-  //TODO: handle upload
+  if (!innerFile.value) return
+  const uploadToken = await useApi<string>('/api/common/upload-token')
+  if (!uploadToken) return
+  console.log('uploadToken', uploadToken)
+  const res = await useQiniuUpload(innerFile.value, uploadToken)
+  console.log('res', res)
 }
 
 defineExpose({

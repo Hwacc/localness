@@ -5,8 +5,8 @@
       delayDuration: 200,
     }"
   >
-    <div class="h-screen">
+    <NuxtLayout>
       <NuxtPage />
-    </div>
+    </NuxtLayout>
   </UApp>
 </template>

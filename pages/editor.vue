@@ -1,14 +1,13 @@
 <script setup lang="ts">
+import type { Editor, EditorMode } from '~/core/Editor'
+import type { ITag } from '~/types/interfaces'
 import { useDebounceFn, useResizeObserver } from '@vueuse/core'
 import { merge } from 'lodash-es'
 import TagInfoModal from '~/components/modals/TagInfoModal.vue'
-import type { Editor, EditorMode } from '~/core/Editor'
-import type { ITag } from '~/types/interfaces'
+
 import EditorProvider, {
   provideEditorContext,
 } from '~/context/EditorProvider.vue'
-import ProjectProvider from '~/context/ProjectProvider.vue'
-import PageProvider from '~/context/PageProvider.vue'
 
 definePageMeta({
   middleware: ['protected'],
@@ -87,19 +86,15 @@ onMounted(async () => {
 </script>
 
 <template>
-  <ProjectProvider>
-    <PageProvider>
-      <EditorProvider>
-        <div class="flex h-full">
-          <AppSider class="relative z-10" />
-          <div class="relative flex-1 overflow-hidden flex flex-col">
-            <AppToolbar />
-            <div class="flex-1 p-2 bg-gray-100">
-              <div ref="editor-container" class="size-full" />
-            </div>
-          </div>
+  <div class="flex h-full">
+    <EditorProvider>
+      <AppSider class="relative z-10" />
+      <div class="relative flex-1 overflow-hidden flex flex-col">
+        <AppToolbar />
+        <div class="flex-1 p-2 bg-gray-100">
+          <div ref="editor-container" class="size-full" />
         </div>
-      </EditorProvider>
-    </PageProvider>
-  </ProjectProvider>
+      </div>
+    </EditorProvider>
+  </div>
 </template>

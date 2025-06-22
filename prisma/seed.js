@@ -55,8 +55,8 @@ async function main() {
         fill: '#ffffff',
         stroke: '#000000',
         i18nKey: 'welcome.text',
-        pageId: page.id,
-        translationId: welcomeTranslation.id,
+        pageID: page.id,
+        translationID: welcomeTranslation.id,
       },
       {
         x: 150,
@@ -68,8 +68,8 @@ async function main() {
         fill: '#eeeeee',
         stroke: '#111111',
         i18nKey: 'button.submit',
-        pageId: page.id,
-        translationId: buttonTranslation.id,
+        pageID: page.id,
+        translationID: buttonTranslation.id,
       },
     ],
   })

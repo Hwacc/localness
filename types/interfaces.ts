@@ -9,15 +9,20 @@ export interface IUser {
   email?: string
   avatar?: string
   projects?: IProject[]
+  ownProjects?: IProject[]
 }
 
 export interface IProject {
   id: ID
   name: string
   description: string
-  pages: IPage[]
   createdAt?: string
   updatedAt?: string
+  users: IUser[]
+  pages: IPage[]
+  owner?: IUser
+  ownerUsername?: string
+  ownerID?: ID
 }
 
 export interface IPage {
@@ -27,7 +32,7 @@ export interface IPage {
   image: string
   createdAt?: string
   updatedAt?: string
-  projectId?: ID
+  projectID?: ID
   project?: IProject
 }
 
@@ -45,7 +50,7 @@ export interface ITag {
   content?: string
   createdAt?: string
   updatedAt?: string
-  translationId?: ID
+  translationID?: ID
   translation?: ITranslation
 }
 

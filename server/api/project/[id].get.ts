@@ -9,8 +9,8 @@ export default defineEventHandler(async (event) => {
     })
   }
 
-  const numericId = parseInt(id, 10)
-  if (isNaN(numericId)) {
+  const numericID = parseInt(id, 10)
+  if (isNaN(numericID)) {
     throw createError({
       statusCode: 400,
       statusMessage: 'Invalid id format',
@@ -19,7 +19,7 @@ export default defineEventHandler(async (event) => {
 
   const project = await prisma.project.findUnique({
     where: {
-      id: numericId,
+      id: numericID,
     },
   })
 
