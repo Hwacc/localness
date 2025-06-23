@@ -3,7 +3,7 @@ import type { IPage, ITag } from "./interfaces"
 
 
 export class Page implements IPage {
-  id: ID = -1
+  id: ID = 0
   name: string
   tags: ITag[] = []
   image: string = ''

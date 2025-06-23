@@ -22,17 +22,20 @@ const emit = defineEmits<{
   delete: []
 }>()
 
+const toast = useToast()
+
 const previewUrl = computed(() => {
   if (page.image) return page.image
   if (file) return URL.createObjectURL(file)
   return ''
 })
 
-const schema = z.object({
+const zPage = z.object({
   name: z.string().min(3),
+  image: z.string(),
 })
-type Schema = z.output<typeof schema>
-const state = reactive<Schema>({ name: page.name })
+type ZPage = z.output<typeof zPage>
+const state = reactive<ZPage>({ name: page.name, image: page.image })
 
 const title = computed(() => {
   switch (mode) {
@@ -46,22 +49,48 @@ const title = computed(() => {
   }
 })
 
+const { createPage } = usePageStore()
+const isLoading = ref(false)
 const uploaderRef =
   useTemplateRef<InstanceType<typeof ImageUploader>>('uploader')
-async function onSubmit(_: FormSubmitEvent<Schema>) {
-  await uploaderRef.value?.upload()
-  emit('save', state as Pick<IPage, 'name'>, {
-    close: () => emit('close', true),
-  })
+async function onSubmit(_: FormSubmitEvent<ZPage>) {
+  isLoading.value = true
+  try {
+    if (mode === 'edit') {
+      // update page
+    } else if (mode === 'create') {
+      // create page
+      const res = await uploaderRef.value?.upload()
+      if (!res) return
+      await createPage({ name: state.name, image: res.key })
+    }
+    emit('save', state as Pick<IPage, 'name'>, {
+      close: () => emit('close', true),
+    })
+  } catch (error) {
+    console.error(error)
+    toast.add({
+      title: 'Error',
+      description: 'Failed to create page:' + error,
+      icon: 'i-lucide:circle-x',
+      color: 'error',
+    })
+  } finally {
+    isLoading.value = false
+  }
 }
 </script>
 
 <template>
-  <UModal :title="title" :close="{ onClick: () => emit('close', false) }">
+  <UModal
+    :title="title"
+    :dismissible="!isLoading"
+    :close="{ onClick: () => emit('close', false) }"
+  >
     <template #body>
       <UForm
         class="flex flex-col gap-2.5"
-        :schema="schema"
+        :schema="zPage"
         :state="state"
         @submit="onSubmit"
       >
@@ -69,16 +98,16 @@ async function onSubmit(_: FormSubmitEvent<Schema>) {
           <UInput
             v-model="state.name"
             class="w-full"
-            :disabled="mode === 'view'"
+            :disabled="mode === 'view' || isLoading"
           />
         </UFormField>
-        <UFormField label="Image">
+        <UFormField label="Image" name="image">
           <ImageUploader
             ref="uploader"
             class="w-[200px]"
             :url="previewUrl"
             :file="file"
-            :disabled="mode === 'view'"
+            :disabled="mode === 'view' || isLoading"
             :auto-upload="false"
             @delete="emit('delete')"
           />
@@ -88,9 +117,10 @@ async function onSubmit(_: FormSubmitEvent<Schema>) {
             color="neutral"
             variant="ghost"
             label="Cancel"
+            :loading="isLoading"
             @click="emit('close', false)"
           />
-          <UButton label="Submit" type="submit" />
+          <UButton label="Submit" type="submit" :loading="isLoading" />
         </div>
       </UForm>
     </template>

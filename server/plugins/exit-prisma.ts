@@ -1,4 +1,4 @@
-import prisma from '~/lib/prisma'
+import prisma from '~/libs/prisma'
 
 export default defineNitroPlugin((nitro) => {
   nitro.hooks.hook('close', async () => {

@@ -1,6 +1,12 @@
-import prisma from '~/lib/prisma'
+import prisma from '~/libs/prisma'
 
+/**
+ * @route GET /api/project/:id
+ * @description Get a project
+ * @access Private
+ */
 export default defineEventHandler(async (event) => {
+  await requireUserSession(event)
   const id = getRouterParam(event, 'id')
   if (!id) {
     throw createError({

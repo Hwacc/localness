@@ -1,7 +1,7 @@
-import crypto from 'crypto'
 
-export const hashFilename = (file: File) => {
+
+export const timestampFilename = (file: File) => {
   const [filename, ext] = file.name.split('.')
-  const hash = crypto.createHash('md5').update(filename).digest('hex')
-  return `${hash}.${ext}`
+  const timestamp = Date.now()
+  return `${filename}-${timestamp}.${ext}`
 }

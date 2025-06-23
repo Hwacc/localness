@@ -2,12 +2,19 @@ import type dayjs from 'dayjs'
 import type { PrismaClient } from '@prisma/client'
 import type { cn } from '~/utils'
 import type { IUser } from './interfaces'
+import type { FIFOCache } from 'fifo-ttl-cache'
 
+
+declare type ImageCache = {
+  url: string
+  deadline: number
+}
 declare module '#app' {
   interface NuxtApp {
     $prisma: PrismaClient
     $dayjs: typeof dayjs
     $cn: typeof cn
+    $imageCache: FIFOCache<string, ImageCache>
   }
 }
 

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { injectEditorContext } from '~/context/EditorProvider.vue'
+import { injectEditorContext } from '~/providers/EditorProvider.vue'
 import { SCALE_OPTIONS, LINE_OPTIONS } from '~/constants'
 import type { EditorMode } from '~/core/Editor'
 

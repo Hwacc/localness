@@ -1,16 +1,25 @@
-import { omit } from 'lodash-es'
-import prisma from '~/lib/prisma'
+import prisma from '~/libs/prisma'
+import zod from 'zod'
 
+const zProject = zod.object({
+  name: zod.string().min(3),
+  description: zod.optional(zod.string()),
+})
+/**
+ * @route POST /api/project/:id
+ * @description Update a project
+ * @access Private
+ */
 export default defineEventHandler(async (event) => {
-  const id = getRouterParam(event, 'id')
+  const session = await requireUserSession(event)
 
+  const id = getRouterParam(event, 'id')
   if (!id) {
     throw createError({
       statusCode: 400,
       statusMessage: 'Missing id',
     })
   }
-
   const numericID = parseInt(id, 10)
   if (isNaN(numericID)) {
     throw createError({
@@ -19,21 +28,41 @@ export default defineEventHandler(async (event) => {
     })
   }
 
-  const body = await readBody(event)
-
-  if (!body.name) {
+  const { name, description } = await readValidatedBody(event, zProject.parse)
+  if (!name) {
     throw createError({
       statusCode: 400,
       statusMessage: 'Missing name',
     })
   }
-
-  const project = await prisma.project.update({
+  const findProject = await prisma.project.findUnique({
     where: {
       id: numericID,
     },
-    data: omit(body, 'id', 'pages'),
   })
 
-  return project.id
+  if (!findProject || session.user.id !== findProject.ownerID) {
+    throw createError({
+      statusCode: 403,
+      statusMessage: 'Forbidden',
+    })
+  }
+
+  const updatedProject = await prisma.project.update({
+    where: {
+      id: numericID,
+    },
+    data: {
+      name,
+      description,
+    },
+    select: {
+      id: true,
+      name: true,
+      description: true,
+      updatedAt: true,
+    },
+  })
+
+  return updatedProject
 })

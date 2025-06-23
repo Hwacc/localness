@@ -2,16 +2,21 @@ import * as qiniu from 'qiniu-js'
 
 export const useQiniuUpload = async (file: File, token: string) => {
   const toast = useToast()
-  console.log('before upload', file)
   /**
    * key: null use file hash
    * region.z2: 华南
    */
-  return new Promise((resolve, reject) => {
+  return new Promise<{
+    key: string
+    hash: string
+    fsize: number
+    bucket: string
+    name: string
+  }>((resolve, reject) => {
     qiniu
       .upload(
         file,
-        hashFilename(file),
+        timestampFilename(file),
         token,
         {
           customVars: {

@@ -1,4 +1,4 @@
-import { merge } from 'lodash-es'
+import { isEmpty, merge } from 'lodash-es'
 import type { ID } from '~/types/global'
 import type { IProject } from '~/types/interfaces'
 import { Project } from '~/types/project'
@@ -7,7 +7,7 @@ export const useProjectStore = defineStore('project', () => {
   const toast = useToast()
   const projects = ref<IProject[]>([])
   const curProject = ref<IProject>(new Project())
-
+  const { setCurrentPage } = usePageStore()
 
   const pageList = computed(() => {
     return curProject.value.pages ?? []
@@ -17,9 +17,8 @@ export const useProjectStore = defineStore('project', () => {
     const projs = await useApi<IProject[]>('/api/project')
     console.log('projs', projs)
     projects.value = projs ?? []
-
     if (projs.length > 0 && !curProject.value.id) {
-      curProject.value = projects.value[0]
+      setCurrentProject(projects.value[0])
     }
     return projects.value
   }
@@ -59,14 +58,22 @@ export const useProjectStore = defineStore('project', () => {
     pid: ID,
     project: Omit<IProject, 'id' | 'pages' | 'users'>
   ) {
-    const id = await useApi<ID>(`/api/project/${pid}`, {
+    const updatedProject = await useApi<{
+      id: ID
+      name: string
+      description: string
+      updatedAt: Date
+    }>(`/api/project/${pid}`, {
       method: 'POST',
       body: project,
     })
-    if (id) {
-      curProject.value = merge(curProject.value, project)
+    console.log('updatedProject', updatedProject)
+    if (updatedProject) {
+      if (updatedProject.id === curProject.value.id) {
+        curProject.value = merge(curProject.value, updatedProject)
+      }
       projects.value = projects.value.map((p) =>
-        p.id === pid ? merge(p, project) : p
+        p.id === updatedProject.id ? merge(p, updatedProject) : p
       )
       toast.add({
         title: 'Success',
@@ -85,6 +92,9 @@ export const useProjectStore = defineStore('project', () => {
     } else {
       curProject.value =
         projects.value.find((p) => p.id === (proj as ID)) ?? new Project()
+    }
+    if (!isEmpty(curProject.value.pages)) {
+      setCurrentPage(curProject.value.pages[0])
     }
   }
 

@@ -12,6 +12,11 @@ export default defineNuxtConfig({
     'motion-v/nuxt',
     'nuxt-auth-utils',
   ],
+  runtimeConfig: {
+    public: {
+      imageBase: process.env.NUXT_PUBLIC_QINIU_DOMAIN,
+    },
+  },
   css: ['~/assets/css/index.css'],
   imports: {
     dirs: ['utils/**'],
@@ -35,9 +40,11 @@ export default defineNuxtConfig({
   auth: {
     hash: {
       scrypt: {
-        saltSize: process.env.NUXT_SALT_SIZE ? parseInt(process.env.NUXT_SALT_SIZE) : 10
-      }
-    }
+        saltSize: process.env.NUXT_SALT_SIZE
+          ? parseInt(process.env.NUXT_SALT_SIZE)
+          : 10,
+      },
+    },
   },
   pinia: {
     storesDirs: ['./stores/**'],

@@ -1,4 +1,4 @@
-import prisma from '~/lib/prisma'
+import prisma from '~/libs/prisma'
 import { omit } from 'lodash-es'
 import bcrypt from 'bcryptjs'
 import zod from 'zod'

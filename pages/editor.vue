@@ -7,7 +7,7 @@ import TagInfoModal from '~/components/modals/TagInfoModal.vue'
 
 import EditorProvider, {
   provideEditorContext,
-} from '~/context/EditorProvider.vue'
+} from '~/providers/EditorProvider.vue'
 
 definePageMeta({
   middleware: ['protected'],

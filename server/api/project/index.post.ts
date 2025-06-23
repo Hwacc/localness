@@ -1,4 +1,4 @@
-import prisma from '~/lib/prisma'
+import prisma from '~/libs/prisma'
 import zod from 'zod'
 
 const zProject = zod.object({
@@ -6,6 +6,11 @@ const zProject = zod.object({
   description: zod.optional(zod.string()),
 })
 
+/**
+ * @route POST /api/project
+ * @description Create a new project
+ * @access Private
+ */
 export default defineEventHandler(async (event) => {
   const session = await requireUserSession(event)
   const { name, description } = await readValidatedBody(event, zProject.parse)
@@ -16,6 +21,10 @@ export default defineEventHandler(async (event) => {
       description,
       ownerID: session.user.id as number,
       ownerUsername: session.user.username,
+    },
+    include: {
+      users: true,
+      pages: true,
     },
   })
   return project

@@ -64,10 +64,20 @@ async function onInputChange(e: any) {
   innerUrl.value = URL.createObjectURL(_file)
   innerFile.value = _file
   if (autoUpload) {
+    // auto upload
     try {
       emit('upload-start')
-      await handleUpload()
-      emit('upload-end', 'uploaded url')
+      const res = await handleUpload()
+      if (!res) return
+      const url = await useApi<string>('/api/common/gen-access-url', {
+        method: 'POST',
+        body: {
+          key: res.key,
+          deadline: 1,
+        },
+      })
+      innerUrl.value = url
+      emit('upload-end', url)
     } catch (error) {
       toast.add({
         title: 'Error',
@@ -87,12 +97,13 @@ function onDelete() {
 }
 
 async function handleUpload() {
-  if (!innerFile.value) return
+  if (!innerFile.value) {
+    throw new Error('No file selected')
+  }
   const uploadToken = await useApi<string>('/api/common/upload-token')
   if (!uploadToken) return
-  console.log('uploadToken', uploadToken)
   const res = await useQiniuUpload(innerFile.value, uploadToken)
-  console.log('res', res)
+  return res
 }
 
 defineExpose({

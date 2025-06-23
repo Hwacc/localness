@@ -14,23 +14,28 @@ const options = {
 const putPolicy = new qiniu.rs.PutPolicy(options)
 
 export function generateUploadToken() {
-  console.log(
-    'generateUploadToken',
-    process.env.NUXT_QINIU_ACCESS_KEY,
-    process.env.NUXT_QINIU_SCRERT_KEY
-  )
   return putPolicy.uploadToken(mac)
 }
 
 const config = new qiniu.conf.Config()
-config.zone = qiniu.zone.Zone_z2
 const bucketManager = new qiniu.rs.BucketManager(mac, config)
-const privateBucketDomain = process.env.NUXT_QINIU_PRIVATE_DOMAIN
-const deadline = Date.now() / 1000 + 3600 * 24 * 30
-
-export function generateDownloadUrl(key: string) {
+const privateBucketDomain = process.env.NUXT_PUBLIC_QINIU_DOMAIN
+/**
+ * generate qiniu download access url
+ * @param key qiniu asset key
+ * @param deadline deadline in hour
+ */
+export function generateDownloadAccessUrl(key: string, deadline: number = 1) {
   if (!privateBucketDomain) {
     return ''
   }
-  return bucketManager.privateDownloadUrl(privateBucketDomain, key, deadline)
+  const _deadline = Math.floor(Date.now() / 1000) + 3600 * deadline
+  console.log('key', key)
+  const url = bucketManager.privateDownloadUrl(
+    privateBucketDomain,
+    key,
+    _deadline
+  )
+  console.log('generateDownloadAccessUrl', url)
+  return url
 }

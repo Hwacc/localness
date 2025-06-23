@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import type { DropdownMenuItem } from '@nuxt/ui'
-import type { IProject } from '~/types/interfaces'
+import type { IPage, IProject } from '~/types/interfaces'
 import { useDropZone } from '@vueuse/core'
 import { isEmpty } from 'lodash-es'
 import { PageModal, ProjectModal } from '#components'
@@ -68,6 +68,9 @@ function onSelectProject(p: IProject) {
   showProjectSheet.value = false
 }
 
+const pageStore = usePageStore()
+const { curPage } = storeToRefs(pageStore)
+
 const imageFileData = shallowRef<File | undefined>()
 const imageDropZoneRef = useTemplateRef<HTMLElement>('imageDropZoneRef')
 const { isOverDropZone } = useDropZone(imageDropZoneRef, {
@@ -81,13 +84,15 @@ function onImageDrop(files: File[] | null) {
     showCreatePageModal()
   }
 }
+function onPageClick(page: IPage) {
+  pageStore.setCurrentPage(page)
+}
+
 const pageModal = overlay.create(PageModal, {
   props: {
     mode: 'create',
     file: imageFileData.value,
-    onSave: async () => {
-      // await createPage(p)
-    },
+    onSave: async () => {},
     onClose: () => {
       imageFileData.value = undefined
     },
@@ -141,7 +146,7 @@ async function showCreatePageModal() {
           class="absolute inset-0 bg-gray-50/80 z-10"
         />
         <div
-          v-if="curProject.pages.length === 0"
+          v-if="curProject.pages?.length === 0"
           class="size-full flex items-center justify-center"
         >
           <div
@@ -152,8 +157,29 @@ async function showCreatePageModal() {
             Drop Image here to create new page
           </div>
         </div>
-        <ul v-else class="size-full overflow-y-auto overflow-x-hidden px-2">
-          <li v-for="page in pageList" :key="page.id" class="py-2">
+        <ul
+          v-else
+          class="size-full overflow-y-auto overflow-x-hidden px-2 py-2"
+        >
+          <li
+            v-for="page in pageList"
+            :key="page.id"
+            :class="[
+              'relative',
+              'flex flex-col items-center my-2 border-2 border-gray-100 rounded-md',
+              page.id !== curPage.id && 'hover:border-green-400',
+            ]"
+            @click="() => onPageClick(page)"
+          >
+            <GlowBorder
+              v-if="page.id === curPage.id"
+              class="rounded-md"
+              :color="['#A07CFE', '#FE8FB5', '#FFBE7B']"
+              :style="{
+                '--border-radius': 'calc(var(--ui-radius) * 1.5)',
+              }"
+            />
+            <img v-qiniu="page.image" class="w-[12.5rem] object-scale-down" />
             {{ page.name }}
           </li>
         </ul>
