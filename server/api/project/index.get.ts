@@ -9,7 +9,11 @@ export default defineEventHandler(async (event) => {
   await requireUserSession(event)
   const projects = await prisma.project.findMany({
     include: {
-      pages: true,
+      pages: {
+        orderBy: {
+          updatedAt: 'desc',
+        }
+      },
       users: true,
     },
     orderBy: {

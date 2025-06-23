@@ -10,7 +10,6 @@ export const useQiniuImage = () => {
   async function get(key: string) {
     if (!key) return key
     const cached = $imageCache.get(key)
-    console.log('cached', cached)
     if (cached && cached.deadline) {
       if ($dayjs().isBefore($dayjs.unix(cached.deadline))) {
         return cached.url || key

@@ -1,3 +1,5 @@
+import { isEmpty } from 'lodash-es'
+import type { ID } from '~/types/global'
 import type { IPage } from '~/types/interfaces'
 import { Page } from '~/types/page'
 
@@ -42,11 +44,67 @@ export const usePageStore = defineStore('page', () => {
     return page
   }
 
-  function updatePage() {}
+  async function updatePage(
+    pageID: ID,
+    page: Partial<Pick<IPage, 'name' | 'image'>>
+  ) {
+    const updatedPage = await useApi<IPage>(`/api/page/${pageID}`, {
+      method: 'POST',
+      body: page,
+    })
+    if (updatedPage) {
+      const pages = projectStore.curProject.pages?.map((p) => {
+        if (p.id === updatedPage.id) {
+          p.name = updatedPage.name
+          p.image = updatedPage.image
+        }
+        return p
+      })
+      projectStore.curProject.pages = pages
+      if (curPage.value.id === updatedPage.id) {
+        curPage.value = { ...curPage.value, ...updatedPage }
+      }
+      if (import.meta.client) {
+        toast.add({
+          title: 'Success',
+          description: 'Page updated successfully',
+          color: 'success',
+          icon: 'i-lucide:circle-check',
+        })
+      }
+      return true
+    }
+    return false
+  }
+
+  async function deletePage(pageID: ID) {
+    const deletedPage = await useApi<IPage>(`/api/page/${pageID}`, {
+      method: 'DELETE',
+    })
+    console.log('deletedPage', deletedPage)
+    if (deletedPage) {
+      projectStore.curProject.pages = projectStore.curProject.pages?.filter(
+        (p) => p.id !== pageID
+      )
+      if (curPage.value.id === pageID) {
+        curPage.value = isEmpty(projectStore.curProject.pages)
+          ? new Page()
+          : projectStore.curProject.pages[0]
+      }
+      if (import.meta.client) {
+        toast.add({
+          title: 'Success',
+          description: 'Page deleted successfully',
+          color: 'success',
+          icon: 'i-lucide:circle-check',
+        })
+      }
+    }
+  }
 
   function setCurrentPage(page: IPage) {
     curPage.value = page
   }
 
-  return { curPage, createPage, updatePage, setCurrentPage }
+  return { curPage, createPage, updatePage, setCurrentPage, deletePage }
 })

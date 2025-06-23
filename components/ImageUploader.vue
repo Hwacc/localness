@@ -98,10 +98,10 @@ function onDelete() {
 
 async function handleUpload() {
   if (!innerFile.value) {
-    throw new Error('No file selected')
+    return null
   }
   const uploadToken = await useApi<string>('/api/common/upload-token')
-  if (!uploadToken) return
+  if (!uploadToken) return null
   const res = await useQiniuUpload(innerFile.value, uploadToken)
   return res
 }
@@ -112,27 +112,25 @@ defineExpose({
 </script>
 
 <template>
-  <div>
-    <ImagePreview
-      v-if="previewUrl"
-      :class="propsClass"
-      :url="previewUrl"
-      :disabled="disabled"
-      :deleteable="deleteable"
-      @click="onClick"
-      @delete="onDelete"
-    />
-    <div
-      v-else
-      :class="
-        $cn([
-          'w-full aspect-square bg-gray-50/50 flex items-center justify-center border-1 border-dashed border-gray-200 rounded-md hover:border-black',
-          propsClass,
-        ])
-      "
-      @click="onClick"
-    >
-      <UButton v-if="!disabled" color="neutral" label="Upload Image" />
-    </div>
+  <ImagePreview
+    v-if="previewUrl"
+    :class="propsClass"
+    :url="previewUrl"
+    :disabled="disabled"
+    :deleteable="deleteable"
+    @click="onClick"
+    @delete="onDelete"
+  />
+  <div
+    v-else
+    :class="
+      $cn([
+        'w-full aspect-square bg-gray-50/50 flex items-center justify-center border-1 border-dashed border-gray-200 rounded-md hover:border-black group',
+        propsClass,
+      ])
+    "
+    @click="onClick"
+  >
+    <UIcon v-if="!disabled" class="text-gray-200 group-hover:text-black" name="i-lucide:image-plus" size="32" />
   </div>
 </template>

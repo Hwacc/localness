@@ -43,13 +43,13 @@ const title = computed(() => {
     default:
       return 'New Page'
     case 'edit':
-      return 'Edit Page'
+      return `Edit Page: ${page.name}`
     case 'view':
       return 'View Page'
   }
 })
 
-const { createPage } = usePageStore()
+const { createPage, updatePage } = usePageStore()
 const isLoading = ref(false)
 const uploaderRef =
   useTemplateRef<InstanceType<typeof ImageUploader>>('uploader')
@@ -58,6 +58,11 @@ async function onSubmit(_: FormSubmitEvent<ZPage>) {
   try {
     if (mode === 'edit') {
       // update page
+      const res = await uploaderRef.value?.upload()
+      await updatePage(
+        page.id,
+        res ? { name: state.name, image: res.key } : { name: state.name }
+      )
     } else if (mode === 'create') {
       // create page
       const res = await uploaderRef.value?.upload()
@@ -68,10 +73,10 @@ async function onSubmit(_: FormSubmitEvent<ZPage>) {
       close: () => emit('close', true),
     })
   } catch (error) {
-    console.error(error)
+    console.error('Create or Update page error:', error)
     toast.add({
       title: 'Error',
-      description: 'Failed to create page:' + error,
+      description: 'Failed to create or update page:' + error,
       icon: 'i-lucide:circle-x',
       color: 'error',
     })
@@ -102,22 +107,24 @@ async function onSubmit(_: FormSubmitEvent<ZPage>) {
           />
         </UFormField>
         <UFormField label="Image" name="image">
-          <ImageUploader
-            ref="uploader"
-            class="w-[200px]"
-            :url="previewUrl"
-            :file="file"
-            :disabled="mode === 'view' || isLoading"
-            :auto-upload="false"
-            @delete="emit('delete')"
-          />
+          <div class="flex justify-center">
+            <ImageUploader
+              ref="uploader"
+              class="w-[200px]"
+              :url="previewUrl"
+              :file="file"
+              :disabled="mode === 'view' || isLoading"
+              :auto-upload="false"
+              @delete="emit('delete')"
+            />
+          </div>
         </UFormField>
         <div class="w-full flex justify-end gap-6 mt-4">
           <UButton
             color="neutral"
             variant="ghost"
             label="Cancel"
-            :loading="isLoading"
+            :disabled="isLoading"
             @click="emit('close', false)"
           />
           <UButton label="Submit" type="submit" :loading="isLoading" />

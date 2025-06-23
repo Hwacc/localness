@@ -1,47 +1,34 @@
 import type { Directive } from 'vue'
 import { useImage } from '@vueuse/core'
 
-const doQiniu = async (el, binding) => {
+const doQiniu = async (el: HTMLElement, binding: any) => {
   const qImage = useQiniuImage()
   const { value, arg } = binding
 
   const isBg = arg === 'background' || arg === 'bg'
-  const isLoadingUrl = ref<boolean>(true)
+  if (isBg) {
+    el.style.backgroundImage = `url('http://iph.href.lu/600x400?text=Loading...')`
+  } else {
+    ;(el as HTMLImageElement).src = 'http://iph.href.lu/600x400?text=Loading...'
+  }
   const url = await qImage.get(value)
-  isLoadingUrl.value = false
-
-  const timestamp = new Date().getTime()
-  const urlWithTimestamp = `${url}${
-    url.includes('?') ? '&' : '?'
-  }t=${timestamp}`
-
-  const { isLoading: isLoadingImg, error } = useImage({
-    src: urlWithTimestamp,
-  })
-
-  function setImage() {
-    if (isLoadingUrl.value || isLoadingImg.value) {
-      if (isBg) {
-        el.style.backgroundImage = `url('https://placehold.co/600x400')`
-      } else {
-        el.src = 'https://placehold.co/600x400'
+  if (isBg) {
+    const { isLoading, error } = await useImage({ src: url })
+    watchEffect(() => {
+      if (!isLoading.value && !error.value) {
+        el.style.backgroundImage = `url('${url}')`
+      } else if (!isLoading.value && error.value) {
+        console.error('image load error', error.value)
+        el.style.backgroundImage = `url('http://iph.href.lu/600x400?text=Error')`
       }
-    } else if (!isLoadingImg.value) {
-      if (isBg) {
-        el.style.backgroundImage = `url('${urlWithTimestamp}')`
-      } else {
-        el.src = urlWithTimestamp
-      }
-    } else if (error.value) {
-      console.log('error', error.value)
-      if (isBg) {
-        el.style.backgroundImage = `url('https://placehold.co/600x400')`
-      } else {
-        el.src = 'https://placehold.co/600x400'
-      }
+    })
+  } else {
+    ;(el as HTMLImageElement).src = url
+    ;(el as HTMLImageElement).onerror = (e) => {
+      console.error('image load error', e)
+      ;(el as HTMLImageElement).src = 'http://iph.href.lu/600x400?fg=666666&bg=f4cccc&&text=Error'
     }
   }
-  watchEffect(setImage)
 }
 
 export const qiniuDirective: Directive = {

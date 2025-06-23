@@ -27,6 +27,14 @@ export default defineEventHandler(async (event) => {
     where: {
       id: numericID,
     },
+    include: {
+      pages: {
+        orderBy: {
+          updatedAt: 'desc',
+        },
+      },
+      users: true,
+    },
   })
 
   return project

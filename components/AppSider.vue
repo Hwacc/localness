@@ -70,7 +70,24 @@ function onSelectProject(p: IProject) {
 
 const pageStore = usePageStore()
 const { curPage } = storeToRefs(pageStore)
+const editPage = ref<IPage | undefined>(undefined)
+const pageMenuItems: DropdownMenuItem[] = [
+  {
+    label: 'Edit Page',
+    icon: 'i-lucide:file-pen',
+    onSelect: showEditPageModal,
+  },
+  {
+    label: 'Delete Page',
+    icon: 'i-lucide:trash-2',
+    onSelect: async () => {
+      if(!editPage.value) return
+      await pageStore.deletePage(editPage.value.id)
+    },
+  },
+]
 
+const qiniuImage = useQiniuImage()
 const imageFileData = shallowRef<File | undefined>()
 const imageDropZoneRef = useTemplateRef<HTMLElement>('imageDropZoneRef')
 const { isOverDropZone } = useDropZone(imageDropZoneRef, {
@@ -92,7 +109,9 @@ const pageModal = overlay.create(PageModal, {
   props: {
     mode: 'create',
     file: imageFileData.value,
-    onSave: async () => {},
+    onSave: async (_, { close }) => {
+      close()
+    },
     onClose: () => {
       imageFileData.value = undefined
     },
@@ -102,17 +121,29 @@ const pageModal = overlay.create(PageModal, {
   },
 })
 
-async function showCreatePageModal() {
+function showCreatePageModal() {
   pageModal.patch({
     file: imageFileData.value,
   })
   pageModal.open()
 }
+
+async function showEditPageModal() {
+  if (!editPage.value) return
+  const url = await qiniuImage.get(editPage.value.image)
+  pageModal.patch({
+    mode: 'edit',
+    page: { ...editPage.value, image: url },
+  })
+  pageModal.open()
+}
+
 </script>
 
 <template>
   <div class="relative w-[18.75rem] shrink-0 bg-gray-50 shadow">
     <div class="h-full flex flex-col">
+      <!-- Project Header -->
       <div class="flex items-center justify-between py-4 px-2 gap-2 shadow">
         <div class="flex-1 text-base font-bold overflow-hidden">
           {{ curProject.name }}
@@ -137,6 +168,8 @@ async function showCreatePageModal() {
           </template>
         </UDropdownMenu>
       </div>
+
+      <!-- Page Area -->
       <div
         ref="imageDropZoneRef"
         class="flex-1 w-full overflow-hidden relative"
@@ -153,36 +186,96 @@ async function showCreatePageModal() {
             class="w-[80%] aspect-square border-2 border-dashed border-gray-200 p-4 flex flex-col gap-2 items-center justify-center text-center"
             @click="showCreatePageModal"
           >
-            <UIcon name="i-lucide:upload" size="32" />
+            <UIcon name="i-lucide:image-plus" size="32" />
             Drop Image here to create new page
           </div>
         </div>
-        <ul
-          v-else
-          class="size-full overflow-y-auto overflow-x-hidden px-2 py-2"
-        >
-          <li
-            v-for="page in pageList"
-            :key="page.id"
-            :class="[
-              'relative',
-              'flex flex-col items-center my-2 border-2 border-gray-100 rounded-md',
-              page.id !== curPage.id && 'hover:border-green-400',
-            ]"
-            @click="() => onPageClick(page)"
+
+        <div v-else class="flex flex-col size-full overflow-hidden">
+          <div
+            class="flex items-center justify-center gap-2 p-2 cursor-pointer border-2 border-dashed border-gray-200 hover:bg-gray-100 rounded-md mt-2 mb-1 mx-2"
+            @click="showCreatePageModal"
           >
-            <GlowBorder
-              v-if="page.id === curPage.id"
-              class="rounded-md"
-              :color="['#A07CFE', '#FE8FB5', '#FFBE7B']"
-              :style="{
-                '--border-radius': 'calc(var(--ui-radius) * 1.5)',
+            <UIcon name="i-lucide:file-plus" size="24" />
+            <p>Add new page</p>
+          </div>
+          <ul class="flex-1 overflow-y-auto overflow-x-hidden px-2 py-2">
+            <UPopover
+              v-for="page in pageList"
+              :key="page.id"
+              mode="hover"
+              :modal="true"
+              :open-delay="0"
+              :content="{
+                side: 'right',
+                align: 'start',
+                sideOffset: 16,
+                hideWhenDetached: true,
               }"
-            />
-            <img v-qiniu="page.image" class="w-[12.5rem] object-scale-down" />
-            {{ page.name }}
-          </li>
-        </ul>
+            >
+              <template #default>
+                <li
+                  :class="[
+                    'relative',
+                    'flex items-center p-2 cursor-pointer hover:bg-gray-100 rounded-md mb-3 overflow-hidden',
+                    page.id !== curPage.id &&
+                      'hover:border-green-400 hover:text-green-600',
+                  ]"
+                  @click="() => onPageClick(page)"
+                >
+                  <GlowBorder
+                    v-if="page.id === curPage.id"
+                    class="rounded-md"
+                    :color="['#A07CFE', '#FE8FB5', '#FFBE7B']"
+                    :style="{
+                      '--border-radius': 'calc(var(--ui-radius) * 1.5)',
+                    }"
+                  />
+                  <div class="flex flex-col gap-1 flex-1">
+                    <p class="font-bold">
+                      {{ page.name }}
+                    </p>
+                    <p class="text-xs color-secondary">
+                      Last Updated:
+                      {{ $dayjs(page.updatedAt).format('YYYY-MM-DD HH:mm:ss') }}
+                    </p>
+                  </div>
+                  <UDropdownMenu
+                    :items="pageMenuItems"
+                    :content="{
+                      align: 'start',
+                      side: 'bottom',
+                    }"
+                    :ui="{
+                      content: 'w-48',
+                    }"
+                  >
+                    <template #default="{ open }">
+                      <div
+                        :class="[
+                          'flex items-center justify-center p-1 text-gray-500 hover:text-black',
+                          open && 'text-black',
+                        ]"
+                        @click.stop="() => (editPage = page)"
+                      >
+                        <UIcon name="i-lucide:ellipsis-vertical" :size="16" />
+                      </div>
+                    </template>
+                  </UDropdownMenu>
+                </li>
+              </template>
+              <template #content>
+                <div class="flex flex-col gap-2 p-2">
+                  <p class="font-bold text-sm">Preview:</p>
+                  <img
+                    v-qiniu="page.image"
+                    class="w-[17.5rem] object-scale-down"
+                  />
+                </div>
+              </template>
+            </UPopover>
+          </ul>
+        </div>
       </div>
       <div class="flex items-center py-4 px-2 gap-2 shadow">
         <p></p>
@@ -211,7 +304,7 @@ async function showCreatePageModal() {
           <li
             v-for="project in projects"
             :key="project.id"
-            class="flex flex-col gap-1 p-2 cursor-pointer hover:bg-gray-100 hover:text-green-400"
+            class="flex flex-col gap-1 p-2 cursor-pointer hover:bg-gray-100 hover:text-green-600"
             @click="onSelectProject(project)"
           >
             <p class="font-bold">
