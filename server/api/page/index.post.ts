@@ -1,10 +1,10 @@
 import prisma from '~/libs/prisma'
-import zod from 'zod'
+import { z } from 'zod/v4'
 
-const zPage = zod.object({
-  projectID: zod.number().nonnegative(),
-  name: zod.string().min(3),
-  image: zod.string().nonempty(), // image key
+const zPage = z.object({
+  projectID: z.number().nonnegative(),
+  name: z.string().min(3),
+  image: z.string().nonempty(), // image key
 })
 /**
  * @route POST /api/page

@@ -1,9 +1,9 @@
 import prisma from '~/libs/prisma'
-import zod from 'zod'
+import z from 'zod/v4'
 
-const zProject = zod.object({
-  name: zod.string().min(3),
-  description: zod.optional(zod.string()),
+const zProject = z.object({
+  name: z.string().min(3),
+  description: z.optional(z.string()),
 })
 
 /**

@@ -1,16 +1,17 @@
 <script setup lang="ts">
 import { UserModal } from '#components'
 import type { DropdownMenuItem } from '@nuxt/ui'
+import { hasProtocol } from 'ufo'
 
 const store = useUserStore()
 const overlay = useOverlay()
 const qiniuImage = useQiniuImage()
 
 const avartarUrl = ref('')
-watch(store.user, async () => {
+watchEffect(async () => {
   const storeUrl = store.user?.avatar
   if (storeUrl) {
-    if (/$(http|https)/.test(storeUrl)) avartarUrl.value = storeUrl
+    if (hasProtocol(storeUrl)) avartarUrl.value = storeUrl
     else {
       avartarUrl.value = await qiniuImage.get(storeUrl)
     }
@@ -31,9 +32,7 @@ const userMenuItems: DropdownMenuItem[] = [
   {
     label: 'Logout',
     icon: 'i-lucide:log-out',
-    onSelect: () => {
-      
-    },  
+    onSelect: () => {},
   },
 ]
 </script>

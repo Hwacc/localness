@@ -11,11 +11,13 @@ const {
   deleteable = true,
   file = undefined,
   autoUpload = false,
+  limitSize = 0,
   class: propsClass = '',
 } = defineProps<
   ImagePreviewProps & {
     file?: File
     autoUpload?: boolean
+    limitSize?: number
     class?: HTMLAttributes['class']
   }
 >()
@@ -30,7 +32,7 @@ const emit = defineEmits<
 
 const toast = useToast()
 
-const innerUrl = ref<string>(url)
+const innerUrl = ref<string | null>(url)
 const innerFile = shallowRef<File | undefined>(file)
 const previewUrl = computed(() => {
   if (innerUrl.value) return innerUrl.value
@@ -100,6 +102,15 @@ async function handleUpload() {
   if (!innerFile.value) {
     return null
   }
+  console.log('innerFile', innerFile.value.size, limitSize)
+  if (limitSize > 0 && innerFile.value.size > limitSize) {
+    toast.add({
+      title: 'Error',
+      description: 'Image size is too large',
+      color: 'error',
+    })
+    return null
+  }
   const uploadToken = await useApi<string>('/api/common/upload-token')
   if (!uploadToken) return null
   const res = await useQiniuUpload(innerFile.value, uploadToken)
@@ -131,6 +142,11 @@ defineExpose({
     "
     @click="onClick"
   >
-    <UIcon v-if="!disabled" class="text-gray-200 group-hover:text-black" name="i-lucide:image-plus" size="32" />
+    <UIcon
+      v-if="!disabled"
+      class="text-gray-200 group-hover:text-black"
+      name="i-lucide:image-plus"
+      size="32"
+    />
   </div>
 </template>

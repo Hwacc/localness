@@ -1,8 +1,8 @@
 <script setup lang="ts">
 import type { IProject } from '~/types/interfaces'
-import { Project } from '~/types/Project'
-import { z } from 'zod/v4'
 import type { FormSubmitEvent } from '@nuxt/ui'
+import { Project } from '~/types/ProjectClass'
+import { z } from 'zod/v4'
 
 type Mode = 'edit' | 'create' | 'view'
 const { mode, project = new Project('') } = defineProps<{

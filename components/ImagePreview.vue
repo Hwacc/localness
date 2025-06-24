@@ -1,6 +1,6 @@
 <script lang="ts">
 export interface Props {
-  url?: string
+  url?: string | null
   disabled?: boolean
   deleteable?: boolean
 }
@@ -32,6 +32,7 @@ function onClick() {
 }
 function onView(e: MouseEvent) {
   e.stopPropagation()
+  if (!url) return
   window.open(url, '_blank')
 }
 function onDelete(e: MouseEvent) {
@@ -53,9 +54,9 @@ function onDelete(e: MouseEvent) {
     @click="onClick"
   >
     <img
+      v-qiniu="url"
       class="w-full max-h-[28.125rem] object-scale-down"
       alt="Preview Image"
-      :src="url"
     />
     <div
       class="absolute z-1 inset-0 bg-gray-50/50 invisible flex gap-4 rounded-md items-center justify-center group-hover:visible"

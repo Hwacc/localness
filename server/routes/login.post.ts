@@ -1,14 +1,14 @@
 import prisma from '~/libs/prisma'
 import { omit } from 'lodash-es'
 import bcrypt from 'bcryptjs'
-import zod from 'zod'
+import { z } from 'zod/v4'
 
-const zLogin = zod.object({
-  username: zod.string().min(3),
-  password: zod.string().min(3),
+const zLogin = z.object({
+  username: z.string().min(3),
+  password: z.string().min(3),
 })
 export default defineEventHandler(async (event) => {
-  const {username, password} = await readValidatedBody(event, zLogin.parse)
+  const { username, password } = await readValidatedBody(event, zLogin.parse)
 
   const user = await prisma.user.findUnique({
     where: {
@@ -29,16 +29,20 @@ export default defineEventHandler(async (event) => {
       statusMessage: 'Invalid password',
     })
   }
-  
-  await setUserSession(event, {
-    user: {
-      id: user.id,
-      username: user.username,
-      role: user.role,
+
+  await setUserSession(
+    event,
+    {
+      user: {
+        id: user.id,
+        username: user.username,
+        role: user.role,
+      },
+    },
+    {
+      maxAge: 60 * 60 * 24 * 30,
     }
-  }, {
-    maxAge: 60 * 60 * 24 * 30,
-  })
+  )
 
   return {
     user: omit(user, ['password', 'createdAt', 'updatedAt']),

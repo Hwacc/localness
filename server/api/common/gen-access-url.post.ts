@@ -1,9 +1,9 @@
 import { generateDownloadAccessUrl } from '~/libs/qiniu'
-import zod from 'zod'
+import { z } from 'zod/v4'
 
-const zGen = zod.object({
-  key: zod.string(),
-  deadline: zod.number().optional(),
+const zGen = z.object({
+  key: z.string(),
+  deadline: z.number().optional(),
 })
 
 export default defineEventHandler(async (event) => {

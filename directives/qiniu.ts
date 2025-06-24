@@ -1,5 +1,6 @@
 import type { Directive } from 'vue'
 import { useImage } from '@vueuse/core'
+import { hasProtocol } from 'ufo'
 
 const doQiniu = async (el: HTMLElement, binding: any) => {
   const qImage = useQiniuImage()
@@ -11,7 +12,10 @@ const doQiniu = async (el: HTMLElement, binding: any) => {
   } else {
     ;(el as HTMLImageElement).src = 'http://iph.href.lu/600x400?text=Loading...'
   }
-  const url = await qImage.get(value)
+  let url = value
+  if (!hasProtocol(value)) {
+    url = await qImage.get(value)
+  }
   if (isBg) {
     const { isLoading, error } = await useImage({ src: url })
     watchEffect(() => {
@@ -26,7 +30,8 @@ const doQiniu = async (el: HTMLElement, binding: any) => {
     ;(el as HTMLImageElement).src = url
     ;(el as HTMLImageElement).onerror = (e) => {
       console.error('image load error', e)
-      ;(el as HTMLImageElement).src = 'http://iph.href.lu/600x400?fg=666666&bg=f4cccc&&text=Error'
+      ;(el as HTMLImageElement).src =
+        'http://iph.href.lu/600x400?fg=666666&bg=f4cccc&&text=Error'
     }
   }
 }
