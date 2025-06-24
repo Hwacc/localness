@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import type { IPage } from '~/types/interfaces'
 import type { FormSubmitEvent } from '@nuxt/ui'
-import { Page } from '~/types/PageClass'
+import { Page } from '~/types/Page'
 import { z } from 'zod/v4'
 import type { ImageUploader } from '#components'
 

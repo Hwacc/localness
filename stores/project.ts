@@ -1,7 +1,7 @@
 import { isEmpty, merge } from 'lodash-es'
 import type { ID } from '~/types/global'
 import type { IProject } from '~/types/interfaces'
-import { Project } from '~/types/ProjectClass'
+import { Project } from '~/types/Project'
 
 export const useProjectStore = defineStore('project', () => {
   const toast = useToast()

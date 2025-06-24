@@ -1,7 +1,7 @@
 import { isEmpty } from 'lodash-es'
 import type { ID } from '~/types/global'
 import type { IPage } from '~/types/interfaces'
-import { Page } from '~/types/PageClass'
+import { Page } from '~/types/Page'
 
 export const usePageStore = defineStore('page', () => {
   const toast = useToast()
