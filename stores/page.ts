@@ -1,7 +1,7 @@
 import { isEmpty } from 'lodash-es'
 import type { ID } from '~/types/global'
 import type { IPage } from '~/types/interfaces'
-import { Page } from '~/types/page'
+import { Page } from '~/types/Page'
 
 export const usePageStore = defineStore('page', () => {
   const toast = useToast()
@@ -81,7 +81,6 @@ export const usePageStore = defineStore('page', () => {
     const deletedPage = await useApi<IPage>(`/api/page/${pageID}`, {
       method: 'DELETE',
     })
-    console.log('deletedPage', deletedPage)
     if (deletedPage) {
       projectStore.curProject.pages = projectStore.curProject.pages?.filter(
         (p) => p.id !== pageID
@@ -101,7 +100,7 @@ export const usePageStore = defineStore('page', () => {
       }
     }
   }
-
+  
   function setCurrentPage(page: IPage) {
     curPage.value = page
   }

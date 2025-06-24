@@ -4,7 +4,7 @@ import type { ID } from './global'
 export interface IUser {
   id: ID
   username: string
-  role: UserRole.USER
+  role: UserRole
   nickname?: string
   email?: string
   avatar?: string

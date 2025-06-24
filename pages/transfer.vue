@@ -6,9 +6,11 @@ definePageMeta({
 
 const toast = useToast()
 const { getProjects } = useProjectStore()
+const { getUser } = useUserStore()
 
 onMounted(async () => {
   try {
+    await getUser()
     await getProjects()
     await sleep(3000)
     await navigateTo('/editor')
@@ -28,7 +30,10 @@ onMounted(async () => {
     class="flex flex-col items-center mt-[10rem]"
     @click="() => navigateTo('/editor')"
   >
-    <TextLineShadow class="text-3xl font-bold italic" shadow-color="#40D18F">
+    <TextLineShadow
+      class="text-3xl font-bold italic"
+      shadow-color="#40D18F"
+    >
       Loading...
     </TextLineShadow>
   </div>

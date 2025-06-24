@@ -23,6 +23,7 @@ model User {
   username    String    @unique
   nickname    String?
   email       String?
+  avatar      String?
   password    String
   role        UserRole  @default(USER)
   ownProjects Project[] @relation(name: "ProjectOwner")

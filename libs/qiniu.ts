@@ -39,3 +39,16 @@ export function generateDownloadAccessUrl(key: string, deadline: number = 1) {
   console.log('generateDownloadAccessUrl', url)
   return url
 }
+
+export async function deleteAsset(key: string) {
+  try {
+    const { resp } = await bucketManager.delete('coze-i18n', key)
+    if (resp.statusCode === 200) {
+      return true
+    }
+    return false
+  } catch (error) {
+    console.error('deleteAsset', error)
+    return false
+  }
+}

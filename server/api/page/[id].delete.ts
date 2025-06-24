@@ -1,4 +1,5 @@
-import prisma from "~/libs/prisma"
+import prisma from '~/libs/prisma'
+import { deleteAsset } from '~/libs/qiniu'
 
 /**
  * @route DELETE /api/page/:id
@@ -21,7 +22,28 @@ export default defineEventHandler(async (event) => {
       statusMessage: 'Invalid id format',
     })
   }
-  const page = await prisma.page.delete({
+  const page = await prisma.page.findUnique({
+    where: {
+      id: numericID,
+    },
+    select: {
+      image: true,
+    },
+  })
+  if (!page) {
+    throw createError({
+      statusCode: 404,
+      statusMessage: 'Page not found',
+    })
+  }
+  const deleteAssetFlag = await deleteAsset(page?.image || '')
+  if (!deleteAssetFlag) {
+    throw createError({
+      statusCode: 500,
+      statusMessage: 'Failed to delete oss asset',
+    })
+  }
+  const deletedPage = await prisma.page.delete({
     where: {
       id: numericID,
     },
@@ -29,5 +51,5 @@ export default defineEventHandler(async (event) => {
       tags: true,
     },
   })
-  return page
+  return deletedPage
 })
