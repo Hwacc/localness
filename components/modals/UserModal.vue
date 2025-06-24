@@ -58,7 +58,6 @@ const zAuth = z.object({
   confirmPwd: z.string().check(({ value, issues }) => {
     if (value !== authState.newPwd) {
       issues.push({
-        id: 'custom',
         code: 'custom',
         message: 'Passwords do not match',
         input: value,
