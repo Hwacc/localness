@@ -55,18 +55,16 @@ const showPwdFlag = reactive({
 const zAuth = z.object({
   pwd: z.string().min(3),
   newPwd: z.string().min(3),
-  confirmPwd: z
-    .string()
-    .check(({ value, issues }) => {
-      console.log(value, authState.newPwd)
-      if (value !== authState.newPwd) {
-        issues.push({
-          code: 'custom',
-          message: 'Passwords do not match',
-          input: value,
-        })
-      }
-    }),
+  confirmPwd: z.string().check(({ value, issues }) => {
+    if (value !== authState.newPwd) {
+      issues.push({
+        id: 'custom',
+        code: 'custom',
+        message: 'Passwords do not match',
+        input: value,
+      })
+    }
+  }),
 })
 type ZAuth = z.output<typeof zAuth>
 const authState = reactive<ZAuth>({
@@ -147,7 +145,7 @@ function onAuthSubmit() {
               :schema="zAuth"
               @submit="onAuthSubmit"
             >
-              <UFormField label="Password" name="password">
+              <UFormField label="Password" name="pwd">
                 <UInput
                   v-model="authState.pwd"
                   class="w-full"
@@ -163,7 +161,7 @@ function onAuthSubmit() {
                   </template>
                 </UInput>
               </UFormField>
-              <UFormField label="Confirm password" name="password2">
+              <UFormField label="Confirm password" name="newPwd">
                 <UInput
                   v-model="authState.newPwd"
                   class="w-full"
@@ -179,7 +177,7 @@ function onAuthSubmit() {
                   </template>
                 </UInput>
               </UFormField>
-              <UFormField label="Confirm password" name="password2">
+              <UFormField label="Confirm password" name="confirmPwd">
                 <UInput
                   v-model="authState.confirmPwd"
                   class="w-full"
