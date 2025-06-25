@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import type { ImageUploader } from '#components'
 import { z } from 'zod/v4'
+import { zPassword } from '~/constants/regexs'
 import type { IUser } from '~/types/interfaces'
 
 const userStore = useUserStore()
@@ -45,17 +46,17 @@ async function onProfileSubmit() {
   await userStore.updateUser(
     profileState as Pick<IUser, 'nickname' | 'email' | 'avatar'>
   )
+  emit('close', true)
 }
 
+const authStore = useAuthStore()
 const showPwdFlag = reactive({
-  pwd: false,
   newPwd: false,
   confirmPwd: false,
 })
 const zAuth = z.object({
-  pwd: z.string().min(3),
-  newPwd: z.string().min(3),
-  confirmPwd: z.string().check(({ value, issues }) => {
+  newPwd: zPassword,
+  confirmPwd: zPassword.check(({ value, issues }) => {
     if (value !== authState.newPwd) {
       issues.push({
         code: 'custom',
@@ -67,12 +68,12 @@ const zAuth = z.object({
 })
 type ZAuth = z.output<typeof zAuth>
 const authState = reactive<ZAuth>({
-  pwd: '',
   newPwd: '',
   confirmPwd: '',
 })
-function onAuthSubmit() {
-  console.log('auth state', authState)
+async function onAuthSubmit() {
+  await authStore.changePassword(authState.newPwd)
+  emit('close', true)
 }
 </script>
 
@@ -144,23 +145,7 @@ function onAuthSubmit() {
               :schema="zAuth"
               @submit="onAuthSubmit"
             >
-              <UFormField label="Password" name="pwd">
-                <UInput
-                  v-model="authState.pwd"
-                  class="w-full"
-                  :type="showPwdFlag.pwd ? 'text' : 'password'"
-                >
-                  <template #trailing>
-                    <UIcon
-                      :name="
-                        showPwdFlag.pwd ? 'i-lucide-eye-off' : 'i-lucide-eye'
-                      "
-                      @click="showPwdFlag.pwd = !showPwdFlag.pwd"
-                    />
-                  </template>
-                </UInput>
-              </UFormField>
-              <UFormField label="Confirm password" name="newPwd">
+              <UFormField label="New password" name="newPwd">
                 <UInput
                   v-model="authState.newPwd"
                   class="w-full"

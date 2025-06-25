@@ -3,6 +3,7 @@ import { UserModal } from '#components'
 import type { DropdownMenuItem } from '@nuxt/ui'
 import { hasProtocol } from 'ufo'
 
+const authStore = useAuthStore()
 const store = useUserStore()
 const overlay = useOverlay()
 const qiniuImage = useQiniuImage()
@@ -32,7 +33,9 @@ const userMenuItems: DropdownMenuItem[] = [
   {
     label: 'Logout',
     icon: 'i-lucide:log-out',
-    onSelect: () => {},
+    onSelect: () => {
+      authStore.logout()
+    },
   },
 ]
 </script>

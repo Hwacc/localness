@@ -15,6 +15,11 @@ const rl = readline.createInterface({
 async function register() {
   const username = await askQuestion('请输入用户名：')
   const password = await askQuestion('请输入密码：', true)
+  const passwordRegex = /^(?=.*[a-zA-Z])(?=.*\d)[a-zA-Z\d_]{6,16}$/
+  if (!passwordRegex.test(password)) {
+    console.log('密码需要有字母,数字和_组成,最少包含一个字母和数字,最短6位,最长16位')
+    return
+  }
   const confirmPassword = await askQuestion('请再次输入密码：', true)
   if (password !== confirmPassword) {
     console.log('两次输入的密码不一致！')

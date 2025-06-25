@@ -2,6 +2,7 @@
 import { z } from 'zod/v4'
 import { useStorage } from '@vueuse/core'
 import { AnimatePresence, motion } from 'motion-v'
+import { zPassword } from '~/constants/regexs'
 
 definePageMeta({
   middleware: ['index-auth'],
@@ -16,12 +17,12 @@ function onStart() {
 }
 
 const showPassword = ref(false)
-const loginSchema = z.object({
+const zLogin = z.object({
   username: z.string().min(3),
-  password: z.string().min(3),
+  password: zPassword,
 })
-type LoginSchema = z.output<typeof loginSchema>
-const state = reactive<LoginSchema>({ username: '', password: '' })
+type ZLogin = z.output<typeof zLogin>
+const state = reactive<ZLogin>({ username: '', password: '' })
 
 async function onSubmit() {
   const success = await login(state.username, state.password)
@@ -63,7 +64,7 @@ async function onSubmit() {
           />
           <UForm
             class="flex flex-col gap-6 bg-gray-50 rounded-[4px] p-6"
-            :schema="loginSchema"
+            :schema="zLogin"
             :state="state"
             @submit="onSubmit"
           >

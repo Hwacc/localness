@@ -1,11 +1,12 @@
 <script setup lang="ts">
-const projectStore = useProjectStore()
-const { getProjects } = projectStore
-const userStore = useUserStore()
+const { loggedIn } = useUserSession()
+const { getProjects } = useProjectStore()
+const { getUser } = useUserStore()
 
-await getProjects()
-await userStore.getUser()
-
+if (loggedIn.value) {
+  await getProjects()
+  await getUser()
+}
 const shelfRef = useTemplateRef('shelf')
 const openProjectShelf = () => {
   shelfRef.value?.open()

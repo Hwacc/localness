@@ -2,10 +2,11 @@ import prisma from '~/libs/prisma'
 import { omit } from 'lodash-es'
 import bcrypt from 'bcryptjs'
 import { z } from 'zod/v4'
+import { zPassword } from '~/constants/regexs'
 
 const zLogin = z.object({
   username: z.string().min(3),
-  password: z.string().min(3),
+  password: zPassword,
 })
 export default defineEventHandler(async (event) => {
   const { username, password } = await readValidatedBody(event, zLogin.parse)
