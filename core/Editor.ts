@@ -25,6 +25,7 @@ import {
   EditorScaleEvent,
 } from '@leafer-in/editor'
 import { DotMatrix } from 'leafer-x-dot-matrix'
+import type { ITag } from '~/types/interfaces'
 
 export type EditorMode = 'drag' | 'draw' | 'edit'
 class Editor extends EditorBase {
@@ -151,10 +152,7 @@ class Editor extends EditorBase {
     this.groupTree.on(LeaferDragEvent.END, this.onDragEnd.bind(this))
 
     // editor events
-    this.editorDeleteButton.on(
-      PointerEvent.TAP,
-      this.onDeleteClick.bind(this)
-    )
+    this.editorDeleteButton.on(PointerEvent.TAP, this.onDeleteClick.bind(this))
     this.editorInfoButton.on(PointerEvent.TAP, this.onInfoClick.bind(this))
     const debounceTagChangeEvent = debounce(
       (action: string, target: IUI) => {
@@ -376,6 +374,36 @@ class Editor extends EditorBase {
 
   public setImage(url: string) {
     this.image.set({ url })
+  }
+
+  public renderTags(tags: ITag[]) {
+    if (isEmpty(tags)) return
+    this.groupTag.clear()
+    tags.forEach((tag) => {
+      this.groupTag.add(
+        new Rect({
+          id: tag.tagID,
+          className: tag.className,
+          fill: tag.fill,
+          cornerRadius: 4,
+          stroke: {
+            type: 'linear',
+            from: 'left',
+            to: 'right',
+            stops: [
+              { offset: 0, color: '#FEB027' },
+              { offset: 1, color: '#79CB4D' },
+            ],
+          },
+          strokeWidth: this.lineWidth,
+          editable: false,
+          x: tag.x,
+          y: tag.y,
+          width: tag.width,
+          height: tag.height,
+        })
+      )
+    })
   }
 
   public setMode(mode: EditorMode) {

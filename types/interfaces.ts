@@ -38,6 +38,7 @@ export interface IPage {
 
 export interface ITag {
   id: ID
+  tagID: string
   x: number
   y: number
   width: number

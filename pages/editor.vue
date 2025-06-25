@@ -13,6 +13,10 @@ definePageMeta({
   middleware: ['protected'],
 })
 
+const pageStore = usePageStore()
+const { curPage } = storeToRefs(pageStore)
+const qiniuImage = useQiniuImage()
+
 const editor = shallowRef<Editor>()
 const editorContainer = useTemplateRef<HTMLDivElement>('editor-container')
 const ready = ref<boolean>(false)
@@ -38,19 +42,21 @@ function openTagInfoModal(props: {
   tagOverlay.create(TagInfoModal, { props }).open()
 }
 
-provideEditorContext({
-  editor,
-  ready,
-  scale,
-  mode,
-  line,
+watch(curPage, async () => {
+  if (ready.value) {
+    const url = await qiniuImage.get(curPage.value?.image)
+    editor.value?.setImage(url)
+  }
 })
 
 onMounted(async () => {
   const module = await import('~/core/Editor')
   if (!editorContainer.value) return
   editor.value = new module.Editor(editorContainer.value, mode.value)
-  editor.value.setImage('/sample.png')
+
+  console.log('mounted', curPage.value)
+  const url = await qiniuImage.get(curPage.value?.image)
+  editor.value.setImage(url)
   editor.value.setLineWidth(line.value)
 
   editor.value.on('ready', () => {
@@ -61,6 +67,7 @@ onMounted(async () => {
   })
   editor.value.on('scale-change', (_scale: number) => (scale.value = _scale))
   editor.value.on('tag-add', (tag: ITag) => {
+    console.log('tag-add', tag)
     tagList.value = [...tagList.value, tag]
   })
   editor.value.on('tag-info', (tag: ITag) => {
@@ -82,6 +89,14 @@ onMounted(async () => {
       t.id === tag.id ? merge(t, tag) : t
     )
   })
+})
+
+provideEditorContext({
+  editor,
+  ready,
+  scale,
+  mode,
+  line,
 })
 </script>
 

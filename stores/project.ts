@@ -7,7 +7,7 @@ export const useProjectStore = defineStore('project', () => {
   const toast = useToast()
   const projects = ref<IProject[]>([])
   const curProject = ref<IProject>(new Project())
-  const { setCurrentPage } = usePageStore()
+  const pageStore = usePageStore()
 
   const pageList = computed(() => {
     return curProject.value.pages ?? []
@@ -94,7 +94,7 @@ export const useProjectStore = defineStore('project', () => {
         projects.value.find((p) => p.id === (proj as ID)) ?? new Project()
     }
     if (!isEmpty(curProject.value.pages)) {
-      setCurrentPage(curProject.value.pages[0])
+      pageStore.setCurrentPage(curProject.value.pages[0])
     }
   }
 
