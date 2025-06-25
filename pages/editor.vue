@@ -2,7 +2,6 @@
 import type { Editor, EditorMode } from '~/core/Editor'
 import type { ITag } from '~/types/interfaces'
 import { useDebounceFn, useResizeObserver } from '@vueuse/core'
-import { merge } from 'lodash-es'
 import TagInfoModal from '~/components/modals/TagInfoModal.vue'
 
 import EditorProvider, {
@@ -19,7 +18,7 @@ const qiniuImage = useQiniuImage()
 
 const editor = shallowRef<Editor>()
 const editorContainer = useTemplateRef<HTMLDivElement>('editor-container')
-const ready = ref<boolean>(false)
+const isEditorReady = ref<boolean>(false)
 const scale = ref<number>(1)
 const mode = ref<EditorMode>('draw')
 const line = ref<number>(2)
@@ -27,73 +26,72 @@ const line = ref<number>(2)
 useResizeObserver(
   editorContainer,
   useDebounceFn(() => {
-    if (ready.value) {
+    if (isEditorReady.value) {
       editor.value?.autoFitImage()
     }
   }, 200)
 )
 
-const tagList = ref<ITag[]>([])
-const tagOverlay = useOverlay()
-function openTagInfoModal(props: {
-  tag: ITag
-  onSave: (newTag: ITag) => void
-}) {
-  tagOverlay.create(TagInfoModal, { props }).open()
-}
+const overlay = useOverlay()
+const tagModal = overlay.create(TagInfoModal, {
+  props: {
+    tag: {} as ITag,
+    onSave: () => {},
+  },
+})
 
 watch(curPage, async () => {
-  if (ready.value) {
-    const url = await qiniuImage.get(curPage.value?.image)
-    editor.value?.setImage(url)
+  if (isEditorReady.value) {
+    const tagList =
+      (await useApi<ITag[]>(`/api/page/tags?pageID=${curPage.value?.id}`)) || []
+    const imageUrl = await qiniuImage.get(curPage.value?.image)
+    editor.value?.setImage(imageUrl)
+    editor.value?.setTags(tagList)
   }
 })
 
 onMounted(async () => {
-  const module = await import('~/core/Editor')
-  if (!editorContainer.value) return
-  editor.value = new module.Editor(editorContainer.value, mode.value)
+  const tagList =
+    (await useApi<ITag[]>(`/api/page/tags?pageID=${curPage.value?.id}`)) || []
+  const imageUrl = await qiniuImage.get(curPage.value?.image)
+  const { Editor } = await import('~/core/Editor')
 
-  console.log('mounted', curPage.value)
-  const url = await qiniuImage.get(curPage.value?.image)
-  editor.value.setImage(url)
+  if (!editorContainer.value) return
+  editor.value = new Editor(editorContainer.value, mode.value)
+  editor.value.setImage(imageUrl)
+  editor.value.setTags(tagList)
   editor.value.setLineWidth(line.value)
 
   editor.value.on('ready', () => {
-    ready.value = true
+    isEditorReady.value = true
   })
+
   editor.value.on('mode-change', (_mode: EditorMode) => {
     mode.value = _mode
   })
   editor.value.on('scale-change', (_scale: number) => (scale.value = _scale))
+
   editor.value.on('tag-add', (tag: ITag) => {
-    console.log('tag-add', tag)
-    tagList.value = [...tagList.value, tag]
+    // console.log('tag-add', tag)
+  })
+  editor.value.on('tag-click', (tag: ITag) => {
+    // console.log('tag-click', tag)
   })
   editor.value.on('tag-info', (tag: ITag) => {
-    openTagInfoModal({
-      tag,
-      onSave: (newTag) => {
-        tagList.value = tagList.value.map((t) =>
-          t.id === newTag.id ? newTag : t
-        )
-      },
-    })
+    // console.log('tag-info', tag)
+    tagModal.open()
   })
   editor.value.on('tag-remove', (tag: ITag) => {
-    tagList.value = tagList.value.filter((t) => t.id !== tag.id)
+    // console.log('tag-remove', tag)
   })
   editor.value.on('tag-change', (arg: { action: string; tag: ITag }) => {
-    const { tag } = arg
-    tagList.value = tagList.value.map((t) =>
-      t.id === tag.id ? merge(t, tag) : t
-    )
+    // console.log('tag-change', arg)
   })
 })
 
 provideEditorContext({
   editor,
-  ready,
+  ready: isEditorReady,
   scale,
   mode,
   line,

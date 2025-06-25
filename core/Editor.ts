@@ -1,37 +1,31 @@
 import {
-  App,
   Box,
-  Group,
-  Image,
-  ImageEvent,
-  KeyEvent,
-  DragEvent as LeaferDragEvent,
-  LeaferEvent,
   Platform,
-  PropertyEvent,
   Rect,
+  type ImageEvent,
+  type KeyEvent,
+  type DragEvent as LeaferDragEvent,
   PointerEvent,
   type IScreenSizeData,
   type IUI,
+  type LeaferEvent,
+  type PropertyEvent,
 } from 'leafer-ui'
 import '@leafer-in/view'
 import '@leafer-in/viewport'
 import '@leafer-in/export'
 import { debounce, isEmpty } from 'lodash-es'
-import EditorBase from './EditorBase'
-import {
+import { DotMatrix } from 'leafer-x-dot-matrix'
+import type { ITag } from '~/types/interfaces'
+import EditorInteraction, { type EditorMode } from './EditorInteraction'
+import type {
   EditorMoveEvent,
   EditorRotateEvent,
   EditorScaleEvent,
 } from '@leafer-in/editor'
-import { DotMatrix } from 'leafer-x-dot-matrix'
-import type { ITag } from '~/types/interfaces'
 
-export type EditorMode = 'drag' | 'draw' | 'edit'
-class Editor extends EditorBase {
+class Editor extends EditorInteraction {
   private tag: Rect | null = new Rect()
-  private view: HTMLDivElement
-  private mode: EditorMode = 'drag'
   private imageSrcSize: { width: number; height: number } = {
     width: 0,
     height: 0,
@@ -41,41 +35,10 @@ class Editor extends EditorBase {
   private editorInfoButton: Box
   private lineWidth = 2
   private dotMatrix: DotMatrix
+  private debounceTagChangeEvent: (action: string, target: IUI) => void
 
   constructor(view: HTMLDivElement, mode: EditorMode) {
-    super()
-    this.view = view
-    this.app = new App({
-      view,
-      tree: {
-        type: 'viewport',
-      },
-      editor: {
-        buttonsDirection: 'top',
-        buttonsFixed: true,
-        buttonsMargin: 8,
-        beforeScale({ scaleX, scaleY }) {
-          // 关闭镜像翻转
-          if (scaleX < 0 || scaleY < 0) return false
-          return { scaleX, scaleY }
-        },
-      },
-    })
-    this.groupTree = new Group({
-      x: 0,
-      y: 0,
-    })
-
-    this.image = new Image({
-      x: 0,
-      y: 0,
-    })
-
-    this.groupTag = new Group({
-      x: 0,
-      y: 0,
-    })
-
+    super(view, mode)
     this.editorDeleteButton = Box.one({
       around: 'center',
       cornerRadius: 9999,
@@ -95,7 +58,6 @@ class Editor extends EditorBase {
         },
       ],
     }) as Box
-
     this.editorInfoButton = Box.one({
       around: 'center',
       cornerRadius: 9999,
@@ -116,11 +78,9 @@ class Editor extends EditorBase {
       ],
     }) as Box
 
-    this.setMode(mode)
-    this.registerListeners()
-    this.groupTree.add(this.image)
-    this.groupTree.add(this.groupTag)
-    this.app.tree.add(this.groupTree)
+    this.editorDeleteButton.on(PointerEvent.TAP, this.onDeleteClick.bind(this))
+    this.editorInfoButton.on(PointerEvent.TAP, this.onInfoClick.bind(this))
+
     this.app.editor.buttons.add(this.editorDeleteButton)
     this.app.editor.buttons.add(this.editorInfoButton)
 
@@ -128,33 +88,8 @@ class Editor extends EditorBase {
     this.dotMatrix.enableDotMatrix(true)
 
     this.idCounter = 0
-  }
 
-  private registerListeners() {
-    // tree events
-    this.app.tree.on(LeaferEvent.READY, () => {
-      this.emit('ready')
-    })
-    this.app.tree.on(KeyEvent.DOWN, this.onKeyDown.bind(this))
-    this.app.tree.on(KeyEvent.UP, this.onKeyUp.bind(this))
-    this.app.tree.on(PropertyEvent.CHANGE, (e: PropertyEvent) => {
-      if (e.attrName === 'scaleX') {
-        this.emit('scale-change', parseFloat((e.newValue as number).toFixed(2)))
-      }
-    })
-
-    // image events
-    this.image.once(ImageEvent.LOADED, this.onImageLoaded.bind(this))
-
-    // groupTree events
-    this.groupTree.on(LeaferDragEvent.START, this.onDragStart.bind(this))
-    this.groupTree.on(LeaferDragEvent.DRAG, this.onDrag.bind(this))
-    this.groupTree.on(LeaferDragEvent.END, this.onDragEnd.bind(this))
-
-    // editor events
-    this.editorDeleteButton.on(PointerEvent.TAP, this.onDeleteClick.bind(this))
-    this.editorInfoButton.on(PointerEvent.TAP, this.onInfoClick.bind(this))
-    const debounceTagChangeEvent = debounce(
+    this.debounceTagChangeEvent = debounce(
       (action: string, target: IUI) => {
         this.emit('tag-change', { action, tag: target.toJSON() })
       },
@@ -163,66 +98,18 @@ class Editor extends EditorBase {
         leading: false,
         trailing: true,
       }
-    )
-    this.app.editor.on(EditorMoveEvent.MOVE, (e: EditorMoveEvent) => {
-      const { target, moveX, moveY } = e
-      const targetX = target.x ?? 0 + moveX
-      const targetY = target.y ?? 0 + moveY
-      if (targetX < 0) {
-        target.set({ x: 0 })
-      }
-      if (targetX + (target.width ?? 0) > (this.groupTree.width ?? 0)) {
-        target.set({ x: (this.groupTree.width ?? 0) - (target.width ?? 0) })
-      }
-      if (targetY < 0) {
-        target.set({ y: 0 })
-      }
-      if (targetY + (target.height ?? 0) > (this.groupTree.height ?? 0)) {
-        target.set({ y: (this.groupTree.height ?? 0) - (target.height ?? 0) })
-      }
-      debounceTagChangeEvent('move', target)
-    })
-    this.app.editor.on(EditorScaleEvent.SCALE, (e: EditorScaleEvent) => {
-      const { target } = e
-      const targetX = target.x ?? 0
-      const targetY = target.y ?? 0
-      if (targetX < 0) {
-        target.set({
-          x: 0,
-          width: target.width ? target.width - Math.abs(targetX) : 0,
-        })
-      }
-      if (targetX + (target.width ?? 0) > (this.groupTree.width ?? 0)) {
-        target.set({
-          x: targetX,
-          width: this.groupTree.width
-            ? this.groupTree.width - Math.abs(targetX)
-            : 0,
-        })
-      }
-      if (targetY < 0) {
-        target.set({
-          y: 0,
-          height: target.height ? target.height - Math.abs(targetY) : 0,
-        })
-      }
-      if (targetY + (target.height ?? 0) > (this.groupTree.height ?? 0)) {
-        target.set({
-          y: targetY,
-          height: this.groupTree.height
-            ? this.groupTree.height - Math.abs(targetY)
-            : 0,
-        })
-      }
-      debounceTagChangeEvent('scale', target)
-    })
-    this.app.editor.on(EditorRotateEvent.ROTATE, (e: EditorRotateEvent) => {
-      const { target } = e
-      debounceTagChangeEvent('rotate', target)
-    })
+    ).bind(this)
   }
 
-  private onImageLoaded(e: ImageEvent) {
+  override onReady(_: LeaferEvent): void {
+    this.emit('ready')
+  }
+  override onPropertyChange(e: PropertyEvent): void {
+    if (e.attrName === 'scaleX') {
+      this.emit('scale-change', parseFloat((e.newValue as number).toFixed(2)))
+    }
+  }
+  override onImageLoaded(e: ImageEvent) {
     this.imageSrcSize = {
       width: e.image.width,
       height: e.image.height,
@@ -253,27 +140,7 @@ class Editor extends EditorBase {
       initElementsSize()
     }
   }
-
-  public autoFitImage() {
-    const containerWidth = this.app.tree.width ?? this.view.offsetWidth
-    const imageWidth = this.image.width ?? this.imageSrcSize.width
-
-    if (imageWidth > containerWidth) {
-      this.app.tree.set({
-        origin: 'top-left',
-      })
-      this.app.tree.zoom('fit-width', 50)
-    } else {
-      this.app.tree.set({
-        x: (containerWidth - imageWidth) / 2,
-        y: 50,
-        origin: 'top',
-      })
-      this.app.tree.set({ scale: 1 })
-    }
-  }
-
-  private onDragStart() {
+  override onGroupDragStart() {
     if (this.mode !== 'draw' || !isEmpty(this.app.editor.list)) return
     this.app.editor.visible = false
     this.app.editor.hittable = false
@@ -294,11 +161,10 @@ class Editor extends EditorBase {
       strokeWidth: this.lineWidth,
       editable: false,
     })
-    this.tag.on(PointerEvent.DOUBLE_TAP, () => this.onInfoClick())
+    this.registerTagEvents(this.tag)
     this.groupTag.add(this.tag)
   }
-
-  private onDrag(e: LeaferDragEvent) {
+  override onGroupDrag(e: LeaferDragEvent) {
     if (this.mode !== 'draw') return
     if (this.tag) {
       let { x, y, width, height } = e.getPageBounds()
@@ -329,8 +195,7 @@ class Editor extends EditorBase {
       this.tag.set({ x, y, width, height })
     }
   }
-
-  private onDragEnd() {
+  override onGroupDragEnd() {
     if (this.mode !== 'draw') return
     if (this.tag) {
       this.app.editor.visible = true
@@ -344,6 +209,25 @@ class Editor extends EditorBase {
       }
     }
     this.tag = null
+  }
+  override onKeyDown() {}
+  override onKeyUp(e: KeyEvent) {
+    const key = e.key
+    if (key === 'Delete') {
+      this.onDeleteClick()
+    }
+  }
+  override onEditorMove(e: EditorMoveEvent) {
+    super.onEditorMove(e)
+    this.debounceTagChangeEvent('move', e.target)
+  }
+  override onEditorScale(e: EditorScaleEvent) {
+    super.onEditorScale(e)
+    this.debounceTagChangeEvent('scale', e.target)
+  }
+  override onEditorRotate(e: EditorRotateEvent) {
+    super.onEditorRotate(e)
+    this.debounceTagChangeEvent('rotate', e.target)
   }
 
   private onDeleteClick() {
@@ -360,12 +244,33 @@ class Editor extends EditorBase {
     }
   }
 
-  private onKeyDown() {}
-  private onKeyUp(e: KeyEvent) {
-    const key = e.key
-    if (key === 'Delete') {
-      this.onDeleteClick()
-    }
+  private registerTagEvents(tag: Rect) {
+    tag.on(PointerEvent.TAP, () => {
+      this.emit('tag-click', tag.toJSON())
+    })
+    tag.on(PointerEvent.DOUBLE_TAP, () => this.onInfoClick())
+  }
+
+  private renderTags(tags: ITag[]) {
+    if (isEmpty(tags)) return
+    this.groupTag.clear()
+    tags.forEach((tag) => {
+      const graphicTag = new Rect({
+        id: tag.tagID,
+        className: tag.className,
+        fill: tag.style.fill,
+        cornerRadius: tag.style.cornerRadius,
+        stroke: tag.style.stroke,
+        strokeWidth: tag.style.strokeWidth,
+        editable: tag.editable,
+        x: tag.x,
+        y: tag.y,
+        width: tag.width,
+        height: tag.height,
+      })
+      this.groupTag.add(graphicTag)
+      this.registerTagEvents(graphicTag)
+    })
   }
 
   public resize(size: IScreenSizeData) {
@@ -376,55 +281,23 @@ class Editor extends EditorBase {
     this.image.set({ url })
   }
 
-  public renderTags(tags: ITag[]) {
-    if (isEmpty(tags)) return
-    this.groupTag.clear()
-    tags.forEach((tag) => {
-      this.groupTag.add(
-        new Rect({
-          id: tag.tagID,
-          className: tag.className,
-          fill: tag.fill,
-          cornerRadius: 4,
-          stroke: {
-            type: 'linear',
-            from: 'left',
-            to: 'right',
-            stops: [
-              { offset: 0, color: '#FEB027' },
-              { offset: 1, color: '#79CB4D' },
-            ],
-          },
-          strokeWidth: this.lineWidth,
-          editable: false,
-          x: tag.x,
-          y: tag.y,
-          width: tag.width,
-          height: tag.height,
-        })
-      )
-    })
-  }
+  public autoFitImage() {
+    const containerWidth = this.app.tree.width ?? this.view.offsetWidth
+    const imageWidth = this.image.width ?? this.imageSrcSize.width
 
-  public setMode(mode: EditorMode) {
-    const onModeChange = () => {
-      if (mode === 'drag') {
-        this.app.editor.visible = false
-        this.app.editor.hittable = false
-        this.app.editor.cancel()
-      } else {
-        this.app.editor.visible = true
-        this.app.editor.hittable = true
-      }
-      this.groupTree.set({ draggable: mode === 'drag' })
-      this.mode = mode
-      this.emit('mode-change', mode)
+    if (imageWidth > containerWidth) {
+      this.app.tree.set({
+        origin: 'top-left',
+      })
+      this.app.tree.zoom('fit-width', 50)
+    } else {
+      this.app.tree.set({
+        x: (containerWidth - imageWidth) / 2,
+        y: 50,
+        origin: 'top',
+      })
+      this.app.tree.set({ scale: 1 })
     }
-    if (!this.app.tree.ready) {
-      this.app.tree.waitReady(onModeChange)
-      return
-    }
-    onModeChange()
   }
 
   public setScale(scale: number) {
@@ -439,9 +312,17 @@ class Editor extends EditorBase {
     this.lineWidth = width
   }
 
+  public setTags(tags: ITag[]) {
+    if (!this.app.tree.ready) {
+      this.app.tree.waitReady(() => this.renderTags(tags))
+      return
+    }
+    this.renderTags(tags)
+  }
+
   public get ready() {
     return this.app.tree.ready
   }
 }
 
-export { Editor }
+export { Editor, type EditorMode }

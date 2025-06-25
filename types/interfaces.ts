@@ -1,5 +1,6 @@
 import type { UserRole } from '~/constants'
 import type { ID } from './global'
+import type { IStroke } from 'leafer-ui'
 
 export interface IUser {
   id: ID
@@ -43,10 +44,14 @@ export interface ITag {
   y: number
   width: number
   height: number
-  editable: boolean
   className: string
-  fill: string
-  stroke: string
+  editable: boolean
+  style: {
+    fill: string
+    cornerRadius: number
+    strokeWidth: number
+    stroke: IStroke
+  }
   i18nKey?: string
   content?: string
   createdAt?: string

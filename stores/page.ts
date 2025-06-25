@@ -100,8 +100,8 @@ export const usePageStore = defineStore('page', () => {
       }
     }
   }
-  
-  function setCurrentPage(page: IPage) {
+
+  async function setCurrentPage(page: IPage) {
     curPage.value = page
   }
 

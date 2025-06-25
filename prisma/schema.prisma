@@ -65,10 +65,9 @@ model Tag {
   y             Float
   width         Float
   height        Float
-  editable      Boolean
   className     String       @map("class_name")
-  fill          String
-  stroke        String
+  editable      Boolean
+  style         Json
   i18nKey       String?      @unique @map("i18n_key")
   content       String?
   page          Page         @relation(fields: [pageID], references: [id])

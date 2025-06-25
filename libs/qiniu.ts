@@ -36,7 +36,6 @@ export function generateDownloadAccessUrl(key: string, deadline: number = 1) {
     key,
     _deadline
   )
-  console.log('generateDownloadAccessUrl', url)
   return url
 }
 
