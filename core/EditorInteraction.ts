@@ -54,66 +54,10 @@ abstract class EditorInteraction extends EditorBase {
   abstract onGroupDragStart(e: LeaferDragEvent): void
   abstract onGroupDrag(e: LeaferDragEvent): void
   abstract onGroupDragEnd(e: LeaferDragEvent): void
-
-  protected onEditorMove(e: EditorMoveEvent) {
-    const { target, moveX, moveY } = e
-    const targetX = target.x ?? 0 + moveX
-    const targetY = target.y ?? 0 + moveY
-    if (targetX < 0) {
-      target.set({ x: 0 })
-    }
-    if (targetX + (target.width ?? 0) > (this.groupTree.width ?? 0)) {
-      target.set({ x: (this.groupTree.width ?? 0) - (target.width ?? 0) })
-    }
-    if (targetY < 0) {
-      target.set({ y: 0 })
-    }
-    if (targetY + (target.height ?? 0) > (this.groupTree.height ?? 0)) {
-      target.set({ y: (this.groupTree.height ?? 0) - (target.height ?? 0) })
-    }
-  }
-
-  protected onEditorScale(e: EditorScaleEvent) {
-    const { target } = e
-    const targetX = target.x ?? 0
-    const targetY = target.y ?? 0
-    if (targetX < 0) {
-      target.set({
-        x: 0,
-        width: target.width ? target.width - Math.abs(targetX) : 0,
-      })
-    }
-    if (targetX + (target.width ?? 0) > (this.groupTree.width ?? 0)) {
-      target.set({
-        x: targetX,
-        width: this.groupTree.width
-          ? this.groupTree.width - Math.abs(targetX)
-          : 0,
-      })
-    }
-    if (targetY < 0) {
-      target.set({
-        y: 0,
-        height: target.height ? target.height - Math.abs(targetY) : 0,
-      })
-    }
-    if (targetY + (target.height ?? 0) > (this.groupTree.height ?? 0)) {
-      target.set({
-        y: targetY,
-        height: this.groupTree.height
-          ? this.groupTree.height - Math.abs(targetY)
-          : 0,
-      })
-    }
-  }
-
-  protected onEditorRotate(_: EditorRotateEvent) {
-    // 旋转已关闭
-  }
-
-  protected onEditorSkew(_: EditorSkewEvent) {
-    // 倾斜已关闭
-  }
+  abstract onEditorMove(e: EditorMoveEvent): void
+  abstract onEditorScale(e: EditorScaleEvent): void
+  abstract onEditorRotate(e: EditorRotateEvent): void
+  abstract onEditorSkew(e: EditorSkewEvent): void
 
   public setMode(mode: EditorMode) {
     const onModeChange = () => {

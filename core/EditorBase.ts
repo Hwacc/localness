@@ -1,5 +1,11 @@
 import mitt, { type EventType, type Handler } from 'mitt'
-import { App, Group, Image, LeaferEvent } from 'leafer-ui'
+import {
+  App,
+  Frame,
+  Group,
+  Image,
+  LeaferEvent
+} from 'leafer-ui'
 
 interface EditorEvents {
   [event: EventType]: any // 支持任意事件名
@@ -9,7 +15,7 @@ abstract class EditorBase {
   protected app!: App
   protected groupTree!: Group
   protected image!: Image
-  protected groupTag!: Group
+  protected groupTag!: Frame
   protected view: HTMLDivElement
 
   //TODO: 保存撤销和重做列表
@@ -36,8 +42,8 @@ abstract class EditorBase {
       view,
       tree: { type: 'viewport' },
       editor: {
-        rotateable:false, // 关闭旋转, 防止移出编辑范围
-        skewable:false, // 关闭倾斜
+        rotateable: false, // 关闭旋转, 防止移出编辑范围
+        skewable: false, // 关闭倾斜
         flipable: false, // 关闭翻转, 防止移出编辑范围
         buttonsDirection: 'top',
         buttonsFixed: true,
@@ -52,9 +58,10 @@ abstract class EditorBase {
       x: 0,
       y: 0,
     })
-    this.groupTag = new Group({
+    this.groupTag = new Frame({
       x: 0,
       y: 0,
+      fill: 'transparent',
     })
 
     this.groupTree.add(this.image)

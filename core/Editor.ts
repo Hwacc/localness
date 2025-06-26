@@ -20,6 +20,7 @@ import type {
   EditorMoveEvent,
   EditorRotateEvent,
   EditorScaleEvent,
+  EditorSkewEvent,
 } from '@leafer-in/editor'
 import EditorDeleteBtn from './buttons/EditorDeleteBtn'
 import EditorInfoBtn from './buttons/EditorInfoBtn'
@@ -134,6 +135,9 @@ class Editor extends EditorInteraction {
       },
       strokeWidth: this.lineWidth,
       editable: false,
+      dragBounds: 'parent',
+      widthRange: { min: 20, max: this.image.width },
+      heightRange: { min: 20, max: this.image.height },
     })
     this.registerTagEvents(this.tag)
     this.groupTag.add(this.tag)
@@ -192,16 +196,16 @@ class Editor extends EditorInteraction {
     }
   }
   override onEditorMove(e: EditorMoveEvent) {
-    super.onEditorMove(e)
     this.debounceTagChangeEvent('move', e.target)
   }
   override onEditorScale(e: EditorScaleEvent) {
-    super.onEditorScale(e)
     this.debounceTagChangeEvent('scale', e.target)
   }
   override onEditorRotate(e: EditorRotateEvent) {
-    super.onEditorRotate(e)
     this.debounceTagChangeEvent('rotate', e.target)
+  }
+  override onEditorSkew(e: EditorSkewEvent) {
+    this.debounceTagChangeEvent('skew', e.target)
   }
 
   private onDeleteClick() {
@@ -241,6 +245,9 @@ class Editor extends EditorInteraction {
         y: tag.y,
         width: tag.width,
         height: tag.height,
+        dragBounds: 'parent',
+        widthRange: { min: 20, max: this.image.width },
+        heightRange: { min: 20, max: this.image.height },
       })
       this.groupTag.add(graphicTag)
       this.registerTagEvents(graphicTag)
