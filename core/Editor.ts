@@ -7,8 +7,9 @@ import type {
   IUI,
   LeaferEvent,
   PropertyEvent,
+  ILeaferImage,
 } from 'leafer-ui'
-import { PointerEvent, Rect } from 'leafer-ui'
+import { Platform, PointerEvent, Rect, Resource } from 'leafer-ui'
 import '@leafer-in/view'
 import '@leafer-in/viewport'
 import '@leafer-in/export'
@@ -27,6 +28,8 @@ import EditorInfoBtn from './buttons/EditorInfoBtn'
 
 class Editor extends EditorInteraction {
   private tag: Rect | null = new Rect()
+
+  private imageResource!: ILeaferImage
   private imageSrcSize: { width: number; height: number } = {
     width: 0,
     height: 0,
@@ -85,6 +88,8 @@ class Editor extends EditorInteraction {
     }
   }
   override onImageLoaded(e: ImageEvent) {
+    console.log('image loaded', e)
+
     this.imageSrcSize = {
       width: e.image.width,
       height: e.image.height,
@@ -208,6 +213,38 @@ class Editor extends EditorInteraction {
     this.debounceTagChangeEvent('skew', e.target)
   }
 
+  cliper:Rect | null = null
+  override onEditorSelect() {
+    if (!isEmpty(this.app.editor.list)) {
+      const selectedOne = this.app.editor.list[0]
+      this.emit('tag-select', selectedOne.toJSON())
+      console.log('resource url', this.imageResource.url, this.image.url)
+      this.cliper = new Rect({
+        width: selectedOne.width,
+        height: selectedOne.height,
+        x: 0,
+        y: 0,
+        stroke: 'black',
+        strokeWidth: 2,
+        offsetX: -(selectedOne.width ?? 0),
+        offsetY: -(selectedOne.height ?? 0),
+        fill: {
+          type: 'image',
+          url: this.imageResource.url,
+          mode: 'clip',
+          repeat: false,
+          offset: { x: -(selectedOne.width ?? 0), y: -(selectedOne.height ?? 0) },
+        },
+      })
+      this.groupTree.add(this.cliper)
+    } else {
+      if (this.cliper) {
+        this.groupTree.remove(this.cliper)
+        this.cliper.destroy()
+      }
+    }
+  }
+
   private onDeleteClick() {
     if (isEmpty(this.app.editor.list)) return
     const target = this.app.editor.list.pop()
@@ -260,6 +297,13 @@ class Editor extends EditorInteraction {
 
   public setImage(url: string) {
     this.image.set({ url })
+    Platform.origin?.loadImage(url).then((img) => {
+      const canvas = document.createElement('canvas') // 原始画布 //
+      canvas.width = img.width
+      canvas.height = img.height
+      canvas.getContext('2d')?.drawImage(img, 0, 0)
+      this.imageResource = Resource.setImage('leafer://image.jpg', canvas)
+    })
   }
 
   public autoFitImage() {

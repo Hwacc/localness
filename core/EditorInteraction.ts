@@ -6,6 +6,7 @@ import {
 } from 'leafer-ui'
 import EditorBase from './EditorBase'
 import {
+  EditorEvent,
   EditorMoveEvent,
   EditorRotateEvent,
   EditorScaleEvent,
@@ -37,6 +38,7 @@ abstract class EditorInteraction extends EditorBase {
     this.groupTree.on(LeaferDragEvent.END, this.onGroupDragEnd.bind(this))
 
     if (this.app.editor) {
+      this.app.editor.on(EditorEvent.SELECT, this.onEditorSelect.bind(this))
       this.app.editor.on(EditorMoveEvent.MOVE, this.onEditorMove.bind(this))
       this.app.editor.on(EditorScaleEvent.SCALE, this.onEditorScale.bind(this))
       this.app.editor.on(
@@ -58,6 +60,7 @@ abstract class EditorInteraction extends EditorBase {
   abstract onEditorScale(e: EditorScaleEvent): void
   abstract onEditorRotate(e: EditorRotateEvent): void
   abstract onEditorSkew(e: EditorSkewEvent): void
+  abstract onEditorSelect(e: EditorEvent): void
 
   public setMode(mode: EditorMode) {
     const onModeChange = () => {
