@@ -1,4 +1,4 @@
-import { generateDownloadAccessUrl } from '~/libs/qiniu'
+import { generateDownloadAccessUrl } from '~/server/libs/qiniu'
 import { z } from 'zod/v4'
 
 const zGen = z.object({

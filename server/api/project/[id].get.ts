@@ -1,4 +1,4 @@
-import prisma from '~/libs/prisma'
+import prisma from '~/server/libs/prisma'
 
 /**
  * @route GET /api/project/:id

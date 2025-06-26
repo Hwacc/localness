@@ -1,6 +1,6 @@
 import bcrypt from 'bcryptjs'
 import { zPassword } from '~/constants/regexs'
-import prisma from '~/libs/prisma'
+import prisma from '~/server/libs/prisma'
 import { z } from 'zod/v4'
 
 const zAuth = z.object({

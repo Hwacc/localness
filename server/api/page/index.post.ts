@@ -1,4 +1,4 @@
-import prisma from '~/libs/prisma'
+import prisma from '~/server/libs/prisma'
 import { z } from 'zod/v4'
 
 const zPage = z.object({

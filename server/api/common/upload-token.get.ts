@@ -1,4 +1,4 @@
-import { generateUploadToken } from '~/libs/qiniu'
+import { generateUploadToken } from '~/server/libs/qiniu'
 
 export default defineEventHandler(async (event) => {
   await requireUserSession(event)

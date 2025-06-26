@@ -4,7 +4,6 @@ const mac = new qiniu.auth.digest.Mac(
   process.env.NUXT_QINIU_ACCESS_KEY,
   process.env.NUXT_QINIU_SCRERT_KEY
 )
-
 const options = {
   scope: 'coze-i18n',
   expires: 3600,
@@ -12,7 +11,9 @@ const options = {
     '{"key":"$(key)","hash":"$(etag)","fsize":$(fsize),"bucket":"$(bucket)","name":"$(x:name)"}',
 }
 const putPolicy = new qiniu.rs.PutPolicy(options)
-
+/**
+ * generate qiniu upload token
+ */
 export function generateUploadToken() {
   return putPolicy.uploadToken(mac)
 }
@@ -30,7 +31,6 @@ export function generateDownloadAccessUrl(key: string, deadline: number = 1) {
     return ''
   }
   const _deadline = Math.floor(Date.now() / 1000) + 3600 * deadline
-  console.log('key', key)
   const url = bucketManager.privateDownloadUrl(
     privateBucketDomain,
     key,
@@ -38,7 +38,11 @@ export function generateDownloadAccessUrl(key: string, deadline: number = 1) {
   )
   return url
 }
-
+/**
+ * delete qiniu asset
+ * @param key qiniu asset key
+ * @returns true if delete success
+ */
 export async function deleteAsset(key: string) {
   try {
     const { resp } = await bucketManager.delete('coze-i18n', key)

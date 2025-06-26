@@ -1,5 +1,5 @@
-import prisma from '~/libs/prisma'
-import { deleteAsset } from '~/libs/qiniu'
+import prisma from '~/server/libs/prisma'
+import { deleteAsset } from '~/server/libs/qiniu'
 
 /**
  * @route DELETE /api/page/:id
