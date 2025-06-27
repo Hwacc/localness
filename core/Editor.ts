@@ -1,5 +1,4 @@
 import type {
-  Box,
   ImageEvent,
   KeyEvent,
   DragEvent as LeaferDragEvent,
@@ -22,10 +21,8 @@ import type {
   EditorScaleEvent,
   EditorSkewEvent,
 } from '@leafer-in/editor'
-import EditorDeleteBtn from './buttons/EditorDeleteBtn'
-import EditorInfoBtn from './buttons/EditorInfoBtn'
 import ImageClipper from './ImageClipper'
-import EditorOCRBtn from './buttons/EditorOCRBtn'
+import EditorBtnGroup from './buttons/EditorBtnGroup'
 
 class Editor extends EditorInteraction {
   private tag: Rect | null = new Rect()
@@ -36,10 +33,7 @@ class Editor extends EditorInteraction {
   }
   private idCounter = 0
 
-  private editorDeleteButton: Box
-  private editorInfoButton: Box
-  private editorOCRButton: Box
-
+  private editorFuncBtnGroup: EditorBtnGroup
   private lineWidth = 2
   private dotMatrix: DotMatrix
   private debounceTagChangeEvent: (action: string, target: IUI) => void
@@ -48,29 +42,9 @@ class Editor extends EditorInteraction {
 
   constructor(view: HTMLDivElement, mode: EditorMode) {
     super(view, mode)
-    this.editorDeleteButton = EditorDeleteBtn.one({
-      fill: 'red',
-      x: 64,
-      y: 0,
-    }) as Box
-    this.editorInfoButton = EditorInfoBtn.one({
-      fill: '#4689F5',
-      x: 0,
-      y: 0,
-    }) as Box
-    this.editorOCRButton = EditorOCRBtn.one({
-      fill: '#34C759',
-      x: 32,
-      y: 0,
-    }) as Box
 
-    this.editorDeleteButton.on(PointerEvent.TAP, this.onDeleteClick.bind(this))
-    this.editorInfoButton.on(PointerEvent.TAP, this.onInfoClick.bind(this))
-    this.editorOCRButton.on(PointerEvent.TAP, this.onOCRClick.bind(this))
-
-    this.app.editor.buttons.add(this.editorDeleteButton)
-    this.app.editor.buttons.add(this.editorInfoButton)
-    this.app.editor.buttons.add(this.editorOCRButton)
+    this.editorFuncBtnGroup = new EditorBtnGroup()
+    this.app.editor.buttons.add(this.editorFuncBtnGroup)
 
     this.dotMatrix = new DotMatrix(this.app)
     this.dotMatrix.enableDotMatrix(true)
