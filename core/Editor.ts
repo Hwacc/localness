@@ -7,9 +7,8 @@ import type {
   IUI,
   LeaferEvent,
   PropertyEvent,
-  ILeaferImage,
 } from 'leafer-ui'
-import { Platform, PointerEvent, Rect, Resource } from 'leafer-ui'
+import { PointerEvent, Rect } from 'leafer-ui'
 import '@leafer-in/view'
 import '@leafer-in/viewport'
 import '@leafer-in/export'
@@ -25,11 +24,12 @@ import type {
 } from '@leafer-in/editor'
 import EditorDeleteBtn from './buttons/EditorDeleteBtn'
 import EditorInfoBtn from './buttons/EditorInfoBtn'
+import ImageClipper from './ImageClipper'
+import EditorOCRBtn from './buttons/EditorOCRBtn'
 
 class Editor extends EditorInteraction {
   private tag: Rect | null = new Rect()
 
-  private imageResource!: ILeaferImage
   private imageSrcSize: { width: number; height: number } = {
     width: 0,
     height: 0,
@@ -38,16 +38,19 @@ class Editor extends EditorInteraction {
 
   private editorDeleteButton: Box
   private editorInfoButton: Box
+  private editorOCRButton: Box
 
   private lineWidth = 2
   private dotMatrix: DotMatrix
   private debounceTagChangeEvent: (action: string, target: IUI) => void
 
+  private imageClipper: ImageClipper
+
   constructor(view: HTMLDivElement, mode: EditorMode) {
     super(view, mode)
     this.editorDeleteButton = EditorDeleteBtn.one({
       fill: 'red',
-      x: 32,
+      x: 64,
       y: 0,
     }) as Box
     this.editorInfoButton = EditorInfoBtn.one({
@@ -55,12 +58,19 @@ class Editor extends EditorInteraction {
       x: 0,
       y: 0,
     }) as Box
+    this.editorOCRButton = EditorOCRBtn.one({
+      fill: '#34C759',
+      x: 32,
+      y: 0,
+    }) as Box
 
     this.editorDeleteButton.on(PointerEvent.TAP, this.onDeleteClick.bind(this))
     this.editorInfoButton.on(PointerEvent.TAP, this.onInfoClick.bind(this))
+    this.editorOCRButton.on(PointerEvent.TAP, this.onOCRClick.bind(this))
 
     this.app.editor.buttons.add(this.editorDeleteButton)
     this.app.editor.buttons.add(this.editorInfoButton)
+    this.app.editor.buttons.add(this.editorOCRButton)
 
     this.dotMatrix = new DotMatrix(this.app)
     this.dotMatrix.enableDotMatrix(true)
@@ -77,6 +87,8 @@ class Editor extends EditorInteraction {
         trailing: true,
       }
     ).bind(this)
+
+    this.imageClipper = new ImageClipper()
   }
 
   override onReady(_: LeaferEvent): void {
@@ -213,35 +225,10 @@ class Editor extends EditorInteraction {
     this.debounceTagChangeEvent('skew', e.target)
   }
 
-  cliper:Rect | null = null
   override onEditorSelect() {
     if (!isEmpty(this.app.editor.list)) {
       const selectedOne = this.app.editor.list[0]
-      this.emit('tag-select', selectedOne.toJSON())
-      console.log('resource url', this.imageResource.url, this.image.url)
-      this.cliper = new Rect({
-        width: selectedOne.width,
-        height: selectedOne.height,
-        x: 0,
-        y: 0,
-        stroke: 'black',
-        strokeWidth: 2,
-        offsetX: -(selectedOne.width ?? 0),
-        offsetY: -(selectedOne.height ?? 0),
-        fill: {
-          type: 'image',
-          url: this.imageResource.url,
-          mode: 'clip',
-          repeat: false,
-          offset: { x: -(selectedOne.width ?? 0), y: -(selectedOne.height ?? 0) },
-        },
-      })
-      this.groupTree.add(this.cliper)
-    } else {
-      if (this.cliper) {
-        this.groupTree.remove(this.cliper)
-        this.cliper.destroy()
-      }
+      this.emit('tag-edit-select', selectedOne.toJSON())
     }
   }
 
@@ -256,6 +243,20 @@ class Editor extends EditorInteraction {
   private onInfoClick() {
     if (!isEmpty(this.app.editor.list)) {
       this.emit('tag-info', this.app.editor.list[0].toJSON())
+    }
+  }
+
+  private async onOCRClick() {
+    if (!isEmpty(this.app.editor.list)) {
+      const selectedOne = this.app.editor.list[0]
+      const { x, y, width, height } = selectedOne
+      const image = await this.imageClipper.clip({
+        x: x ?? 0,
+        y: y ?? 0,
+        width: width ?? 0,
+        height: height ?? 0,
+      })
+      this.emit('tag-ocr', image)
     }
   }
 
@@ -297,29 +298,23 @@ class Editor extends EditorInteraction {
 
   public setImage(url: string) {
     this.image.set({ url })
-    Platform.origin?.loadImage(url).then((img) => {
-      const canvas = document.createElement('canvas') // 原始画布 //
-      canvas.width = img.width
-      canvas.height = img.height
-      canvas.getContext('2d')?.drawImage(img, 0, 0)
-      this.imageResource = Resource.setImage('leafer://image.jpg', canvas)
-    })
+    this.imageClipper.setImage(url)
   }
 
-  public autoFitImage() {
+  public async autoFitImage() {
     const containerWidth = this.app.tree.width ?? this.view.offsetWidth
     const imageWidth = this.image.width ?? this.imageSrcSize.width
-
+    await sleep(100) // 等待下个渲染周期
     if (imageWidth > containerWidth) {
       this.app.tree.set({
         origin: 'top-left',
       })
-      this.app.tree.zoom('fit-width', 50)
+      this.app.tree.zoom('fit')
     } else {
       this.app.tree.set({
         x: (containerWidth - imageWidth) / 2,
         y: 50,
-        origin: 'top',
+        origin: 'top-left',
       })
       this.app.tree.set({ scale: 1 })
     }

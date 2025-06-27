@@ -30,7 +30,7 @@ abstract class EditorInteraction extends EditorBase {
     this.app.tree.on(PropertyEvent.CHANGE, this.onPropertyChange.bind(this))
 
     // image events
-    this.image.once(ImageEvent.LOADED, this.onImageLoaded.bind(this))
+    this.image.on(ImageEvent.LOADED, this.onImageLoaded.bind(this))
 
     // groupTree events
     this.groupTree.on(LeaferDragEvent.START, this.onGroupDragStart.bind(this))

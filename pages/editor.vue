@@ -87,6 +87,9 @@ onMounted(async () => {
   editor.value.on('tag-change', (arg: { action: string; tag: ITag }) => {
     // console.log('tag-change', arg)
   })
+  editor.value.on('tag-ocr', (image: string) => {
+    console.log('tag-ocr', image)
+  })
 })
 
 provideEditorContext({
