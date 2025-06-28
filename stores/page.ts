@@ -1,12 +1,14 @@
 import { isEmpty } from 'lodash-es'
 import type { ID } from '~/types/global'
-import type { IPage } from '~/types/interfaces'
+import type { IPage, ITag } from '~/types/interfaces'
 import { Page } from '~/types/Page'
 
 export const usePageStore = defineStore('page', () => {
   const toast = useToast()
   const projectStore = useProjectStore()
   const curPage = ref<IPage>(new Page())
+
+  const tagList = ref<ITag[]>([])
 
   async function createPage({ name, image }: Pick<IPage, 'name' | 'image'>) {
     if (!projectStore.curProject.id) {
@@ -102,8 +104,33 @@ export const usePageStore = defineStore('page', () => {
   }
 
   async function setCurrentPage(page: IPage) {
-    curPage.value = page
+    try {
+      tagList.value = await useApi<ITag[]>(`/api/page/tags?pageID=${page.id}`)
+    } finally {
+      curPage.value = page
+    }
   }
 
-  return { curPage, createPage, updatePage, setCurrentPage, deletePage }
+  async function loadTags() {
+    tagList.value =
+      (await useApi<ITag[]>(`/api/page/tags?pageID=${curPage.value?.id}`)) || []
+    return tagList.value
+  }
+
+  function setTags(tags: ITag[] = []) {
+    tagList.value = [...tags]
+  }
+
+  return {
+    curPage,
+    tagList,
+    loadTags,
+    setTags,
+    createPage,
+    updatePage,
+    setCurrentPage,
+    deletePage,
+  }
 })
+
+export type PageStore = ReturnType<typeof usePageStore>

@@ -35,6 +35,8 @@ abstract class EditorBase {
     this.app = new App({
       view,
       tree: { type: 'viewport' },
+      pointSnap: true,
+      pixelSnap: true,
       editor: {
         rotateable: false, // 关闭旋转, 防止移出编辑范围
         skewable: false, // 关闭倾斜
@@ -42,6 +44,8 @@ abstract class EditorBase {
         buttonsDirection: 'top',
         buttonsFixed: true,
         buttonsMargin: 8,
+        boxSelect:false,
+        multipleSelect: false
       },
     })
     this.groupTree = new Group({
@@ -77,6 +81,54 @@ abstract class EditorBase {
 
   public emit<E extends EventType>(event: E, data?: EditorEvents[E]) {
     this.emitter.emit(event, data)
+  }
+
+  /**
+   * A async emit, could call success or fail to end pending
+   * @param event string must start with "async-"
+   * @param data anything
+   * @returns 
+   */
+  public async asyncEmit<E extends EventType, T>(
+    event: E,
+    data?: EditorEvents[E]
+  ): Promise<T> {
+    if (typeof event === 'string' && !event.startsWith('async-')) {
+      throw Error('async emit: event name must start with "async-"')
+    }
+    return new Promise((resolve, reject) => {
+      const success = (response: T) => {
+        resolve(response)
+      }
+      const fail = (err?: any) => {
+        reject(err)
+      }
+      this.emitter.emit(event, {
+        payload: data,
+        success,
+        fail,
+      })
+    })
+  }
+
+  /**
+   * A async emit receiver, must call success or fail otherwise async emit will always be pending
+   * @param event string must start with "async-"
+   * @param callback wrappered callback
+   * @returns 
+   */
+  public asyncOn<T>(
+    event: EventType,
+    callback: Handler<{
+      payload: T
+      success: (response?: any) => void
+      fail: (err?: any) => void
+    }>
+  ) {
+    if (typeof event === 'string' && !event.startsWith('async-')) {
+      throw Error('async on: event name must start with "async-"')
+    }
+    this.emitter.on(event, callback as Handler)
   }
 
   public off<E extends EventType>(

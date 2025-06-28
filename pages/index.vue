@@ -2,7 +2,7 @@
 import { z } from 'zod/v4'
 import { useStorage } from '@vueuse/core'
 import { AnimatePresence, motion } from 'motion-v'
-import { zPassword } from '~/constants/regexs'
+import { zPassword } from '~/constants/schemas'
 
 definePageMeta({
   middleware: ['index-auth'],

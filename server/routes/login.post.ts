@@ -2,7 +2,7 @@ import prisma from '~/server/libs/prisma'
 import { omit } from 'lodash-es'
 import bcrypt from 'bcryptjs'
 import { z } from 'zod/v4'
-import { zPassword } from '~/constants/regexs'
+import { zPassword } from '~/constants/schemas'
 
 const zLogin = z.object({
   username: z.string().min(3),

@@ -7,7 +7,7 @@ const zProfile = z.object({
   avatar: z.string().nullable().optional(),
 })
 /**
- * @route PUT /api/user
+ * @route POST /api/user
  * @description Update current user
  * @access Private
  */

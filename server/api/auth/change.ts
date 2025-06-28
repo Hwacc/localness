@@ -1,5 +1,5 @@
 import bcrypt from 'bcryptjs'
-import { zPassword } from '~/constants/regexs'
+import { zPassword } from '~/constants/schemas'
 import prisma from '~/server/libs/prisma'
 import { z } from 'zod/v4'
 

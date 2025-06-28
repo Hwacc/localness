@@ -1,11 +1,9 @@
-import type { ID } from '~/types/global'
 import type { ITag } from '~/types/interfaces'
 import { Rect, type IJSONOptions } from 'leafer-ui'
 import { pick } from 'lodash-es'
 
 class EditorTag extends Rect {
-  public tagInfo: Partial<ITag> = {} as ITag
-  public remoteID: ID = 0
+  public remoteTag: Partial<ITag> = {} as ITag
   public isLocked: boolean = false
   constructor(tag: Partial<ITag>) {
     super({
@@ -29,6 +27,7 @@ class EditorTag extends Rect {
       event: {
         mounted: () => {
           if (this.parent) {
+            console.log('mounted', this.parent.width, this.parent.height)
             this.set({
               widthRange: { min: 20, max: this.parent.width },
               heightRange: { min: 20, max: this.parent.height },
@@ -38,8 +37,7 @@ class EditorTag extends Rect {
       },
     })
 
-    this.tagInfo = tag
-    this.remoteID = tag.id ?? 0
+    this.remoteTag = tag
     this.isLocked = tag.locked ?? false
     this.set({
       widthRange: { min: 20, max: Infinity },
@@ -59,14 +57,30 @@ class EditorTag extends Rect {
     this.emit('custom-lock', { locked: _lock })
   }
 
+  public update(rTag: Partial<ITag>) {
+    this.remoteTag = { ...this.remoteTag, ...rTag }
+  }
+
   public override toJSON(options?: IJSONOptions): ITag {
     const original = super.toJSON(options)
-    const baseProps = pick(original, ['x', 'y', 'width', 'height', 'className', 'tag' ])
-    const styleProps = pick(original, ['fill', 'cornerRadius', 'strokeWidth', 'stroke' ])
-    this.tagInfo.id = this.remoteID
-    this.tagInfo.tagID = this.id
-    this.tagInfo.style = { ...styleProps }
-    return { ...this.tagInfo, ...baseProps } as ITag
+    const baseProps = pick(original, [
+      'x',
+      'y',
+      'width',
+      'height',
+      'className',
+      'tag',
+    ])
+    const styleProps = pick(original, [
+      'fill',
+      'cornerRadius',
+      'strokeWidth',
+      'stroke',
+    ])
+    this.remoteTag.tagID = this.id
+    this.remoteTag.style = { ...styleProps }
+    this.remoteTag.locked = this.isLocked
+    return { ...this.remoteTag, ...baseProps } as ITag
   }
 }
 

@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import type { ImageUploader } from '#components'
 import { z } from 'zod/v4'
-import { zPassword } from '~/constants/regexs'
+import { zPassword } from '~/constants/schemas'
 import type { IUser } from '~/types/interfaces'
 
 const userStore = useUserStore()

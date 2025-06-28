@@ -7,13 +7,16 @@ import TagInfoModal from '~/components/modals/TagInfoModal.vue'
 import EditorProvider, {
   provideEditorContext,
 } from '~/providers/EditorProvider.vue'
+import AlertModal from '~/components/modals/AlertModal.vue'
+import type { ID } from '~/types/global'
 
 definePageMeta({
   middleware: ['protected'],
 })
 
 const pageStore = usePageStore()
-const { curPage } = storeToRefs(pageStore)
+const { curPage, tagList } = storeToRefs(pageStore)
+const tagStore = useTagStore()
 const qiniuImage = useQiniuImage()
 
 const editor = shallowRef<Editor>()
@@ -22,6 +25,8 @@ const isEditorReady = ref<boolean>(false)
 const scale = ref<number>(1)
 const mode = ref<EditorMode>('draw')
 const line = ref<number>(2)
+
+const tagChangeList = reactive<ITag[]>([])
 
 useResizeObserver(
   editorContainer,
@@ -42,53 +47,127 @@ const tagModal = overlay.create(TagInfoModal, {
 
 watch(curPage, async () => {
   if (isEditorReady.value) {
-    const tagList =
-      (await useApi<ITag[]>(`/api/page/tags?pageID=${curPage.value?.id}`)) || []
     const imageUrl = await qiniuImage.get(curPage.value?.image)
     editor.value?.setImage(imageUrl)
-    editor.value?.setTags(tagList)
   }
 })
 
 onMounted(async () => {
-  const tagList =
-    (await useApi<ITag[]>(`/api/page/tags?pageID=${curPage.value?.id}`)) || []
   const imageUrl = await qiniuImage.get(curPage.value?.image)
   const { Editor } = await import('~/core/Editor')
 
   if (!editorContainer.value) return
+
   editor.value = new Editor(editorContainer.value, mode.value)
   editor.value.setImage(imageUrl)
-  editor.value.setTags(tagList)
   editor.value.setLineWidth(line.value)
 
   editor.value.on('ready', () => {
     isEditorReady.value = true
   })
 
+  editor.value.on('image-loaded', () => {
+    const _setTags = () => {
+      editor.value?.setTags(tagList.value)
+    }
+    if (!isEditorReady.value) {
+      editor.value?.leaferApp.waitReady(_setTags)
+      return
+    }
+    _setTags()
+  })
+
   editor.value.on('mode-change', (_mode: EditorMode) => {
     mode.value = _mode
   })
-  editor.value.on('scale-change', (_scale: number) => (scale.value = _scale))
+  editor.value.on('scale-change', (_scale: number) => {
+    scale.value = _scale
+  })
 
-  editor.value.on('tag-add', (tag: ITag) => {
-    console.log('tag-add', tag)
+  editor.value.asyncOn<ITag>(
+    'async-tag-add',
+    async ({ success, fail, payload }) => {
+      try {
+        const addedTag = await tagStore.addTag(payload)
+        success(addedTag)
+      } catch (error) {
+        fail(error)
+      }
+    }
+  )
+
+  editor.value.asyncOn<ITag>(
+    'async-tag-remove',
+    async ({ success, fail, payload }) => {
+      try {
+        console.log('async-tag-remove', payload)
+        if (payload.text || payload.translation) {
+          const _deleteModal = overlay.create(AlertModal, {
+            props: {
+              mode: 'delete',
+              title: 'Delete Tag',
+              message:
+                'This tag has content text or translations. Are you sure you want to delete it?',
+              onOk: async (_, { close }) => {
+                try {
+                  _deleteModal.patch({ loading: true })
+                  await tagStore.deleteTag(payload.id)
+                  success(true)
+                  close()
+                } catch (error) {
+                  fail(error)
+                } finally {
+                  _deleteModal.patch({ loading: false })
+                }
+              },
+            },
+          })
+          _deleteModal.open()
+        } else {
+          try {
+            await tagStore.deleteTag(payload.id)
+            success(true)
+          } catch (error) {
+            fail(error)
+          }
+        }
+      } catch (error) {
+        fail(error)
+      }
+    }
+  )
+
+  editor.value.asyncOn<{ tagID: ID; update: Partial<ITag> }>(
+    'async-tag-update',
+    async ({ success, fail, payload }) => {
+      try {
+        const { tagID, update } = payload
+        const updatedTag = await tagStore.updateTag(tagID, update)
+        success(updatedTag)
+      } catch (error) {
+        fail(error)
+      }
+    }
+  )
+
+  editor.value.on('tag-change', (arg: { action: string; tag: ITag }) => {
+    const foundIndex = tagChangeList.findIndex((t) => t.id === arg.tag.id)
+    if (foundIndex !== -1) {
+      tagChangeList.splice(foundIndex, 1, arg.tag)
+    } else {
+      tagChangeList.push(arg.tag)
+    }
   })
-  editor.value.on('tag-click', (tag: ITag) => {
-    // console.log('tag-click', tag)
-  })
+  
   editor.value.on('tag-info', (tag: ITag) => {
     // console.log('tag-info', tag)
     tagModal.open()
   })
-  editor.value.on('tag-remove', (tag: ITag) => {
-    // console.log('tag-remove', tag)
-  })
-  editor.value.on('tag-change', (arg: { action: string; tag: ITag }) => {
-    // console.log('tag-change', arg)
-  })
   editor.value.on('tag-ocr', (image: string) => {
     console.log('tag-ocr', image)
+  })
+  editor.value.on('tag-click', (tag: ITag) => {
+    // console.log('tag-click', tag)
   })
 })
 

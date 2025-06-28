@@ -32,7 +32,6 @@ class Editor extends EditorInteraction {
     width: 0,
     height: 0,
   }
-  private idCounter = 0
 
   private funcBtnGroup: FuncBtnGroup
   private lineWidth = 2
@@ -70,8 +69,6 @@ class Editor extends EditorInteraction {
     this.dotMatrix = new DotMatrix(this.app)
     this.dotMatrix.enableDotMatrix(true)
 
-    this.idCounter = 0
-
     this.debounceTagChangeEvent = debounce(
       (action: string, target: IUI) => {
         this.emit('tag-change', { action, tag: target.toJSON() })
@@ -95,8 +92,6 @@ class Editor extends EditorInteraction {
     }
   }
   override onImageLoaded(e: ImageEvent) {
-    console.log('image loaded', e)
-
     this.imageSrcSize = {
       width: e.image.width,
       height: e.image.height,
@@ -126,13 +121,14 @@ class Editor extends EditorInteraction {
     } else {
       initElementsSize()
     }
+    this.emit('image-loaded', e.image)
   }
   override onGroupDragStart() {
     if (this.mode !== 'draw' || !isEmpty(this.app.editor.list)) return
     this.app.editor.visible = false
     this.app.editor.hittable = false
     this.tempTag = new EditorTag({
-      tagID: `Tag${this.idCounter++}`,
+      tagID: `Tag_${Date.now()}`,
       className: 'tag',
       style: {
         stroke: {
@@ -182,7 +178,7 @@ class Editor extends EditorInteraction {
       this.tempTag.set({ x, y, width, height })
     }
   }
-  override onGroupDragEnd() {
+  override async onGroupDragEnd() {
     if (this.mode !== 'draw') return
     if (this.tempTag) {
       this.app.editor.visible = true
@@ -192,7 +188,16 @@ class Editor extends EditorInteraction {
         this.tempTag.remove()
       } else {
         this.tempTag.set({ editable: true })
-        this.emit('tag-add', this.tempTag.toJSON())
+        try {
+          const remoteTag = await this.asyncEmit<'async-tag-add', ITag>(
+            'async-tag-add',
+            this.tempTag.toJSON()
+          )
+          this.tempTag.update(remoteTag)
+        } catch (error) {
+          console.error('tag add error', error)
+          this.tempTag.remove()
+        }
       }
     }
     this.tempTag = null
@@ -220,16 +225,20 @@ class Editor extends EditorInteraction {
   override onEditorSelect() {
     if (isEmpty(this.app.editor.list)) return
     const selectedOne = this.app.editor.list[0] as EditorTag
-    this.funcBtnGroup.lockBtn.slocked = selectedOne.isLocked
+    this.funcBtnGroup.lockBtn.slocked = selectedOne.isLocked // update lock btn
     this.emit('tag-edit-select', selectedOne.toJSON())
   }
 
-  private onDeleteClick() {
+  private async onDeleteClick() {
     if (isEmpty(this.app.editor.list)) return
-    const target = this.app.editor.list.pop()
-    this.emit('tag-remove', target?.toJSON())
-    target?.remove()
-    this.app.editor.target = undefined
+    const selectedOne = this.app.editor.list[0]
+    try {
+      await this.asyncEmit('async-tag-remove', selectedOne?.toJSON())
+      selectedOne?.remove()
+      this.app.editor.target = undefined
+    } catch (error) {
+      console.error('tag remove error', error)
+    }
   }
 
   private onInfoClick() {
@@ -250,12 +259,18 @@ class Editor extends EditorInteraction {
     this.emit('tag-ocr', image)
   }
 
-  private onLockClick(payload: any) {
+  private async onLockClick({ locked = false }: { locked: boolean }) {
     if (isEmpty(this.app.editor.list)) return
     const selectedOne = this.app.editor.list[0] as EditorTag
-    const { locked } = payload || { locked: false }
-    selectedOne.lock(locked)
-    this.emit('tag-lock')
+    try {
+      await this.asyncEmit('async-tag-update', {
+        tagID: selectedOne.remoteTag.id,
+        update: { locked },
+      })
+      selectedOne.lock(locked)
+    } catch (error) {
+      console.error('tag update locked error', error)
+    }
   }
 
   private registerTagEvents(tag: EditorTag) {
@@ -264,10 +279,9 @@ class Editor extends EditorInteraction {
     })
     tag.on(PointerEvent.DOUBLE_TAP, () => this.onInfoClick())
   }
-
   private renderTags(tags: ITag[]) {
-    if (isEmpty(tags)) return
     this.groupTag.clear()
+    if (isEmpty(tags)) return
     tags.forEach((tag) => {
       const graphicTag = new EditorTag(tag)
       this.groupTag.add(graphicTag)
@@ -287,7 +301,7 @@ class Editor extends EditorInteraction {
   public async autoFitImage() {
     const containerWidth = this.app.tree.width ?? this.view.offsetWidth
     const imageWidth = this.image.width ?? this.imageSrcSize.width
-    await sleep(100) // 等待下个渲染周期
+    await sleep(0) // 等待下个渲染周期
     if (imageWidth > containerWidth) {
       this.app.tree.set({
         origin: 'top-left',
@@ -321,6 +335,10 @@ class Editor extends EditorInteraction {
       return
     }
     this.renderTags(tags)
+  }
+
+  public waitReady(callback: () => void) {
+    this.app.waitReady(callback)
   }
 
   public get ready() {

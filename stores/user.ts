@@ -17,7 +17,7 @@ export const useUserStore = defineStore('user', () => {
     _user: Pick<IUser, 'nickname' | 'email' | 'avatar'>
   ) {
     const res = await useApi<Partial<IUser>>('/api/user', {
-      method: 'PUT',
+      method: 'POST',
       body: _user,
     })
     if (!res) return
@@ -33,3 +33,6 @@ export const useUserStore = defineStore('user', () => {
   }
   return { user, getUser, updateUser }
 })
+
+
+export type UserStore = ReturnType<typeof useUserStore>

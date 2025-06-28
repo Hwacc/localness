@@ -47,7 +47,6 @@ class FuncBtnGroup extends Group {
         this.emit('btn-click', { type: FuncBtnType.LOCK, payload })
       }
     )
-
     this.funcBtnFrame.add(this.lockBtn)
     this.funcBtnFrame.add(this.infoBtn)
     this.funcBtnFrame.add(this.ocrBtn)

@@ -58,6 +58,7 @@ export interface ITag {
   updatedAt?: string
   translationID?: ID
   translation?: ITranslation
+  pageID: ID
 }
 
 export interface ITranslation {
