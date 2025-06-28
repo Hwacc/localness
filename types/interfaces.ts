@@ -45,15 +45,15 @@ export interface ITag {
   width: number
   height: number
   className: string
-  editable: boolean
-  style: {
+  locked: boolean
+  style: Partial<{
     fill: string
     cornerRadius: number
     strokeWidth: number
     stroke: IStroke
-  }
+  }>
   i18nKey?: string
-  content?: string
+  text?: string
   createdAt?: string
   updatedAt?: string
   translationID?: ID

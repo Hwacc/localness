@@ -66,10 +66,10 @@ model Tag {
   width         Float
   height        Float
   className     String       @map("class_name")
-  editable      Boolean
+  locked        Boolean      @default(false)
   style         Json
   i18nKey       String?      @unique @map("i18n_key")
-  content       String?
+  text          String?
   page          Page         @relation(fields: [pageID], references: [id])
   pageID        Int          @map("page_id")
   translation   Translation? @relation(fields: [translationID], references: [id])

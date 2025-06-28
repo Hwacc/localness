@@ -7,7 +7,7 @@ import type {
   LeaferEvent,
   PropertyEvent,
 } from 'leafer-ui'
-import { PointerEvent, Rect } from 'leafer-ui'
+import { PointerEvent } from 'leafer-ui'
 import '@leafer-in/view'
 import '@leafer-in/viewport'
 import '@leafer-in/export'
@@ -22,18 +22,19 @@ import type {
   EditorSkewEvent,
 } from '@leafer-in/editor'
 import ImageClipper from './ImageClipper'
-import EditorBtnGroup from './buttons/EditorBtnGroup'
+import FuncBtnGroup from './buttons/FuncBtnGroup'
+import { FuncBtnType } from './buttons/FuncBtn'
+import EditorTag from './EditorTag'
 
 class Editor extends EditorInteraction {
-  private tag: Rect | null = new Rect()
-
+  private tempTag: EditorTag | null = null
   private imageSrcSize: { width: number; height: number } = {
     width: 0,
     height: 0,
   }
   private idCounter = 0
 
-  private editorFuncBtnGroup: EditorBtnGroup
+  private funcBtnGroup: FuncBtnGroup
   private lineWidth = 2
   private dotMatrix: DotMatrix
   private debounceTagChangeEvent: (action: string, target: IUI) => void
@@ -43,8 +44,28 @@ class Editor extends EditorInteraction {
   constructor(view: HTMLDivElement, mode: EditorMode) {
     super(view, mode)
 
-    this.editorFuncBtnGroup = new EditorBtnGroup()
-    this.app.editor.buttons.add(this.editorFuncBtnGroup)
+    this.funcBtnGroup = new FuncBtnGroup()
+    this.funcBtnGroup.on(
+      'btn-click',
+      ({ type, payload }: { type: FuncBtnType; payload?: any }) => {
+        switch (type) {
+          case FuncBtnType.INFO:
+            this.onInfoClick()
+            break
+          case FuncBtnType.OCR:
+            this.onOCRClick()
+            break
+          case FuncBtnType.DELETE:
+            this.onDeleteClick()
+            break
+          case FuncBtnType.LOCK:
+            this.onLockClick(payload)
+            break
+        }
+      }
+    )
+
+    this.app.editor.buttons.add(this.funcBtnGroup)
 
     this.dotMatrix = new DotMatrix(this.app)
     this.dotMatrix.enableDotMatrix(true)
@@ -110,32 +131,29 @@ class Editor extends EditorInteraction {
     if (this.mode !== 'draw' || !isEmpty(this.app.editor.list)) return
     this.app.editor.visible = false
     this.app.editor.hittable = false
-    this.tag = new Rect({
-      id: `Tag${this.idCounter++}`,
+    this.tempTag = new EditorTag({
+      tagID: `Tag${this.idCounter++}`,
       className: 'tag',
-      fill: 'transparent',
-      cornerRadius: 4,
-      stroke: {
-        type: 'linear',
-        from: 'left',
-        to: 'right',
-        stops: [
-          { offset: 0, color: '#FEB027' },
-          { offset: 1, color: '#79CB4D' },
-        ],
+      style: {
+        stroke: {
+          type: 'linear',
+          from: 'left',
+          to: 'right',
+          stops: [
+            { offset: 0, color: '#FEB027' },
+            { offset: 1, color: '#79CB4D' },
+          ],
+        },
+        strokeWidth: this.lineWidth,
       },
-      strokeWidth: this.lineWidth,
-      editable: false,
-      dragBounds: 'parent',
-      widthRange: { min: 20, max: this.image.width },
-      heightRange: { min: 20, max: this.image.height },
     })
-    this.registerTagEvents(this.tag)
-    this.groupTag.add(this.tag)
+    this.tempTag.set({ editable: false })
+    this.registerTagEvents(this.tempTag)
+    this.groupTag.add(this.tempTag)
   }
   override onGroupDrag(e: LeaferDragEvent) {
     if (this.mode !== 'draw') return
-    if (this.tag) {
+    if (this.tempTag) {
       let { x, y, width, height } = e.getPageBounds()
 
       const {
@@ -161,23 +179,23 @@ class Editor extends EditorInteraction {
       } else if (y + height > imageHeight) {
         height = imageHeight - y
       }
-      this.tag.set({ x, y, width, height })
+      this.tempTag.set({ x, y, width, height })
     }
   }
   override onGroupDragEnd() {
     if (this.mode !== 'draw') return
-    if (this.tag) {
+    if (this.tempTag) {
       this.app.editor.visible = true
       this.app.editor.hittable = true
-      this.tag.set({ editable: true })
-      const { width = 0, height = 0 } = this.tag
+      const { width = 0, height = 0 } = this.tempTag
       if (width <= 10 || height <= 10) {
-        this.tag.remove()
+        this.tempTag.remove()
       } else {
-        this.emit('tag-add', this.tag.toJSON())
+        this.tempTag.set({ editable: true })
+        this.emit('tag-add', this.tempTag.toJSON())
       }
     }
-    this.tag = null
+    this.tempTag = null
   }
   override onKeyDown() {}
   override onKeyUp(e: KeyEvent) {
@@ -200,10 +218,10 @@ class Editor extends EditorInteraction {
   }
 
   override onEditorSelect() {
-    if (!isEmpty(this.app.editor.list)) {
-      const selectedOne = this.app.editor.list[0]
-      this.emit('tag-edit-select', selectedOne.toJSON())
-    }
+    if (isEmpty(this.app.editor.list)) return
+    const selectedOne = this.app.editor.list[0] as EditorTag
+    this.funcBtnGroup.lockBtn.slocked = selectedOne.isLocked
+    this.emit('tag-edit-select', selectedOne.toJSON())
   }
 
   private onDeleteClick() {
@@ -215,26 +233,32 @@ class Editor extends EditorInteraction {
   }
 
   private onInfoClick() {
-    if (!isEmpty(this.app.editor.list)) {
-      this.emit('tag-info', this.app.editor.list[0].toJSON())
-    }
+    if (isEmpty(this.app.editor.list)) return
+    this.emit('tag-info', this.app.editor.list[0].toJSON())
   }
 
   private async onOCRClick() {
-    if (!isEmpty(this.app.editor.list)) {
-      const selectedOne = this.app.editor.list[0]
-      const { x, y, width, height } = selectedOne
-      const image = await this.imageClipper.clip({
-        x: x ?? 0,
-        y: y ?? 0,
-        width: width ?? 0,
-        height: height ?? 0,
-      })
-      this.emit('tag-ocr', image)
-    }
+    if (isEmpty(this.app.editor.list)) return
+    const selectedOne = this.app.editor.list[0]
+    const { x, y, width, height } = selectedOne
+    const image = await this.imageClipper.clip({
+      x: x ?? 0,
+      y: y ?? 0,
+      width: width ?? 0,
+      height: height ?? 0,
+    })
+    this.emit('tag-ocr', image)
   }
 
-  private registerTagEvents(tag: Rect) {
+  private onLockClick(payload: any) {
+    if (isEmpty(this.app.editor.list)) return
+    const selectedOne = this.app.editor.list[0] as EditorTag
+    const { locked } = payload || { locked: false }
+    selectedOne.lock(locked)
+    this.emit('tag-lock')
+  }
+
+  private registerTagEvents(tag: EditorTag) {
     tag.on(PointerEvent.TAP, () => {
       this.emit('tag-click', tag.toJSON())
     })
@@ -245,22 +269,7 @@ class Editor extends EditorInteraction {
     if (isEmpty(tags)) return
     this.groupTag.clear()
     tags.forEach((tag) => {
-      const graphicTag = new Rect({
-        id: tag.tagID,
-        className: tag.className,
-        fill: tag.style.fill,
-        cornerRadius: tag.style.cornerRadius,
-        stroke: tag.style.stroke,
-        strokeWidth: tag.style.strokeWidth,
-        editable: tag.editable,
-        x: tag.x,
-        y: tag.y,
-        width: tag.width,
-        height: tag.height,
-        dragBounds: 'parent',
-        widthRange: { min: 20, max: this.image.width },
-        heightRange: { min: 20, max: this.image.height },
-      })
+      const graphicTag = new EditorTag(tag)
       this.groupTag.add(graphicTag)
       this.registerTagEvents(graphicTag)
     })

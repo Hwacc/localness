@@ -72,7 +72,7 @@ onMounted(async () => {
   editor.value.on('scale-change', (_scale: number) => (scale.value = _scale))
 
   editor.value.on('tag-add', (tag: ITag) => {
-    // console.log('tag-add', tag)
+    console.log('tag-add', tag)
   })
   editor.value.on('tag-click', (tag: ITag) => {
     // console.log('tag-click', tag)
