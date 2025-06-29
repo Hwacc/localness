@@ -18,6 +18,7 @@ const pageStore = usePageStore()
 const { curPage, tagList } = storeToRefs(pageStore)
 const tagStore = useTagStore()
 const qiniuImage = useQiniuImage()
+const autoSave = useAutoSave()
 
 const editor = shallowRef<Editor>()
 const editorContainer = useTemplateRef<HTMLDivElement>('editor-container')
@@ -26,12 +27,10 @@ const scale = ref<number>(1)
 const mode = ref<EditorMode>('draw')
 const line = ref<number>(2)
 
-const tagChangeList = reactive<ITag[]>([])
-
 useResizeObserver(
   editorContainer,
   useDebounceFn(() => {
-    if (isEditorReady.value) {
+    if (editor.value?.ready) {
       editor.value?.autoFitImage()
     }
   }, 200)
@@ -45,14 +44,21 @@ const tagModal = overlay.create(TagInfoModal, {
   },
 })
 
-watch(curPage, async () => {
-  if (isEditorReady.value) {
+watchEffect(() => {
+  if (!editor.value || !curPage.value) return
+  const initImage = async () => {
     const imageUrl = await qiniuImage.get(curPage.value?.image)
     editor.value?.setImage(imageUrl)
   }
+  if (!editor.value.ready) {
+    editor.value.waitReady(initImage)
+    return
+  }
+  initImage()
 })
 
 onMounted(async () => {
+  console.log('editor onMounted')
   const imageUrl = await qiniuImage.get(curPage.value?.image)
   const { Editor } = await import('~/core/Editor')
 
@@ -70,8 +76,8 @@ onMounted(async () => {
     const _setTags = () => {
       editor.value?.setTags(tagList.value)
     }
-    if (!isEditorReady.value) {
-      editor.value?.leaferApp.waitReady(_setTags)
+    if (!editor.value?.ready) {
+      editor.value?.waitReady(_setTags)
       return
     }
     _setTags()
@@ -82,6 +88,9 @@ onMounted(async () => {
   })
   editor.value.on('scale-change', (_scale: number) => {
     scale.value = _scale
+  })
+  editor.value.on('save', () => {
+    autoSave.immediate()
   })
 
   editor.value.asyncOn<ITag>(
@@ -149,20 +158,16 @@ onMounted(async () => {
       }
     }
   )
-
-  editor.value.on('tag-change', (arg: { action: string; tag: ITag }) => {
-    const foundIndex = tagChangeList.findIndex((t) => t.id === arg.tag.id)
-    if (foundIndex !== -1) {
-      tagChangeList.splice(foundIndex, 1, arg.tag)
-    } else {
-      tagChangeList.push(arg.tag)
-    }
-  })
-  
-  editor.value.on('tag-info', (tag: ITag) => {
-    // console.log('tag-info', tag)
+  editor.value.on('tag-change', (arg: { action: string; tag: ITag }) =>
+    autoSave.add(arg.tag)
+  )
+  editor.value.on('tag-info', async (tag: ITag) => {
+    tagModal.patch({ tag, onSave: autoSave.immediate })
     tagModal.open()
+    const remoteTag = await tagStore.getTag(tag.id)
+    tagModal.patch({ tag: remoteTag })
   })
+
   editor.value.on('tag-ocr', (image: string) => {
     console.log('tag-ocr', image)
   })
@@ -171,12 +176,18 @@ onMounted(async () => {
   })
 })
 
+onBeforeUnmount(() => {
+  editor.value?.destroy()
+  editor.value = undefined
+})
+
 provideEditorContext({
   editor,
   ready: isEditorReady,
   scale,
   mode,
   line,
+  autoSave,
 })
 </script>
 

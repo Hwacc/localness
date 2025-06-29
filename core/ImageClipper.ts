@@ -84,6 +84,10 @@ class ImageClipper {
       })
     })
   }
+
+  public destroy() {
+    this.worker.terminate()
+  }
 }
 
 export default ImageClipper

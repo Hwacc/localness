@@ -4,15 +4,44 @@ import type { ITag } from '~/types/interfaces'
 const props = defineProps<{ tag: ITag }>()
 const tag = reactive(props.tag)
 
+const tabsItems = [
+  {
+    label: 'Basic',
+    desc: '',
+    icon: 'i-lucide:info',
+    slot: 'basic',
+  },
+  {
+    label: 'Styles',
+    desc: '',
+    icon: 'i-devicon:styledcomponents',
+    slot: 'styles',
+  },
+  {
+    label: 'Translations',
+    desc: '',
+    icon: 'i-garden:translation-exists-stroke-12',
+    slot: 'translations',
+  },
+]
+
 const emit = defineEmits<{ close: [boolean]; save: [ITag] }>()
 </script>
 
 <template>
   <UModal
+    class="max-w-[50rem]"
     :close="{ onClick: () => emit('close', false) }"
     :title="`Tag Info - ${tag.id}`"
   >
     <template #body>
+      <div class="w-full">
+        <UTabs :items="tabsItems" variant="link" :ui="{ trigger: 'grow' }">
+          <template #basic> </template>
+          <template #styles> </template>
+          <template #translations> </template>
+        </UTabs>
+      </div>
       <div class="flex flex-col gap-2.5">
         <UFormField label="ID">
           <UInput class="w-full" readonly :model-value="tag.id" />

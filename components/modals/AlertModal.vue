@@ -20,7 +20,7 @@ const onCancel = () => {
   emit('close', false)
 }
 const onOk = () => {
-  emit('ok', props.mode, { close: () => emit('close', false) })
+  emit('ok', props.mode, { close: () => emit('close', true) })
 }
 </script>
 

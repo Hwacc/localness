@@ -1,5 +1,6 @@
 import prisma from '~/server/libs/prisma'
 import { z } from 'zod/v4'
+import { numericID } from '~/utils/id'
 
 const zQuery = z.object({
   pageID: z.string(),
@@ -14,9 +15,17 @@ const zQuery = z.object({
 export default defineEventHandler(async (event) => {
   await requireUserSession(event)
   const { pageID } = await getValidatedQuery(event, zQuery.parse)
+
+  const nPageID = numericID(pageID)
+  if (isNaN(nPageID)) {
+    throw createError({
+      statusCode: 400,
+      statusMessage: 'Invalid pageID format',
+    })
+  }
   const tags = await prisma.tag.findMany({
     where: {
-      pageID: parseInt(pageID),
+      pageID: nPageID,
     },
     include: {
       translation: true,

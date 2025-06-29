@@ -1,4 +1,5 @@
 import prisma from '~/server/libs/prisma'
+import { numericID } from '~/utils/id'
 
 /**
  * @route GET /api/page/:id
@@ -14,8 +15,8 @@ export default defineEventHandler(async (event) => {
       statusMessage: 'Missing id',
     })
   }
-  const numericID = parseInt(id, 10)
-  if (isNaN(numericID)) {
+  const nID = numericID(id)
+  if (isNaN(nID)) {
     throw createError({
       statusCode: 400,
       statusMessage: 'Invalid id format',
@@ -24,7 +25,7 @@ export default defineEventHandler(async (event) => {
 
   const page = await prisma.page.findUnique({
     where: {
-      id: numericID,
+      id: nID,
     },
     include: {
       tags: true,

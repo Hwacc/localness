@@ -105,7 +105,11 @@ export const usePageStore = defineStore('page', () => {
 
   async function setCurrentPage(page: IPage) {
     try {
-      tagList.value = await useApi<ITag[]>(`/api/page/tags?pageID=${page.id}`)
+      if (validID(page.id)) {
+        tagList.value = await useApi<ITag[]>(`/api/page/tags?pageID=${page.id}`)
+      } else {
+        tagList.value = []
+      }
     } finally {
       curPage.value = page
     }

@@ -104,7 +104,6 @@ export default function FuncBtn(type: FuncBtnType) {
         }
         super(assign({}, baseProps, { children }, props))
         if(type === FuncBtnType.LOCK) {
-          console.log('test', this.locked)
           this.children[0].set({ url: this.locked ? lockNormalSVG : lockOpenSVG })
         }
         this.on(PointerEvent.ENTER, () => {

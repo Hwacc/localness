@@ -1,15 +1,19 @@
 import type { ITag } from '~/types/interfaces'
-import { Tag } from '~/types/Tag'
 import { omit } from 'lodash-es'
 import type { ID } from '~/types/global'
 
 export const useTagStore = defineStore('tag', () => {
   const pageStore = usePageStore()
-  const curTag = ref<ITag>(new Tag())
+
+  async function getTag(id: ID) {
+    const tag = await useApi<ITag>(`/api/tag/${id}`)
+    console.log('get tag Info', tag)
+    return tag
+  }
 
   async function addTag(tag: ITag) {
     const pageID = pageStore.curPage.id
-    const addedTag = await useApi('/api/tag', {
+    const addedTag = await useApi<ITag>('/api/tag', {
       method: 'POST',
       body: {
         pageID,
@@ -41,7 +45,7 @@ export const useTagStore = defineStore('tag', () => {
   }
 
   async function updateTag(tagID: ID, tag: Partial<ITag>) {
-    const updatedTag = await useApi(`/api/tag/${tagID}`, {
+    const updatedTag = await useApi<ITag>(`/api/tag/${tagID}`, {
       method: 'POST',
       body: {
         ...omit(tag, ['id', 'createdAt', 'updatedAt', 'translation']),
@@ -61,7 +65,7 @@ export const useTagStore = defineStore('tag', () => {
   }
 
   return {
-    curTag,
+    getTag,
     addTag,
     deleteTag,
     updateTag,

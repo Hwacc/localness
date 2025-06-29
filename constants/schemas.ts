@@ -32,3 +32,6 @@ export const zTag = z.object<ZTagOmit>({
   translationID: z.string().nullable().optional(),
 })
 export type ZTag = z.infer<typeof zTag>
+
+export const zID = z.union([z.int().gt(0), z.string().min(1)])
+export type ZID = z.infer<typeof zID>

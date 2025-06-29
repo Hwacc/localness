@@ -1,5 +1,6 @@
 import prisma from '~/server/libs/prisma'
 import { z } from 'zod/v4'
+import { numericID } from '~/utils/id'
 
 const zProfile = z.object({
   nickname: z.string().min(3).nullable().optional(),
@@ -16,9 +17,16 @@ export default defineEventHandler(async (event) => {
 
   const data = await readValidatedBody(event, zProfile.parse)
 
+  const nID = numericID(session.user.id)
+  if (isNaN(nID)) {
+    throw createError({
+      statusCode: 400,
+      statusMessage: 'Invalid id format',
+    })
+  }
   const user = await prisma.user.update({
     where: {
-      id: parseInt(session.user.id + ''),
+      id: nID,
       username: session.user.username,
     },
     select: {

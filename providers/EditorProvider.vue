@@ -8,6 +8,7 @@ export interface IEditorContext {
   scale: Ref<number>
   mode: Ref<EditorMode>
   line: Ref<number>
+  autoSave: ReturnType<typeof useAutoSave>
 }
 
 const injectionKey: InjectionKey<IEditorContext> = Symbol('EditorContext')
@@ -19,6 +20,7 @@ export function injectEditorContext() {
     scale: ref(1),
     mode: ref('drag'),
     line: ref(2),
+    autoSave: {} as ReturnType<typeof useAutoSave>,
   } as IEditorContext)
 }
 

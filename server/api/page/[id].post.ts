@@ -1,5 +1,6 @@
 import prisma from '~/server/libs/prisma'
 import { z } from 'zod/v4'
+import { numericID } from '~/utils/id'
 
 const zPage = z.object({
   name: z.string().min(3),
@@ -20,8 +21,8 @@ export default defineEventHandler(async (event) => {
       statusMessage: 'Missing id',
     })
   }
-  const numericID = parseInt(id, 10)
-  if (isNaN(numericID)) {
+  const nID = numericID(id)
+  if (isNaN(nID)) {
     throw createError({
       statusCode: 400,
       statusMessage: 'Invalid id format',
@@ -39,7 +40,7 @@ export default defineEventHandler(async (event) => {
   const data = image ? { name, image } : { name }
   const updatedProject = await prisma.page.update({
     where: {
-      id: numericID,
+      id: nID,
     },
     data,
     select: {

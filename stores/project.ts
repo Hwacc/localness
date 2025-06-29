@@ -1,6 +1,7 @@
 import { isEmpty, merge } from 'lodash-es'
 import type { ID } from '~/types/global'
 import type { IProject } from '~/types/interfaces'
+import { Page } from '~/types/Page'
 import { Project } from '~/types/Project'
 
 export const useProjectStore = defineStore('project', () => {
@@ -32,25 +33,6 @@ export const useProjectStore = defineStore('project', () => {
     })
     if (!newProject) return null
     projects.value.unshift(newProject)
-    if (import.meta.client) {
-      toast.add({
-        title: 'Success',
-        description: 'Project created successfully',
-        color: 'success',
-        icon: 'i-lucide:circle-check',
-        actions: [
-          {
-            label: 'Open Project',
-            icon: 'i-lucide:folder-open',
-            color: 'success',
-            variant: 'solid',
-            onClick: () => {
-              curProject.value = newProject!
-            },
-          },
-        ],
-      })
-    }
     return newProject
   }
 
@@ -95,6 +77,8 @@ export const useProjectStore = defineStore('project', () => {
     }
     if (!isEmpty(curProject.value.pages)) {
       pageStore.setCurrentPage(curProject.value.pages[0])
+    } else {
+      pageStore.setCurrentPage(new Page())
     }
   }
 

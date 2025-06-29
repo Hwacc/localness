@@ -1,13 +1,13 @@
 import type {
-  ImageEvent,
   KeyEvent,
   DragEvent as LeaferDragEvent,
   IScreenSizeData,
   IUI,
   LeaferEvent,
   PropertyEvent,
+  ImageEvent,
 } from 'leafer-ui'
-import { PointerEvent } from 'leafer-ui'
+import { PointerEvent, Image } from 'leafer-ui'
 import '@leafer-in/view'
 import '@leafer-in/viewport'
 import '@leafer-in/export'
@@ -91,6 +91,10 @@ class Editor extends EditorInteraction {
       this.emit('scale-change', parseFloat((e.newValue as number).toFixed(2)))
     }
   }
+
+  override onImageLoad(e: ImageEvent) {
+    this.emit('image-load', e)
+  }
   override onImageLoaded(e: ImageEvent) {
     this.imageSrcSize = {
       width: e.image.width,
@@ -121,8 +125,13 @@ class Editor extends EditorInteraction {
     } else {
       initElementsSize()
     }
-    this.emit('image-loaded', e.image)
+    this.emit('image-loaded', e)
   }
+  override onImageError(e: ImageEvent): void {
+    console.error('image load error', e)
+    this.emit('image-error', e)
+  }
+
   override onGroupDragStart() {
     if (this.mode !== 'draw' || !isEmpty(this.app.editor.list)) return
     this.app.editor.visible = false
@@ -147,6 +156,7 @@ class Editor extends EditorInteraction {
     this.registerTagEvents(this.tempTag)
     this.groupTag.add(this.tempTag)
   }
+
   override onGroupDrag(e: LeaferDragEvent) {
     if (this.mode !== 'draw') return
     if (this.tempTag) {
@@ -202,7 +212,15 @@ class Editor extends EditorInteraction {
     }
     this.tempTag = null
   }
-  override onKeyDown() {}
+
+  override onKeyDown(e: KeyEvent) {
+    if (e.ctrlKey && e.code === 'KeyS') {
+      e.origin.preventDefault()
+      e.origin.stopPropagation()
+      this.emit('save')
+    }
+  }
+  override onKeyHold(_: KeyEvent) {}
   override onKeyUp(e: KeyEvent) {
     const key = e.key
     if (key === 'Delete') {
@@ -294,6 +312,10 @@ class Editor extends EditorInteraction {
   }
 
   public setImage(url: string) {
+    if (!url) {
+      this.emit('image-error', new Error('image url is empty'))
+      return
+    }
     this.image.set({ url })
     this.imageClipper.setImage(url)
   }
@@ -338,7 +360,24 @@ class Editor extends EditorInteraction {
   }
 
   public waitReady(callback: () => void) {
-    this.app.waitReady(callback)
+    this.app.tree.waitReady(callback)
+  }
+
+  // clear canvas
+  public clear() {
+    // clear image
+    this.image.destroy()
+    this.image = new Image({ x: 0, y: 0 })
+    this.registerImageEvents() // register image events
+    this.groupTree.add(this.image)
+
+    // clear tag group
+    this.groupTag.clear()
+  }
+
+  public destroy(sync: boolean = false) {
+    this.imageClipper.destroy()
+    this.app.destroy(sync)
   }
 
   public get ready() {

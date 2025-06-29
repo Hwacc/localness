@@ -10,6 +10,7 @@ export default withNuxt(
       'semi-style': ['error', 'first'],
       'semi-spacing': ['error', { 'before': false, 'after': true }],
       '@typescript-eslint/no-explicit-any': 'off',
+      '@typescript-eslint/no-unused-expressions': 'off',
       'vue/html-self-closing': 'off',
     },
   }

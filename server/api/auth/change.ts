@@ -2,6 +2,7 @@ import bcrypt from 'bcryptjs'
 import { zPassword } from '~/constants/schemas'
 import prisma from '~/server/libs/prisma'
 import { z } from 'zod/v4'
+import { numericID } from '~/utils/id'
 
 const zAuth = z.object({
   password: zPassword,
@@ -20,9 +21,17 @@ export default defineEventHandler(async (event) => {
   const data = {
     password: hashedPassword,
   }
+
+  const nID = numericID(session.user.id)
+  if (isNaN(nID)) {
+    throw createError({
+      statusCode: 400,
+      statusMessage: 'Invalid id format',
+    })
+  }
   await prisma.user.update({
     where: {
-      id: parseInt(session.user.id + ''),
+      id: nID,
       username: session.user.username,
     },
     data,

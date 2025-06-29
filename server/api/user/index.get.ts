@@ -1,4 +1,5 @@
 import prisma from '~/server/libs/prisma'
+import { numericID } from '~/utils/id'
 
 /**
  * @route GET /api/user
@@ -13,9 +14,16 @@ export default defineEventHandler(async (event) => {
       statusMessage: 'Unauthorized',
     })
   }
+  const nID = numericID(session.user.id)
+  if (isNaN(nID)) {
+    throw createError({
+      statusCode: 400,
+      statusMessage: 'Invalid id format',
+    })
+  }
   const user = await prisma.user.findUnique({
     where: {
-      id: parseInt(session.user.id + ''),
+      id: nID,
     },
   })
   return user

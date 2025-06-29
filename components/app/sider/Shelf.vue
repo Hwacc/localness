@@ -1,14 +1,18 @@
 <script setup lang="ts">
 import type { IProject } from '~/types/interfaces'
+import { injectEditorContext } from '~/providers/EditorProvider.vue'
 
 const { $dayjs } = useNuxtApp()
 
-const store = useProjectStore()
-const { setCurrentProject } = store
+const projectStore = useProjectStore()
+const { setCurrentProject } = projectStore
 
+const { editor, autoSave } = injectEditorContext()
 const open = ref(false)
 
-function onSelectProject(p: IProject) {
+async function onSelectProject(p: IProject) {
+  await autoSave.ask()
+  editor.value?.clear()
   setCurrentProject(p)
   open.value = false
 }
@@ -35,7 +39,7 @@ defineExpose({
       <UInput placeholder="Search" />
       <ul class="h-full flex-1 overflow-y-auto overflow-x-hidden">
         <li
-          v-for="project in store.projects"
+          v-for="project in projectStore.projects"
           :key="project.id"
           class="flex flex-col gap-1 p-2 cursor-pointer hover:bg-gray-100 hover:text-green-600"
           @click="onSelectProject(project)"
