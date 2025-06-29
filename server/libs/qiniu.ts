@@ -46,7 +46,11 @@ export function generateDownloadAccessUrl(key: string, deadline: number = 1) {
 export async function deleteAsset(key: string) {
   try {
     const { resp } = await bucketManager.delete('coze-i18n', key)
-    if (resp.statusCode === 200) {
+    /**
+     * code 200: delete success
+     * code 612: means asset not found
+     */
+    if (resp.statusCode === 200 || resp.statusCode === 612) {
       return true
     }
     return false

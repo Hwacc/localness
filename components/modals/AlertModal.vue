@@ -5,6 +5,7 @@ interface Props {
   mode: ModalTypes
   title: string
   message: string
+  okText?: string
   loading?: boolean
 }
 </script>
@@ -43,7 +44,7 @@ const onOk = () => {
           :loading="props.loading"
           @click="onOk"
         >
-          OK
+          {{ props.okText || 'OK' }}
         </UButton>
         <UButton
           v-if="props.mode === 'delete'"
@@ -51,7 +52,7 @@ const onOk = () => {
           :loading="props.loading"
           @click="onOk"
         >
-          Delete
+          {{ props.okText || 'Delete' }}
         </UButton>
         <UButton
           v-if="props.mode === 'warning'"
@@ -59,7 +60,7 @@ const onOk = () => {
           :loading="props.loading"
           @click="onOk"
         >
-          OK
+          {{ props.okText || 'OK' }}
         </UButton>
       </div>
     </template>

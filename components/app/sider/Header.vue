@@ -57,7 +57,6 @@ const projectMenuItems: DropdownMenuItem[] = [
     label: 'Open Project',
     icon: 'i-lucide:folder-open',
     onSelect: () => {
-      //TODO: emit open project sheet
       emit('openProjectShelf')
     },
   },

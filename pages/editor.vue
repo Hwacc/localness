@@ -121,6 +121,7 @@ onMounted(async () => {
                 try {
                   _deleteModal.patch({ loading: true })
                   await tagStore.deleteTag(payload.id)
+                  autoSave.remove(payload.id)
                   success(true)
                   close()
                 } catch (error) {
@@ -135,6 +136,7 @@ onMounted(async () => {
         } else {
           try {
             await tagStore.deleteTag(payload.id)
+            autoSave.remove(payload.id)
             success(true)
           } catch (error) {
             fail(error)

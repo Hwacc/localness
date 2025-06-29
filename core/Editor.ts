@@ -140,15 +140,7 @@ class Editor extends EditorInteraction {
       tagID: `Tag_${Date.now()}`,
       className: 'tag',
       style: {
-        stroke: {
-          type: 'linear',
-          from: 'left',
-          to: 'right',
-          stops: [
-            { offset: 0, color: '#FEB027' },
-            { offset: 1, color: '#79CB4D' },
-          ],
-        },
+        stroke: '#FEB027',
         strokeWidth: this.lineWidth,
       },
     })

@@ -35,6 +35,7 @@ export const useTagStore = defineStore('tag', () => {
   }
 
   async function deleteTag(tID: ID) {
+    if(!validID(tID)) return
     const deletedTag = await useApi(`/api/tag/${tID}`, {
       method: 'DELETE',
     })
@@ -45,6 +46,7 @@ export const useTagStore = defineStore('tag', () => {
   }
 
   async function updateTag(tagID: ID, tag: Partial<ITag>) {
+    if(!validID(tagID)) return
     const updatedTag = await useApi<ITag>(`/api/tag/${tagID}`, {
       method: 'POST',
       body: {

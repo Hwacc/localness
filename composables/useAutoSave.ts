@@ -1,5 +1,6 @@
 import { AlertModal } from '#components'
 import { isEmpty } from 'lodash-es'
+import type { ID } from '~/types/global'
 import type { ITag } from '~/types/interfaces'
 
 export const useAutoSave = () => {
@@ -10,7 +11,8 @@ export const useAutoSave = () => {
     props: {
       mode: 'warning',
       title: 'Warning',
-      message: 'Unsaved changes will be lost',
+      message: 'You have unsaved changes. Do you want to save them now?',
+      okText: 'Save Now',
       loading: false,
     },
   })
@@ -79,6 +81,10 @@ export const useAutoSave = () => {
     })
   }
 
+  function remove(id: ID) {
+    tagChangeList.value = tagChangeList.value.filter((tag) => tag.id !== id)
+  }
+
   function reset() {
     autoSaveTimer.value && clearTimeout(autoSaveTimer.value)
     tagChangeList.value = []
@@ -86,12 +92,25 @@ export const useAutoSave = () => {
   }
 
   watch(tagChangeList, async (list) => {
-    if (list.length > 0 && !autoSaveTimer.value) {
+    if (!isEmpty(list) && !autoSaveTimer.value) {
       autoSaveTimer.value = setTimeout(async () => {
         await immediate()
         reset()
       }, 60 * 1000 * 2) as unknown as number // 2 min
     }
+  })
+
+  const onBeforeUnload = (e: BeforeUnloadEvent) => {
+    if (!isEmpty(tagChangeList.value)) {
+      e.preventDefault()
+      return
+    }
+  }
+  onMounted(() => {
+    window.addEventListener('beforeunload', onBeforeUnload)
+  })
+  onUnmounted(() => {
+    window.removeEventListener('beforeunload', onBeforeUnload)
   })
 
   return {
@@ -100,5 +119,6 @@ export const useAutoSave = () => {
     ask,
     immediate,
     reset,
+    remove
   }
 }

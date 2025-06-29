@@ -19,21 +19,6 @@ export const SCALE_OPTIONS = [
   },
 ]
 
-export const LINE_OPTIONS = [
-  {
-    label: '1px',
-    value: 1,
-  },
-  {
-    label: '2px',
-    value: 2,
-  },
-  {
-    label: '4px',
-    value: 4,
-  },
-]
-
 export const WELCOME_TEXTS = [
   'Hello World',
   '你好世界',

@@ -27,7 +27,7 @@ model User {
   password    String
   role        UserRole  @default(USER)
   ownProjects Project[] @relation(name: "ProjectOwner")
-  projects    Project[]
+  projects    UserProject[]
 
   @@unique([username, id])
 }
@@ -42,7 +42,16 @@ model Project {
   owner         User     @relation(name: "ProjectOwner", fields: [ownerUsername, ownerID], references: [username, id])
   ownerUsername String   @map("owner_username")
   ownerID       Int      @map("owner_id")
-  users         User[]
+  users         UserProject[]
+}
+
+model UserProject {
+  user User  @relation(fields: [userID], references: [id])
+  project Project @relation(fields: [projectID], references: [id])
+  userID    Int @map("user_id")
+  projectID Int @map("project_id")
+
+  @@id([userID, projectID])
 }
 
 model Page {
@@ -51,7 +60,7 @@ model Page {
   updatedAt DateTime @updatedAt @map("updated_at")
   name      String
   image     String?
-  project   Project? @relation(fields: [projectID], references: [id])
+  project   Project? @relation(fields: [projectID], references: [id], onDelete: Cascade)
   projectID Int?     @map("project_id")
   tags      Tag[]
 }
@@ -70,7 +79,7 @@ model Tag {
   style         Json
   i18nKey       String?      @unique @map("i18n_key")
   text          String?
-  page          Page         @relation(fields: [pageID], references: [id])
+  page          Page         @relation(fields: [pageID], references: [id], onDelete: Cascade)
   pageID        Int          @map("page_id")
   translation   Translation? @relation(fields: [translationID], references: [id])
   translationID Int?         @map("translation_id")

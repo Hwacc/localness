@@ -50,6 +50,7 @@ export const usePageStore = defineStore('page', () => {
     pageID: ID,
     page: Partial<Pick<IPage, 'name' | 'image'>>
   ) {
+    if(!validID(pageID)) return
     const updatedPage = await useApi<IPage>(`/api/page/${pageID}`, {
       method: 'POST',
       body: page,
@@ -80,6 +81,7 @@ export const usePageStore = defineStore('page', () => {
   }
 
   async function deletePage(pageID: ID) {
+    if(!validID(pageID)) return
     const deletedPage = await useApi<IPage>(`/api/page/${pageID}`, {
       method: 'DELETE',
     })

@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { injectEditorContext } from '~/providers/EditorProvider.vue'
-import { SCALE_OPTIONS, LINE_OPTIONS } from '~/constants'
+import { SCALE_OPTIONS } from '~/constants'
 import type { EditorMode } from '~/core/Editor'
 
 const { editor, ready, scale, mode, line } = injectEditorContext()
@@ -100,24 +100,10 @@ function onLineChange(l: number) {
             @click="() => onModeChange('edit')"
           />
         </UTooltip>
-        <USelect
-          class="w-38"
+        <LineWidthSelect
           :model-value="line"
-          :items="LINE_OPTIONS"
-          size="md"
-          :disabled="!ready"
           @update:model-value="onLineChange"
-        >
-          <template #default="{ modelValue }">
-            <OptionLineWidthSign
-              :value="LINE_OPTIONS.find((o: any) => o.value === modelValue)!.value"
-              :label="LINE_OPTIONS.find((o: any) => o.value === modelValue)!.label"
-            />
-          </template>
-          <template #item="{ item }">
-            <OptionLineWidthSign :value="item.value" :label="item.label" />
-          </template>
-        </USelect>
+        />
       </div>
     </div>
   </div>

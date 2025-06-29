@@ -3,12 +3,14 @@ import { AlertModal, PageModal } from '#components'
 import type { DropdownMenuItem } from '@nuxt/ui'
 import { useDropZone } from '@vueuse/core'
 import { isEmpty } from 'lodash-es'
+import { injectEditorContext } from '~/providers/EditorProvider.vue'
 import type { IPage } from '~/types/interfaces'
 
 const projectStore = useProjectStore()
 const pageList = computed(() => projectStore.curProject?.pages || [])
 
-const store = usePageStore()
+const { autoSave } = injectEditorContext()
+const pageStore = usePageStore()
 const editPage = ref<IPage | undefined>(undefined)
 const pageMenuItems: DropdownMenuItem[] = [
   {
@@ -37,8 +39,9 @@ function onImageDrop(files: File[] | null) {
     showCreatePageModal()
   }
 }
-function onPageClick(page: IPage) {
-  store.setCurrentPage(page)
+async function onPageClick(page: IPage) {
+  await autoSave.ask()
+  pageStore.setCurrentPage(page)
 }
 
 const overlay = useOverlay()
@@ -91,7 +94,7 @@ function showDeleteAlertModal() {
     loading: false,
     onOk: async (_, { close }) => {
       if (!editPage.value) return
-      await store.deletePage(editPage.value.id)
+      await pageStore.deletePage(editPage.value.id)
       close()
     },
   })
@@ -142,13 +145,13 @@ function showDeleteAlertModal() {
               :class="[
                 'relative',
                 'flex items-center p-2 cursor-pointer hover:bg-gray-100 rounded-md mb-3 overflow-hidden',
-                page.id !== store.curPage.id &&
+                page.id !== pageStore.curPage.id &&
                   'hover:border-green-400 hover:text-green-600',
               ]"
               @click="() => onPageClick(page)"
             >
               <GlowBorder
-                v-if="page.id === store.curPage.id"
+                v-if="page.id === pageStore.curPage.id"
                 class="rounded-md"
                 :color="['#A07CFE', '#FE8FB5', '#FFBE7B']"
                 :style="{

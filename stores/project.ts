@@ -40,6 +40,7 @@ export const useProjectStore = defineStore('project', () => {
     pid: ID,
     project: Omit<IProject, 'id' | 'pages' | 'users'>
   ) {
+    if(!validID(pid)) return
     const updatedProject = await useApi<{
       id: ID
       name: string

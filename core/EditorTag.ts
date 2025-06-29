@@ -27,7 +27,6 @@ class EditorTag extends Rect {
       event: {
         mounted: () => {
           if (this.parent) {
-            console.log('mounted', this.parent.width, this.parent.height)
             this.set({
               widthRange: { min: 20, max: this.parent.width },
               heightRange: { min: 20, max: this.parent.height },
