@@ -46,6 +46,10 @@ const tagModal = overlay.create(TagInfoModal, {
   },
 })
 
+const showCanvasErrorMask = computed(() => {
+  return !validID(curPage.value?.id) || !curPage.value?.image
+})
+
 watchEffect(() => {
   if (!editor.value || !curPage.value) return
   const initImage = async () => {
@@ -185,7 +189,7 @@ onMounted(async () => {
   editor.value.on('tag-ocr', (image: string) => {
     console.log('tag-ocr', image)
   })
-  
+
   editor.value.on('tag-click', (_: ITag) => {})
 })
 
@@ -211,7 +215,14 @@ provideEditorContext({
       <AppSider class="relative z-10" />
       <div class="relative flex-1 overflow-hidden flex flex-col">
         <AppToolbar />
-        <div class="flex-1 p-2 bg-gray-100">
+        <div class="relative flex-1 p-2 bg-gray-100">
+          <div
+            v-if="showCanvasErrorMask"
+            class="absolute inset-0 flex flex-col items-center justify-center gap-6 bg-black/50 z-10"
+          >
+            <UIcon class="text-gray-100" name="i-hugeicons:sad-dizzy" size="64"/>
+            <p class="text-gray-200 text-2xl">Opps, No Page or Image Found</p>
+          </div>
           <div ref="editor-container" class="size-full" />
         </div>
       </div>
