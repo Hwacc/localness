@@ -10,6 +10,8 @@ import EditorProvider, {
 import AlertModal from '~/components/modals/AlertModal.vue'
 import type { ID } from '~/types/global'
 import { DEFAULT_LINE_COLOR, DEFAULT_LINE_WIDTH } from '~/constants'
+import { injectTaskContext } from '~/providers/TaskProvider.vue'
+import { Task } from '~/types/Task'
 
 definePageMeta({
   middleware: ['protected'],
@@ -28,6 +30,8 @@ const scale = ref<number>(1)
 const mode = ref<EditorMode>('draw')
 const lineWidth = ref<number>(DEFAULT_LINE_WIDTH)
 const lineColor = ref<string>(DEFAULT_LINE_COLOR)
+
+const taskContext = injectTaskContext()
 
 useResizeObserver(
   editorContainer,
@@ -194,6 +198,14 @@ onMounted(async () => {
 
   editor.value.on('tag-ocr', (image: string) => {
     console.log('tag-ocr', image)
+    const testTask = new Task('do-ocr', 'OCR', async () => {
+      await sleep(3000)
+      console.log('ocr done')
+    })
+
+    console.log('task job name', testTask.job.name)
+
+    taskContext?.add(testTask)
   })
 
   editor.value.on('tag-click', (_: ITag) => {})

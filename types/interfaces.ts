@@ -70,3 +70,24 @@ export interface ITranslation {
   en: string
   zh: string
 }
+
+export interface ITaskJobCallback {
+  (error?: Error, data?: object): void
+}
+export interface ITaskJob {
+  (callback?: ITaskJobCallback): Promise<any> | null | undefined
+  /**
+   * Override queue timeout.
+   */
+  timeout?: number
+}
+
+export interface ITask {
+  job: ITaskJob
+  info: {
+    id?: string
+    name?: string
+    description?: string
+    progress?: number
+  } & Record<string, any>
+}

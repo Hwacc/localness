@@ -7,7 +7,7 @@ const { variant = 'default', ...props } = defineProps<{
   variant?: 'mini' | 'default'
 }>()
 const emit = defineEmits<{
-  'update:modelValue': [value: IStroke | undefined]
+  'update:modelValue': [value: string | undefined]
 }>()
 
 const color = computed({
