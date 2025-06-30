@@ -3,7 +3,8 @@ import { injectEditorContext } from '~/providers/EditorProvider.vue'
 import { SCALE_OPTIONS } from '~/constants'
 import type { EditorMode } from '~/core/Editor'
 
-const { editor, ready, scale, mode, line } = injectEditorContext()
+const { editor, ready, scale, mode, lineWidth, lineColor } =
+  injectEditorContext()
 
 // scale
 const scaleText = computed(() => `${Math.trunc(scale.value * 100)}%`)
@@ -17,14 +18,22 @@ function onScaleChange(type: 'plus' | 'minus' | 'set', s?: number) {
     editor.value?.setScale(s ?? 1)
   }
 }
+
 // mode
 function onModeChange(m: EditorMode) {
   editor.value?.setMode(m)
 }
-// line
+
+// line width
 function onLineChange(l: number) {
-  line.value = l
+  lineWidth.value = l
   editor.value?.setLineWidth(l)
+}
+
+// line color
+function onLineColorChange(c: string | undefined) {
+  lineColor.value = c ?? '#000000'
+  // editor.value?.setLineColor(c)
 }
 </script>
 
@@ -101,8 +110,14 @@ function onLineChange(l: number) {
           />
         </UTooltip>
         <LineWidthSelect
-          :model-value="line"
+          :model-value="lineWidth"
+          :line-color="lineColor"
           @update:model-value="onLineChange"
+        />
+        <LineColorPicker
+          variant="mini"
+          :model-value="lineColor"
+          @update:model-value="onLineColorChange"
         />
       </div>
     </div>

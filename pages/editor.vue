@@ -25,7 +25,8 @@ const editorContainer = useTemplateRef<HTMLDivElement>('editor-container')
 const isEditorReady = ref<boolean>(false)
 const scale = ref<number>(1)
 const mode = ref<EditorMode>('draw')
-const line = ref<number>(2)
+const lineWidth = ref<number>(2)
+const lineColor = ref<string>('#000')
 
 useResizeObserver(
   editorContainer,
@@ -66,7 +67,7 @@ onMounted(async () => {
 
   editor.value = new Editor(editorContainer.value, mode.value)
   editor.value.setImage(imageUrl)
-  editor.value.setLineWidth(line.value)
+  editor.value.setLineWidth(lineWidth.value)
 
   editor.value.on('ready', () => {
     isEditorReady.value = true
@@ -188,7 +189,8 @@ provideEditorContext({
   ready: isEditorReady,
   scale,
   mode,
-  line,
+  lineWidth,
+  lineColor,
   autoSave,
 })
 </script>
