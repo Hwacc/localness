@@ -1,6 +1,11 @@
 import type { ITag } from '~/types/interfaces'
 import { Rect, type IJSONOptions } from 'leafer-ui'
-import { pick } from 'lodash-es'
+import { isEmpty, pick } from 'lodash-es'
+import {
+  DEFAULT_LINE_COLOR,
+  DEFAULT_LINE_WIDTH,
+  DEFAULT_CORNER_RADIUS,
+} from '~/constants'
 
 class EditorTag extends Rect {
   public remoteTag: Partial<ITag> = {} as ITag
@@ -14,9 +19,9 @@ class EditorTag extends Rect {
       width: tag.width,
       height: tag.height,
       fill: tag.style?.fill ?? 'transparent',
-      cornerRadius: tag.style?.cornerRadius ?? 4,
-      stroke: tag.style?.stroke ?? '#FEB027',
-      strokeWidth: tag.style?.strokeWidth ?? 2,
+      cornerRadius: tag.style?.cornerRadius ?? DEFAULT_CORNER_RADIUS,
+      stroke: tag.style?.stroke ?? DEFAULT_LINE_COLOR,
+      strokeWidth: tag.style?.strokeWidth ?? DEFAULT_LINE_WIDTH,
       dragBounds: 'parent',
       editable: true,
       editConfig: {
@@ -58,6 +63,17 @@ class EditorTag extends Rect {
 
   public update(rTag: Partial<ITag>) {
     this.remoteTag = { ...this.remoteTag, ...rTag }
+    this.updateStyle(rTag.style)
+  }
+
+  public updateStyle(rStyle: Partial<ITag['style']> | undefined) {
+    if (isEmpty(rStyle)) return
+    this.set({
+      fill: rStyle.fill ?? 'transparent',
+      cornerRadius: rStyle.cornerRadius ?? DEFAULT_CORNER_RADIUS,
+      stroke: rStyle.stroke ?? DEFAULT_LINE_COLOR,
+      strokeWidth: rStyle.strokeWidth ?? DEFAULT_LINE_WIDTH,
+    })
   }
 
   public override toJSON(options?: IJSONOptions): ITag {

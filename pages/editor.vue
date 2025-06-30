@@ -9,6 +9,7 @@ import EditorProvider, {
 } from '~/providers/EditorProvider.vue'
 import AlertModal from '~/components/modals/AlertModal.vue'
 import type { ID } from '~/types/global'
+import { DEFAULT_LINE_COLOR, DEFAULT_LINE_WIDTH } from '~/constants'
 
 definePageMeta({
   middleware: ['protected'],
@@ -25,8 +26,8 @@ const editorContainer = useTemplateRef<HTMLDivElement>('editor-container')
 const isEditorReady = ref<boolean>(false)
 const scale = ref<number>(1)
 const mode = ref<EditorMode>('draw')
-const lineWidth = ref<number>(2)
-const lineColor = ref<string>('#000')
+const lineWidth = ref<number>(DEFAULT_LINE_WIDTH)
+const lineColor = ref<string>(DEFAULT_LINE_COLOR)
 
 useResizeObserver(
   editorContainer,
@@ -59,7 +60,6 @@ watchEffect(() => {
 })
 
 onMounted(async () => {
-  console.log('editor onMounted')
   const imageUrl = await qiniuImage.get(curPage.value?.image)
   const { Editor } = await import('~/core/Editor')
 
@@ -164,19 +164,29 @@ onMounted(async () => {
   editor.value.on('tag-change', (arg: { action: string; tag: ITag }) =>
     autoSave.add(arg.tag)
   )
-  editor.value.on('tag-info', async (tag: ITag) => {
-    tagModal.patch({ tag, onSave: autoSave.immediate })
+
+  editor.value.asyncOn<ITag>('async-tag-info', ({ success, payload }) => {
+    tagModal.patch({
+      tag: payload,
+      onClose: (isSuccess: boolean) => {
+        !isSuccess && success(undefined)
+      },
+      onSave: (updatedTag: Partial<ITag> | undefined) => {
+        if (!updatedTag) {
+          success(undefined)
+          return
+        }
+        success(updatedTag)
+      },
+    })
     tagModal.open()
-    const remoteTag = await tagStore.getTag(tag.id)
-    tagModal.patch({ tag: remoteTag })
   })
 
   editor.value.on('tag-ocr', (image: string) => {
     console.log('tag-ocr', image)
   })
-  editor.value.on('tag-click', (tag: ITag) => {
-    // console.log('tag-click', tag)
-  })
+  
+  editor.value.on('tag-click', (_: ITag) => {})
 })
 
 onBeforeUnmount(() => {

@@ -19,6 +19,10 @@ export const SCALE_OPTIONS = [
   },
 ]
 
+export const DEFAULT_CORNER_RADIUS = 4
+export const DEFAULT_LINE_WIDTH = 2
+export const DEFAULT_LINE_COLOR = '#FEB027'
+
 export const WELCOME_TEXTS = [
   'Hello World',
   '你好世界',

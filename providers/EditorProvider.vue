@@ -1,5 +1,6 @@
 <script lang="ts">
 import type { ShallowRef, Ref } from 'vue'
+import { DEFAULT_LINE_COLOR, DEFAULT_LINE_WIDTH } from '~/constants'
 import type { Editor, EditorMode } from '~/core/Editor'
 
 export interface IEditorContext {
@@ -7,8 +8,8 @@ export interface IEditorContext {
   ready: Ref<boolean>
   scale: Ref<number>
   mode: Ref<EditorMode>
-  lineWidth: Ref<number>,
-  lineColor: Ref<string>,
+  lineWidth: Ref<number>
+  lineColor: Ref<string>
   autoSave: ReturnType<typeof useAutoSave>
 }
 
@@ -20,8 +21,8 @@ export function injectEditorContext() {
     ready: ref(false),
     scale: ref(1),
     mode: ref('drag'),
-    lineWidth: ref(2),
-    lineColor: ref('#000000'),
+    lineWidth: ref(DEFAULT_LINE_WIDTH),
+    lineColor: ref(DEFAULT_LINE_COLOR),
     autoSave: {} as ReturnType<typeof useAutoSave>,
   } as IEditorContext)
 }

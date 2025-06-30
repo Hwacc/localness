@@ -1,23 +1,33 @@
 <script setup lang="ts">
+import type { IStroke } from 'leafer-ui'
+import { DEFAULT_LINE_COLOR } from '~/constants'
+
 const { variant = 'default', ...props } = defineProps<{
-  modelValue: string | undefined
+  modelValue: IStroke | undefined
   variant?: 'mini' | 'default'
 }>()
 const emit = defineEmits<{
-  'update:modelValue': [value: string | undefined]
+  'update:modelValue': [value: IStroke | undefined]
 }>()
 
-const color = ref(props.modelValue)
-watch(
-  () => props.modelValue,
-  () => {
-    color.value = props.modelValue
-  }
-)
+const color = computed({
+  get: () => {
+    if (typeof props.modelValue === 'string') {
+      return props.modelValue
+    } else {
+      //TODO: if modelValue is IGradientPaint or IImagePaint make it to string or deal with it
+      return DEFAULT_LINE_COLOR
+    }
+  },
+  set: (val) => {
+    // TODO: maybe support string to IGradientPaint or IImagePaint
+    emit('update:modelValue', val)
+  },
+})
 
 const chipStyle = computed(() => {
   return {
-    backgroundColor: color.value || '#000',
+    backgroundColor: color.value || DEFAULT_LINE_COLOR,
   }
 })
 const buttonLabel = computed(() => {
@@ -39,11 +49,7 @@ const buttonLabel = computed(() => {
     </UButton>
 
     <template #content>
-      <UColorPicker
-        v-model="color"
-        class="p-2"
-        @update:model-value="(color) => emit('update:modelValue', color)"
-      />
+      <UColorPicker v-model="color" class="p-2" />
     </template>
   </UPopover>
 </template>

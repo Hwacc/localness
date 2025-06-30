@@ -33,7 +33,7 @@ function onLineChange(l: number) {
 // line color
 function onLineColorChange(c: string | undefined) {
   lineColor.value = c ?? '#000000'
-  // editor.value?.setLineColor(c)
+  editor.value?.setLineColor(lineColor.value)
 }
 </script>
 

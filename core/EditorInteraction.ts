@@ -12,6 +12,7 @@ import {
   EditorScaleEvent,
   EditorSkewEvent,
 } from '@leafer-in/editor'
+import '@leafer-in/find'
 
 export type EditorMode = 'drag' | 'draw' | 'edit'
 
@@ -94,6 +95,10 @@ abstract class EditorInteraction extends EditorBase {
       return
     }
     onModeChange()
+  }
+
+  public findOneTagByTagID(tagID: string) {
+    return this.groupTag.findOne(tagID)
   }
 }
 

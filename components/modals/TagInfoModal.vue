@@ -1,8 +1,16 @@
 <script setup lang="ts">
 import type { ITag } from '~/types/interfaces'
+import { z } from 'zod/v4'
+import {
+  DEFAULT_CORNER_RADIUS,
+  DEFAULT_LINE_COLOR,
+  DEFAULT_LINE_WIDTH,
+} from '~/constants'
 
 const props = defineProps<{ tag: ITag }>()
 const tag = reactive(props.tag)
+
+const tagStore = useTagStore()
 
 const tabsItems = [
   {
@@ -24,8 +32,50 @@ const tabsItems = [
     slot: 'translations',
   },
 ]
+const emit = defineEmits<{ close: [boolean]; save: [ITag | undefined] }>()
 
-const emit = defineEmits<{ close: [boolean]; save: [ITag] }>()
+const zEditTag = z.object({
+  locked: z.boolean(),
+  style: z.object({
+    fill: z.string().optional(),
+    stroke: z.string().optional(),
+    strokeWidth: z.number().optional(),
+    cornerRadius: z.number().optional(),
+  }),
+})
+
+const state = reactive<z.infer<typeof zEditTag>>({
+  locked: tag.locked,
+  style: {
+    fill: tag.style?.fill || '',
+    stroke:
+      typeof tag.style?.stroke === 'string'
+        ? tag.style.stroke
+        : DEFAULT_LINE_COLOR,
+    strokeWidth: tag.style?.strokeWidth || DEFAULT_LINE_WIDTH,
+    cornerRadius: tag.style?.cornerRadius || DEFAULT_CORNER_RADIUS,
+  },
+})
+
+const isLoading = ref(false)
+async function onSubmit() {
+  console.log('submit', state)
+  isLoading.value = true
+  try {
+    const updatedTag = await tagStore.updateTag(tag.id, state)
+    emit('save', updatedTag)
+    emit('close', true)
+  } catch (error) {
+    console.error(error)
+  } finally {
+    isLoading.value = false
+  }
+}
+
+const previewStyle = computed(() => ({
+  border: `${state.style.strokeWidth}px solid ${state.style.stroke}`,
+  borderRadius: `${state.style.cornerRadius}px`,
+}))
 </script>
 
 <template>
@@ -35,7 +85,7 @@ const emit = defineEmits<{ close: [boolean]; save: [ITag] }>()
     title="Tag Info"
   >
     <template #body>
-      <div class="w-full">
+      <UForm class="w-full" :schema="zEditTag" :state="state" @submit="onSubmit">
         <UTabs
           :items="tabsItems"
           variant="link"
@@ -86,13 +136,14 @@ const emit = defineEmits<{ close: [boolean]; save: [ITag] }>()
                 />
                 <UButton
                   :icon="
-                    tag.locked
+                    state.locked
                       ? 'i-lucide:lock-keyhole'
                       : 'lucide:lock-keyhole-open'
                   "
                   size="md"
                   color="primary"
                   variant="outline"
+                  @click="state.locked = !state.locked"
                 />
               </UFormField>
             </div>
@@ -100,31 +151,35 @@ const emit = defineEmits<{ close: [boolean]; save: [ITag] }>()
           <template #styles>
             <div class="flex flex-col gap-2.5">
               <UFormField label="Fill">
-                <div class="w-full h-7.5 image-container"></div>
-              </UFormField>
-              <UFormField label="Stroke">
-                <div class="w-full h-7.5 image-container">
-                  <div class="size-full bg-no-repeat bg-size-[100%_100%]">
-                    {{ tag.style.stroke }}
-                  </div>
+                <div
+                  class="w-full flex items-center justify-center h-12 image-container"
+                >
+                  <div
+                    class="w-[50%] h-[calc(100%-0.5rem)] my-auto"
+                    :style="previewStyle"
+                  ></div>
                 </div>
+              </UFormField>
+              <UFormField label="Stroke Color">
+                <LineColorPicker v-model="state.style.stroke" class="mt-2.5" />
               </UFormField>
               <UFormField label="Stroke Width">
                 <LineWidthSelect
+                  v-model="state.style.strokeWidth"
+                  :line-color="state.style.stroke"
                   class="mt-2.5"
-                  :model-value="tag.style.strokeWidth"
                 />
               </UFormField>
               <UFormField label="Corner Radius">
                 <div class="flex items-center gap-4 mt-4">
                   <USlider
+                    v-model="state.style.cornerRadius"
                     class="w-[50%]"
-                    :model-value="tag.style.cornerRadius"
                     :min="0"
                     :max="10"
                     :step="1"
                   />
-                  <span>{{ tag.style.cornerRadius }} px</span>
+                  <span>{{ state.style.cornerRadius }} px</span>
                 </div>
               </UFormField>
             </div>
@@ -140,15 +195,10 @@ const emit = defineEmits<{ close: [boolean]; save: [ITag] }>()
           />
           <UButton
             label="Save"
-            @click="
-              () => {
-                emit('save', tag)
-                emit('close', true)
-              }
-            "
+            type="submit"
           />
         </div>
-      </div>
+      </UForm>
     </template>
   </UModal>
 </template>

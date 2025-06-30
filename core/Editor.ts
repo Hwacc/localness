@@ -35,6 +35,7 @@ class Editor extends EditorInteraction {
 
   private funcBtnGroup: FuncBtnGroup
   private lineWidth = 2
+  private lineColor = '#FEB027'
   private dotMatrix: DotMatrix
   private debounceTagChangeEvent: (action: string, target: IUI) => void
 
@@ -140,7 +141,7 @@ class Editor extends EditorInteraction {
       tagID: `Tag_${Date.now()}`,
       className: 'tag',
       style: {
-        stroke: '#FEB027',
+        stroke: this.lineColor,
         strokeWidth: this.lineWidth,
       },
     })
@@ -251,9 +252,18 @@ class Editor extends EditorInteraction {
     }
   }
 
-  private onInfoClick() {
+  private async onInfoClick() {
     if (isEmpty(this.app.editor.list)) return
-    this.emit('tag-info', this.app.editor.list[0].toJSON())
+    const selectedOne = this.app.editor.list[0] as EditorTag
+    try {
+      const remoteTag = await this.asyncEmit<'async-tag-info', ITag>(
+        'async-tag-info',
+        selectedOne.toJSON()
+      )
+      selectedOne.update(remoteTag)
+    } catch (error) {
+      console.error('tag info error', error)
+    }
   }
 
   private async onOCRClick() {
@@ -289,6 +299,7 @@ class Editor extends EditorInteraction {
     })
     tag.on(PointerEvent.DOUBLE_TAP, () => this.onInfoClick())
   }
+
   private renderTags(tags: ITag[]) {
     this.groupTag.clear()
     if (isEmpty(tags)) return
@@ -343,6 +354,10 @@ class Editor extends EditorInteraction {
     this.lineWidth = width
   }
 
+  public setLineColor(color: string) {
+    this.lineColor = color
+  }
+
   public setTags(tags: ITag[]) {
     if (!this.app.tree.ready) {
       this.app.tree.waitReady(() => this.renderTags(tags))
@@ -350,6 +365,14 @@ class Editor extends EditorInteraction {
     }
     this.renderTags(tags)
   }
+
+  // public updateTag(tagID: string, updatedTag: Partial<ITag>) {
+
+  //   if (isEmpty(this.app.editor.list)) return
+  //   const selectedOne = this.app.editor.list[0] as EditorTag
+  //   console.log('updateTag', tagID, updatedTag)
+  //   // tag.update(updatedTag)
+  // }
 
   public waitReady(callback: () => void) {
     this.app.tree.waitReady(callback)
