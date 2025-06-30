@@ -50,9 +50,11 @@ const showCanvasErrorMask = computed(() => {
   return !validID(curPage.value?.id) || !curPage.value?.image
 })
 
+const isImageLoading = ref(false)
 watchEffect(() => {
   if (!editor.value || !curPage.value) return
   const initImage = async () => {
+    isImageLoading.value = true
     const imageUrl = await qiniuImage.get(curPage.value?.image)
     editor.value?.setImage(imageUrl)
   }
@@ -80,12 +82,16 @@ onMounted(async () => {
   editor.value.on('image-loaded', () => {
     const _setTags = () => {
       editor.value?.setTags(tagList.value)
+      isImageLoading.value = false
     }
     if (!editor.value?.ready) {
       editor.value?.waitReady(_setTags)
       return
     }
     _setTags()
+  })
+  editor.value.on('image-error', () => {
+    isImageLoading.value = false
   })
 
   editor.value.on('mode-change', (_mode: EditorMode) => {
@@ -220,9 +226,14 @@ provideEditorContext({
             v-if="showCanvasErrorMask"
             class="absolute inset-0 flex flex-col items-center justify-center gap-6 bg-black/50 z-10"
           >
-            <UIcon class="text-gray-100" name="i-hugeicons:sad-dizzy" size="64"/>
+            <UIcon
+              class="text-gray-100"
+              name="i-hugeicons:sad-dizzy"
+              size="64"
+            />
             <p class="text-gray-200 text-2xl">Opps, No Page or Image Found</p>
           </div>
+          <LoadingSpinner :loading="isImageLoading" />
           <div ref="editor-container" class="size-full" />
         </div>
       </div>
