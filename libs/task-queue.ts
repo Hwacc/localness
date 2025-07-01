@@ -176,7 +176,7 @@ export default class TaskQueue extends EventTarget {
           })
           task.start((error, results) => {
             if (error) reject(error)
-            else resolve(...results)
+            else resolve(results)
           })
         })
       }
