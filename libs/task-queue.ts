@@ -1,67 +1,77 @@
-import type { ITaskJob } from '~/types/interfaces'
-import { Task } from '~/types/Task'
+/**
+ * @description TaskQueue is a queue to manage tasks
+ * reference queue.js at: https://github.com/jessetane/queue
+ */
+
+import {
+  QueueEvent,
+  type QueueOptions,
+  type QueueResult,
+  type QueueError,
+  type ITaskJob,
+  TaskStateCode,
+  type ITask,
+} from './task-queue.types'
 
 const has = Object.prototype.hasOwnProperty
 
-type EventsMap = {
-  end: { error?: Error }
-  error: { error: Error; job: ITaskJob }
-  timeout: { next: (err?: Error, ...result: any[]) => void; job: ITaskJob }
-  success: { result: any[] }
-  start: { job?: ITaskJob }
-}
+export class Task implements ITask {
+  job: ITaskJob
+  options: ITask['options']
 
-export class QueueEvent<
-  Name extends keyof EventsMap,
-  Detail extends EventsMap[Name]
-> extends Event {
-  detail: Detail
-  constructor(name: Name, detail: Detail) {
-    super(name)
-    this.detail = detail
+  constructor(job: ITaskJob, options: ITask['options'] = {}) {
+    const defaultOptions = {
+      id: `Task-${Date.now()}`,
+    }
+    this.options = { ...defaultOptions, ...options }
+    // eslint-disable-next-line @typescript-eslint/no-this-alias
+    const that = this
+    // to Proxy job to let anonymous function can get timeout
+    this.job = new Proxy(job, {
+      get: (target, param, receiver) => {
+        if (param === 'timeout') return that.options.timeout
+        return Reflect.get(target, param, receiver)
+      },
+    })
   }
 }
 
-type QueueOptions = {
-  concurrency?: number
-  timeout?: number
-  autostart?: boolean
-  results?: any[]
-}
-export default class Queue extends EventTarget {
-  concurrency: number
-  timeout: number
-  autostart: boolean
-  results: any[] | null
+export default class TaskQueue extends EventTarget {
+  options!: QueueOptions
   pending: number
   session: number
   running: boolean
-  tasks: Array<Task | Queue>
+  tasks: Array<Task | TaskQueue>
   timers: number[]
 
-  constructor(options: QueueOptions = {}) {
+  private recordResults: Array<QueueResult | null> = [] // record queue result
+
+  constructor(options: Partial<QueueOptions> = {}) {
     super()
-    const {
-      concurrency = Infinity,
-      timeout = 0,
-      autostart = false,
-      results = null,
-    } = options
-    this.concurrency = concurrency
-    this.timeout = timeout
-    this.autostart = autostart
-    this.results = results
+    const defaultOptions: QueueOptions = {
+      id: `Queue-${Date.now()}`,
+      name: '',
+      description: '',
+      concurrency: Infinity,
+      timeout: 0,
+      autostart: false,
+    }
+    this.options = {
+      ...defaultOptions,
+      ...options,
+    }
     this.pending = 0
     this.session = 0
     this.running = false
     this.tasks = []
     this.timers = []
-    this.addEventListener('error', this._errorHandler)
+
+    // this.addEventListener('error', this._errorHandler)
   }
 
-  _errorHandler(evt: any) {
-    this.end(evt.detail.error)
-  }
+  // _errorHandler(evt: any) {
+  //   this.end(evt.detail.error)
+  // }
 
   pop() {
     return this.tasks.pop()
@@ -83,15 +93,30 @@ export default class Queue extends EventTarget {
 
   push(...tasks: Task[]) {
     const methodResult = this.tasks.push(...tasks)
-    if (this.autostart) this._start()
+    if (this.options.autostart) this._start()
     return methodResult
   }
 
   unshift(...tasks: Task[]) {
     const methodResult = this.tasks.unshift(...tasks)
-    if (this.autostart) this._start()
+    if (this.options.autostart) this._start()
     return methodResult
   }
+
+  patch(queue: TaskQueue) {
+    queue.options.autostart = false
+    const methodsResult = this.tasks.push(queue)
+    if (this.options.autostart) this._start()
+    return methodsResult
+  }
+
+  // find(task: Task | string) {
+  //   if (typeof task === 'string') {
+  //     const findIndex = this.tasks.findIndex((t) => t.info.id === task)
+  //     return this.tasks[findIndex]
+  //   }
+  //   return this.tasks.find((t) => t.info.id === task.info.id)
+  // }
 
   // splice(start, deleteCount, ...workers) {
   //   this.jobs.splice(start, deleteCount, ...workers)
@@ -103,21 +128,26 @@ export default class Queue extends EventTarget {
     return this.pending + this.tasks.length
   }
 
-  start(callback?: (error: Error | undefined, results: any[] | null) => void) {
+  public start(
+    callback?: (
+      error: QueueError | undefined,
+      results: Array<QueueResult | null>
+    ) => void
+  ) {
     if (this.running) throw new Error('already started')
     let awaiter
     if (callback) {
-      this._addCallbackToEndEvent(callback)
+      this.addCallbackToEndEvent(callback)
     } else {
-      awaiter = this._createPromiseToEndEvent()
+      awaiter = this.createPromiseToEndEvent()
     }
     this._start()
     return awaiter
   }
 
-  _start() {
+  private _start() {
     this.running = true
-    if (this.pending >= this.concurrency) {
+    if (this.pending >= this.options.concurrency) {
       return
     }
     if (this.tasks.length === 0) {
@@ -126,39 +156,52 @@ export default class Queue extends EventTarget {
       }
       return
     }
-    const task = this.tasks.shift()
+
+    // task cannot be null
+    const task = this.tasks.shift() as Task | TaskQueue
     const session = this.session
 
     let job!: ITaskJob
-    if (task instanceof Queue) {
-      job = new Proxy(
-        async function () {
-          return new Promise<any[] | null>((resolve, reject) => {
-            task.addEventListener('end', (evt: any) => {
-              if (evt.detail?.error) reject(evt.detail.error)
-              else resolve(evt.detail?.results)
-            })
-            task.start()
+    let timeout: number | null = this.options.timeout
+    // try to get job from task or queue
+    if (task instanceof TaskQueue) {
+      // this task is a queue, so we wrap it as job like
+      job = async () => {
+        return new Promise<any[] | null>((resolve, reject) => {
+          // we use sub queue's timeout to notify main queue timeout
+          task.addEventListener('timeout', () => {
+            // should listen sub queue's timeout event to get detail
+            this.dispatchEvent(new QueueEvent('timeout', { task, next }))
           })
-        },
-        {
-          get: (target, param, receiver) => {
-            if (param === 'timeout') return task.timeout
-            return Reflect.get(target, param, receiver)
-          },
-        }
-      )
+          task.start((error, results) => {
+            console.log('sub queue result', error, results)
+            if (error) reject(error)
+            else resolve(results)
+          })
+        })
+      }
+      // if job is a queue, we don't use main queue's timeout
+      timeout = null
     } else if (task instanceof Task) {
+      // this task is normal task
       job = task.job
+      if (has.call(job, 'timeout') || job.timeout) {
+        timeout = job.timeout ?? this.options.timeout
+      }
     }
 
-    const timeout =
-      job && has.call(job, 'timeout') ? job.timeout : this.timeout
+    // let's rock
     let once = true
     let timeoutId: number | null = null
     let didTimeout = false
-    let resultIndex: number | null = null
-    const next = (error?: Error, ...result: any[]) => {
+    let resultIndex: number = 0
+
+    /**
+     * next is a callback to handle the result of a job
+     * @param error
+     * @param result
+     */
+    const next = (err?: QueueError, ...res: any[]) => {
       if (once && this.session === session) {
         once = false
         this.pending--
@@ -166,14 +209,22 @@ export default class Queue extends EventTarget {
           this.timers = this.timers.filter((tID) => tID !== timeoutId)
           clearTimeout(timeoutId)
         }
-        if (error) {
-          this.dispatchEvent(new QueueEvent('error', { error, job }))
+        if (err) {
+          this.recordResults[resultIndex] = err
+          this.dispatchEvent(new QueueEvent('error', { error: err }))
         } else if (!didTimeout) {
-          if (resultIndex !== null && this.results !== null) {
-            this.results[resultIndex] = [...result]
+          // if is not time out
+          this.recordResults[resultIndex] = {
+            code: TaskStateCode.Success,
+            result:
+              res.length > 1 ? res : res.length === 0 ? undefined : res[0],
+            task,
           }
           this.dispatchEvent(
-            new QueueEvent('success', { result: [...result], job })
+            new QueueEvent('success', {
+              result:
+                res.length > 1 ? res : res.length === 0 ? undefined : res[0],
+            })
           )
         }
         if (this.session === session) {
@@ -185,22 +236,30 @@ export default class Queue extends EventTarget {
         }
       }
     }
+
+    // if has timeout, we set a timeout
     if (timeout) {
       timeoutId = setTimeout(() => {
         didTimeout = true
-        this.dispatchEvent(
-          new QueueEvent('timeout', { next, job })
-        )
-        next()
+        this.recordResults[resultIndex] = {
+          code: TaskStateCode.Timeout,
+          task,
+          result: null,
+          error: new Error('Timeout'),
+        }
+        this.dispatchEvent(new QueueEvent('timeout', { task, next }))
+        next({ code: TaskStateCode.Timeout, error: new Error('Timeout'), task })
       }, timeout) as unknown as number
       this.timers.push(timeoutId)
     }
-    if (this.results != null) {
-      resultIndex = this.results.length
-      this.results[resultIndex] = null
-    }
+
+    // before do job, expand records
+    resultIndex = this.recordResults.length
+    this.recordResults[resultIndex] = null
+
     this.pending++
-    this.dispatchEvent(new QueueEvent('start', { job }))
+    this.dispatchEvent(new QueueEvent('start', { task })) // dispatch start event
+    // do a job
     const jobPromise = job?.(next)
     if (jobPromise && jobPromise instanceof Promise) {
       jobPromise
@@ -208,9 +267,14 @@ export default class Queue extends EventTarget {
           return next(undefined, result)
         })
         .catch(function (err) {
-          return next(err || true)
+          return next({
+            code: TaskStateCode.Error,
+            error: err || new Error('Unknown error'),
+            task,
+          })
         })
     }
+    // if queue is running, still going on
     if (this.running && this.tasks.length > 0) {
       this._start()
     }
@@ -220,7 +284,7 @@ export default class Queue extends EventTarget {
     this.running = false
   }
 
-  end(error = undefined) {
+  end(error?: QueueError) {
     this.clearTimers()
     this.tasks.length = 0
     this.pending = 0
@@ -234,28 +298,37 @@ export default class Queue extends EventTarget {
     this.timers = []
   }
 
-  _addCallbackToEndEvent(
-    cb: (error: Error | undefined, results: any[] | null) => void
+  private addCallbackToEndEvent(
+    cb: (
+      error: QueueError | undefined,
+      results: Array<QueueResult | null>
+    ) => void
   ) {
-    const onend = (evt: any) => {
-      this.removeEventListener('end', onend)
-      cb(evt.detail.error, this.results)
+    const onEnd = (evt: any) => {
+      this.removeEventListener('end', onEnd)
+      cb(evt.detail.error, evt.detail.result)
     }
-    this.addEventListener('end', onend)
+    this.addEventListener('end', onEnd)
   }
 
-  _createPromiseToEndEvent() {
-    return new Promise((resolve, reject) => {
-      this._addCallbackToEndEvent((error, results) => {
-        if (error) reject(error)
-        else resolve(results)
+  private createPromiseToEndEvent() {
+    return new Promise((resolve) => {
+      this.addCallbackToEndEvent((error, results) => {
+        resolve({ error, results })
       })
     })
   }
 
-  done(error = undefined) {
+  done(error?: QueueError) {
     this.session++
     this.running = false
-    this.dispatchEvent(new QueueEvent('end', { error }))
+    this.dispatchEvent(
+      new QueueEvent('end', {
+        error,
+        result: this.recordResults,
+      })
+    )
+    // when down reset records
+    this.recordResults = []
   }
 }

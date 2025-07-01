@@ -11,7 +11,7 @@ import AlertModal from '~/components/modals/AlertModal.vue'
 import type { ID } from '~/types/global'
 import { DEFAULT_LINE_COLOR, DEFAULT_LINE_WIDTH } from '~/constants'
 import { injectTaskContext } from '~/providers/TaskProvider.vue'
-import { Task } from '~/types/Task'
+import TaskQueue, { Task } from '~/libs/task-queue'
 
 definePageMeta({
   middleware: ['protected'],
@@ -198,16 +198,83 @@ onMounted(async () => {
 
   editor.value.on('tag-ocr', (image: string) => {
     console.log('tag-ocr', image)
-    const testTask = new Task('do-ocr', 'OCR', async () => {
-      await sleep(3000)
-      console.log('ocr done')
+
+    const goodTask = new Task(
+      async () => {
+        await sleep(3000)
+        return 'goodtask done'
+      },
+      {
+        id: 'goodtask',
+      }
+    )
+
+    const timeoutTask = new Task(
+      async () => {
+        await sleep(3000)
+        return 'timeout task done'
+      },
+      {
+        id: 'timeouttask',
+        timeout: 1000,
+      }
+    )
+
+    const errorTask = new Task(
+      async () => {
+        throw new Error('error task')
+      },
+      {
+        id: 'errortask',
+      }
+    )
+
+    const goodQueue = new TaskQueue({
+      concurrency: 1,
+      timeout: 10000,
+      autostart: false,
     })
+    goodQueue.push(
+      new Task(
+        async () => {
+          await sleep(1000)
+          return 'subtask done1'
+        },
+        {
+          id: 'subtask1',
+        }
+      )
+    )
+    goodQueue.push(
+      new Task(
+        async () => {
+          await sleep(2000)
+          return 'subtask done2'
+        },
+        {
+          id: 'subtask2',
+        }
+      )
+    )
 
-    console.log('task job name', testTask.job.name)
+    const timeoutQueue = new TaskQueue({
+      id: 'timeoutqueue',
+      name: 'timeout queue',
+      concurrency: 1,
+      timeout: 1000,
+      autostart: false,
+    })
+    timeoutQueue.push(new Task(async () => {
+      await sleep(3000)
+      return 'timeout task done'
+    }, {
+      id: 'timeout-subtask',
+    }))
 
-    taskContext?.add(testTask)
+    taskContext?.push(goodTask, timeoutTask, errorTask)
+    taskContext?.patch(goodQueue)
+    taskContext?.patch(timeoutQueue)
   })
-
   editor.value.on('tag-click', (_: ITag) => {})
 })
 

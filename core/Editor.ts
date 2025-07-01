@@ -256,10 +256,11 @@ class Editor extends EditorInteraction {
     if (isEmpty(this.app.editor.list)) return
     const selectedOne = this.app.editor.list[0] as EditorTag
     try {
-      const remoteTag = await this.asyncEmit<'async-tag-info', ITag>(
+      const remoteTag = await this.asyncEmit<'async-tag-info', ITag | undefined>(
         'async-tag-info',
         selectedOne.toJSON()
       )
+      if (!remoteTag) return
       selectedOne.update(remoteTag)
     } catch (error) {
       console.error('tag info error', error)
