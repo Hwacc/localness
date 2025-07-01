@@ -3,6 +3,7 @@
  * reference queue.js at: https://github.com/jessetane/queue
  */
 
+import { flatten } from 'lodash-es'
 import {
   QueueEvent,
   type QueueOptions,
@@ -168,15 +169,14 @@ export default class TaskQueue extends EventTarget {
       // this task is a queue, so we wrap it as job like
       job = async () => {
         return new Promise<any[] | null>((resolve, reject) => {
-          // we use sub queue's timeout to notify main queue timeout
+          // use sub queue's timeout to notify main queue timeout
           task.addEventListener('timeout', () => {
             // should listen sub queue's timeout event to get detail
             this.dispatchEvent(new QueueEvent('timeout', { task, next }))
           })
           task.start((error, results) => {
-            console.log('sub queue result', error, results)
             if (error) reject(error)
-            else resolve(results)
+            else resolve(...results)
           })
         })
       }
@@ -213,19 +213,39 @@ export default class TaskQueue extends EventTarget {
           this.recordResults[resultIndex] = err
           this.dispatchEvent(new QueueEvent('error', { error: err }))
         } else if (!didTimeout) {
-          // if is not time out
-          this.recordResults[resultIndex] = {
-            code: TaskStateCode.Success,
-            result:
-              res.length > 1 ? res : res.length === 0 ? undefined : res[0],
-            task,
-          }
-          this.dispatchEvent(
-            new QueueEvent('success', {
+          const handleSuccessResult = () => {
+            this.recordResults[resultIndex] = {
+              code: TaskStateCode.Success,
               result:
                 res.length > 1 ? res : res.length === 0 ? undefined : res[0],
-            })
-          )
+              task,
+            }
+            this.dispatchEvent(
+              new QueueEvent('success', {
+                result:
+                  res.length > 1 ? res : res.length === 0 ? undefined : res[0],
+              })
+            )
+          }
+          if (task instanceof TaskQueue) {
+            /**
+             * if task is a subqueue, because timeout's defined is not a error type,
+             * we should check if sub queue has timeout tasks
+             * and set subqueue's state to timeout
+             */
+            const flatRes = flatten(res)
+            if (flatRes.some((r) => r.code === TaskStateCode.Timeout)) {
+              this.recordResults[resultIndex] = {
+                code: TaskStateCode.Timeout,
+                task,
+                result: res,
+              }
+            } else {
+              handleSuccessResult()
+            }
+          } else {
+            handleSuccessResult()
+          }
         }
         if (this.session === session) {
           if (this.pending === 0 && this.tasks.length === 0) {
@@ -245,10 +265,9 @@ export default class TaskQueue extends EventTarget {
           code: TaskStateCode.Timeout,
           task,
           result: null,
-          error: new Error('Timeout'),
         }
         this.dispatchEvent(new QueueEvent('timeout', { task, next }))
-        next({ code: TaskStateCode.Timeout, error: new Error('Timeout'), task })
+        next()
       }, timeout) as unknown as number
       this.timers.push(timeoutId)
     }

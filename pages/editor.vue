@@ -270,10 +270,35 @@ onMounted(async () => {
     }, {
       id: 'timeout-subtask',
     }))
+    timeoutQueue.push(new Task(async () => {
+      await sleep(600)
+      return 'good task done'
+    }, {
+      id: 'timeout-good-subtask',
+    }))
+
+    const errorQueue = new TaskQueue({
+      id: 'errorqueue',
+      name: 'error queue',
+      concurrency: 1,
+      autostart: false,
+    })
+    errorQueue.push(new Task(async () => {
+      throw new Error('error task')
+    }, {
+      id: 'error-subtask',
+    }))
+    errorQueue.push(new Task(async () => {
+      await sleep(1000)
+      return 'good task done'
+    }, {
+      id: 'error-good-subtask',
+    }))
 
     taskContext?.push(goodTask, timeoutTask, errorTask)
     taskContext?.patch(goodQueue)
     taskContext?.patch(timeoutQueue)
+    taskContext?.patch(errorQueue)
   })
   editor.value.on('tag-click', (_: ITag) => {})
 })
