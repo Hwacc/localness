@@ -12,7 +12,7 @@ import {
   type ITaskJob,
   TaskStateCode,
   type ITask,
-} from './task-queue.types'
+} from './types'
 
 const has = Object.prototype.hasOwnProperty
 
@@ -107,26 +107,38 @@ export default class TaskQueue extends EventTarget {
     return methodResult
   }
 
-  patch(queue: TaskQueue) {
-    queue.options.autostart = false
-    const methodsResult = this.tasks.push(queue)
+  patch(...queues: TaskQueue[]) {
+    queues.forEach((q) => (q.options.autostart = false))
+    const methodsResult = this.tasks.push(...queues)
     if (this.options.autostart) this._start()
     return methodsResult
   }
 
-  // find(task: Task | string) {
-  //   if (typeof task === 'string') {
-  //     const findIndex = this.tasks.findIndex((t) => t.info.id === task)
-  //     return this.tasks[findIndex]
-  //   }
-  //   return this.tasks.find((t) => t.info.id === task.info.id)
-  // }
+  /**
+   * find task by id
+   * @param task Task | TaskQueue | string
+   * @returns Task | TaskQueue | undefined
+   */
+  find(task: Task | TaskQueue | string) {
+    if (typeof task === 'string') {
+      const findIndex = this.tasks.findIndex((t) => t.options.id === task)
+      return this.tasks[findIndex]
+    }
+    return this.tasks.find((t) => t.options.id === task.options.id)
+  }
 
-  // splice(start, deleteCount, ...workers) {
-  //   this.jobs.splice(start, deleteCount, ...workers)
-  //   if (this.autostart) this._start()
-  //   return this
-  // }
+  /**
+   * remove task by id
+   * @param task Task | TaskQueue | string
+   */
+  remove(task: Task | TaskQueue | string) {
+    if (typeof task === 'string') {
+      const findIndex = this.tasks.findIndex((t) => t.options.id === task)
+      this.tasks.splice(findIndex, 1)
+      return
+    }
+    this.tasks = this.tasks.filter((t) => t.options.id !== task.options.id)
+  }
 
   get length() {
     return this.pending + this.tasks.length

@@ -1,5 +1,4 @@
-import type TaskQueue from './task-queue'
-import type { Task } from './task-queue'
+import type TaskQueue from '.'
 
 export enum TaskStateCode {
   Error = 0,
@@ -26,10 +25,10 @@ export type QueueError = {
 
 export type QueueEventsMap = {
   end: { error: QueueError | undefined; result: Array<QueueResult | null> }
-  error: QueueError 
+  error: QueueError
   timeout: QueueResult
-  success: QueueResult 
-  start: { task: Task | TaskQueue }
+  success: QueueResult
+  start: { task: ITask | TaskQueue }
 }
 
 export interface ITaskJobCallback {
@@ -70,4 +69,4 @@ export type QueueOptions = {
   timeout: number
   autostart: boolean
   explosive: boolean
-}
+} & Record<string, any>

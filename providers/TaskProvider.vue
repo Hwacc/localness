@@ -1,14 +1,23 @@
 <script lang="ts">
-import type { Task } from '~/libs/task-queue'
+import type { ITask } from '~/libs/task-queue/types'
 import TaskQueue from '~/libs/task-queue'
 
+export interface IDisplayTask {
+  id: string
+  type: ''
+  name: string
+  description: string
+}
+
 export interface ITaskContext {
-  taskQueue: TaskQueue
-  push: (...tasks: Task[]) => void
-  pop: () => TaskQueue | Task | undefined
-  unshift: (...tasks: Task[]) => void
-  shift: () => TaskQueue | Task | undefined
-  patch: (queue: TaskQueue) => void
+  list: IDisplayTask[]
+  push: (...tasks: ITask[]) => void
+  pop: () => TaskQueue | ITask | undefined
+  unshift: (...tasks: ITask[]) => void
+  shift: () => TaskQueue | ITask | undefined
+  patch: (...queues: TaskQueue[]) => void
+  find: () => void
+  remove: () => void
 }
 
 const injectionKey: InjectionKey<ITaskContext> = Symbol('TaskContext')
@@ -24,51 +33,57 @@ export function provideTaskContext(contextValue: ITaskContext) {
 </script>
 
 <script setup lang="ts">
-const taskQueue = reactive(
-  new TaskQueue({
-    concurrency: 1,
-    timeout: 10000,
-    autostart: true,
-  })
-)
+const backendTaskQueue = new TaskQueue({
+  concurrency: 1,
+  timeout: 10000,
+  autostart: true,
+})
 
-taskQueue.addEventListener('start', (evt: any) => {
+backendTaskQueue.addEventListener('start', (evt: any) => {
   console.log('context queue start', evt.detail)
 })
-taskQueue.addEventListener('error', (evt: any) => {
+backendTaskQueue.addEventListener('error', (evt: any) => {
   console.error('context queue error', evt.detail)
 })
-taskQueue.addEventListener('success', (evt: any) => {
+backendTaskQueue.addEventListener('success', (evt: any) => {
   console.log('context queue success', evt.detail)
 })
-taskQueue.addEventListener('timeout', (evt: any) => {
+backendTaskQueue.addEventListener('timeout', (evt: any) => {
   console.log('context queue timeout', evt.detail)
 })
-taskQueue.addEventListener('end', (evt: any) => {
+backendTaskQueue.addEventListener('end', (evt: any) => {
   console.log('context queue end', evt.detail)
 })
 
-const push = (...tasks: Task[]) => {
-  taskQueue.push(...tasks)
+const push = (...tasks: ITask[]) => {
+  backendTaskQueue.push(...tasks)
 }
 
 const pop = () => {
-  return taskQueue.pop()
+  return backendTaskQueue.pop()
 }
 
-const unshift = (...tasks: Task[]) => {
-  taskQueue.unshift(...tasks)
+const unshift = (...tasks: ITask[]) => {
+  backendTaskQueue.unshift(...tasks)
 }
 
 const shift = () => {
-  return taskQueue.shift()
+  return backendTaskQueue.shift()
 }
 
-const patch = (queue: TaskQueue) => {
-  taskQueue.patch(queue)
+const patch = (...queues: TaskQueue[]) => {
+  backendTaskQueue.patch(...queues)
 }
 
-provideTaskContext({ taskQueue, push, pop, unshift, shift, patch })
+const find = () => {
+  return
+}
+
+const remove = () => {
+  return
+}
+
+provideTaskContext({ push, pop, unshift, shift, patch, find, remove })
 </script>
 
 <template>
