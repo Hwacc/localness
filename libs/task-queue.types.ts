@@ -9,25 +9,26 @@ export enum TaskStateCode {
 
 export type QueueResult = {
   code: TaskStateCode
+  index: number
+  taskID: string
+  taskType: 'task' | 'queue'
   error?: Error
   result?: any[] | any
-  task: Task | TaskQueue
 }
 
 export type QueueError = {
   code: TaskStateCode
   error?: Error
-  task: Task | TaskQueue
+  index: number
+  taskID: string
+  taskType: 'task' | 'queue'
 }
 
 export type QueueEventsMap = {
   end: { error: QueueError | undefined; result: Array<QueueResult | null> }
-  error: { error: QueueError }
-  timeout: {
-    next: (error?: QueueError, ...result: any[]) => void
-    task: Task | TaskQueue
-  }
-  success: { result: QueueResult }
+  error: QueueError 
+  timeout: QueueResult
+  success: QueueResult 
   start: { task: Task | TaskQueue }
 }
 
@@ -68,4 +69,5 @@ export type QueueOptions = {
   concurrency: number
   timeout: number
   autostart: boolean
+  explosive: boolean
 }

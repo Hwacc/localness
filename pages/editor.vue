@@ -202,7 +202,7 @@ onMounted(async () => {
     const goodTask = new Task(
       async () => {
         await sleep(3000)
-        return 'goodtask done'
+        return ['goodtask done']
       },
       {
         id: 'goodtask',
@@ -245,17 +245,17 @@ onMounted(async () => {
         }
       )
     )
-    goodQueue.push(
-      new Task(
-        async () => {
-          await sleep(2000)
-          return 'subtask done2'
-        },
-        {
-          id: 'subtask2',
-        }
-      )
-    )
+    // goodQueue.push(
+    //   new Task(
+    //     async () => {
+    //       await sleep(2000)
+    //       return 'subtask done2'
+    //     },
+    //     {
+    //       id: 'subtask2',
+    //     }
+    //   )
+    // )
 
     const timeoutQueue = new TaskQueue({
       id: 'timeoutqueue',

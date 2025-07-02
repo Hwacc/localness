@@ -3,7 +3,7 @@
  * reference queue.js at: https://github.com/jessetane/queue
  */
 
-import { flatten } from 'lodash-es'
+import { flatten, isArray } from 'lodash-es'
 import {
   QueueEvent,
   type QueueOptions,
@@ -56,6 +56,7 @@ export default class TaskQueue extends EventTarget {
       concurrency: Infinity,
       timeout: 0,
       autostart: false,
+      explosive: false,
     }
     this.options = {
       ...defaultOptions,
@@ -67,12 +68,14 @@ export default class TaskQueue extends EventTarget {
     this.tasks = []
     this.timers = []
 
-    // this.addEventListener('error', this._errorHandler)
+    if (this.options.explosive) {
+      this.addEventListener('error', this.explodeError)
+    }
   }
 
-  // _errorHandler(evt: any) {
-  //   this.end(evt.detail.error)
-  // }
+  private explodeError(evt: any) {
+    this.end(evt.detail.error)
+  }
 
   pop() {
     return this.tasks.pop()
@@ -169,11 +172,6 @@ export default class TaskQueue extends EventTarget {
       // this task is a queue, so we wrap it as job like
       job = async () => {
         return new Promise<any[] | null>((resolve, reject) => {
-          // use sub queue's timeout to notify main queue timeout
-          task.addEventListener('timeout', () => {
-            // should listen sub queue's timeout event to get detail
-            this.dispatchEvent(new QueueEvent('timeout', { task, next }))
-          })
           task.start((error, results) => {
             if (error) reject(error)
             else resolve(results)
@@ -211,42 +209,57 @@ export default class TaskQueue extends EventTarget {
         }
         if (err) {
           this.recordResults[resultIndex] = err
-          this.dispatchEvent(new QueueEvent('error', { error: err }))
+          this.dispatchEvent(new QueueEvent('error', err))
         } else if (!didTimeout) {
-          const handleSuccessResult = () => {
-            this.recordResults[resultIndex] = {
-              code: TaskStateCode.Success,
-              result:
-                res.length > 1 ? res : res.length === 0 ? undefined : res[0],
-              task,
-            }
+          const flatRes =
+            res.length === 0 ? null : res.length === 1 ? res[0] : flatten(res)
+          const preResult: QueueResult = {
+            code: TaskStateCode.Success,
+            index: resultIndex,
+            taskID: task.options.id!,
+            taskType: task instanceof TaskQueue ? 'queue' : 'task',
+            result: flatRes,
+          }
+          const sendSuccess = () => {
+            this.recordResults[resultIndex] = preResult
             this.dispatchEvent(
-              new QueueEvent('success', {
-                result:
-                  res.length > 1 ? res : res.length === 0 ? undefined : res[0],
-              })
+              new QueueEvent(
+                'success',
+                this.recordResults[resultIndex] as QueueResult
+              )
             )
           }
-          if (task instanceof TaskQueue) {
-            /**
-             * if task is a subqueue, because timeout's defined is not a error type,
-             * we should check if sub queue has timeout tasks
-             * and set subqueue's state to timeout
-             */
-            const flatRes = flatten(res)
-            if (flatRes.some((r) => r.code === TaskStateCode.Timeout)) {
-              this.recordResults[resultIndex] = {
-                code: TaskStateCode.Timeout,
-                task,
-                result: res,
-              }
-            } else {
-              handleSuccessResult()
+          if (task instanceof TaskQueue && isArray(flatRes)) {
+            const someTimeout = flatRes.some(
+              (r) => r.code === TaskStateCode.Timeout
+            )
+            const someError = flatRes.some(
+              (r) => r.code === TaskStateCode.Error
+            )
+            if (someTimeout) {
+              preResult.code = TaskStateCode.Timeout
+              this.recordResults[resultIndex] = preResult
+              this.dispatchEvent(
+                new QueueEvent(
+                  'timeout',
+                  this.recordResults[resultIndex] as QueueResult
+                )
+              )
             }
-          } else {
-            handleSuccessResult()
-          }
+            if (someError) {
+              preResult.code = TaskStateCode.Error
+              this.recordResults[resultIndex] = preResult
+              this.dispatchEvent(
+                new QueueEvent(
+                  'error',
+                  this.recordResults[resultIndex] as QueueError
+                )
+              )
+            } else sendSuccess()
+          } else sendSuccess()
         }
+
+        // continue
         if (this.session === session) {
           if (this.pending === 0 && this.tasks.length === 0) {
             this.done()
@@ -263,10 +276,17 @@ export default class TaskQueue extends EventTarget {
         didTimeout = true
         this.recordResults[resultIndex] = {
           code: TaskStateCode.Timeout,
-          task,
+          index: resultIndex,
+          taskID: task.options.id!,
+          taskType: task instanceof TaskQueue ? 'queue' : 'task',
           result: null,
         }
-        this.dispatchEvent(new QueueEvent('timeout', { task, next }))
+        this.dispatchEvent(
+          new QueueEvent(
+            'timeout',
+            this.recordResults[resultIndex] as QueueResult
+          )
+        )
         next()
       }, timeout) as unknown as number
       this.timers.push(timeoutId)
@@ -283,13 +303,16 @@ export default class TaskQueue extends EventTarget {
     if (jobPromise && jobPromise instanceof Promise) {
       jobPromise
         .then(function (result) {
+          console.log('--------------result', result)
           return next(undefined, result)
         })
         .catch(function (err) {
           return next({
             code: TaskStateCode.Error,
             error: err || new Error('Unknown error'),
-            task,
+            index: resultIndex,
+            taskID: task.options.id!,
+            taskType: task instanceof TaskQueue ? 'queue' : 'task',
           })
         })
     }
