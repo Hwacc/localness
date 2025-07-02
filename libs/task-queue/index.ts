@@ -10,7 +10,7 @@ import {
   type QueueResult,
   type QueueError,
   type ITaskJob,
-  TaskStateCode,
+  TaskState,
   type ITask,
 } from './types'
 
@@ -20,11 +20,16 @@ export class Task implements ITask {
   job: ITaskJob
   options: ITask['options']
 
-  constructor(job: ITaskJob, options: ITask['options'] = {}) {
-    const defaultOptions = {
-      id: `Task-${Date.now()}`,
+  constructor(job: ITaskJob, options: Partial<ITask['options']> = {}) {
+    this.options = {
+      ...options,
+      ...{
+        id: `Task-${Math.random().toString(36).substring(2, 10)}`,
+        state: TaskState.Pending,
+        type: 'task',
+        createAt: Date.now(),
+      },
     }
-    this.options = { ...defaultOptions, ...options }
     // eslint-disable-next-line @typescript-eslint/no-this-alias
     const that = this
     // to Proxy job to let anonymous function can get timeout
@@ -49,10 +54,7 @@ export default class TaskQueue extends EventTarget {
 
   constructor(options: Partial<QueueOptions> = {}) {
     super()
-    const defaultOptions: QueueOptions = {
-      id: `Queue-${Date.now()}`,
-      name: '',
-      description: '',
+    const defaultOptions: Partial<QueueOptions> = {
       concurrency: Infinity,
       timeout: 0,
       autostart: false,
@@ -61,6 +63,12 @@ export default class TaskQueue extends EventTarget {
     this.options = {
       ...defaultOptions,
       ...options,
+      ...{
+        id: `Queue-${Math.random().toString(36).substring(2, 10)}`,
+        state: TaskState.Pending,
+        type: 'queue',
+        createAt: Date.now(),
+      },
     }
     this.pending = 0
     this.session = 0
@@ -119,7 +127,8 @@ export default class TaskQueue extends EventTarget {
    * @param task Task | TaskQueue | string
    * @returns Task | TaskQueue | undefined
    */
-  find(task: Task | TaskQueue | string) {
+  find(task: Task | TaskQueue | string | undefined) {
+    if(!task) return
     if (typeof task === 'string') {
       const findIndex = this.tasks.findIndex((t) => t.options.id === task)
       return this.tasks[findIndex]
@@ -131,7 +140,8 @@ export default class TaskQueue extends EventTarget {
    * remove task by id
    * @param task Task | TaskQueue | string
    */
-  remove(task: Task | TaskQueue | string) {
+  remove(task: Task | TaskQueue | string | undefined) {
+    if(!task) return
     if (typeof task === 'string') {
       const findIndex = this.tasks.findIndex((t) => t.options.id === task)
       this.tasks.splice(findIndex, 1)
@@ -163,7 +173,7 @@ export default class TaskQueue extends EventTarget {
 
   private _start() {
     this.running = true
-    if (this.pending >= this.options.concurrency) {
+    if (this.pending >= this.options.concurrency!) {
       return
     }
     if (this.tasks.length === 0) {
@@ -178,7 +188,7 @@ export default class TaskQueue extends EventTarget {
     const session = this.session
 
     let job!: ITaskJob
-    let timeout: number | null = this.options.timeout
+    let timeout: number | undefined = this.options.timeout
     // try to get job from task or queue
     if (task instanceof TaskQueue) {
       // this task is a queue, so we wrap it as job like
@@ -191,7 +201,7 @@ export default class TaskQueue extends EventTarget {
         })
       }
       // if job is a queue, we don't use main queue's timeout
-      timeout = null
+      timeout = undefined
     } else if (task instanceof Task) {
       // this task is normal task
       job = task.job
@@ -226,10 +236,10 @@ export default class TaskQueue extends EventTarget {
           const flatRes =
             res.length === 0 ? null : res.length === 1 ? res[0] : flatten(res)
           const preResult: QueueResult = {
-            code: TaskStateCode.Success,
+            id: task.options.id!,
             index: resultIndex,
-            taskID: task.options.id!,
-            taskType: task instanceof TaskQueue ? 'queue' : 'task',
+            state: TaskState.Success,
+            type: task.options.type,
             result: flatRes,
           }
           const sendSuccess = () => {
@@ -243,13 +253,11 @@ export default class TaskQueue extends EventTarget {
           }
           if (task instanceof TaskQueue && isArray(flatRes)) {
             const someTimeout = flatRes.some(
-              (r) => r.code === TaskStateCode.Timeout
+              (r) => r.state === TaskState.Timeout
             )
-            const someError = flatRes.some(
-              (r) => r.code === TaskStateCode.Error
-            )
+            const someError = flatRes.some((r) => r.state === TaskState.Error)
             if (someTimeout) {
-              preResult.code = TaskStateCode.Timeout
+              preResult.state = TaskState.Timeout
               this.recordResults[resultIndex] = preResult
               this.dispatchEvent(
                 new QueueEvent(
@@ -259,7 +267,7 @@ export default class TaskQueue extends EventTarget {
               )
             }
             if (someError) {
-              preResult.code = TaskStateCode.Error
+              preResult.state = TaskState.Error
               this.recordResults[resultIndex] = preResult
               this.dispatchEvent(
                 new QueueEvent(
@@ -287,10 +295,10 @@ export default class TaskQueue extends EventTarget {
       timeoutId = setTimeout(() => {
         didTimeout = true
         this.recordResults[resultIndex] = {
-          code: TaskStateCode.Timeout,
+          id: task.options.id!,
           index: resultIndex,
-          taskID: task.options.id!,
-          taskType: task instanceof TaskQueue ? 'queue' : 'task',
+          state: TaskState.Timeout,
+          type: task.options.type,
           result: null,
         }
         this.dispatchEvent(
@@ -309,22 +317,28 @@ export default class TaskQueue extends EventTarget {
     this.recordResults[resultIndex] = null
 
     this.pending++
-    this.dispatchEvent(new QueueEvent('start', { task })) // dispatch start event
+    this.dispatchEvent(
+      new QueueEvent('start', {
+        id: task.options.id!,
+        index: resultIndex,
+        state: TaskState.Running,
+        type: task.options.type,
+      })
+    ) // dispatch start event
     // do a job
     const jobPromise = job?.(next)
     if (jobPromise && jobPromise instanceof Promise) {
       jobPromise
         .then(function (result) {
-          console.log('--------------result', result)
           return next(undefined, result)
         })
         .catch(function (err) {
           return next({
-            code: TaskStateCode.Error,
-            error: err || new Error('Unknown error'),
+            id: task.options.id!,
             index: resultIndex,
-            taskID: task.options.id!,
-            taskType: task instanceof TaskQueue ? 'queue' : 'task',
+            state: TaskState.Error,
+            error: err || new Error('Unknown error'),
+            type: task.options.type,
           })
         })
     }

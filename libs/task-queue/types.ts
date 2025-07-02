@@ -1,26 +1,26 @@
-import type TaskQueue from '.'
-
-export enum TaskStateCode {
-  Error = 0,
+export enum TaskState {
+  Error = -2,
+  Timeout = -1,
   Success = 1,
-  Timeout = 2,
+  Pending = 2,
+  Running = 3,
 }
 
 export type QueueResult = {
-  code: TaskStateCode
+  id: string
   index: number
-  taskID: string
-  taskType: 'task' | 'queue'
+  state: TaskState
+  type: 'task' | 'queue'
   error?: Error
   result?: any[] | any
 }
 
 export type QueueError = {
-  code: TaskStateCode
+  id: string
+  state: TaskState
   error?: Error
   index: number
-  taskID: string
-  taskType: 'task' | 'queue'
+  type: 'task' | 'queue'
 }
 
 export type QueueEventsMap = {
@@ -28,7 +28,7 @@ export type QueueEventsMap = {
   error: QueueError
   timeout: QueueResult
   success: QueueResult
-  start: { task: ITask | TaskQueue }
+  start: QueueResult
 }
 
 export interface ITaskJobCallback {
@@ -42,7 +42,10 @@ export interface ITaskJob {
 export interface ITask {
   job: ITaskJob
   options: {
-    id?: string
+    id: string
+    state: TaskState
+    type: 'task' | 'queue'
+    createAt: number
     name?: string
     description?: string
     progress?: number
@@ -63,10 +66,13 @@ export class QueueEvent<
 
 export type QueueOptions = {
   id: string
-  name: string
-  description: string
-  concurrency: number
-  timeout: number
-  autostart: boolean
-  explosive: boolean
+  state: TaskState
+  type: 'task' | 'queue'
+  createAt: number
+  name?: string
+  description?: string
+  concurrency?: number
+  timeout?: number
+  autostart?: boolean
+  explosive?: boolean
 } & Record<string, any>
