@@ -34,3 +34,130 @@ export const WELCOME_TEXTS = [
   '안녕하세요 세계',
   'Привет, мир'
 ]
+
+export const OCR_LANGUAGES = [
+  {
+    label: 'English',
+    value: 'eng',
+  },
+  {
+    label: 'Chinese',
+    value: 'chs',
+  },
+  {
+    label: 'Japanese',
+    value: 'jpn',
+  },
+  {
+    label: 'Korean',
+    value: 'kor',
+  },
+  {
+    label: 'Arabic',
+    value: 'ara',
+  },
+  {
+    label: 'Bulgarian',
+    value: 'bul',
+  },
+  {
+    label: 'Chinese(Simplified)',
+    value: 'chs',
+  },
+  {
+    label: 'Chinese(Traditional)',
+    value: 'cht',
+  },
+  {
+    label: 'Croatian',
+    value: 'hrv',
+  },
+  {
+    label: 'Czech',
+    value: 'cze',
+  },
+  {
+    label: 'Danish',
+    value: 'dan',
+  },
+  {
+    label: 'Dutch',
+    value: 'dut',
+  },
+  {
+    label: 'English',
+    value: 'eng',
+  },
+  {
+    label: 'Finnish',
+    value: 'fin',
+  },
+  {
+    label: 'French',
+    value: 'fre',
+  },
+  {
+    label: 'German',
+    value: 'ger',
+  },
+  {
+    label: 'Greek',
+    value: 'gre',
+  },
+  {
+    label: 'Hungarian',
+    value: 'hun',
+  },
+  {
+    label: 'Italian',
+    value: 'ita',
+  },
+  {
+    label: 'Japanese',
+    value: 'jpn',
+  },
+  {
+    label: 'Polish',
+    value: 'pol',
+  },
+  {
+    label: 'Portuguese',
+    value: 'por',
+  },
+  {
+    label: 'Russian',
+    value: 'rus',
+  },
+  {
+    label: 'Slovenian',
+    value: 'slv',
+  },
+  {
+    label: 'Spanish',
+    value: 'spa',
+  },
+  {
+    label: 'Swedish',
+    value: 'swe',
+  },
+  {
+    label: 'Thai',
+    value: 'tha',
+  },
+  {
+    label: 'Turkish',
+    value: 'tur',
+  },
+  {
+    label: 'Ukrainian',
+    value: 'ukr',
+  },
+  {
+    label: 'Vietnamese',
+    value: 'vnm',
+  },
+  {
+    label: 'Auto',
+    value: 'auto',
+  },
+]

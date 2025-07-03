@@ -1,5 +1,6 @@
 import type { ITag } from '~/types/interfaces'
 import { z } from 'zod/v4'
+import { OCR_LANGUAGES } from '.'
 
 export const PASSWORD_REGEX = /^(?=.*[a-zA-Z])(?=.*\d)[a-zA-Z\d_]*$/
 
@@ -35,3 +36,14 @@ export type ZTag = z.infer<typeof zTag>
 
 export const zID = z.union([z.int().gt(0), z.string().min(1)])
 export type ZID = z.infer<typeof zID>
+
+export const zOCR = z.object({
+  image: z.string().nonempty(),
+  language: z
+    .string()
+    .optional()
+    .refine((v) => OCR_LANGUAGES.some((l) => l.value === v), {
+      message: 'language must be en or cn or auto',
+    }),
+})
+export type ZOCR = z.infer<typeof zOCR>

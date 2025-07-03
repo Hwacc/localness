@@ -10,8 +10,6 @@ import EditorProvider, {
 import AlertModal from '~/components/modals/AlertModal.vue'
 import type { ID } from '~/types/global'
 import { DEFAULT_LINE_COLOR, DEFAULT_LINE_WIDTH } from '~/constants'
-import { injectTaskContext } from '~/providers/TaskProvider.vue'
-import TaskQueue, { Task } from '~/libs/task-queue'
 
 definePageMeta({
   middleware: ['protected'],
@@ -30,8 +28,6 @@ const scale = ref<number>(1)
 const mode = ref<EditorMode>('draw')
 const lineWidth = ref<number>(DEFAULT_LINE_WIDTH)
 const lineColor = ref<string>(DEFAULT_LINE_COLOR)
-
-const taskContext = injectTaskContext()
 
 useResizeObserver(
   editorContainer,
@@ -196,110 +192,15 @@ onMounted(async () => {
     tagModal.open()
   })
 
-  editor.value.on('tag-ocr', (image: string) => {
-    console.log('tag-ocr', image)
-
-    const goodTask = new Task(
-      async () => {
-        await sleep(3000)
-        return ['goodtask done']
-      },
-      {
-        id: 'goodtask',
-      }
-    )
-
-    const timeoutTask = new Task(
-      async () => {
-        await sleep(3000)
-        return 'timeout task done'
-      },
-      {
-        id: 'timeouttask',
-        timeout: 1000,
-      }
-    )
-
-    const errorTask = new Task(
-      async () => {
-        throw new Error('error task')
-      },
-      {
-        id: 'errortask',
-      }
-    )
-
-    const goodQueue = new TaskQueue({
-      concurrency: 1,
-      timeout: 10000,
-      autostart: false,
+  editor.value.on('tag-ocr', async ({ image, tag }: { image: string; tag: ITag }) => {
+    console.log('tag-ocr', image, tag)
+    const res = await useApi<any>('/api/common/ocr', {
+      method: 'POST',
+      body: { image },
     })
-    goodQueue.push(
-      new Task(
-        async () => {
-          await sleep(1000)
-          return 'subtask done1'
-        },
-        {
-          id: 'subtask1',
-        }
-      )
-    )
-    // goodQueue.push(
-    //   new Task(
-    //     async () => {
-    //       await sleep(2000)
-    //       return 'subtask done2'
-    //     },
-    //     {
-    //       id: 'subtask2',
-    //     }
-    //   )
-    // )
-
-    const timeoutQueue = new TaskQueue({
-      id: 'timeoutqueue',
-      name: 'timeout queue',
-      concurrency: 1,
-      timeout: 1000,
-      autostart: false,
-    })
-    timeoutQueue.push(new Task(async () => {
-      await sleep(3000)
-      return 'timeout task done'
-    }, {
-      id: 'timeout-subtask',
-    }))
-    timeoutQueue.push(new Task(async () => {
-      await sleep(600)
-      return 'good task done'
-    }, {
-      id: 'timeout-good-subtask',
-    }))
-
-    const errorQueue = new TaskQueue({
-      id: 'errorqueue',
-      name: 'error queue',
-      concurrency: 1,
-      autostart: false,
-    })
-    errorQueue.push(new Task(async () => {
-      throw new Error('error task')
-    }, {
-      id: 'error-subtask',
-    }))
-    errorQueue.push(new Task(async () => {
-      await sleep(1000)
-      return 'good task done'
-    }, {
-      id: 'error-good-subtask',
-    }))
-
-    taskContext?.push(goodTask, timeoutTask, errorTask)
-    taskContext?.patch(goodQueue)
-    taskContext?.patch(timeoutQueue)
-    taskContext?.patch(errorQueue)
+    console.log('data', res)
   })
+
   editor.value.on('tag-click', (_: ITag) => {})
 })
 

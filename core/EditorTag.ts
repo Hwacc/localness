@@ -6,6 +6,7 @@ import {
   DEFAULT_LINE_WIDTH,
   DEFAULT_CORNER_RADIUS,
 } from '~/constants'
+import { Editor } from './Editor'
 
 class EditorTag extends Rect {
   public remoteTag: Partial<ITag> = {} as ITag
@@ -74,6 +75,16 @@ class EditorTag extends Rect {
       stroke: rStyle.stroke ?? DEFAULT_LINE_COLOR,
       strokeWidth: rStyle.strokeWidth ?? DEFAULT_LINE_WIDTH,
     })
+  }
+
+  public async clip() {
+    const image = await Editor.imageClipper.clip({
+      x: this.x ?? 0,
+      y: this.y ?? 0,
+      width: this.width ?? 0,
+      height: this.height ?? 0,
+    })
+    return { image, tag: this.toJSON() }
   }
 
   public override toJSON(options?: IJSONOptions): ITag {

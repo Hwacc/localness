@@ -3,6 +3,7 @@ import {
   KeyEvent,
   PropertyEvent,
   DragEvent as LeaferDragEvent,
+  PointerEvent,
 } from 'leafer-ui'
 import EditorBase from './EditorBase'
 import {
@@ -27,6 +28,11 @@ abstract class EditorInteraction extends EditorBase {
   }
 
   private register() {
+
+    // TODO: app的全局拖动处理
+    this.app.on(PointerEvent.TAP, (e: PointerEvent) => {
+      console.log('app tap', e)
+    })
     // tree events
     this.app.tree.on(KeyEvent.DOWN, this.onKeyDown.bind(this))
     this.app.tree.on(KeyEvent.HOLD, this.onKeyHold.bind(this))

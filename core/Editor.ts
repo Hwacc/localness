@@ -7,7 +7,7 @@ import type {
   PropertyEvent,
   ImageEvent,
 } from 'leafer-ui'
-import { PointerEvent, Image } from 'leafer-ui'
+import { PointerEvent, Image, DragEvent } from 'leafer-ui'
 import '@leafer-in/view'
 import '@leafer-in/viewport'
 import '@leafer-in/export'
@@ -39,7 +39,7 @@ class Editor extends EditorInteraction {
   private dotMatrix: DotMatrix
   private debounceTagChangeEvent: (action: string, target: IUI) => void
 
-  private imageClipper: ImageClipper
+  public static imageClipper: ImageClipper
 
   constructor(view: HTMLDivElement, mode: EditorMode) {
     super(view, mode)
@@ -81,7 +81,7 @@ class Editor extends EditorInteraction {
       }
     ).bind(this)
 
-    this.imageClipper = new ImageClipper()
+    Editor.imageClipper = new ImageClipper()
   }
 
   override onReady(_: LeaferEvent): void {
@@ -256,10 +256,10 @@ class Editor extends EditorInteraction {
     if (isEmpty(this.app.editor.list)) return
     const selectedOne = this.app.editor.list[0] as EditorTag
     try {
-      const remoteTag = await this.asyncEmit<'async-tag-info', ITag | undefined>(
+      const remoteTag = await this.asyncEmit<
         'async-tag-info',
-        selectedOne.toJSON()
-      )
+        ITag | undefined
+      >('async-tag-info', selectedOne.toJSON())
       if (!remoteTag) return
       selectedOne.update(remoteTag)
     } catch (error) {
@@ -271,13 +271,16 @@ class Editor extends EditorInteraction {
     if (isEmpty(this.app.editor.list)) return
     const selectedOne = this.app.editor.list[0]
     const { x, y, width, height } = selectedOne
-    const image = await this.imageClipper.clip({
+    const image = await Editor.imageClipper.clip({
       x: x ?? 0,
       y: y ?? 0,
       width: width ?? 0,
       height: height ?? 0,
     })
-    this.emit('tag-ocr', image)
+    this.emit('tag-ocr', {
+      image,
+      tag: selectedOne.toJSON(),
+    })
   }
 
   private async onLockClick({ locked = false }: { locked: boolean }) {
@@ -295,7 +298,16 @@ class Editor extends EditorInteraction {
   }
 
   private registerTagEvents(tag: EditorTag) {
+    tag.on(DragEvent.DRAG, (e: DragEvent) => {
+      if (this.mode === 'drag') {
+        this.groupTree.set({
+          x: (this.groupTree?.x ?? 0) + e.getInnerMove(this.app.tree).x,
+          y: (this.groupTree?.y ?? 0) + e.getInnerMove(this.app.tree).y,
+        })
+      }
+    })
     tag.on(PointerEvent.TAP, () => {
+      console.log('tag click', tag.toJSON())
       this.emit('tag-click', tag.toJSON())
     })
     tag.on(PointerEvent.DOUBLE_TAP, () => this.onInfoClick())
@@ -321,7 +333,7 @@ class Editor extends EditorInteraction {
       return
     }
     this.image.set({ url })
-    this.imageClipper.setImage(url)
+    Editor.imageClipper.setImage(url)
   }
 
   public async autoFitImage() {
@@ -367,14 +379,6 @@ class Editor extends EditorInteraction {
     this.renderTags(tags)
   }
 
-  // public updateTag(tagID: string, updatedTag: Partial<ITag>) {
-
-  //   if (isEmpty(this.app.editor.list)) return
-  //   const selectedOne = this.app.editor.list[0] as EditorTag
-  //   console.log('updateTag', tagID, updatedTag)
-  //   // tag.update(updatedTag)
-  // }
-
   public waitReady(callback: () => void) {
     this.app.tree.waitReady(callback)
   }
@@ -392,7 +396,7 @@ class Editor extends EditorInteraction {
   }
 
   public destroy(sync: boolean = false) {
-    this.imageClipper.destroy()
+    Editor.imageClipper.destroy()
     this.app.destroy(sync)
   }
 

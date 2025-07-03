@@ -12,14 +12,13 @@ export interface IFrontendTask {
   type?: 'task' | 'queue'
   error?: Error
   result?: any[] | any
+  createAt?: number
 }
 
 export interface ITaskContext {
   taskList: IFrontendTask[]
   push: (...tasks: ITask[]) => void
-  pop: () => IFrontendTask | undefined
   unshift: (...tasks: ITask[]) => void
-  shift: () => IFrontendTask | undefined
   patch: (...queues: TaskQueue[]) => void
   find: (taskID: string) => void
   remove: (taskID: string) => void
@@ -31,9 +30,7 @@ export function injectTaskContext() {
   return inject<ITaskContext>(injectionKey, {
     taskList: [],
     push: () => {},
-    pop: () => undefined,
     unshift: () => {},
-    shift: () => undefined,
     patch: () => {},
     find: () => {},
     remove: () => {},
@@ -90,6 +87,7 @@ const pickup = [
   'error',
   'result',
   'action',
+  'createAt',
 ]
 
 const push = (...tasks: ITask[]) => {
@@ -103,23 +101,11 @@ const push = (...tasks: ITask[]) => {
   backendTaskQueue.push(...tasks)
 }
 
-const pop = () => {
-  const popped = taskList.pop()
-  backendTaskQueue.remove(popped?.id)
-  return popped
-}
-
 const unshift = (...tasks: ITask[]) => {
   taskList.unshift(
     ...tasks.map((task) => pick(task.options, pickup) as IFrontendTask)
   )
   backendTaskQueue.unshift(...tasks)
-}
-
-const shift = () => {
-  const shifted = taskList.shift()
-  backendTaskQueue.remove(shifted?.id)
-  return shifted
 }
 
 const patch = (...queues: TaskQueue[]) => {
@@ -140,9 +126,7 @@ const remove = (taskID: string) => {
 provideTaskContext({
   taskList,
   push,
-  pop,
   unshift,
-  shift,
   patch,
   find,
   remove,
