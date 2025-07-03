@@ -1,6 +1,7 @@
 import prisma from '~/server/libs/prisma'
 import { zTag } from '~/constants/schemas'
 import { numericID } from '~/utils/id'
+import { readZodBody } from '~/utils/validate'
 
 /**
  * @route POST /api/tag/:id
@@ -17,13 +18,7 @@ export default defineEventHandler(async (event) => {
     })
   }
   const nID = numericID(id)
-  if (isNaN(nID)) {
-    throw createError({
-      statusCode: 400,
-      statusMessage: 'Invalid id format',
-    })
-  }
-  const body = await readValidatedBody(event, zTag.parse)
+  const body = await readZodBody(event, zTag.parse)
   const updatedTag = await prisma.tag.update({
     where: {
       id: nID,

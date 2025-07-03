@@ -15,15 +15,7 @@ export default defineEventHandler(async (event) => {
       statusMessage: 'Missing id',
     })
   }
-
   const nID = numericID(id)
-  if (isNaN(nID)) {
-    throw createError({
-      statusCode: 400,
-      statusMessage: 'Invalid id format',
-    })
-  }
-
   const project = await prisma.project.findUnique({
     where: {
       id: nID,
@@ -37,6 +29,5 @@ export default defineEventHandler(async (event) => {
       users: true,
     },
   })
-
   return project
 })

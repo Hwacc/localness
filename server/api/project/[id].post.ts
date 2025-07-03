@@ -1,11 +1,12 @@
 import prisma from '~/server/libs/prisma'
 import { z } from 'zod/v4'
 import { numericID } from '~/utils/id'
+import { readZodBody } from '~/utils/validate'
 
 const zProject = z.object({
   name: z.string().min(3),
   description: z.optional(z.string()),
-})
+}, 'Project parameters validate failed')
 /**
  * @route POST /api/project/:id
  * @description Update a project
@@ -29,7 +30,7 @@ export default defineEventHandler(async (event) => {
     })
   }
 
-  const { name, description } = await readValidatedBody(event, zProject.parse)
+  const { name, description } = await readZodBody(event, zProject.parse)
   if (!name) {
     throw createError({
       statusCode: 400,

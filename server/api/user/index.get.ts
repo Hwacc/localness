@@ -14,17 +14,9 @@ export default defineEventHandler(async (event) => {
       statusMessage: 'Unauthorized',
     })
   }
-  const nID = numericID(session.user.id)
-  if (isNaN(nID)) {
-    throw createError({
-      statusCode: 400,
-      statusMessage: 'Invalid id format',
-    })
-  }
+  const id = numericID(session.user.id)
   const user = await prisma.user.findUnique({
-    where: {
-      id: nID,
-    },
+    where: { id },
   })
   return user
 })

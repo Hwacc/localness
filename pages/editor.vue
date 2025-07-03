@@ -192,14 +192,17 @@ onMounted(async () => {
     tagModal.open()
   })
 
-  editor.value.on('tag-ocr', async ({ image, tag }: { image: string; tag: ITag }) => {
-    console.log('tag-ocr', image, tag)
-    const res = await useApi<any>('/api/common/ocr', {
-      method: 'POST',
-      body: { image },
-    })
-    console.log('data', res)
-  })
+  editor.value.on(
+    'tag-ocr',
+    async ({ image, tag }: { image: string; tag: ITag }) => {
+      console.log('tag-ocr', image, tag)
+      const res = await useApi<any>(`/api/tag/ocr/${tag.id}`, {
+        method: 'POST',
+        body: { image },
+      })
+      console.log('data', res)
+    }
+  )
 
   editor.value.on('tag-click', (_: ITag) => {})
 })

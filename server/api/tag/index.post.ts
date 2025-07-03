@@ -1,5 +1,6 @@
 import prisma from '~/server/libs/prisma'
 import { zTag } from '~/constants/schemas'
+import { readZodBody } from '~/utils/validate'
 
 /**
  * @route POST /api/tag
@@ -8,7 +9,7 @@ import { zTag } from '~/constants/schemas'
  */
 export default defineEventHandler(async (event) => {
   await requireUserSession(event)
-  const data = await readValidatedBody(event, zTag.parse)
+  const data = await readZodBody(event, zTag.parse)
 
   const page = await prisma.page.findUnique({
     where: {

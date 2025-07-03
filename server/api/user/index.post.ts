@@ -1,12 +1,16 @@
 import prisma from '~/server/libs/prisma'
 import { z } from 'zod/v4'
 import { numericID } from '~/utils/id'
+import { readZodBody } from '~/utils/validate'
 
-const zProfile = z.object({
-  nickname: z.string().min(3).nullable().optional(),
-  email: z.email().nullable().optional(),
-  avatar: z.string().nullable().optional(),
-})
+const zProfile = z.object(
+  {
+    nickname: z.string().min(3).nullable().optional(),
+    email: z.email().nullable().optional(),
+    avatar: z.string().nullable().optional(),
+  },
+  'User parameters validate failed'
+)
 /**
  * @route POST /api/user
  * @description Update current user
@@ -14,19 +18,11 @@ const zProfile = z.object({
  */
 export default defineEventHandler(async (event) => {
   const session = await requireUserSession(event)
-
-  const data = await readValidatedBody(event, zProfile.parse)
-
-  const nID = numericID(session.user.id)
-  if (isNaN(nID)) {
-    throw createError({
-      statusCode: 400,
-      statusMessage: 'Invalid id format',
-    })
-  }
+  const data = await readZodBody(event, zProfile.parse)
+  const id = numericID(session.user.id)
   const user = await prisma.user.update({
     where: {
-      id: nID,
+      id,
       username: session.user.username,
     },
     select: {

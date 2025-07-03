@@ -16,12 +16,6 @@ export default defineEventHandler(async (event) => {
     })
   }
   const nID = numericID(id)
-  if (isNaN(nID)) {
-    throw createError({
-      statusCode: 400,
-      statusMessage: 'Invalid id format',
-    })
-  }
   const tag = await prisma.tag.findUnique({
     where: {
       id: nID,

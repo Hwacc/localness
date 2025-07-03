@@ -17,12 +17,6 @@ export default defineEventHandler(async (event) => {
   const { pageID } = await getValidatedQuery(event, zQuery.parse)
 
   const nPageID = numericID(pageID)
-  if (isNaN(nPageID)) {
-    throw createError({
-      statusCode: 400,
-      statusMessage: 'Invalid pageID format',
-    })
-  }
   const tags = await prisma.tag.findMany({
     where: {
       pageID: nPageID,

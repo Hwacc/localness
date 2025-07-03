@@ -3,13 +3,14 @@ import { omit } from 'lodash-es'
 import bcrypt from 'bcryptjs'
 import { z } from 'zod/v4'
 import { zPassword } from '~/constants/schemas'
+import { readZodBody } from '~/utils/validate'
 
 const zLogin = z.object({
-  username: z.string().min(3),
+  username: z.string().min(3, 'Username must be at least 3 characters long'),
   password: zPassword,
 })
 export default defineEventHandler(async (event) => {
-  const { username, password } = await readValidatedBody(event, zLogin.parse)
+  const { username, password } = await readZodBody(event, zLogin.parse)
 
   const user = await prisma.user.findUnique({
     where: {
