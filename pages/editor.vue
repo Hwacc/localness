@@ -54,7 +54,6 @@ const isImageLoading = ref(false)
 watchEffect(() => {
   if (!editor.value || !curPage.value) return
   const initImage = async () => {
-    isImageLoading.value = true
     const imageUrl = await qiniuImage.get(curPage.value?.image)
     editor.value?.setImage(imageUrl)
   }
@@ -79,6 +78,9 @@ onMounted(async () => {
     isEditorReady.value = true
   })
 
+  editor.value.on('image-load', () => {
+    isImageLoading.value = true
+  })
   editor.value.on('image-loaded', () => {
     const _setTags = () => {
       editor.value?.setTags(tagList.value)

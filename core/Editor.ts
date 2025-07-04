@@ -331,11 +331,6 @@ class Editor extends EditorInteraction {
       this.emit('image-error', new Error('image url is empty'))
       return
     }
-    if (url === this.image.url) {
-      console.log('image url is the same', url, this.image.url)
-      this.emit('image-loaded')
-      return
-    }
     this.image.set({ url })
     Editor.imageClipper.setImage(url)
   }
@@ -348,8 +343,12 @@ class Editor extends EditorInteraction {
       this.app.tree.set({
         origin: 'top-left',
       })
-      this.app.tree.set({ scale: 1 })
-      this.app.tree.zoom('fit')
+      const zoom = (containerWidth - 50) / imageWidth
+      this.app.tree.zoom(zoom, { origin: 'top-left' })
+      this.app.tree.set({
+        x: 25,
+        y: 50,
+      })
     } else {
       this.app.tree.set({
         x: (containerWidth - imageWidth) / 2,

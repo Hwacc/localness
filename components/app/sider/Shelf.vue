@@ -11,6 +11,10 @@ const { editor, autoSave } = injectEditorContext()
 const open = ref(false)
 
 async function onSelectProject(p: IProject) {
+  if (p.id === projectStore.curProject?.id) {
+    open.value = false
+    return
+  }
   await autoSave.ask()
   editor.value?.clear()
   setCurrentProject(p)
