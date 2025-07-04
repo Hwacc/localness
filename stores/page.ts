@@ -1,6 +1,7 @@
 import { isEmpty } from 'lodash-es'
 import type { ID } from '~/types/global'
-import type { IPage, ITag } from '~/types/interfaces'
+import type { ITag } from '~/types/Tag'
+import type { IPage } from '~/types/Page'
 import { Page } from '~/types/Page'
 
 export const usePageStore = defineStore('page', () => {
@@ -47,11 +48,11 @@ export const usePageStore = defineStore('page', () => {
   }
 
   async function updatePage(
-    pageID: ID,
+    id: ID,
     page: Partial<Pick<IPage, 'name' | 'image'>>
   ) {
-    if(!validID(pageID)) return
-    const updatedPage = await useApi<IPage>(`/api/page/${pageID}`, {
+    if (!validID(id)) return
+    const updatedPage = await useApi<IPage>(`/api/page/${id}`, {
       method: 'POST',
       body: page,
     })
@@ -80,16 +81,16 @@ export const usePageStore = defineStore('page', () => {
     return false
   }
 
-  async function deletePage(pageID: ID) {
-    if(!validID(pageID)) return
-    const deletedPage = await useApi<IPage>(`/api/page/${pageID}`, {
+  async function deletePage(id: ID) {
+    if (!validID(id)) return
+    const deletedPage = await useApi<IPage>(`/api/page/${id}`, {
       method: 'DELETE',
     })
     if (deletedPage) {
       projectStore.curProject.pages = projectStore.curProject.pages?.filter(
-        (p) => p.id !== pageID
+        (p) => p.id !== id
       )
-      if (curPage.value.id === pageID) {
+      if (curPage.value.id === id) {
         curPage.value = isEmpty(projectStore.curProject.pages)
           ? new Page()
           : projectStore.curProject.pages[0]

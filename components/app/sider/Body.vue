@@ -4,7 +4,7 @@ import type { DropdownMenuItem } from '@nuxt/ui'
 import { useDropZone } from '@vueuse/core'
 import { isEmpty } from 'lodash-es'
 import { injectEditorContext } from '~/providers/EditorProvider.vue'
-import type { IPage } from '~/types/interfaces'
+import type { IPage } from '~/types/Page'
 
 const projectStore = useProjectStore()
 const pageList = computed(() => projectStore.curProject?.pages || [])

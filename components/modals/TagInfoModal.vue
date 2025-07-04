@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import type { ITag } from '~/types/interfaces'
+import type { ITag } from '~/types/Tag'
 import { z } from 'zod/v4'
 import {
   DEFAULT_CORNER_RADIUS,

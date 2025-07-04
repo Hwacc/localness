@@ -1,5 +1,5 @@
 import prisma from '~/server/libs/prisma'
-import { zTag } from '~/constants/schemas'
+import { zTag } from '~/utils/schemas'
 import { readZodBody } from '~/utils/validate'
 
 /**

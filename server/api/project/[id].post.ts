@@ -2,11 +2,16 @@ import prisma from '~/server/libs/prisma'
 import { z } from 'zod/v4'
 import { numericID } from '~/utils/id'
 import { readZodBody } from '~/utils/validate'
+import { zProjectSetting } from '~/utils/schemas'
 
-const zProject = z.object({
-  name: z.string().min(3),
-  description: z.optional(z.string()),
-}, 'Project parameters validate failed')
+const zProject = z.object(
+  {
+    name: z.string().min(3),
+    description: z.optional(z.string()),
+    settings: zProjectSetting,
+  },
+  'Project parameters validate failed'
+)
 /**
  * @route POST /api/project/:id
  * @description Update a project
@@ -30,7 +35,10 @@ export default defineEventHandler(async (event) => {
     })
   }
 
-  const { name, description } = await readZodBody(event, zProject.parse)
+  const { name, description, settings } = await readZodBody(
+    event,
+    zProject.parse
+  )
   if (!name) {
     throw createError({
       statusCode: 400,
@@ -50,6 +58,18 @@ export default defineEventHandler(async (event) => {
     })
   }
 
+  // update setting
+  await prisma.projectSettings.update({
+    where: {
+      projectID: nID,
+    },
+    data: {
+      ocrLanguage: settings?.ocrLanguage ?? 'eng',
+      ocrEngine: settings?.ocrEngine ?? 1,
+    },
+  })
+
+  // update project
   const updatedProject = await prisma.project.update({
     where: {
       id: nID,
@@ -63,6 +83,14 @@ export default defineEventHandler(async (event) => {
       name: true,
       description: true,
       updatedAt: true,
+      settings: {
+        omit: {
+          id: true,
+          projectID: true,
+          createdAt: true,
+          updatedAt: true,
+        },
+      },
     },
   })
 

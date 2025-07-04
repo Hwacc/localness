@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import type { IProject } from '~/types/interfaces'
+import type { IProject } from '~/types/Project'
 import { injectEditorContext } from '~/providers/EditorProvider.vue'
 
 const { $dayjs } = useNuxtApp()

@@ -12,9 +12,17 @@ export default defineEventHandler(async (event) => {
       pages: {
         orderBy: {
           updatedAt: 'desc',
-        }
+        },
       },
       users: true,
+      settings: {
+        omit: {
+          id: true,
+          projectID: true,
+          createdAt: true,
+          updatedAt: true,
+        },
+      },
     },
     orderBy: {
       updatedAt: 'desc',

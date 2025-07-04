@@ -1,7 +1,7 @@
 import { AlertModal } from '#components'
 import { isEmpty } from 'lodash-es'
 import type { ID } from '~/types/global'
-import type { ITag } from '~/types/interfaces'
+import type { ITag } from '~/types/Tag'
 
 export const useAutoSave = () => {
   const toast = useToast()

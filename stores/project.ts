@@ -1,6 +1,6 @@
 import { isEmpty, merge } from 'lodash-es'
 import type { ID } from '~/types/global'
-import type { IProject } from '~/types/interfaces'
+import type { IProject } from '~/types/Project'
 import { Page } from '~/types/Page'
 import { Project } from '~/types/Project'
 

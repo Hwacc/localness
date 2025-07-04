@@ -1,8 +1,8 @@
 <script setup lang="ts">
 import type { ImageUploader } from '#components'
 import { z } from 'zod/v4'
-import { zPassword } from '~/constants/schemas'
-import type { IUser } from '~/types/interfaces'
+import { zPassword } from '~/utils/schemas'
+import type { IUser } from '~/types/User'
 
 const userStore = useUserStore()
 const tabsItems = [

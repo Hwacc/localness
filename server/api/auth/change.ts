@@ -1,5 +1,5 @@
 import bcrypt from 'bcryptjs'
-import { zPassword } from '~/constants/schemas'
+import { zPassword } from '~/utils/schemas'
 import prisma from '~/server/libs/prisma'
 import { z } from 'zod/v4'
 import { numericID } from '~/utils/id'

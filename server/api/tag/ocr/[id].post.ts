@@ -1,4 +1,4 @@
-import { zOCR } from '~/constants/schemas'
+import { zOCR } from '~/utils/schemas'
 import { ocr } from '~/server/libs/ocr'
 import prisma from '~/server/libs/prisma'
 import { numericID } from '~/utils/id'
@@ -26,6 +26,7 @@ export default defineEventHandler(async (event) => {
 
   const { image, language } = await readZodBody(event, zOCR.parse)
   const result = await ocr(image, { language })
+  
   // TODO: format text
   const text = result.ParsedResults[0].ParsedText
     .replace(/([^a-zA-Z0-9\u4e00-\u9fa5])\r\n/g, '')
@@ -37,7 +38,6 @@ export default defineEventHandler(async (event) => {
       id: nID,
     },
     data: {
-      text,
     },
   })
   return updatedTag

@@ -27,7 +27,14 @@ export default defineEventHandler(async (event) => {
         },
       },
       users: true,
-      setting: true,
+      settings: {
+        omit: {
+          id: true,
+          projectID: true,
+          createdAt: true,
+          updatedAt: true,
+        }
+      },
     },
   })
   return project

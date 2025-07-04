@@ -43,14 +43,14 @@ model Project {
   ownerUsername String   @map("owner_username")
   ownerID       Int      @map("owner_id")
   users         UserProject[]
-  setting       ProjectSetting?
+  settings      ProjectSettings?
 }
 
-model ProjectSetting{
+model ProjectSettings{
   id            Int      @id @default(autoincrement())
   createdAt     DateTime @default(now()) @map("created_at")
   updatedAt     DateTime @updatedAt @map("updated_at")
-  project       Project  @relation(fields: [projectID], references: [id])
+  project       Project  @relation(fields: [projectID], references: [id], onDelete: Cascade)
   projectID     Int      @map("project_id")
   ocrLanguage   String   @map("ocr_language")
   ocrEngine     Int      @map("ocr_engine")
@@ -76,14 +76,14 @@ model Page {
   project   Project? @relation(fields: [projectID], references: [id], onDelete: Cascade)
   projectID Int?     @map("project_id")
   tags      Tag[]
-  setting   PageSetting?
+  settings   PageSettings?
 }
 
-model PageSetting {
+model PageSettings {
   id            Int      @id @default(autoincrement())
   createdAt     DateTime @default(now()) @map("created_at")
   updatedAt     DateTime @updatedAt @map("updated_at")
-  page          Page     @relation(fields: [pageID], references: [id])
+  page          Page     @relation(fields: [pageID], references: [id], onDelete: Cascade)
   pageID        Int      @map("page_id")
   ocrLanguage   String   @map("ocr_language")
   ocrEngine     Int      @map("ocr_engine")

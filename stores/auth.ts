@@ -1,4 +1,4 @@
-import type { IUser } from '~/types/interfaces'
+import type { IUser } from '~/types/User'
 
 export const useAuthStore = defineStore('auth', () => {
   const toast = useToast()

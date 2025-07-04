@@ -35,22 +35,21 @@ export const WELCOME_TEXTS = [
   'Привет, мир'
 ]
 
+export const OCR_ENGINES = [
+  {
+    label: 'Engine1',
+    value: 1,
+  },
+  {
+    label: 'Engine2',
+    value: 2,
+  },
+]
+
 export const OCR_LANGUAGES = [
   {
-    label: 'English',
-    value: 'eng',
-  },
-  {
-    label: 'Chinese',
-    value: 'chs',
-  },
-  {
-    label: 'Japanese',
-    value: 'jpn',
-  },
-  {
-    label: 'Korean',
-    value: 'kor',
+    label: 'Auto',
+    value: 'auto',
   },
   {
     label: 'Arabic',
@@ -155,9 +154,5 @@ export const OCR_LANGUAGES = [
   {
     label: 'Vietnamese',
     value: 'vnm',
-  },
-  {
-    label: 'Auto',
-    value: 'auto',
   },
 ]

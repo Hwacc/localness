@@ -1,6 +1,6 @@
-import type { ITag } from '~/types/interfaces'
+import type { ITag } from '~/types/Tag'
 import { z } from 'zod/v4'
-import { OCR_LANGUAGES } from '.'
+import { OCR_LANGUAGES } from '../constants'
 
 export const PASSWORD_REGEX = /^(?=.*[a-zA-Z])(?=.*\d)[a-zA-Z\d_]*$/
 
@@ -29,8 +29,6 @@ export const zTag = z.object<ZTagOmit>(
     y: z.number().nonnegative().optional(),
     locked: z.boolean().optional(),
     style: z.any().optional(),
-    text: z.string().nullable().optional(),
-    i18nKey: z.string().nullable().optional(),
     translationID: z.string().nullable().optional(),
   },
   'Tag parameters validate failed'
@@ -59,3 +57,24 @@ export const zOCR = z.object(
   'OCR parameters validate failed'
 )
 export type ZOCR = z.output<typeof zOCR>
+
+export const zProjectSetting = z.object(
+  {
+    ocrLanguage: z
+      .string()
+      .optional()
+      .refine((v) => OCR_LANGUAGES.some((l) => l.value === v), {
+        message: `language must be one of ${OCR_LANGUAGES.map(
+          (l) => l.value
+        ).join(', ')}`,
+      }),
+    ocrEngine: z
+      .number()
+      .optional()
+      .refine((v) => v === 1 || v === 2, {
+        message: 'ocrEngine must be 1 or 2',
+      }),
+  },
+  'Project setting parameters validate failed'
+)
+export type ZProjectSetting = z.output<typeof zProjectSetting>

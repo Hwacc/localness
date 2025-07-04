@@ -1,4 +1,4 @@
-import type { ITag } from '~/types/interfaces'
+import type { ITag } from '~/types/Tag'
 import { Rect, type IJSONOptions } from 'leafer-ui'
 import { isEmpty, pick } from 'lodash-es'
 import {

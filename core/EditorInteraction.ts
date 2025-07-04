@@ -30,9 +30,7 @@ abstract class EditorInteraction extends EditorBase {
   private register() {
 
     // TODO: app的全局拖动处理
-    this.app.on(PointerEvent.TAP, (e: PointerEvent) => {
-      console.log('app tap', e)
-    })
+    this.app.on(PointerEvent.TAP, (_: PointerEvent) => {})
     // tree events
     this.app.tree.on(KeyEvent.DOWN, this.onKeyDown.bind(this))
     this.app.tree.on(KeyEvent.HOLD, this.onKeyHold.bind(this))
@@ -60,9 +58,9 @@ abstract class EditorInteraction extends EditorBase {
   }
 
   protected registerImageEvents() {
-    this.image.on(ImageEvent.LOAD, this.onImageLoaded.bind(this))
+    this.image.on(ImageEvent.LOAD, this.onImageLoad.bind(this))
     this.image.on(ImageEvent.LOADED, this.onImageLoaded.bind(this))
-    this.image.on(ImageEvent.ERROR, this.onImageLoaded.bind(this))
+    this.image.on(ImageEvent.ERROR, this.onImageError.bind(this))
   }
 
   abstract onPropertyChange(e: PropertyEvent): void

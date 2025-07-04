@@ -1,5 +1,5 @@
 import type { ID } from '~/types/global'
-import { zID } from '~/constants/schemas'
+import { zID } from '~/utils/schemas'
 
 export function validID(id: ID): boolean {
   return zID.safeParse(id).success

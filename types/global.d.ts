@@ -1,7 +1,7 @@
 import type dayjs from 'dayjs'
 import type { PrismaClient } from '@prisma/client'
 import type { cn } from '~/utils'
-import type { IUser } from './interfaces'
+import type { IUser } from './User'
 import type { FIFOCache } from 'fifo-ttl-cache'
 
 

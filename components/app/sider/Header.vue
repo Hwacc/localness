@@ -8,6 +8,7 @@ import {
 } from '~/providers/TaskProvider.vue'
 import { isEmpty, orderBy } from 'lodash-es'
 import { TaskState } from '~/libs/task-queue/types'
+import { Project } from '~/types/Project'
 
 const projectStore = useProjectStore()
 const { createProject, updateProject, setCurrentProject } = projectStore
@@ -33,6 +34,7 @@ const projectMenuItems: DropdownMenuItem[] = [
     onSelect: () => {
       projectModal.patch({
         mode: 'create',
+        project: new Project(''),
         onSave: async (p, { close }) => {
           const newProject = await createProject(p)
           if (!newProject) return
@@ -69,8 +71,8 @@ const projectMenuItems: DropdownMenuItem[] = [
     },
   },
   {
-    label: 'Edit Project',
-    icon: 'i-lucide:folder-pen',
+    label: 'Project Settings',
+    icon: 'i-lucide:settings',
     onSelect: () => {
       projectModal.patch({
         mode: 'edit',

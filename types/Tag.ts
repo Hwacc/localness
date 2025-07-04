@@ -1,10 +1,34 @@
 import type { IStroke } from 'leafer-ui'
 import type { ID } from './global'
-import type { ITag, ITranslation } from './interfaces'
+import type { ITranslation } from './Translation'
+
+export interface ITag {
+  id: ID
+  tagID: string
+  x: number
+  y: number
+  width: number
+  height: number
+  className: string
+  locked: boolean
+  style: Partial<{
+    fill: string
+    cornerRadius: number
+    strokeWidth: number
+    stroke: IStroke
+  }>
+  createdAt?: string
+  updatedAt?: string
+  translationID?: ID
+  translation?: ITranslation
+  pageID: ID
+}
 
 export class Tag implements ITag {
   id: ID = 0
   tagID: string = ''
+  pageID: ID = 0
+  translationID?: ID | undefined
   x: number = 0
   y: number = 0
   width: number = 0
@@ -17,11 +41,9 @@ export class Tag implements ITag {
     strokeWidth: number
     stroke: IStroke
   }> = {}
-  i18nKey?: string | undefined
-  text?: string | undefined
   createdAt?: string | undefined
   updatedAt?: string | undefined
-  translationID?: ID | undefined
+  
   translation?: ITranslation | undefined
-  pageID: ID = 0
+  
 }

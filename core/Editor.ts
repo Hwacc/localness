@@ -13,7 +13,7 @@ import '@leafer-in/viewport'
 import '@leafer-in/export'
 import { debounce, isEmpty } from 'lodash-es'
 import { DotMatrix } from 'leafer-x-dot-matrix'
-import type { ITag } from '~/types/interfaces'
+import type { ITag } from '~/types/Tag'
 import EditorInteraction, { type EditorMode } from './EditorInteraction'
 import type {
   EditorMoveEvent,
@@ -288,7 +288,7 @@ class Editor extends EditorInteraction {
     const selectedOne = this.app.editor.list[0] as EditorTag
     try {
       await this.asyncEmit('async-tag-update', {
-        tagID: selectedOne.remoteTag.id,
+        id: selectedOne.remoteTag.id,
         update: { locked },
       })
       selectedOne.lock(locked)
@@ -307,7 +307,6 @@ class Editor extends EditorInteraction {
       }
     })
     tag.on(PointerEvent.TAP, () => {
-      console.log('tag click', tag.toJSON())
       this.emit('tag-click', tag.toJSON())
     })
     tag.on(PointerEvent.DOUBLE_TAP, () => this.onInfoClick())
@@ -332,6 +331,11 @@ class Editor extends EditorInteraction {
       this.emit('image-error', new Error('image url is empty'))
       return
     }
+    if (url === this.image.url) {
+      console.log('image url is the same', url, this.image.url)
+      this.emit('image-loaded')
+      return
+    }
     this.image.set({ url })
     Editor.imageClipper.setImage(url)
   }
@@ -344,6 +348,7 @@ class Editor extends EditorInteraction {
       this.app.tree.set({
         origin: 'top-left',
       })
+      this.app.tree.set({ scale: 1 })
       this.app.tree.zoom('fit')
     } else {
       this.app.tree.set({

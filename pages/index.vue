@@ -2,7 +2,7 @@
 import { z } from 'zod/v4'
 import { useStorage } from '@vueuse/core'
 import { AnimatePresence, motion } from 'motion-v'
-import { zPassword } from '~/constants/schemas'
+import { zPassword } from '~/utils/schemas'
 
 definePageMeta({
   middleware: ['index-auth'],
@@ -25,6 +25,7 @@ type ZLogin = z.output<typeof zLogin>
 const state = reactive<ZLogin>({ username: '', password: '' })
 
 async function onSubmit() {
+  console.log(state)
   const success = await login(state.username, state.password)
   if (success) {
     await navigateTo('/transfer')
@@ -68,10 +69,10 @@ async function onSubmit() {
             :state="state"
             @submit="onSubmit"
           >
-            <UFormField label="Username">
+            <UFormField label="Username" name="username">
               <UInput v-model="state.username" class="w-full" size="lg" />
             </UFormField>
-            <UFormField label="Password">
+            <UFormField label="Password" name="password">
               <UInput
                 v-model="state.password"
                 class="w-full"

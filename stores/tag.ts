@@ -1,4 +1,4 @@
-import type { ITag } from '~/types/interfaces'
+import type { ITag } from '~/types/Tag'
 import { omit } from 'lodash-es'
 import type { ID } from '~/types/global'
 
@@ -34,20 +34,20 @@ export const useTagStore = defineStore('tag', () => {
     return addedTag
   }
 
-  async function deleteTag(tID: ID) {
-    if(!validID(tID)) return
-    const deletedTag = await useApi(`/api/tag/${tID}`, {
+  async function deleteTag(id: ID) {
+    if(!validID(id)) return
+    const deletedTag = await useApi(`/api/tag/${id}`, {
       method: 'DELETE',
     })
     if (deletedTag) {
-      pageStore.setTags(pageStore.tagList.filter((t) => t.id !== tID))
+      pageStore.setTags(pageStore.tagList.filter((t) => t.id !== id))
     }
     return deletedTag
   }
 
-  async function updateTag(tagID: ID, tag: Partial<ITag>) {
-    if(!validID(tagID)) return
-    const updatedTag = await useApi<ITag>(`/api/tag/${tagID}`, {
+  async function updateTag(id: ID, tag: Partial<ITag>) {
+    if(!validID(id)) return
+    const updatedTag = await useApi<ITag>(`/api/tag/${id}`, {
       method: 'POST',
       body: {
         ...omit(tag, ['id', 'createdAt', 'updatedAt', 'translation']),
@@ -56,7 +56,7 @@ export const useTagStore = defineStore('tag', () => {
     if (updatedTag) {
       pageStore.setTags(
         pageStore.tagList.map((t) => {
-          if (t.id === tagID) {
+          if (t.id === id) {
             return updatedTag
           }
           return t

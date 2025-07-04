@@ -1,4 +1,4 @@
-import type { IUser } from '~/types/interfaces'
+import type { IUser } from '~/types/User'
 import { User } from '~/types/User'
 import { merge } from 'lodash-es'
 

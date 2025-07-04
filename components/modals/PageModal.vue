@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import type { IPage } from '~/types/interfaces'
+import type { IPage } from '~/types/Page'
 import type { FormSubmitEvent } from '@nuxt/ui'
 import { Page } from '~/types/Page'
 import { z } from 'zod/v4'
@@ -48,6 +48,19 @@ const title = computed(() => {
       return 'View Page'
   }
 })
+
+const tabsItems = computed(() => [
+  {
+    label: 'Basic',
+    icon: 'i-lucide:info',
+    slot: 'basic',
+  },
+  {
+    label: 'Settings',
+    icon: 'i-lucide:settings',
+    slot: 'settings',
+  },
+])
 
 const { createPage, updatePage } = usePageStore()
 const isLoading = ref(false)
@@ -99,26 +112,36 @@ async function onSubmit(_: FormSubmitEvent<ZPage>) {
         :state="state"
         @submit="onSubmit"
       >
-        <UFormField label="Name" name="name">
-          <UInput
-            v-model="state.name"
-            class="w-full"
-            :disabled="mode === 'view' || isLoading"
-          />
-        </UFormField>
-        <UFormField label="Image" name="image">
-          <div class="flex justify-center">
-            <ImageUploader
-              ref="uploader"
-              class="w-[200px]"
-              :url="previewUrl"
-              :file="file"
-              :disabled="mode === 'view' || isLoading"
-              :auto-upload="false"
-              @delete="emit('delete')"
-            />
-          </div>
-        </UFormField>
+        <UTabs :items="tabsItems" variant="link" :ui="{ trigger: 'grow' }">
+          <template #basic>
+            <div class="flex flex-col gap-2.5">
+              <UFormField label="Name" name="name">
+                <UInput
+                  v-model="state.name"
+                  class="w-full"
+                  :disabled="mode === 'view' || isLoading"
+                />
+              </UFormField>
+              <UFormField label="Image" name="image">
+                <div class="flex justify-center">
+                  <ImageUploader
+                    ref="uploader"
+                    class="w-[200px]"
+                    :url="previewUrl"
+                    :file="file"
+                    :disabled="mode === 'view' || isLoading"
+                    :auto-upload="false"
+                    @delete="emit('delete')"
+                  />
+                </div>
+              </UFormField>
+            </div>
+          </template>
+          <template #settings>
+            
+          </template>
+        </UTabs>
+
         <div class="w-full flex justify-end gap-6 mt-4">
           <UButton
             color="neutral"

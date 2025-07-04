@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import type { Editor, EditorMode } from '~/core/Editor'
-import type { ITag } from '~/types/interfaces'
+import type { ITag } from '~/types/Tag'
 import { useDebounceFn, useResizeObserver } from '@vueuse/core'
 import TagInfoModal from '~/components/modals/TagInfoModal.vue'
 
@@ -121,7 +121,7 @@ onMounted(async () => {
     async ({ success, fail, payload }) => {
       try {
         console.log('async-tag-remove', payload)
-        if (payload.text || payload.translation) {
+        if (payload.translationID || payload.translation) {
           const _deleteModal = overlay.create(AlertModal, {
             props: {
               mode: 'delete',
@@ -159,12 +159,12 @@ onMounted(async () => {
     }
   )
 
-  editor.value.asyncOn<{ tagID: ID; update: Partial<ITag> }>(
+  editor.value.asyncOn<{ id: ID; update: Partial<ITag> }>(
     'async-tag-update',
     async ({ success, fail, payload }) => {
       try {
-        const { tagID, update } = payload
-        const updatedTag = await tagStore.updateTag(tagID, update)
+        const { id, update } = payload
+        const updatedTag = await tagStore.updateTag(id, update)
         success(updatedTag)
       } catch (error) {
         fail(error)

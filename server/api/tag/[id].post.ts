@@ -1,5 +1,5 @@
 import prisma from '~/server/libs/prisma'
-import { zTag } from '~/constants/schemas'
+import { zTag } from '~/utils/schemas'
 import { numericID } from '~/utils/id'
 import { readZodBody } from '~/utils/validate'
 
@@ -25,7 +25,7 @@ export default defineEventHandler(async (event) => {
     },
     data: body as any,
     include: {
-      translation: true,
+      translation: true
     },
   })
   return updatedTag
