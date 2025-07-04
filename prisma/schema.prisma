@@ -43,6 +43,19 @@ model Project {
   ownerUsername String   @map("owner_username")
   ownerID       Int      @map("owner_id")
   users         UserProject[]
+  setting       ProjectSetting?
+}
+
+model ProjectSetting{
+  id            Int      @id @default(autoincrement())
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @updatedAt @map("updated_at")
+  project       Project  @relation(fields: [projectID], references: [id])
+  projectID     Int      @map("project_id")
+  ocrLanguage   String   @map("ocr_language")
+  ocrEngine     Int      @map("ocr_engine")
+
+  @@unique([projectID])
 }
 
 model UserProject {
@@ -63,6 +76,19 @@ model Page {
   project   Project? @relation(fields: [projectID], references: [id], onDelete: Cascade)
   projectID Int?     @map("project_id")
   tags      Tag[]
+  setting   PageSetting?
+}
+
+model PageSetting {
+  id            Int      @id @default(autoincrement())
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @updatedAt @map("updated_at")
+  page          Page     @relation(fields: [pageID], references: [id])
+  pageID        Int      @map("page_id")
+  ocrLanguage   String   @map("ocr_language")
+  ocrEngine     Int      @map("ocr_engine")
+
+  @@unique([pageID])
 }
 
 model Tag {
@@ -77,8 +103,6 @@ model Tag {
   className     String       @map("class_name")
   locked        Boolean      @default(false)
   style         Json
-  i18nKey       String?      @unique @map("i18n_key")
-  text          String?
   page          Page         @relation(fields: [pageID], references: [id], onDelete: Cascade)
   pageID        Int          @map("page_id")
   translation   Translation? @relation(fields: [translationID], references: [id])
@@ -94,4 +118,7 @@ model Translation {
   en        String
   zh        String
   tags      Tag[]
+  
+  @@index([i18nKey])
+  @@index([origin])
 }
