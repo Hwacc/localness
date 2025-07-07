@@ -24,21 +24,59 @@ export default defineEventHandler(async (event) => {
     })
   }
 
-  const { image, language } = await readZodBody(event, zOCR.parse)
+  const { image } = await readZodBody(event, zOCR.parse)
+
+  const nPageID = numericID(tag.pageID)
+  const page = await prisma.page.findUnique({
+    where: {
+      id: nPageID,
+    },
+    include: {
+      settings: true,
+    },
+  })
+  if (!page) {
+    throw createError({
+      statusCode: 404,
+      statusMessage: 'Page not found',
+    })
+  }
+
+  const language = page.settings?.ocrLanguage ?? 'eng'
   const result = await ocr(image, { language })
-  
+
   // TODO: format text
-  const text = result.ParsedResults[0].ParsedText
-    .replace(/([^a-zA-Z0-9\u4e00-\u9fa5])\r\n/g, '')
+  const text = result.ParsedResults[0].ParsedText.replace(
+    /([^a-zA-Z0-9\u4e00-\u9fa5])\r\n/g,
+    ''
+  )
     .replace(/\r\n$/, '')
     .replace(/\r\n/g, ' ')
+
+  if (text) {
+    await prisma.translation.upsert({
+      where: {
+        id: tag.translationID,
+      },
+      create: {
+        tags: {
+          connect: {
+            id: nID,
+          },
+        },
+        origin: text,
+      },
+      update: {
+        origin: text,
+      },
+    })
+  }
 
   const updatedTag = await prisma.tag.update({
     where: {
       id: nID,
     },
-    data: {
-    },
+    data: {},
   })
   return updatedTag
 })
