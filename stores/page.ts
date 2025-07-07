@@ -11,7 +11,7 @@ export const usePageStore = defineStore('page', () => {
 
   const tagList = ref<ITag[]>([])
 
-  async function createPage({ name, image }: Pick<IPage, 'name' | 'image'>) {
+  async function createPage(page: Pick<IPage, 'name' | 'image' | 'settings'>) {
     if (!projectStore.curProject.id) {
       if (import.meta.client) {
         toast.add({
@@ -23,18 +23,18 @@ export const usePageStore = defineStore('page', () => {
       }
       return null
     }
-    const page = await useApi<IPage>('/api/page', {
+
+    const createdPage = await useApi<IPage>('/api/page', {
       method: 'POST',
       body: {
         projectID: projectStore.curProject.id,
-        name,
-        image,
+        ...page,
       },
     })
-    if (!page) return null
-    projectStore.curProject.pages?.unshift(page)
+    if (!createdPage) return null
+    projectStore.curProject.pages?.unshift(createdPage)
     if (!curPage.value.id) {
-      curPage.value = page
+      curPage.value = createdPage
     }
     if (import.meta.client) {
       toast.add({
@@ -44,12 +44,12 @@ export const usePageStore = defineStore('page', () => {
         icon: 'i-lucide:circle-check',
       })
     }
-    return page
+    return createdPage
   }
 
   async function updatePage(
     id: ID,
-    page: Partial<Pick<IPage, 'name' | 'image'>>
+    page: Partial<Pick<IPage, 'name' | 'image' | 'settings'>>
   ) {
     if (!validID(id)) return
     const updatedPage = await useApi<IPage>(`/api/page/${id}`, {

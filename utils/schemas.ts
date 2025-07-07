@@ -78,3 +78,25 @@ export const zProjectSetting = z.object(
   'Project setting parameters validate failed'
 )
 export type ZProjectSetting = z.output<typeof zProjectSetting>
+
+export const zPageSetting = z.object(
+  {
+    ocrLanguage: z
+      .string()
+      .optional()
+      .refine((v) => OCR_LANGUAGES.some((l) => l.value === v), {
+        message: `language must be one of ${OCR_LANGUAGES.map(
+          (l) => l.value
+        ).join(', ')}`,
+      }),
+    ocrEngine: z
+      .number()
+      .optional()
+      .refine((v) => v === 1 || v === 2, {
+        message: 'ocrEngine must be 1 or 2',
+      }),
+  },
+  'Page setting parameters validate failed'
+)
+export type ZPageSetting = z.output<typeof zPageSetting>
+

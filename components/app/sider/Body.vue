@@ -14,8 +14,8 @@ const pageStore = usePageStore()
 const editPage = ref<IPage | undefined>(undefined)
 const pageMenuItems: DropdownMenuItem[] = [
   {
-    label: 'Edit Page',
-    icon: 'i-lucide:file-pen',
+    label: 'Page Settings',
+    icon: 'i-lucide:settings',
     onSelect: showEditPageModal,
   },
   {

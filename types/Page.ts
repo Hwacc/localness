@@ -12,6 +12,10 @@ export interface IPage {
   updatedAt?: string
   projectID?: ID
   project?: IProject
+  settings: {
+    ocrLanguage: string
+    ocrEngine: number
+  }
 }
 
 export class Page implements IPage {
@@ -19,7 +23,15 @@ export class Page implements IPage {
   name: string
   tags: ITag[] = []
   image: string = ''
+  settings: {
+    ocrLanguage: string
+    ocrEngine: number
+  }
   constructor(name?: string) {
     this.name = name ?? 'Undefined'
+    this.settings = {
+      ocrLanguage: 'eng',
+      ocrEngine: 1,
+    }
   }
 }

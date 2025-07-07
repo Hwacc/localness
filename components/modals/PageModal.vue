@@ -4,6 +4,7 @@ import type { FormSubmitEvent } from '@nuxt/ui'
 import { Page } from '~/types/Page'
 import { z } from 'zod/v4'
 import type { ImageUploader } from '#components'
+import { omit } from 'lodash-es'
 
 type Mode = 'edit' | 'create' | 'view'
 const {
@@ -18,7 +19,7 @@ const {
 
 const emit = defineEmits<{
   close: [boolean]
-  save: [Pick<IPage, 'name'>, { close: () => void }]
+  save: [Pick<IPage, 'name' | 'image' | 'settings'>, { close: () => void }]
   delete: []
 }>()
 
@@ -33,9 +34,38 @@ const previewUrl = computed(() => {
 const zPage = z.object({
   name: z.string().min(3),
   image: z.string(),
+  settings: z.object({
+    ocrLanguage: z.string(),
+    ocrEngine: z.number(),
+  }),
 })
 type ZPage = z.output<typeof zPage>
-const state = reactive<ZPage>({ name: page.name, image: page.image })
+const projectStore = useProjectStore()
+const state = reactive<ZPage>({
+  name: page.name,
+  image: page.image,
+  settings: {
+    ocrLanguage:
+      page.settings?.ocrLanguage ??
+      projectStore.curProject?.settings?.ocrLanguage ??
+      'eng',
+    ocrEngine:
+      page.settings?.ocrEngine ??
+      projectStore.curProject?.settings?.ocrEngine ??
+      1,
+  },
+})
+watch(
+  () => state.settings.ocrLanguage,
+  (value) => {
+    if (value === 'auto') {
+      state.settings.ocrEngine = 2
+    }
+  }
+)
+const showAlert = computed(() => {
+  return state.settings.ocrLanguage === 'auto'
+})
 
 const title = computed(() => {
   switch (mode) {
@@ -43,9 +73,7 @@ const title = computed(() => {
     default:
       return 'New Page'
     case 'edit':
-      return `Edit Page: ${page.name}`
-    case 'view':
-      return 'View Page'
+      return 'Page Settings'
   }
 })
 
@@ -71,18 +99,15 @@ async function onSubmit(_: FormSubmitEvent<ZPage>) {
   try {
     if (mode === 'edit') {
       // update page
-      const res = await uploaderRef.value?.upload()
-      await updatePage(
-        page.id,
-        res ? { name: state.name, image: res.key } : { name: state.name }
-      )
+      const uploadRes = await uploaderRef.value?.upload()
+      await updatePage(page.id, uploadRes ? state : omit(state, 'image'))
     } else if (mode === 'create') {
       // create page
-      const res = await uploaderRef.value?.upload()
-      if (!res) return
-      await createPage({ name: state.name, image: res.key })
+      const uploadRes = await uploaderRef.value?.upload()
+      if (!uploadRes) return
+      await createPage(state)
     }
-    emit('save', state as Pick<IPage, 'name'>, {
+    emit('save', state as Pick<IPage, 'name' | 'image' | 'settings'>, {
       close: () => emit('close', true),
     })
   } catch (error) {
@@ -138,7 +163,40 @@ async function onSubmit(_: FormSubmitEvent<ZPage>) {
             </div>
           </template>
           <template #settings>
-            
+            <div class="flex flex-col gap-2.5">
+              <div class="flex items-center gap-4">
+                <UFormField
+                  class="flex-1"
+                  label="OCR Language"
+                  name="settings.ocrLanguage"
+                >
+                  <OCRLanguageSelect
+                    v-model="state.settings.ocrLanguage"
+                    class="w-full"
+                    default-value="eng"
+                  />
+                </UFormField>
+                <UFormField
+                  class="flex-1"
+                  label="OCR Engine"
+                  name="settings.ocrEngine"
+                >
+                  <OCREngineSelect
+                    v-model="state.settings.ocrEngine"
+                    class="w-full"
+                    :disabled="showAlert"
+                    :default-value="1"
+                  />
+                </UFormField>
+              </div>
+              <UAlert
+                v-if="showAlert"
+                variant="soft"
+                color="warning"
+                title="Warning"
+                description="Auto language detection is only supported by Engine 2."
+              />
+            </div>
           </template>
         </UTabs>
 

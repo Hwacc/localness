@@ -2,11 +2,13 @@ import prisma from '~/server/libs/prisma'
 import { z } from 'zod/v4'
 import { numericID } from '~/utils/id'
 import { readZodBody } from '~/utils/validate'
+import { zPageSetting } from '~/utils/schemas'
 
 const zPage = z.object(
   {
     name: z.string().min(3),
     image: z.string().nonempty().optional(),
+    settings: zPageSetting.optional(),
   },
   'Page parameters validate failed'
 )
@@ -26,14 +28,25 @@ export default defineEventHandler(async (event) => {
     })
   }
   const nID = numericID(id)
-  const { name, image } = await readZodBody(event, zPage.parse)
+  const { name, image, settings } = await readZodBody(event, zPage.parse)
   if (!name) {
     throw createError({
       statusCode: 400,
       statusMessage: 'Missing name',
     })
   }
+
   const data = image ? { name, image } : { name }
+  if (settings) {
+    // update settings
+    await prisma.pageSettings.update({
+      where: {
+        pageID: nID,
+      },
+      data: settings,
+    })
+  }
+  
   const updatedProject = await prisma.page.update({
     where: {
       id: nID,
@@ -44,6 +57,14 @@ export default defineEventHandler(async (event) => {
       name: true,
       image: true,
       updatedAt: true,
+      settings: {
+        omit: {
+          id: true,
+          pageID: true,
+          createdAt: true,
+          updatedAt: true,
+        },
+      },
     },
   })
 
