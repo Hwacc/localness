@@ -65,6 +65,7 @@ export default defineEventHandler(async (event) => {
           },
         },
         origin: text,
+        i18nKey: ''
       },
       update: {
         origin: text,
