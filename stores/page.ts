@@ -61,6 +61,7 @@ export const usePageStore = defineStore('page', () => {
         if (p.id === updatedPage.id) {
           p.name = updatedPage.name
           p.image = updatedPage.image
+          p.settings = updatedPage.settings
         }
         return p
       })

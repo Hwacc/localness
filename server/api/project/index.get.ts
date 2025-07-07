@@ -10,6 +10,19 @@ export default defineEventHandler(async (event) => {
   const projects = await prisma.project.findMany({
     include: {
       pages: {
+        select: {
+          id: true,
+          name: true,
+          image: true,
+          settings: {
+            omit: {
+              id: true,
+              pageID: true,
+              createdAt: true,
+              updatedAt: true,
+            },
+          },
+        },
         orderBy: {
           updatedAt: 'desc',
         },

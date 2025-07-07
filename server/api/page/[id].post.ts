@@ -38,15 +38,18 @@ export default defineEventHandler(async (event) => {
 
   const data = image ? { name, image } : { name }
   if (settings) {
-    // update settings
-    await prisma.pageSettings.update({
+    await prisma.pageSettings.upsert({
       where: {
         pageID: nID,
       },
-      data: settings,
+      create: {
+        pageID: nID,
+        ocrLanguage: settings?.ocrLanguage ?? 'eng',
+        ocrEngine: settings?.ocrEngine ?? 1,
+      },
+      update: settings,
     })
   }
-  
   const updatedProject = await prisma.page.update({
     where: {
       id: nID,

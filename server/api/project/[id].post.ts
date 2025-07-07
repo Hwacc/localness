@@ -59,16 +59,20 @@ export default defineEventHandler(async (event) => {
   }
 
   // update setting
-  await prisma.projectSettings.update({
-    where: {
-      projectID: nID,
-    },
-    data: {
-      ocrLanguage: settings?.ocrLanguage ?? 'eng',
-      ocrEngine: settings?.ocrEngine ?? 1,
-    },
-  })
-
+  if (settings) {
+    await prisma.projectSettings.upsert({
+      where: {
+        projectID: nID,
+      },
+      create: {
+        projectID: nID,
+        ocrLanguage: settings?.ocrLanguage ?? 'eng',
+        ocrEngine: settings?.ocrEngine ?? 1,
+      },
+      update: settings,
+    })
+  }
+  
   // update project
   const updatedProject = await prisma.project.update({
     where: {

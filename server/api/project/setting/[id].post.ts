@@ -1,5 +1,6 @@
 import prisma from '~/server/libs/prisma'
 import { numericID } from '~/utils/id'
+import { zProjectSetting } from '~/utils/schemas'
 import { readZodBody } from '~/utils/validate'
 
 export default defineEventHandler(async (event) => {
@@ -28,13 +29,18 @@ export default defineEventHandler(async (event) => {
     })
   }
 
-  const updatedSetting = await prisma.projectSettings.update({
+  const updatedSetting = await prisma.projectSettings.upsert({
     where: {
       projectID: nID,
     },
-    data: {
-      ocrLanguage,
-      ocrEngine,
+    create: {
+      projectID: nID,
+      ocrLanguage: ocrLanguage ?? 'eng',
+      ocrEngine: ocrEngine ?? 1,
+    },
+    update: {
+      ocrLanguage: ocrLanguage ?? 'eng',
+      ocrEngine: ocrEngine ?? 1,
     },
     omit: {
       id: true,
