@@ -45,7 +45,6 @@ export default defineEventHandler(async (event) => {
   const language = page.settings?.ocrLanguage ?? 'eng'
   const result = await ocr(image, { language })
 
-  // TODO: format text
   const text = result.ParsedResults[0].ParsedText.replace(
     /([^a-zA-Z0-9\u4e00-\u9fa5])\r\n/g,
     ''
@@ -53,19 +52,20 @@ export default defineEventHandler(async (event) => {
     .replace(/\r\n$/, '')
     .replace(/\r\n/g, ' ')
 
+  let updatedTranslation = null
   if (text) {
-    await prisma.translation.upsert({
+    updatedTranslation = await prisma.translation.upsert({
       where: {
-        id: tag.translationID,
+        id: tag.translationID ?? 0,
       },
       create: {
+        origin: text,
+        i18nKey: '',
         tags: {
           connect: {
             id: nID,
           },
         },
-        origin: text,
-        i18nKey: ''
       },
       update: {
         origin: text,
@@ -77,7 +77,14 @@ export default defineEventHandler(async (event) => {
     where: {
       id: nID,
     },
-    data: {},
+    data: {
+      translationID: updatedTranslation?.id ?? null,
+    },
+    include: {
+      translation: true,
+    },
   })
+
+  console.log('updatedTag', updatedTag)
   return updatedTag
 })

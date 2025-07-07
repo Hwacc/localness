@@ -115,8 +115,8 @@ model Translation {
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
   origin    String
-  en        String
-  zh        String
+  en        String?
+  zh        String?
   tags      Tag[]
   
   @@index([i18nKey])
