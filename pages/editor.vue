@@ -10,6 +10,8 @@ import EditorProvider, {
 import AlertModal from '~/components/modals/AlertModal.vue'
 import type { ID } from '~/types/global'
 import { DEFAULT_LINE_COLOR, DEFAULT_LINE_WIDTH } from '~/constants'
+import { injectTaskContext } from '~/providers/TaskProvider.vue'
+import { Task } from '~/libs/task-queue'
 
 definePageMeta({
   middleware: ['protected'],
@@ -20,6 +22,7 @@ const { curPage, tagList } = storeToRefs(pageStore)
 const tagStore = useTagStore()
 const qiniuImage = useQiniuImage()
 const autoSave = useAutoSave()
+const taskContext = injectTaskContext()
 
 const editor = shallowRef<Editor>()
 const editorContainer = useTemplateRef<HTMLDivElement>('editor-container')
@@ -180,32 +183,53 @@ onMounted(async () => {
   editor.value.asyncOn<ITag>('async-tag-info', ({ success, payload }) => {
     tagModal.patch({
       tag: payload,
+      loading: false,
       onClose: (isSuccess: boolean) => {
         !isSuccess && success(undefined)
       },
-      onSave: (updatedTag: Partial<ITag> | undefined) => {
-        if (!updatedTag) {
-          success(undefined)
-          return
+      onSave: (translation, tag, close) => {
+        try {
+          tagModal.patch({ loading: true })
+          if (translation) {
+            // TODO: update translation
+          }
+          // TODO: update tag
+          close()
+        } catch (error) {
+          console.error(error)
+        } finally {
+          tagModal.patch({ loading: false })
         }
-        success(updatedTag)
       },
     })
     tagModal.open()
   })
 
-  editor.value.on(
-    'tag-ocr',
-    async ({ image, tag }: { image: string; tag: ITag }) => {
-      console.log('tag-ocr', image, tag)
-      const res = await useApi<any>(`/api/tag/ocr/${tag.id}`, {
-        method: 'POST',
-        body: { image },
-      })
-      console.log('data', res)
+  editor.value.asyncOn<{ image: string; tag: ITag }>(
+    'async-tag-ocr',
+    ({ success, payload }) => {
+      const { image, tag } = payload
+      const ocrTask = new Task(
+        async () => {
+          const res = await useApi<ITag>(`/api/tag/ocr/${tag.id}`, {
+            method: 'POST',
+            body: { image },
+          })
+          if (res) {
+            pageStore.updateTag(res)
+            success(res)
+          }
+          return res
+        },
+        {
+          name: 'OCR',
+          description: 'Generate a Tag OCR',
+        }
+      )
+
+      taskContext.push(ocrTask)
     }
   )
-
   editor.value.on('tag-click', (_: ITag) => {})
 })
 

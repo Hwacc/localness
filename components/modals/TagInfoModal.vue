@@ -5,11 +5,12 @@ import {
   DEFAULT_CORNER_RADIUS,
   DEFAULT_LINE_COLOR,
   DEFAULT_LINE_WIDTH,
+  TRANSLATION_LANGUAGES,
 } from '~/constants'
+import { isEmpty, omit } from 'lodash-es'
+import type { ITranslation } from '~/types/Translation'
 
-const props = defineProps<{ tag: ITag }>()
-const tag = reactive(props.tag)
-
+const { tag, loading = false } = defineProps<{ tag: ITag; loading?: boolean }>()
 const tagStore = useTagStore()
 
 const tabsItems = [
@@ -32,7 +33,26 @@ const tabsItems = [
     slot: 'translations',
   },
 ]
-const emit = defineEmits<{ close: [boolean]; save: [ITag | undefined] }>()
+const emit = defineEmits<{
+  close: [boolean]
+  creatTrans: [type: 'ocr' | 'new', translation?: ITranslation]
+  save: [
+    translation: ITranslation | undefined,
+    tag: ITag | undefined,
+    close: () => void
+  ]
+}>()
+
+const selectedLanguage = ref<string>('en')
+const selectedItem = computed(() => {
+  const language = TRANSLATION_LANGUAGES.find(
+    (o: any) => o.value === selectedLanguage.value
+  )
+  return {
+    icon: language?.icon || 'i-lucide:languages',
+    label: language?.label || 'Unknown',
+  }
+})
 
 const zEditTag = z.object({
   locked: z.boolean(),
@@ -42,9 +62,14 @@ const zEditTag = z.object({
     strokeWidth: z.number().optional(),
     cornerRadius: z.number().optional(),
   }),
+  i18nKey: z.string().optional(),
+  translation: z.object<ITranslation>().nullable().optional() as z.ZodType<
+    ITranslation | undefined
+  >,
 })
+type ZEditTag = z.output<typeof zEditTag>
 
-const state = reactive<z.infer<typeof zEditTag>>({
+const state = reactive<ZEditTag>({
   locked: tag.locked,
   style: {
     fill: tag.style?.fill || '',
@@ -55,21 +80,40 @@ const state = reactive<z.infer<typeof zEditTag>>({
     strokeWidth: tag.style?.strokeWidth || DEFAULT_LINE_WIDTH,
     cornerRadius: tag.style?.cornerRadius || DEFAULT_CORNER_RADIUS,
   },
+  i18nKey: tag.i18nKey || '',
+  translation: tag.translation || ({} as ITranslation),
 })
+watch(
+  () => tag,
+  (val) => {
+    state.locked = val.locked
+    state.style = {
+      fill: val.style?.fill || '',
+      stroke:
+        typeof val.style?.stroke === 'string'
+          ? val.style.stroke
+          : DEFAULT_LINE_COLOR,
+      strokeWidth: val.style?.strokeWidth || DEFAULT_LINE_WIDTH,
+      cornerRadius: val.style?.cornerRadius || DEFAULT_CORNER_RADIUS,
+    }
+    state.i18nKey = val.i18nKey
+    state.translation = val.translation || ({} as ITranslation)
+  }
+)
 
-const isLoading = ref(false)
 async function onSubmit() {
-  console.log('submit', state)
-  isLoading.value = true
+  const preTag = omit(state, ['translation'])
+  const preTranslation = state.translation
   try {
-    const updatedTag = await tagStore.updateTag(tag.id, state)
-    emit('save', updatedTag)
-    emit('close', true)
+    const updatedTag = await tagStore.updateTag(tag.id, preTag)
+    emit('save', preTranslation, updatedTag, () => emit('close', true))
   } catch (error) {
     console.error(error)
-  } finally {
-    isLoading.value = false
   }
+}
+
+function createTranslation(type: 'ocr' | 'new') {
+  emit('creatTrans', type, state.translation)
 }
 
 const previewStyle = computed(() => ({
@@ -85,7 +129,12 @@ const previewStyle = computed(() => ({
     title="Tag Info"
   >
     <template #body>
-      <UForm class="w-full" :schema="zEditTag" :state="state" @submit="onSubmit">
+      <UForm
+        class="w-full"
+        :schema="zEditTag"
+        :state="state"
+        @submit="onSubmit"
+      >
         <UTabs
           :items="tabsItems"
           variant="link"
@@ -138,7 +187,7 @@ const previewStyle = computed(() => ({
                   :icon="
                     state.locked
                       ? 'i-lucide:lock-keyhole'
-                      : 'lucide:lock-keyhole-open'
+                      : 'i-lucide:lock-keyhole-open'
                   "
                   size="md"
                   color="primary"
@@ -184,7 +233,86 @@ const previewStyle = computed(() => ({
               </UFormField>
             </div>
           </template>
-          <template #translations> </template>
+          <template #translations>
+            <div
+              v-if="isEmpty(state.translation)"
+              class="flex flex-col items-center justify-center h-50 gap-4"
+            >
+              <UIcon name="mingcute:empty-box-line" size="4rem" />
+              <p class="text-gray-500">Not have translation yet</p>
+              <div class="flex gap-2.5">
+                <UButton
+                  color="neutral"
+                  variant="soft"
+                  @click="createTranslation('new')"
+                >
+                  Create an Empty Translation
+                </UButton>
+                <UButton
+                  color="primary"
+                  variant="solid"
+                  @click="createTranslation('ocr')"
+                >
+                  Create with OCR
+                </UButton>
+              </div>
+            </div>
+            <div v-else class="flex flex-col gap-2.5">
+              <UFormField label="I18n Key">
+                <div class="w-full flex items-center gap-2.5">
+                  <UInput v-model="state.i18nKey" class="w-full" />
+                  <AIButton />
+                </div>
+              </UFormField>
+              <UFormField label="Text">
+                <template #label="{ label }">
+                  <div class="flex items-center gap-3">
+                    <span>{{ label }}</span>
+                    <span class="text-xs text-gray-500">
+                      MD5: {{ tag.translation?.md5 }}
+                    </span>
+                  </div>
+                </template>
+                <template #default>
+                  <UTextarea
+                    v-model="state.translation.origin"
+                    class="w-full"
+                    :maxrows="4"
+                    autoresize
+                  />
+                </template>
+              </UFormField>
+              <UFormField label="Translations">
+                <template #label="{ label }">
+                  <div class="flex items-center gap-3">
+                    <span>{{ label }}</span>
+                    <USelect
+                      v-model="selectedLanguage"
+                      :items="TRANSLATION_LANGUAGES"
+                      size="sm"
+                      class="min-w-50"
+                    >
+                      <template #default>
+                        <div class="flex items-center gap-2">
+                          <UIcon :name="selectedItem.icon" :size="12" />
+                          <span>{{ selectedItem.label }}</span>
+                        </div>
+                      </template>
+                    </USelect>
+                    <AIButton class="[&>span]:h-6 [&>span]:leading-1" />
+                  </div>
+                </template>
+                <template #default>
+                  <UTextarea
+                    v-model="state.translation[selectedLanguage]"
+                    class="w-full"
+                    :maxrows="4"
+                    autoresize
+                  />
+                </template>
+              </UFormField>
+            </div>
+          </template>
         </UTabs>
         <div class="w-full flex justify-end gap-6 mt-6">
           <UButton
@@ -193,10 +321,7 @@ const previewStyle = computed(() => ({
             label="Cancel"
             @click="emit('close', false)"
           />
-          <UButton
-            label="Save"
-            type="submit"
-          />
+          <UButton label="Save" type="submit" />
         </div>
       </UForm>
     </template>

@@ -109,24 +109,35 @@ export const usePageStore = defineStore('page', () => {
 
   async function setCurrentPage(page: IPage) {
     try {
-      if (validID(page.id)) {
-        tagList.value = await useApi<ITag[]>(`/api/page/tags?pageID=${page.id}`)
-      } else {
-        tagList.value = []
-      }
+      if (validID(page.id)) await loadTags(page.id)
     } finally {
       curPage.value = page
     }
   }
 
-  async function loadTags() {
+  async function loadTags(pageID?: ID) {
     tagList.value =
-      (await useApi<ITag[]>(`/api/page/tags?pageID=${curPage.value?.id}`)) || []
+      (await useApi<ITag[]>(
+        `/api/page/tags?pageID=${pageID || curPage.value.id}`
+      )) || []
     return tagList.value
   }
 
   function setTags(tags: ITag[] = []) {
     tagList.value = [...tags]
+  }
+
+  /**
+   * Update tag in page tagList
+   * @param tag
+   */
+  function updateTag(tag: ITag) {
+    tagList.value = tagList.value.map((t) => {
+      if (t.id === tag.id) {
+        return tag
+      }
+      return t
+    })
   }
 
   return {
@@ -138,6 +149,7 @@ export const usePageStore = defineStore('page', () => {
     updatePage,
     setCurrentPage,
     deletePage,
+    updateTag,
   }
 })
 

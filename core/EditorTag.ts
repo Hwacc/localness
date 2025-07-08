@@ -96,6 +96,8 @@ class EditorTag extends Rect {
       'height',
       'className',
       'tag',
+      'translationID',
+      'translation',
     ])
     const styleProps = pick(original, [
       'fill',

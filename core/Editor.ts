@@ -269,7 +269,7 @@ class Editor extends EditorInteraction {
 
   private async onOCRClick() {
     if (isEmpty(this.app.editor.list)) return
-    const selectedOne = this.app.editor.list[0]
+    const selectedOne = this.app.editor.list[0] as EditorTag
     const { x, y, width, height } = selectedOne
     const image = await Editor.imageClipper.clip({
       x: x ?? 0,
@@ -277,10 +277,13 @@ class Editor extends EditorInteraction {
       width: width ?? 0,
       height: height ?? 0,
     })
-    this.emit('tag-ocr', {
+    const tag = await this.asyncEmit<'async-tag-ocr', ITag>('async-tag-ocr', {
       image,
       tag: selectedOne.toJSON(),
     })
+    if (tag) {
+      selectedOne.update(tag)
+    }
   }
 
   private async onLockClick({ locked = false }: { locked: boolean }) {

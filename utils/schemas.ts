@@ -29,7 +29,8 @@ export const zTag = z.object<ZTagOmit>(
     y: z.number().nonnegative().optional(),
     locked: z.boolean().optional(),
     style: z.any().optional(),
-    translationID: z.string().nullable().optional(),
+    translationID: z.number().nonnegative().optional(),
+    i18nKey: z.string().optional(),
   },
   'Tag parameters validate failed'
 )

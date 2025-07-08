@@ -45,7 +45,7 @@ function onLineColorChange(c: string | undefined) {
         <div class="flex items-center gap-2">
           <UTooltip text="Zoom Out">
             <UButton
-              icon="i-lucide:minus"
+              icon="i-lucide-minus"
               size="md"
               color="neutral"
               variant="outline"

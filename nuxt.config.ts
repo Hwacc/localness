@@ -18,6 +18,15 @@ export default defineNuxtConfig({
     },
   },
   css: ['~/assets/css/index.css'],
+  icon: {
+    serverBundle: {
+      collections: ['lucide'],
+    },
+    clientBundle: {
+      scan: true,
+      sizeLimitKb: 256
+    }
+  },
   imports: {
     dirs: ['utils/**'],
   },

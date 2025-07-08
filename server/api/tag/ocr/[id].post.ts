@@ -3,6 +3,7 @@ import { ocr } from '~/server/libs/ocr'
 import prisma from '~/server/libs/prisma'
 import { numericID } from '~/utils/id'
 import { readZodBody } from '~/utils/validate'
+import crypto from 'node:crypto'
 
 export default defineEventHandler(async (event) => {
   await requireUserSession(event)
@@ -13,9 +14,9 @@ export default defineEventHandler(async (event) => {
       statusMessage: 'Missing id',
     })
   }
-  const nID = numericID(id)
+  const nTagID = numericID(id)
   const tag = await prisma.tag.findUnique({
-    where: { id: nID },
+    where: { id: nTagID },
   })
   if (!tag) {
     throw createError({
@@ -52,39 +53,53 @@ export default defineEventHandler(async (event) => {
     .replace(/\r\n$/, '')
     .replace(/\r\n/g, ' ')
 
-  let updatedTranslation = null
-  if (text) {
-    updatedTranslation = await prisma.translation.upsert({
+  if(!text) return tag
+
+  const md5 = crypto.createHash('md5').update(text).digest('hex')
+  const foundTranslation = await prisma.translation.findUnique({
+    where: { md5 },
+  })
+
+  console.log('foundTranslation', text, md5, foundTranslation)
+  let updatedTag = null
+  if(foundTranslation){
+    // if has translation, update tag
+    updatedTag = await prisma.tag.update({
       where: {
-        id: tag.translationID ?? 0,
+        id: nTagID,
       },
-      create: {
+      data: {
+        translationID: foundTranslation.id,
+      },
+      include: {
+        translation: true,
+      },
+    })
+  } else {
+    // if no translation, create translation and update tag
+    const createdTranslation = await prisma.translation.create({
+      data: {
         origin: text,
-        i18nKey: '',
+        md5,
         tags: {
           connect: {
-            id: nID,
+            id: nTagID,
           },
         },
       },
-      update: {
-        origin: text,
+    })
+    updatedTag = await prisma.tag.update({
+      where: {
+        id: nTagID,
+      },
+      data: {
+        translationID: createdTranslation.id,
+      },
+      include: {
+        translation: true,
       },
     })
   }
-
-  const updatedTag = await prisma.tag.update({
-    where: {
-      id: nID,
-    },
-    data: {
-      translationID: updatedTranslation?.id ?? null,
-    },
-    include: {
-      translation: true,
-    },
-  })
-
   console.log('updatedTag', updatedTag)
   return updatedTag
 })

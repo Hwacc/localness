@@ -7,7 +7,6 @@ export const useTagStore = defineStore('tag', () => {
 
   async function getTag(id: ID) {
     const tag = await useApi<ITag>(`/api/tag/${id}`)
-    console.log('get tag Info', tag)
     return tag
   }
 
@@ -27,7 +26,6 @@ export const useTagStore = defineStore('tag', () => {
         ]),
       },
     })
-    console.log('addedTag', addedTag)
     if (addedTag) {
       pageStore.tagList.push(addedTag)
     }

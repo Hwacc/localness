@@ -22,6 +22,7 @@ export interface ITag {
   translationID?: ID
   translation?: ITranslation
   pageID: ID
+  i18nKey?: string
 }
 
 export class Tag implements ITag {
@@ -43,7 +44,6 @@ export class Tag implements ITag {
   }> = {}
   createdAt?: string | undefined
   updatedAt?: string | undefined
-  
   translation?: ITranslation | undefined
-  
+  i18nKey?: string | undefined
 }

@@ -156,3 +156,57 @@ export const OCR_LANGUAGES = [
     value: 'vnm',
   },
 ]
+
+
+export const TRANSLATION_LANGUAGES = [
+  {
+    label: 'English',
+    value: 'en',
+    icon: 'i-circle-flags:gb'
+  },
+  {
+    label:'Chinese(Simplified)',
+    value: 'zh_cn',
+    icon: 'i-circle-flags:cn'
+  },
+  {
+    label:'Chinese(Traditional)',
+    value: 'zh_tw',
+    icon: 'i-circle-flags:cn'
+  },
+  {
+    label: 'Japanese',
+    value: 'jp',
+    icon: 'i-circle-flags:jp'
+  },
+  {
+    label: 'Korean',
+    value: 'ko',
+    icon: 'i-circle-flags:kr'
+  },
+  {
+    label: 'Russian',
+    value: 'ru',
+    icon: 'i-circle-flags:ru'
+  },
+  {
+    label: 'Spanish',
+    value: 'es',
+    icon: 'i-circle-flags:es'
+  },
+  {
+    label: 'French',
+    value: 'fr',
+    icon: 'i-circle-flags:fr'
+  },
+  {
+    label: 'German',
+    value: 'de',
+    icon: 'i-circle-flags:de'
+  },
+  {
+    label: 'Portuguese',
+    value: 'pt',
+    icon: 'i-circle-flags:pt'
+  }
+]

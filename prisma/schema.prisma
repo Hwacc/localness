@@ -17,76 +17,76 @@ enum UserRole {
 }
 
 model User {
-  id          Int       @id @default(autoincrement())
-  createdAt   DateTime  @default(now()) @map("created_at")
-  updatedAt   DateTime  @updatedAt @map("updated_at")
-  username    String    @unique
+  id          Int           @id @default(autoincrement())
+  createdAt   DateTime      @default(now()) @map("created_at")
+  updatedAt   DateTime      @updatedAt @map("updated_at")
+  username    String        @unique
   nickname    String?
   email       String?
   avatar      String?
   password    String
-  role        UserRole  @default(USER)
-  ownProjects Project[] @relation(name: "ProjectOwner")
+  role        UserRole      @default(USER)
+  ownProjects Project[]     @relation(name: "ProjectOwner")
   projects    UserProject[]
 
   @@unique([username, id])
 }
 
 model Project {
-  id            Int      @id @default(autoincrement())
-  createdAt     DateTime @default(now()) @map("created_at")
-  updatedAt     DateTime @updatedAt @map("updated_at")
+  id            Int              @id @default(autoincrement())
+  createdAt     DateTime         @default(now()) @map("created_at")
+  updatedAt     DateTime         @updatedAt @map("updated_at")
   name          String
   description   String?
   pages         Page[]
-  owner         User     @relation(name: "ProjectOwner", fields: [ownerUsername, ownerID], references: [username, id])
-  ownerUsername String   @map("owner_username")
-  ownerID       Int      @map("owner_id")
+  owner         User             @relation(name: "ProjectOwner", fields: [ownerUsername, ownerID], references: [username, id])
+  ownerUsername String           @map("owner_username")
+  ownerID       Int              @map("owner_id")
   users         UserProject[]
   settings      ProjectSettings?
 }
 
-model ProjectSettings{
-  id            Int      @id @default(autoincrement())
-  createdAt     DateTime @default(now()) @map("created_at")
-  updatedAt     DateTime @updatedAt @map("updated_at")
-  project       Project  @relation(fields: [projectID], references: [id], onDelete: Cascade)
-  projectID     Int      @map("project_id")
-  ocrLanguage   String   @map("ocr_language")
-  ocrEngine     Int      @map("ocr_engine")
+model ProjectSettings {
+  id          Int      @id @default(autoincrement())
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+  project     Project  @relation(fields: [projectID], references: [id], onDelete: Cascade)
+  projectID   Int      @map("project_id")
+  ocrLanguage String   @map("ocr_language")
+  ocrEngine   Int      @map("ocr_engine")
 
   @@unique([projectID])
 }
 
 model UserProject {
-  user User  @relation(fields: [userID], references: [id])
-  project Project @relation(fields: [projectID], references: [id])
-  userID    Int @map("user_id")
-  projectID Int @map("project_id")
+  user      User    @relation(fields: [userID], references: [id])
+  project   Project @relation(fields: [projectID], references: [id])
+  userID    Int     @map("user_id")
+  projectID Int     @map("project_id")
 
   @@id([userID, projectID])
 }
 
 model Page {
-  id        Int      @id @default(autoincrement())
-  createdAt DateTime @default(now()) @map("created_at")
-  updatedAt DateTime @updatedAt @map("updated_at")
+  id        Int           @id @default(autoincrement())
+  createdAt DateTime      @default(now()) @map("created_at")
+  updatedAt DateTime      @updatedAt @map("updated_at")
   name      String
   image     String?
-  project   Project? @relation(fields: [projectID], references: [id], onDelete: Cascade)
-  projectID Int?     @map("project_id")
+  project   Project?      @relation(fields: [projectID], references: [id], onDelete: Cascade)
+  projectID Int?          @map("project_id")
   tags      Tag[]
-  settings   PageSettings?
+  settings  PageSettings?
 }
 
 model PageSettings {
-  id            Int      @id @default(autoincrement())
-  createdAt     DateTime @default(now()) @map("created_at")
-  updatedAt     DateTime @updatedAt @map("updated_at")
-  page          Page     @relation(fields: [pageID], references: [id], onDelete: Cascade)
-  pageID        Int      @map("page_id")
-  ocrLanguage   String   @map("ocr_language")
-  ocrEngine     Int      @map("ocr_engine")
+  id          Int      @id @default(autoincrement())
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+  page        Page     @relation(fields: [pageID], references: [id], onDelete: Cascade)
+  pageID      Int      @map("page_id")
+  ocrLanguage String   @map("ocr_language")
+  ocrEngine   Int      @map("ocr_engine")
 
   @@unique([pageID])
 }
@@ -107,18 +107,26 @@ model Tag {
   pageID        Int          @map("page_id")
   translation   Translation? @relation(fields: [translationID], references: [id])
   translationID Int?         @map("translation_id")
+  i18nKey       String?      @map("i18n_key")
 }
 
 model Translation {
   id        Int      @id @default(autoincrement())
-  i18nKey   String   @unique @map("i18n_key")
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
   origin    String
+  md5       String   @unique
   en        String?
-  zh        String?
+  zh_cn     String?
+  zh_tw     String?
+  ja        String?
+  ko        String?
+  ru        String?
+  fr        String?
+  de        String?
+  es        String?
+  pt        String?
   tags      Tag[]
-  
-  @@index([i18nKey])
-  @@index([origin])
+
+  @@index([md5])
 }
