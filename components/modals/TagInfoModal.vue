@@ -10,7 +10,15 @@ import {
 import { isEmpty, omit } from 'lodash-es'
 import type { ITranslation } from '~/types/Translation'
 
-const { tag, loading = false } = defineProps<{ tag: ITag; loading?: boolean }>()
+const {
+  tag,
+  clip,
+  loading = false,
+} = defineProps<{
+  tag: ITag
+  clip: string
+  loading?: boolean
+}>()
 const tagStore = useTagStore()
 
 const tabsItems = [
@@ -35,10 +43,10 @@ const tabsItems = [
 ]
 const emit = defineEmits<{
   close: [boolean]
-  creatTrans: [type: 'ocr' | 'new', translation?: ITranslation]
+  creatTrans: [type: 'ocr' | 'bind']
   save: [
-    translation: ITranslation | undefined,
     tag: ITag | undefined,
+    translation: ZTranslation | undefined,
     close: () => void
   ]
 }>()
@@ -63,11 +71,9 @@ const zEditTag = z.object({
     cornerRadius: z.number().optional(),
   }),
   i18nKey: z.string().optional(),
-  translation: z.object<ITranslation>().nullable().optional() as z.ZodType<
-    ITranslation | undefined
-  >,
+  translation: zTranslation,
 })
-type ZEditTag = z.output<typeof zEditTag>
+type ZEditTag = z.infer<typeof zEditTag>
 
 const state = reactive<ZEditTag>({
   locked: tag.locked,
@@ -106,14 +112,14 @@ async function onSubmit() {
   const preTranslation = state.translation
   try {
     const updatedTag = await tagStore.updateTag(tag.id, preTag)
-    emit('save', preTranslation, updatedTag, () => emit('close', true))
+    emit('save', updatedTag, preTranslation, () => emit('close', true))
   } catch (error) {
     console.error(error)
   }
 }
 
-function createTranslation(type: 'ocr' | 'new') {
-  emit('creatTrans', type, state.translation)
+function createTranslation(type: 'ocr' | 'bind') {
+  emit('creatTrans', type)
 }
 
 const previewStyle = computed(() => ({
@@ -142,6 +148,12 @@ const previewStyle = computed(() => ({
         >
           <template #basic>
             <div class="flex flex-col gap-2.5">
+              <UFormField label="Tag Clip">
+                <img
+                  class="w-full h-25 object-center object-scale-down"
+                  :src="clip"
+                />
+              </UFormField>
               <div class="w-full flex items-center gap-2.5">
                 <UFormField class="flex-1" label="ID">
                   <UInput class="w-full" disabled :model-value="tag.id" />
@@ -236,26 +248,25 @@ const previewStyle = computed(() => ({
           <template #translations>
             <div
               v-if="isEmpty(state.translation)"
-              class="flex flex-col items-center justify-center h-50 gap-4"
+              class="flex flex-col items-center justify-center min-h-50 gap-4"
             >
               <UIcon name="mingcute:empty-box-line" size="4rem" />
               <p class="text-gray-500">Not have translation yet</p>
-              <div class="flex gap-2.5">
-                <UButton
-                  color="neutral"
-                  variant="soft"
-                  @click="createTranslation('new')"
-                >
-                  Create an Empty Translation
-                </UButton>
-                <UButton
-                  color="primary"
-                  variant="solid"
-                  @click="createTranslation('ocr')"
-                >
-                  Create with OCR
-                </UButton>
-              </div>
+              <UButton
+                color="neutral"
+                variant="soft"
+                @click="createTranslation('bind')"
+              >
+                Bind a existing translation
+              </UButton>
+              <span>OR</span>
+              <UButton
+                color="primary"
+                variant="solid"
+                @click="createTranslation('ocr')"
+              >
+                Create with OCR
+              </UButton>
             </div>
             <div v-else class="flex flex-col gap-2.5">
               <UFormField label="I18n Key">
@@ -304,7 +315,7 @@ const previewStyle = computed(() => ({
                 </template>
                 <template #default>
                   <UTextarea
-                    v-model="state.translation[selectedLanguage]"
+                    v-model="state.translation[selectedLanguage] as string"
                     class="w-full"
                     :maxrows="4"
                     autoresize

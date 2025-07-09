@@ -3,7 +3,7 @@ import { ocr } from '~/server/libs/ocr'
 import prisma from '~/server/libs/prisma'
 import { numericID } from '~/utils/id'
 import { readZodBody } from '~/utils/validate'
-import crypto from 'node:crypto'
+import SparkMD5 from 'spark-md5'
 
 export default defineEventHandler(async (event) => {
   await requireUserSession(event)
@@ -55,12 +55,11 @@ export default defineEventHandler(async (event) => {
 
   if(!text) return tag
 
-  const md5 = crypto.createHash('md5').update(text).digest('hex')
+  const md5 = SparkMD5.hash(text)
   const foundTranslation = await prisma.translation.findUnique({
     where: { md5 },
   })
 
-  console.log('foundTranslation', text, md5, foundTranslation)
   let updatedTag = null
   if(foundTranslation){
     // if has translation, update tag

@@ -6,7 +6,9 @@ interface Props {
   title: string
   message: string
   okText?: string
+  cancelText?: string
   loading?: boolean
+  interceptCancel?: boolean
 }
 </script>
 
@@ -15,13 +17,19 @@ const props = defineProps<Props>()
 const emit = defineEmits<{
   close: [boolean]
   ok: [mode: ModalTypes, { close: () => void }]
+  cancel: [mode: ModalTypes, { close: () => void }]
 }>()
 
-const onCancel = () => {
-  emit('close', false)
-}
 const onOk = () => {
   emit('ok', props.mode, { close: () => emit('close', true) })
+}
+
+const onCancel = () => {
+  if (props.interceptCancel) {
+    emit('cancel', props.mode, { close: () => emit('close', true) })
+  } else {
+    emit('close', false)
+  }
 }
 </script>
 
@@ -33,12 +41,14 @@ const onOk = () => {
     <template #footer>
       <div class="w-full flex items-center justify-end gap-4">
         <UButton
-          label="Cancel"
-          :disabled="props.loading"
           color="neutral"
           variant="ghost"
+          :disabled="!props.interceptCancel && props.loading"
+          :loading="props.interceptCancel && props.loading"
           @click="onCancel"
-        />
+        >
+          {{ props.cancelText || 'Cancel' }}
+        </UButton>
         <UButton
           v-if="props.mode === 'info'"
           :loading="props.loading"

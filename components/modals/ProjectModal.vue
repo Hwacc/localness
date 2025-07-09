@@ -18,7 +18,7 @@ const zProject = z.object({
     ocrEngine: z.number(),
   }),
 })
-type ZProject = z.output<typeof zProject>
+type ZProject = z.infer<typeof zProject>
 
 const state = reactive<ZProject>({
   name: project.name,

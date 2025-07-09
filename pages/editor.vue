@@ -23,6 +23,7 @@ const tagStore = useTagStore()
 const qiniuImage = useQiniuImage()
 const autoSave = useAutoSave()
 const taskContext = injectTaskContext()
+const translationGenerator = useTranslationGenerator()
 
 const editor = shallowRef<Editor>()
 const editorContainer = useTemplateRef<HTMLDivElement>('editor-container')
@@ -45,7 +46,10 @@ const overlay = useOverlay()
 const tagModal = overlay.create(TagInfoModal, {
   props: {
     tag: {} as ITag,
+    clip: '',
     onSave: () => {},
+    onCreatTrans: () => {},
+    onClose: () => {},
   },
 })
 
@@ -180,53 +184,86 @@ onMounted(async () => {
     autoSave.add(arg.tag)
   )
 
-  editor.value.asyncOn<ITag>('async-tag-info', ({ success, payload }) => {
-    tagModal.patch({
-      tag: payload,
-      loading: false,
-      onClose: (isSuccess: boolean) => {
-        !isSuccess && success(undefined)
-      },
-      onSave: (translation, tag, close) => {
-        try {
-          tagModal.patch({ loading: true })
-          if (translation) {
-            // TODO: update translation
+  editor.value.asyncOn<ITag>(
+    'async-tag-info',
+    async ({ success, fail, payload }) => {
+      const clip = await Editor.imageClipper.clip({
+        x: payload.x,
+        y: payload.y,
+        width: payload.width,
+        height: payload.height,
+        quality: 1,
+      })
+      tagModal.patch({
+        tag: payload,
+        clip,
+        loading: false,
+        onSave: (tag, translation, close) => {
+          try {
+            tagModal.patch({ loading: true })
+            if (translation) {
+              // TODO: update translation
+            }
+            // TODO: update tag
+            close()
+          } catch (error) {
+            fail(error)
+          } finally {
+            tagModal.patch({ loading: false })
           }
-          // TODO: update tag
-          close()
-        } catch (error) {
-          console.error(error)
-        } finally {
-          tagModal.patch({ loading: false })
-        }
-      },
-    })
-    tagModal.open()
-  })
+        },
+        onCreatTrans: async (type) => {
+          try {
+            tagModal.patch({ loading: true })
+            if (type === 'ocr') {
+              const updatedTranslation = await translationGenerator.ocr({
+                image: clip,
+              })
+              if (updatedTranslation) {
+                const updatedTag = await tagStore.updateTag(payload.id, {
+                  translationID: updatedTranslation.id,
+                })
+                success(updatedTag)
+                tagModal.patch({
+                  tag: updatedTag,
+                })
+              }
+            } else if (type === 'bind') {
+              // TODO: bind existing translation
+            }
+          } catch (error) {
+            fail(error)
+          } finally {
+            tagModal.patch({ loading: false })
+          }
+        },
+        onClose: (isSuccess: boolean) => {
+          !isSuccess && success(undefined)
+        },
+      })
+      tagModal.open()
+    }
+  )
 
   editor.value.asyncOn<{ image: string; tag: ITag }>(
     'async-tag-ocr',
-    ({ success, payload }) => {
-      const { image, tag } = payload
+    async ({ success, payload }) => {
       const ocrTask = new Task(
         async () => {
-          const res = await useApi<ITag>(`/api/tag/ocr/${tag.id}`, {
-            method: 'POST',
-            body: { image },
-          })
-          if (res) {
-            pageStore.updateTag(res)
-            success(res)
+          const { image, tag } = payload
+          const updatedTranslation = await translationGenerator.ocr({ image })
+          if (updatedTranslation) {
+            const updatedTag = await tagStore.updateTag(tag.id, {
+              translationID: updatedTranslation.id,
+            })
+            success(updatedTag)
           }
-          return res
         },
         {
-          name: 'OCR',
-          description: 'Generate a Tag OCR',
+          name: 'Tag OCR',
+          description: 'Generating translation for tag',
         }
       )
-
       taskContext.push(ocrTask)
     }
   )

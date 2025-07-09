@@ -55,13 +55,15 @@ class ImageClipper {
     y,
     width,
     height,
+    quality = 0.8,
   }: {
     x: number
     y: number
     width: number
     height: number
+    quality?: number
   }) {
-    return new Promise((resolve, reject) => {
+    return new Promise<string>((resolve, reject) => {
       const _listener = async (
         e: MessageEvent<{ type: string; data: any }>
       ) => {
@@ -71,7 +73,7 @@ class ImageClipper {
           this.decodeCanvas.width = bitmap.width
           this.decodeCanvas.height = bitmap.height
           this.decodeCanvasCtx?.drawImage(bitmap, 0, 0)
-          resolve(this.decodeCanvas.toDataURL('image/jpeg', 0.5))
+          resolve(this.decodeCanvas.toDataURL('image/jpeg', quality))
         } else if (type === 'error') {
           reject(payload)
         }

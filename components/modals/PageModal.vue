@@ -39,7 +39,7 @@ const zPage = z.object({
     ocrEngine: z.number(),
   }),
 })
-type ZPage = z.output<typeof zPage>
+type ZPage = z.infer<typeof zPage>
 const projectStore = useProjectStore()
 const state = reactive<ZPage>({
   name: page.name,

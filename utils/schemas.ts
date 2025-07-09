@@ -12,7 +12,7 @@ export const zPassword = z
     PASSWORD_REGEX,
     'Password must be at least 6 characters long and contain at least one letter and one number'
   )
-export type ZPassword = z.output<typeof zPassword>
+export type ZPassword = z.infer<typeof zPassword>
 
 type ZTagOmit = Omit<
   Record<keyof ITag, z.ZodType>,
@@ -35,13 +35,13 @@ export const zTag = z.object<ZTagOmit>(
   'Tag parameters validate failed'
 )
 
-export type ZTag = z.output<typeof zTag>
+export type ZTag = z.infer<typeof zTag>
 
 export const zID = z.union(
   [z.int().gt(0), z.string().min(1)],
   'ID must be a positive integer or a string'
 )
-export type ZID = z.output<typeof zID>
+export type ZID = z.infer<typeof zID>
 
 export const zOCR = z.object(
   {
@@ -57,7 +57,7 @@ export const zOCR = z.object(
   },
   'OCR parameters validate failed'
 )
-export type ZOCR = z.output<typeof zOCR>
+export type ZOCR = z.infer<typeof zOCR>
 
 export const zProjectSetting = z.object(
   {
@@ -78,7 +78,7 @@ export const zProjectSetting = z.object(
   },
   'Project setting parameters validate failed'
 )
-export type ZProjectSetting = z.output<typeof zProjectSetting>
+export type ZProjectSetting = z.infer<typeof zProjectSetting>
 
 export const zPageSetting = z.object(
   {
@@ -99,5 +99,22 @@ export const zPageSetting = z.object(
   },
   'Page setting parameters validate failed'
 )
-export type ZPageSetting = z.output<typeof zPageSetting>
+export type ZPageSetting = z.infer<typeof zPageSetting>
+
+
+export const zTranslation = z.looseObject({
+  origin: z.string().optional(),
+  md5: z.string().optional(),
+  en: z.string().optional(),
+  zh_cn: z.string().optional(),
+  zh_tw: z.string().optional(),
+  ja: z.string().optional(),
+  ko: z.string().optional(),
+  ru: z.string().optional(),
+  fr: z.string().optional(),
+  de: z.string().optional(),
+  es: z.string().optional(),
+  pt: z.string().optional(),
+})
+export type ZTranslation = z.infer<typeof zTranslation>
 

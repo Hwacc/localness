@@ -21,7 +21,7 @@ const zLogin = z.object({
   username: z.string().min(3),
   password: zPassword,
 })
-type ZLogin = z.output<typeof zLogin>
+type ZLogin = z.infer<typeof zLogin>
 const state = reactive<ZLogin>({ username: '', password: '' })
 
 async function onSubmit() {

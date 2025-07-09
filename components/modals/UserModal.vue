@@ -30,7 +30,7 @@ const zProfile = z.object({
   email: z.email().nullable().optional(),
   avatar: z.string().nullable().optional(),
 })
-type ZProfile = z.output<typeof zProfile>
+type ZProfile = z.infer<typeof zProfile>
 const profileState = reactive<ZProfile>({
   nickname: userStore.user.nickname,
   email: userStore.user.email,
@@ -66,7 +66,7 @@ const zAuth = z.object({
     }
   }),
 })
-type ZAuth = z.output<typeof zAuth>
+type ZAuth = z.infer<typeof zAuth>
 const authState = reactive<ZAuth>({
   newPwd: '',
   confirmPwd: '',
