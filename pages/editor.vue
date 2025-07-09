@@ -12,6 +12,7 @@ import type { ID } from '~/types/global'
 import { DEFAULT_LINE_COLOR, DEFAULT_LINE_WIDTH } from '~/constants'
 import { injectTaskContext } from '~/providers/TaskProvider.vue'
 import { Task } from '~/libs/task-queue'
+import { TranslationSelectModal } from '#components'
 
 definePageMeta({
   middleware: ['protected'],
@@ -49,6 +50,11 @@ const tagModal = overlay.create(TagInfoModal, {
     clip: '',
     onSave: () => {},
     onCreatTrans: () => {},
+    onClose: () => {},
+  },
+})
+const transSearchModal = overlay.create(TranslationSelectModal, {
+  props: {
     onClose: () => {},
   },
 })
@@ -230,6 +236,7 @@ onMounted(async () => {
               }
             } else if (type === 'bind') {
               // TODO: bind existing translation
+              transSearchModal.open()
             }
           } catch (error) {
             fail(error)

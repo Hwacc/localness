@@ -11,7 +11,13 @@ import SparkMD5 from 'spark-md5'
 export default defineEventHandler(async (event) => {
   await requireUserSession(event)
   const body = await readZodBody(event, zTranslation.parse)
-
+  if (!body.origin) {
+    throw createError({
+      statusCode: 400,
+      statusMessage: 'Missing origin text',
+    })
+  }
+  
   let md5 = body.md5
   if (!md5) {
     md5 = SparkMD5.hash(body.origin)
