@@ -5,12 +5,14 @@ import FuncOCRBtn from './FuncOCRBtn'
 import FuncDeleteBtn from './FuncDeleteBtn'
 import { FuncBtnType } from './FuncBtn'
 import FuncLockBtn from './FuncLockBtn'
+import FuncLinkBtn from './FuncLinkBtn'
 
 class FuncBtnGroup extends Group {
   private funcBtnFrame: Flow
   public lockBtn: FuncLockBtn
   public infoBtn: FuncInfoBtn
   public ocrBtn: FuncOCRBtn
+  public linkBtn: FuncLinkBtn
   public deleteBtn: FuncDeleteBtn
 
   constructor(...args: any[]) {
@@ -22,7 +24,7 @@ class FuncBtnGroup extends Group {
       fill: '#f7f7f7',
       cornerRadius: 4,
       padding: 4,
-      width: 120,
+      width: 160,
       height: 28,
       gap: 'auto',
     })
@@ -31,12 +33,16 @@ class FuncBtnGroup extends Group {
     this.infoBtn = new FuncInfoBtn({ verticalAlign: 'middle' })
     this.ocrBtn = new FuncOCRBtn({ verticalAlign: 'middle' })
     this.deleteBtn = new FuncDeleteBtn({ verticalAlign: 'middle' })
+    this.linkBtn = new FuncLinkBtn({ verticalAlign: 'middle' })
 
     this.infoBtn.on(PointerEvent.TAP, () => {
       this.emit('btn-click', { type: FuncBtnType.INFO })
     })
     this.ocrBtn.on(PointerEvent.TAP, () => {
       this.emit('btn-click', { type: FuncBtnType.OCR })
+    })
+    this.linkBtn.on(PointerEvent.TAP, () => {
+      this.emit('btn-click', { type: FuncBtnType.LINK })
     })
     this.deleteBtn.on(PointerEvent.TAP, () => {
       this.emit('btn-click', { type: FuncBtnType.DELETE })
@@ -49,6 +55,7 @@ class FuncBtnGroup extends Group {
     )
     this.funcBtnFrame.add(this.lockBtn)
     this.funcBtnFrame.add(this.infoBtn)
+    this.funcBtnFrame.add(this.linkBtn)
     this.funcBtnFrame.add(this.ocrBtn)
     this.funcBtnFrame.add(this.deleteBtn)
 

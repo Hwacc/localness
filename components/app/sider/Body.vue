@@ -162,7 +162,7 @@ function showDeleteAlertModal() {
                 <p class="font-bold">
                   {{ page.name }}
                 </p>
-                <p class="text-xs color-secondary">
+                <p v-if="page.updatedAt" class="text-xs color-secondary">
                   Last Updated:
                   {{ $dayjs(page.updatedAt).format('YYYY-MM-DD HH:mm:ss') }}
                 </p>

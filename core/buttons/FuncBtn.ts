@@ -7,6 +7,7 @@ export enum FuncBtnType {
   INFO = 'info',
   OCR = 'ocr',
   LOCK = 'lock',
+  LINK = 'link',
 }
 
 export const deleteNormalSVG = Platform.toURL(
@@ -49,6 +50,14 @@ export const lockOpenActiveSVG = Platform.toURL(
   '<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24"><!-- Icon from Lucide by Lucide Contributors - https://github.com/lucide-icons/lucide/blob/main/LICENSE --><g fill="none" stroke="#808080" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"><circle cx="12" cy="16" r="1"/><rect width="18" height="12" x="3" y="10" rx="2"/><path d="M7 10V7a5 5 0 0 1 9.33-2.5"/></g></svg>',
   'svg'
 )
+export const linkNormalSVG = Platform.toURL(
+  '<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24"><!-- Icon from Lucide by Lucide Contributors - https://github.com/lucide-icons/lucide/blob/main/LICENSE --><g fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></g></svg>',
+  'svg'
+)
+export const linkActiveSVG = Platform.toURL(
+  '<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24"><!-- Icon from Lucide by Lucide Contributors - https://github.com/lucide-icons/lucide/blob/main/LICENSE --><g fill="none" stroke="#34C759" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></g></svg>',
+  'svg'
+)
 
 export default function FuncBtn(type: FuncBtnType) {
   const baseProps = {
@@ -82,6 +91,12 @@ export default function FuncBtn(type: FuncBtnType) {
     width: 20,
     height: 20,
   }
+  const linkIcon = {
+    tag: 'Image',
+    url: linkNormalSVG,
+    width: 20,
+    height: 20,
+  }
 
   return function <T extends { new (...args: any[]): Box }>(constructor: T) {
     return class extends constructor {
@@ -100,6 +115,9 @@ export default function FuncBtn(type: FuncBtnType) {
             break
           case FuncBtnType.LOCK:
             children = [lockIcon]
+            break
+          case FuncBtnType.LINK:
+            children = [linkIcon]
             break
         }
         super(assign({}, baseProps, { children }, props))
@@ -120,6 +138,9 @@ export default function FuncBtn(type: FuncBtnType) {
             case FuncBtnType.LOCK:
               this.children[0].set({ url: this.locked ? lockActiveSVG : lockOpenActiveSVG })
               break
+            case FuncBtnType.LINK:
+              this.children[0].set({ url: linkActiveSVG })
+              break
           }
         })
         this.on(PointerEvent.LEAVE, () => {
@@ -135,6 +156,9 @@ export default function FuncBtn(type: FuncBtnType) {
               break
             case FuncBtnType.LOCK:
               this.children[0].set({ url: this.locked ? lockNormalSVG : lockOpenSVG })
+              break
+            case FuncBtnType.LINK:
+              this.children[0].set({ url: linkNormalSVG })
               break
           }
         })

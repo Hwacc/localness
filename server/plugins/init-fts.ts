@@ -4,9 +4,7 @@ export default defineNitroPlugin(async () => {
   const result = await prisma.$queryRawUnsafe<any[]>(`
     SELECT name FROM sqlite_master WHERE type='table' AND name='Translation_FTS';
   `)
-
-  console.log(result)
-
+  
   if (result.length === 0) {
     console.log('[FTS] Translation_FTS Initializing...')
     await prisma.$executeRawUnsafe(`

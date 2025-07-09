@@ -61,6 +61,9 @@ class Editor extends EditorInteraction {
           case FuncBtnType.LOCK:
             this.onLockClick(payload)
             break
+          case FuncBtnType.LINK:
+            this.onLinkClick()
+            break
         }
       }
     )
@@ -297,6 +300,21 @@ class Editor extends EditorInteraction {
       selectedOne.lock(locked)
     } catch (error) {
       console.error('tag update locked error', error)
+    }
+  }
+
+  private async onLinkClick() {
+    if (isEmpty(this.app.editor.list)) return
+    const selectedOne = this.app.editor.list[0] as EditorTag
+    try {
+      const remoteTag = await this.asyncEmit<
+        'async-tag-link',
+        ITag | undefined
+      >('async-tag-link', selectedOne.toJSON())
+      if (!remoteTag) return
+      selectedOne.update(remoteTag)
+    } catch (error) {
+      console.error('tag link error', error)
     }
   }
 

@@ -14,6 +14,8 @@ export default defineEventHandler(async (event) => {
           id: true,
           name: true,
           image: true,
+          createdAt: true,
+          updatedAt: true,
           settings: {
             omit: {
               id: true,

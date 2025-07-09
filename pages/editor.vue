@@ -33,6 +33,7 @@ const scale = ref<number>(1)
 const mode = ref<EditorMode>('draw')
 const lineWidth = ref<number>(DEFAULT_LINE_WIDTH)
 const lineColor = ref<string>(DEFAULT_LINE_COLOR)
+const toast = useToast()
 
 useResizeObserver(
   editorContainer,
@@ -53,7 +54,7 @@ const tagModal = overlay.create(TagInfoModal, {
     onClose: () => {},
   },
 })
-const transSearchModal = overlay.create(TranslationSelectModal, {
+const transSelectModal = overlay.create(TranslationSelectModal, {
   props: {
     onClose: () => {},
   },
@@ -149,6 +150,12 @@ onMounted(async () => {
                   await tagStore.deleteTag(payload.id)
                   autoSave.remove(payload.id)
                   success(true)
+                  toast.add({
+                    title: 'Success',
+                    description: 'Tag deleted successfully',
+                    color: 'success',
+                    icon: 'i-lucide:circle-check',
+                  })
                   close()
                 } catch (error) {
                   fail(error)
@@ -233,10 +240,16 @@ onMounted(async () => {
                 tagModal.patch({
                   tag: updatedTag,
                 })
+                toast.add({
+                  title: 'Success',
+                  description: 'Translation created',
+                  color: 'success',
+                  icon: 'i-lucide:check',
+                })
               }
             } else if (type === 'bind') {
               // TODO: bind existing translation
-              transSearchModal.open()
+              transSelectModal.open()
             }
           } catch (error) {
             fail(error)
@@ -264,6 +277,12 @@ onMounted(async () => {
               translationID: updatedTranslation.id,
             })
             success(updatedTag)
+            toast.add({
+              title: 'Success',
+              description: 'Translation created',
+              color: 'success',
+              icon: 'i-lucide:check',
+            })
           }
         },
         {
@@ -274,6 +293,18 @@ onMounted(async () => {
       taskContext.push(ocrTask)
     }
   )
+
+  editor.value.asyncOn<{ tag: ITag }>(
+    'async-tag-link',
+    async ({ success, fail, payload }) => {
+      try {
+        transSelectModal.open()
+      } catch (error) {
+        fail(error)
+      }
+    }
+  )
+
   editor.value.on('tag-click', (_: ITag) => {})
 })
 

@@ -15,8 +15,9 @@ export default defineEventHandler(async (event) => {
     /([^a-zA-Z0-9\u4e00-\u9fa5])\r\n/g,
     ''
   )
-    .replace(/\r\n$/, '')
-    .replace(/\r\n/g, ' ')
+    .replace(/[\r\n]$/, '')
+    .replace(/[\r\n]/g, ' ')
+    .replace(/\n/g, ' ')
 
   if (!text) return null
 

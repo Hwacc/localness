@@ -133,6 +133,7 @@ const previewStyle = computed(() => ({
     class="max-w-[50rem]"
     :close="{ onClick: () => emit('close', false) }"
     title="Tag Info"
+    :dismissible="!loading"
   >
     <template #body>
       <UForm
@@ -330,9 +331,10 @@ const previewStyle = computed(() => ({
             color="neutral"
             variant="ghost"
             label="Cancel"
+            :disabled="loading"
             @click="emit('close', false)"
           />
-          <UButton label="Save" type="submit" />
+          <UButton label="Save" type="submit" :loading="loading" />
         </div>
       </UForm>
     </template>

@@ -32,7 +32,7 @@ export const WELCOME_TEXTS = [
   'Olá mundo',
   'こんにちは世界',
   '안녕하세요 세계',
-  'Привет, мир'
+  'Привет, мир',
 ]
 
 export const OCR_ENGINES = [
@@ -157,56 +157,65 @@ export const OCR_LANGUAGES = [
   },
 ]
 
-
 export const TRANSLATION_LANGUAGES = [
   {
+    short: 'Eng',
     label: 'English',
     value: 'en',
-    icon: 'i-circle-flags:gb'
+    icon: 'i-circle-flags:gb',
   },
   {
-    label:'Chinese(Simplified)',
+    short: 'Chi',
+    label: 'Chinese(Simplified)',
     value: 'zh_cn',
-    icon: 'i-circle-flags:cn'
+    icon: 'i-circle-flags:cn',
   },
   {
-    label:'Chinese(Traditional)',
+    short: 'Cht',
+    label: 'Chinese(Traditional)',
     value: 'zh_tw',
-    icon: 'i-circle-flags:cn'
+    icon: 'i-circle-flags:cn',
   },
   {
+    short: 'Jpn',
     label: 'Japanese',
     value: 'jp',
-    icon: 'i-circle-flags:jp'
+    icon: 'i-circle-flags:jp',
   },
   {
+    short: 'Kor',
     label: 'Korean',
     value: 'ko',
-    icon: 'i-circle-flags:kr'
+    icon: 'i-circle-flags:kr',
   },
   {
+    short: 'Rus',
     label: 'Russian',
     value: 'ru',
-    icon: 'i-circle-flags:ru'
+    icon: 'i-circle-flags:ru',
   },
   {
+    short: 'Esp',
     label: 'Spanish',
     value: 'es',
-    icon: 'i-circle-flags:es'
+    icon: 'i-circle-flags:es',
   },
   {
+    short: 'Fra',
     label: 'French',
     value: 'fr',
-    icon: 'i-circle-flags:fr'
+    icon: 'i-circle-flags:fr',
   },
   {
+    short: 'Deu',
     label: 'German',
     value: 'de',
-    icon: 'i-circle-flags:de'
+    icon: 'i-circle-flags:de',
   },
   {
+    short: 'Por',
     label: 'Portuguese',
     value: 'pt',
-    icon: 'i-circle-flags:pt'
-  }
+    icon: 'i-circle-flags:pt',
+  },
 ]
