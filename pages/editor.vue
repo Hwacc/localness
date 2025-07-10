@@ -136,7 +136,6 @@ onMounted(async () => {
   editor.value.asyncOn<ITag>(
     'async-tag-remove',
     async ({ success, fail, payload }) => {
-      console.log('async-tag-remove', payload)
       if (payload.translationID || payload.translation) {
         const _deleteModal = overlay.create(AlertModal, {
           props: {
@@ -198,9 +197,9 @@ onMounted(async () => {
     autoSave.add(arg.tag)
   )
 
-  editor.value.asyncOn<ITag>(
-    'async-tag-info',
-    async ({ success, fail, payload }) => {
+  editor.value.connectOn<'connect-tag-info', ITag, ITag | undefined>(
+    'connect-tag-info',
+    async ({ send, disconnect, payload }) => {
       const clip = await Editor.imageClipper.clip({
         x: payload.x,
         y: payload.y,
@@ -212,23 +211,54 @@ onMounted(async () => {
         tag: payload,
         clip,
         loading: false,
-        onSave: (tag, translation, close) => {
+        onSave: async ({ tag, translation, isTransOriginChanged, close }) => {
           try {
             tagModal.patch({ loading: true })
-            console.log('on tag save', tag, translation)
-            if (translation) {
-              // TODO: update translation
+            let updatedTrans: ITranslation | null = null
+            if (translation && isTransOriginChanged) {
+              // trans origin changed -> create new translation
+              updatedTrans = await translationGenerator.manual(
+                translation as ITranslation
+              )
+              if (!updatedTrans) {
+                tagModal.patch({ loading: false })
+                return
+              }
             }
-            // TODO: update tag
-            success(tag)
+            if (translation && translation.id && !isTransOriginChanged) {
+              // trans origin not changed -> update translation
+              updatedTrans = await useApi(
+                `/api/translation/${translation.id}`,
+                {
+                  method: 'POST',
+                  body: translation,
+                }
+              )
+            }
+            const updatedTag = await tagStore.updateTag(
+              payload.id,
+              updatedTrans
+                ? {
+                    ...tag,
+                    translationID: updatedTrans.id,
+                  }
+                : tag
+            )
+            send(updatedTag)
+            toast.add({
+              title: 'Success',
+              description: 'Tag updated',
+              color: 'success',
+              icon: 'i-lucide:check',
+            })
             close()
           } catch (error) {
-            fail(error)
+            console.error('tag info error', error)
           } finally {
             tagModal.patch({ loading: false })
           }
         },
-        onCreateTrans: async (type, _translation) => {
+        onCreateTrans: async (type, translation) => {
           try {
             tagModal.patch({ loading: true })
             const handleUpdateTag = async (
@@ -241,7 +271,7 @@ onMounted(async () => {
                 tagModal.patch({
                   tag: updatedTag,
                 })
-                success(updatedTag)
+                send(updatedTag)
                 toast.add({
                   title: 'Success',
                   description:
@@ -251,43 +281,42 @@ onMounted(async () => {
                   color: 'success',
                   icon: 'i-lucide:check',
                 })
-              } else success(undefined)
+              } else send(undefined)
             }
             if (type === 'ocr') {
               // ocr -> create translation -> update tag
               const createdTrans = await translationGenerator.ocr({
                 image: clip,
               })
-              handleUpdateTag(createdTrans)
+              await handleUpdateTag(createdTrans)
             } else if (type === 'link') {
               // link -> link a existing translation -> update tag
               transLinkModal.patch({
                 onSave: async (trans, { close }: { close: () => void }) => {
-                  handleUpdateTag(trans)
+                  await handleUpdateTag(trans)
                   close()
                 },
                 onClose: (isOK: boolean) => {
-                  !isOK && success(undefined)
+                  !isOK && send(undefined)
                 },
               })
               transLinkModal.open()
             } else if (type === 'manual') {
               // manual -> create translation -> update tag
-              console.log('manual', _translation?.fingerprint)
-              const createdTrans = await translationGenerator.manual({
-                translation: _translation as ITranslation,
-              })
-              console.log('createdTrans', createdTrans?.fingerprint)
-              handleUpdateTag(createdTrans)
+              const createdTrans = await translationGenerator.manual(
+                translation as ITranslation
+              )
+              await handleUpdateTag(createdTrans)
             }
           } catch (error) {
-            fail(error)
+            console.error('tag info error', error)
           } finally {
             tagModal.patch({ loading: false })
           }
         },
         onClose: (isOK: boolean) => {
-          !isOK && success(undefined)
+          !isOK && send(undefined)
+          disconnect()
         },
       })
       tagModal.open()

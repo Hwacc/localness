@@ -1,5 +1,5 @@
 import type { ITag } from '~/types/Tag'
-import { Rect, type IJSONOptions } from 'leafer-ui'
+import { Frame, Text, type IJSONOptions } from 'leafer-ui'
 import { isEmpty, pick } from 'lodash-es'
 import {
   DEFAULT_LINE_COLOR,
@@ -8,15 +8,18 @@ import {
 } from '~/constants'
 import { Editor } from './Editor'
 
-class EditorTag extends Rect {
+class EditorTag extends Frame {
   public remoteTag: Partial<ITag> = {} as ITag
   public isLocked: boolean = false
+  private textNode: Text | null = null
+
   constructor(tag: Partial<ITag>) {
     super({
       id: tag.tagID,
       className: tag.className,
       x: tag.x,
       y: tag.y,
+      overflow: 'show',
       width: tag.width,
       height: tag.height,
       fill: tag.style?.fill ?? 'transparent',
@@ -48,6 +51,35 @@ class EditorTag extends Rect {
       widthRange: { min: 20, max: Infinity },
       heightRange: { min: 20, max: Infinity },
     })
+
+    this.drawI18nKey(tag.style?.text)
+  }
+
+  private drawI18nKey(textStyle?: ITag['style']['text']) {
+    if (!this.remoteTag.i18nKey) {
+      if (this.textNode) {
+        this.textNode.remove()
+        this.textNode = null
+      }
+      return
+    }
+    const textOptions = {
+      text: this.remoteTag.i18nKey ?? '',
+      fontSize: textStyle?.fontSize ?? 14,
+      fontWeight: textStyle?.fontWeight ?? 'bold',
+      textWrap: textStyle?.wrap ?? 'none',
+      fill: textStyle?.fill ?? 'red',
+    }
+    if (!this.textNode) {
+      this.textNode = new Text(textOptions)
+      this.add(this.textNode)
+    } else {
+      this.textNode.set(textOptions)
+    }
+    this.textNode.set({
+      x: (this.remoteTag.width ?? 0) - (this.textNode.width ?? 0),
+      y: -(this.textNode.height ?? 0) - 2,
+    })
   }
 
   public lock(_lock: boolean) {
@@ -65,6 +97,7 @@ class EditorTag extends Rect {
   public update(rTag: Partial<ITag>) {
     this.remoteTag = { ...this.remoteTag, ...rTag }
     this.updateStyle(rTag.style)
+    this.drawI18nKey(rTag.style?.text)
   }
 
   public updateStyle(rStyle: Partial<ITag['style']> | undefined) {
@@ -87,8 +120,9 @@ class EditorTag extends Rect {
     return { image, tag: this.toJSON() }
   }
 
-  public override toJSON(options?: IJSONOptions): ITag {
+  public toTagJSON(options?: IJSONOptions): ITag {
     const original = super.toJSON(options)
+    const text = this.textNode?.toJSON()
     const baseProps = pick(original, [
       'x',
       'y',
@@ -104,9 +138,18 @@ class EditorTag extends Rect {
       'cornerRadius',
       'strokeWidth',
       'stroke',
-    ])
+    ]) as ITag['style']
+    if (text) {
+      styleProps.text = pick(text, [
+        'fontSize',
+        'fontWeight',
+        'fill',
+        'wrap',
+        'align',
+      ])
+    }
     this.remoteTag.tagID = this.id
-    this.remoteTag.style = { ...styleProps }
+    this.remoteTag.style = { ...styleProps } as unknown as ITag['style']
     this.remoteTag.locked = this.isLocked
     return { ...this.remoteTag, ...baseProps } as ITag
   }

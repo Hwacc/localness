@@ -44,8 +44,8 @@ abstract class EditorBase {
         buttonsDirection: 'top',
         buttonsFixed: true,
         buttonsMargin: 8,
-        boxSelect:false,
-        multipleSelect: false
+        boxSelect: false,
+        multipleSelect: false,
       },
     })
     this.groupTree = new Group({
@@ -87,7 +87,7 @@ abstract class EditorBase {
    * A async emit, could call success or fail to end pending
    * @param event string must start with "async-"
    * @param data anything
-   * @returns 
+   * @returns
    */
   public async asyncEmit<E extends EventType, T>(
     event: E,
@@ -115,7 +115,7 @@ abstract class EditorBase {
    * A async emit receiver, must call success or fail otherwise async emit will always be pending
    * @param event string must start with "async-"
    * @param callback wrappered callback
-   * @returns 
+   * @returns
    */
   public asyncOn<T>(
     event: EventType,
@@ -127,6 +127,53 @@ abstract class EditorBase {
   ) {
     if (typeof event === 'string' && !event.startsWith('async-')) {
       throw Error('async on: event name must start with "async-"')
+    }
+    this.emitter.on(event, callback as Handler)
+  }
+
+  public connectEmit<E extends EventType, P, T>(
+    event: E,
+    data?: P
+  ) {
+    if (typeof event === 'string' && !event.startsWith('connect-')) {
+      throw Error('connect emit: event name must start with "connect-"')
+    }
+    const innerEmitter = mitt()
+    const innerEvent = `${String(event)}-inner-${new Date().getTime()}`
+
+    const send = (data: T) => {
+      innerEmitter.emit(innerEvent, data)
+    }
+    const receive = (callback: Handler<T>) => {
+      innerEmitter.on(innerEvent, callback as Handler)
+    }
+    const disconnect = () => {
+      innerEmitter.off(innerEvent as EventType, receive as Handler)
+    }
+    this.emitter.emit(event, {
+      payload: data,
+      send,
+      receive,
+      disconnect,
+    })
+    return {
+      send,
+      receive,
+      disconnect,
+    }
+  }
+
+  public connectOn<E extends EventType, P, T>(
+    event: E,
+    callback: Handler<{
+      payload: P
+      send: (data: T) => void
+      receive: (callback: Handler<any>) => void
+      disconnect: () => void
+    }>
+  ) {
+    if (typeof event === 'string' && !event.startsWith('connect-')) {
+      throw Error('connect on: event name must start with "connect-"')
     }
     this.emitter.on(event, callback as Handler)
   }

@@ -128,7 +128,7 @@ async function onSubmit(_: FormSubmitEvent<ZPage>) {
   <UModal
     :title="title"
     :dismissible="!isLoading"
-    :close="{ onClick: () => emit('close', false) }"
+    @update:open="(isOpen) => !isOpen && emit('close', false)"
   >
     <template #body>
       <UForm

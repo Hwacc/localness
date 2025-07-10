@@ -80,7 +80,7 @@ async function onAuthSubmit() {
 <template>
   <UModal
     title="User Settings"
-    :close="{ onClick: () => emit('close', false) }"
+    @update:open="(isOpen) => !isOpen && emit('close', false)"
   >
     <template #body>
       <UTabs :items="tabsItems" variant="link" :ui="{ trigger: 'grow' }">

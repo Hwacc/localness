@@ -159,7 +159,7 @@ export function useTranslationGenerator() {
     } as ITranslation)
   }
 
-  async function manual({ translation }: { translation: ITranslation }) {
+  async function manual(translation: ITranslation) {
     if (!translation.origin) return null
     return await generateTranslation(translation)
   }

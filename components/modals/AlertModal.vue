@@ -46,7 +46,10 @@ const onCancel = () => {
 </script>
 
 <template>
-  <UModal :close="{ onClick: () => emit('close', false) }" :title="props.title">
+  <UModal
+    :title="props.title"
+    @update:open="(isOpen) => !isOpen && emit('close', false)"
+  >
     <template #body>
       <slot
         name="body"

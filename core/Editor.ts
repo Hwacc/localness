@@ -75,7 +75,10 @@ class Editor extends EditorInteraction {
 
     this.debounceTagChangeEvent = debounce(
       (action: string, target: IUI) => {
-        this.emit('tag-change', { action, tag: target.toJSON() })
+        this.emit('tag-change', {
+          action,
+          tag: (target as EditorTag).toTagJSON(),
+        })
       },
       200,
       {
@@ -197,7 +200,7 @@ class Editor extends EditorInteraction {
         try {
           const remoteTag = await this.asyncEmit<'async-tag-add', ITag>(
             'async-tag-add',
-            this.tempTag.toJSON()
+            this.tempTag.toTagJSON()
           )
           this.tempTag.update(remoteTag)
         } catch (error) {
@@ -240,14 +243,14 @@ class Editor extends EditorInteraction {
     if (isEmpty(this.app.editor.list)) return
     const selectedOne = this.app.editor.list[0] as EditorTag
     this.funcBtnGroup.lockBtn.slocked = selectedOne.isLocked // update lock btn
-    this.emit('tag-edit-select', selectedOne.toJSON())
+    this.emit('tag-edit-select', selectedOne.toTagJSON())
   }
 
   private async onDeleteClick() {
     if (isEmpty(this.app.editor.list)) return
-    const selectedOne = this.app.editor.list[0]
+    const selectedOne = this.app.editor.list[0] as EditorTag
     try {
-      await this.asyncEmit('async-tag-remove', selectedOne?.toJSON())
+      await this.asyncEmit('async-tag-remove', selectedOne?.toTagJSON())
       selectedOne?.remove()
       this.app.editor.target = undefined
     } catch (error) {
@@ -259,12 +262,16 @@ class Editor extends EditorInteraction {
     if (isEmpty(this.app.editor.list)) return
     const selectedOne = this.app.editor.list[0] as EditorTag
     try {
-      const remoteTag = await this.asyncEmit<
-        'async-tag-info',
+      const { receive } = this.connectEmit<
+        'connect-tag-info',
+        ITag,
         ITag | undefined
-      >('async-tag-info', selectedOne.toJSON())
-      if (!remoteTag) return
-      selectedOne.update(remoteTag)
+      >('connect-tag-info', selectedOne.toTagJSON())
+      receive((remoteTag) => {
+        console.log('remoteTag', remoteTag)
+        if (!remoteTag) return
+        selectedOne.update(remoteTag)
+      })
     } catch (error) {
       console.error('tag info error', error)
     }
@@ -282,7 +289,7 @@ class Editor extends EditorInteraction {
     })
     const tag = await this.asyncEmit<'async-tag-ocr', ITag>('async-tag-ocr', {
       image,
-      tag: selectedOne.toJSON(),
+      tag: selectedOne.toTagJSON(),
     })
     if (tag) {
       selectedOne.update(tag)
@@ -310,7 +317,7 @@ class Editor extends EditorInteraction {
       const remoteTag = await this.asyncEmit<
         'async-tag-link',
         ITag | undefined
-      >('async-tag-link', selectedOne.toJSON())
+      >('async-tag-link', selectedOne.toTagJSON())
       if (!remoteTag) return
       selectedOne.update(remoteTag)
     } catch (error) {
@@ -328,7 +335,7 @@ class Editor extends EditorInteraction {
       }
     })
     tag.on(PointerEvent.TAP, () => {
-      this.emit('tag-click', tag.toJSON())
+      this.emit('tag-click', tag.toTagJSON())
     })
     tag.on(PointerEvent.DOUBLE_TAP, () => this.onInfoClick())
   }

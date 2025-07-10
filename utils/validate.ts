@@ -3,7 +3,7 @@ import type { H3Event, InferEventInput, ValidateFunction } from 'h3'
 import type { $ZodIssue } from 'zod/v4/core'
 
 /**
- * only for server to handle goo error
+ * only for server to handle zod error
  * @param event
  * @param validate
  * @returns

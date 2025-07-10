@@ -9,16 +9,12 @@ import {
 } from '~/constants'
 import { isEmpty, omit } from 'lodash-es'
 
-const {
-  tag,
-  clip,
-  loading = false,
-} = defineProps<{
+const props = defineProps<{
   tag: ITag
   clip: string
   loading?: boolean
 }>()
-const tagStore = useTagStore()
+const { tag, clip, loading } = toRefs(props)
 
 const tabsItems = [
   {
@@ -40,13 +36,17 @@ const tabsItems = [
     slot: 'translations',
   },
 ]
+
 const emit = defineEmits<{
   close: [boolean]
   createTrans: [type: 'ocr' | 'link' | 'manual', translation?: ZTranslation]
   save: [
-    tag: ITag | undefined,
-    translation: ZTranslation | undefined,
-    close: () => void
+    {
+      tag: Omit<ZEditTag, 'translation'>
+      translation: ZTranslation | undefined
+      isTransOriginChanged: boolean
+      close: () => void
+    }
   ]
 }>()
 
@@ -75,56 +75,61 @@ const zEditTag = z.object({
 type ZEditTag = z.infer<typeof zEditTag>
 
 const state = reactive<ZEditTag>({
-  locked: tag.locked,
+  locked: tag.value.locked,
   style: {
-    fill: tag.style?.fill || '',
+    fill: tag.value.style?.fill || '',
     stroke:
-      typeof tag.style?.stroke === 'string'
-        ? tag.style.stroke
+      typeof tag.value.style?.stroke === 'string'
+        ? tag.value.style.stroke
         : DEFAULT_LINE_COLOR,
-    strokeWidth: tag.style?.strokeWidth || DEFAULT_LINE_WIDTH,
-    cornerRadius: tag.style?.cornerRadius || DEFAULT_CORNER_RADIUS,
+    strokeWidth: tag.value.style?.strokeWidth || DEFAULT_LINE_WIDTH,
+    cornerRadius: tag.value.style?.cornerRadius || DEFAULT_CORNER_RADIUS,
   },
-  i18nKey: tag.i18nKey || '',
-  translation: { ...(tag.translation || {}) },
+  i18nKey: tag.value.i18nKey || '',
+  translation: { ...(tag.value.translation || {}) },
 })
-watch(
-  () => tag,
-  (val) => {
-    state.locked = val.locked
-    state.style = {
-      fill: val.style?.fill || '',
-      stroke:
-        typeof val.style?.stroke === 'string'
-          ? val.style.stroke
-          : DEFAULT_LINE_COLOR,
-      strokeWidth: val.style?.strokeWidth || DEFAULT_LINE_WIDTH,
-      cornerRadius: val.style?.cornerRadius || DEFAULT_CORNER_RADIUS,
-    }
-    state.i18nKey = val.i18nKey || ''
-    state.translation = { ...(val.translation || {}) }
+watch(tag, (val) => {
+  state.locked = val.locked
+  state.style = {
+    fill: val.style?.fill || '',
+    stroke:
+      typeof val.style?.stroke === 'string'
+        ? val.style.stroke
+        : DEFAULT_LINE_COLOR,
+    strokeWidth: val.style?.strokeWidth || DEFAULT_LINE_WIDTH,
+    cornerRadius: val.style?.cornerRadius || DEFAULT_CORNER_RADIUS,
   }
-)
+  state.i18nKey = val.i18nKey || ''
+  state.translation = { ...(val.translation || {}) }
+})
 
-const showCreateNew = ref<boolean>(false)
+const isTransOriginChanged = ref<boolean>(false)
 watch(
   () => state.translation.origin,
   (val) => {
     if (!val) {
-      showCreateNew.value = false
+      isTransOriginChanged.value = false
       return
     }
-    showCreateNew.value = val !== tag.translation?.origin
+    isTransOriginChanged.value = val !== tag.value.translation?.origin
   },
   { deep: true }
 )
 
 async function onSubmit() {
   const preTag = omit(state, ['translation'])
-  const preTranslation = state.translation
+  let preTranslation = state.translation
   try {
-    const updatedTag = await tagStore.updateTag(tag.id, preTag)
-    emit('save', updatedTag, preTranslation, () => emit('close', true))
+    if (isTransOriginChanged.value && preTranslation.origin) {
+      const fingerprint = fpTranslation(preTranslation.origin)
+      preTranslation = { ...preTranslation, fingerprint }
+    }
+    emit('save', {
+      tag: preTag,
+      translation: preTranslation,
+      isTransOriginChanged: isTransOriginChanged.value,
+      close: () => emit('close', true),
+    })
   } catch (error) {
     console.error(error)
   }
@@ -152,9 +157,9 @@ const previewStyle = computed(() => ({
 <template>
   <UModal
     class="max-w-[50rem]"
-    :close="{ onClick: () => emit('close', false) }"
     title="Tag Info"
     :dismissible="!loading"
+    @update:open="(isOpen) => !isOpen && emit('close', false)"
   >
     <template #body>
       <UForm
@@ -313,7 +318,7 @@ const previewStyle = computed(() => ({
                       @click="onCreateTranslation('link')"
                     />
                     <UButton
-                      v-if="showCreateNew"
+                      v-if="isTransOriginChanged"
                       label="New"
                       color="neutral"
                       size="xs"

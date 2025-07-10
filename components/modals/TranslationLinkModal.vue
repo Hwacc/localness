@@ -121,8 +121,8 @@ function onSave() {
 <template>
   <UModal
     class="max-w-[60rem]"
-    :close="{ onClick: () => emit('close', false) }"
     title="Select Translation"
+    @update:open="(isOpen) => !isOpen && emit('close', false)"
   >
     <template #body>
       <div class="flex flex-col gap-3">

@@ -82,7 +82,10 @@ async function onSubmit(_: FormSubmitEvent<ZProject>) {
 </script>
 
 <template>
-  <UModal :close="{ onClick: () => emit('close', false) }" :title="title">
+  <UModal
+    :title="title"
+    @update:open="(isOpen) => !isOpen && emit('close', false)"
+  >
     <template #body>
       <UForm
         class="flex flex-col gap-2.5"

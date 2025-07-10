@@ -53,6 +53,7 @@ export const useAutoSave = () => {
       return savedList
     } catch (error) {
       console.error('Save tag error:', error)
+      reset()
     }
   }
 
