@@ -1,9 +1,9 @@
 import type { ID } from './global'
 export interface ITranslation extends Record<string, any> {
   id: ID
+  fingerprint: string
   createdAt?: string
   updatedAt?: string
-  md5: string
   origin?: string
   en?: string
   zh_cn?: string
@@ -19,7 +19,7 @@ export interface ITranslation extends Record<string, any> {
 
 export class Translation implements ITranslation {
   id: ID = 0
-  md5: string = ''
+  fingerprint: string = ''
   origin: string = ''
   en: string = ''
   zh_cn: string = ''

@@ -208,7 +208,12 @@ async function onSubmit(_: FormSubmitEvent<ZPage>) {
             :disabled="isLoading"
             @click="emit('close', false)"
           />
-          <UButton label="Submit" type="submit" :loading="isLoading" />
+          <UButton
+            label="Submit"
+            type="submit"
+            :loading="isLoading"
+            icon="i-lucide-save"
+          />
         </div>
       </UForm>
     </template>

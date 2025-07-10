@@ -1,4 +1,6 @@
+import { omit } from 'lodash-es'
 import prisma from '~/server/libs/prisma'
+import { fpTranslation } from '~/utils'
 import { numericID } from '~/utils/id'
 import { zTranslation } from '~/utils/schemas'
 import { readZodBody } from '~/utils/validate'
@@ -9,7 +11,7 @@ import { readZodBody } from '~/utils/validate'
  * @access Private
  */
 export default defineEventHandler(async (event) => {
-  await requireUserSession(event)
+  const session = await requireUserSession(event)
   const id = getRouterParam(event, 'id')
   if (!id) {
     throw createError({
@@ -19,11 +21,59 @@ export default defineEventHandler(async (event) => {
   }
   const nID = numericID(id)
   const body = await readZodBody(event, zTranslation.parse)
-  const updatedTranslation = await prisma.translation.update({
+  if (!body.origin) {
+    throw createError({
+      statusCode: 400,
+      statusMessage: 'Missing origin text',
+    })
+  }
+  const existing = await prisma.translation.findUnique({
     where: {
       id: nID,
     },
-    data: body,
   })
-  return updatedTranslation
+  if (!existing) {
+    throw createError({
+      statusCode: 404,
+      statusMessage: 'Translation not found',
+    })
+  }
+  // generate new fingerprint
+  const fingerprint = fpTranslation(body.origin)
+  try {
+    const updatedTranslation = await prisma.translation.update({
+      where: {
+        id: nID,
+      },
+      data: {
+        ...omit(body, ['id', 'fingerprint']),
+        fingerprint,
+      },
+    })
+    await prisma.translationLog.create({
+      data: {
+        action: 'UPDATE',
+        status: 'SUCCESS',
+        origin: body.origin,
+        fingerprint,
+        userID: numericID(session.user.id),
+      },
+    })
+    return updatedTranslation
+  } catch (error) {
+    console.error(error)
+    await prisma.translationLog.create({
+      data: {
+        action: 'UPDATE',
+        status: 'ERROR',
+        origin: body.origin,
+        fingerprint,
+        userID: numericID(session.user.id),
+      },
+    })
+    throw createError({
+      statusCode: 500,
+      statusMessage: 'Failed to update translation',
+    })
+  }
 })

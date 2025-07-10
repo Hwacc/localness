@@ -7,16 +7,16 @@ import prisma from '~/server/libs/prisma'
  */
 export default defineEventHandler(async (event) => {
   await requireUserSession(event)
-  const { md5 } = getQuery<{ md5: string }>(event)
-  if (!md5) {
+  const { fp } = getQuery<{ fp: string }>(event)
+  if (!fp) {
     throw createError({
       statusCode: 400,
-      statusMessage: 'Missing md5',
+      statusMessage: 'Missing fingerprint',
     })
   }
   const translation = await prisma.translation.findUnique({
     where: {
-      md5,
+      fingerprint: fp,
     },
     select: {
       id: true,

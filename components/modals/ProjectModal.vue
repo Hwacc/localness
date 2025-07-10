@@ -151,7 +151,7 @@ async function onSubmit(_: FormSubmitEvent<ZProject>) {
             label="Cancel"
             @click="emit('close', false)"
           />
-          <UButton label="Submit" type="submit" />
+          <UButton label="Submit" type="submit" icon="i-lucide-save" />
         </div>
       </UForm>
     </template>

@@ -101,10 +101,9 @@ export const zPageSetting = z.object(
 )
 export type ZPageSetting = z.infer<typeof zPageSetting>
 
-
 export const zTranslation = z.looseObject({
   origin: z.string().optional(),
-  md5: z.string().optional(),
+  fingerprint: z.string().optional(),
   en: z.string().optional(),
   zh_cn: z.string().optional(),
   zh_tw: z.string().optional(),
@@ -117,4 +116,3 @@ export const zTranslation = z.looseObject({
   pt: z.string().optional(),
 })
 export type ZTranslation = z.infer<typeof zTranslation>
-

@@ -17,17 +17,18 @@ enum UserRole {
 }
 
 model User {
-  id          Int           @id @default(autoincrement())
-  createdAt   DateTime      @default(now()) @map("created_at")
-  updatedAt   DateTime      @updatedAt @map("updated_at")
-  username    String        @unique
-  nickname    String?
-  email       String?
-  avatar      String?
-  password    String
-  role        UserRole      @default(USER)
-  ownProjects Project[]     @relation(name: "ProjectOwner")
-  projects    UserProject[]
+  id             Int              @id @default(autoincrement())
+  createdAt      DateTime         @default(now()) @map("created_at")
+  updatedAt      DateTime         @updatedAt @map("updated_at")
+  username       String           @unique
+  nickname       String?
+  email          String?
+  avatar         String?
+  password       String
+  role           UserRole         @default(USER)
+  ownProjects    Project[]        @relation(name: "ProjectOwner")
+  projects       UserProject[]
+  translationLog TranslationLog[]
 
   @@unique([username, id])
 }
@@ -111,22 +112,51 @@ model Tag {
 }
 
 model Translation {
-  id        Int      @id @default(autoincrement())
-  createdAt DateTime @default(now()) @map("created_at")
-  updatedAt DateTime @updatedAt @map("updated_at")
-  origin    String
-  md5       String   @unique
-  en        String?
-  zh_cn     String?
-  zh_tw     String?
-  ja        String?
-  ko        String?
-  ru        String?
-  fr        String?
-  de        String?
-  es        String?
-  pt        String?
-  tags      Tag[]
+  id          Int              @id @default(autoincrement())
+  createdAt   DateTime         @default(now()) @map("created_at")
+  updatedAt   DateTime         @updatedAt @map("updated_at")
+  origin      String
+  fingerprint String           @unique
+  en          String?
+  zh_cn       String?
+  zh_tw       String?
+  ja          String?
+  ko          String?
+  ru          String?
+  fr          String?
+  de          String?
+  es          String?
+  pt          String?
+  tags        Tag[]
+  logs        TranslationLog[]
 
-  @@index([md5])
+  @@index([fingerprint])
+}
+
+enum TranslationLogAction {
+  INSERT       @map("INSERT")
+  UPDATE       @map("UPDATE")
+  DELETE       @map("DELETE")
+  FORCE_INSERT @map("FORCE_INSERT")
+}
+
+enum TranslationLogStatus {
+  SUCCESS @map("SUCCESS")
+  FAILED  @map("FAILED")
+  REFUSED @map("REFUSED")
+  ERROR   @map("ERROR")
+}
+
+model TranslationLog {
+  id        Int                  @id @default(autoincrement())
+  origin    String
+  action    TranslationLogAction
+  status    TranslationLogStatus
+  createdAt DateTime             @default(now()) @map("created_at")
+
+  userID Int?  @map("user_id")
+  user   User? @relation(fields: [userID], references: [id], onDelete: SetNull)
+
+  fingerprint String?
+  translation Translation? @relation(fields: [fingerprint], references: [fingerprint], onDelete: SetNull)
 }

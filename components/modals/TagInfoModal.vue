@@ -8,7 +8,6 @@ import {
   TRANSLATION_LANGUAGES,
 } from '~/constants'
 import { isEmpty, omit } from 'lodash-es'
-import type { ITranslation } from '~/types/Translation'
 
 const {
   tag,
@@ -43,7 +42,7 @@ const tabsItems = [
 ]
 const emit = defineEmits<{
   close: [boolean]
-  creatTrans: [type: 'ocr' | 'bind']
+  createTrans: [type: 'ocr' | 'link' | 'manual', translation?: ZTranslation]
   save: [
     tag: ITag | undefined,
     translation: ZTranslation | undefined,
@@ -87,7 +86,7 @@ const state = reactive<ZEditTag>({
     cornerRadius: tag.style?.cornerRadius || DEFAULT_CORNER_RADIUS,
   },
   i18nKey: tag.i18nKey || '',
-  translation: tag.translation || ({} as ITranslation),
+  translation: { ...(tag.translation || {}) },
 })
 watch(
   () => tag,
@@ -102,9 +101,22 @@ watch(
       strokeWidth: val.style?.strokeWidth || DEFAULT_LINE_WIDTH,
       cornerRadius: val.style?.cornerRadius || DEFAULT_CORNER_RADIUS,
     }
-    state.i18nKey = val.i18nKey
-    state.translation = val.translation || ({} as ITranslation)
+    state.i18nKey = val.i18nKey || ''
+    state.translation = { ...(val.translation || {}) }
   }
+)
+
+const showCreateNew = ref<boolean>(false)
+watch(
+  () => state.translation.origin,
+  (val) => {
+    if (!val) {
+      showCreateNew.value = false
+      return
+    }
+    showCreateNew.value = val !== tag.translation?.origin
+  },
+  { deep: true }
 )
 
 async function onSubmit() {
@@ -118,8 +130,17 @@ async function onSubmit() {
   }
 }
 
-function createTranslation(type: 'ocr' | 'bind') {
-  emit('creatTrans', type)
+function onCreateTranslation(type: 'ocr' | 'link' | 'manual') {
+  if (type === 'manual') {
+    if (!state.translation.origin) return
+    const fingerprint = fpTranslation(state.translation.origin)
+    emit('createTrans', type, {
+      ...state.translation,
+      fingerprint,
+    })
+    return
+  }
+  emit('createTrans', type)
 }
 
 const previewStyle = computed(() => ({
@@ -256,15 +277,19 @@ const previewStyle = computed(() => ({
               <UButton
                 color="neutral"
                 variant="soft"
-                @click="createTranslation('bind')"
+                icon="i-lucide-link"
+                :disabled="loading"
+                @click="onCreateTranslation('link')"
               >
-                Bind a existing translation
+                Link a existing translation
               </UButton>
               <span>OR</span>
               <UButton
                 color="primary"
                 variant="solid"
-                @click="createTranslation('ocr')"
+                icon="i-mdi:ocr"
+                :disabled="loading"
+                @click="onCreateTranslation('ocr')"
               >
                 Create with OCR
               </UButton>
@@ -276,12 +301,28 @@ const previewStyle = computed(() => ({
                   <AIButton />
                 </div>
               </UFormField>
-              <UFormField label="Text">
+              <UFormField label="Text" :ui="{ label: 'w-full' }">
                 <template #label="{ label }">
                   <div class="flex items-center gap-3">
                     <span>{{ label }}</span>
-                    <span class="text-xs text-gray-500">
-                      MD5: {{ tag.translation?.md5 }}
+                    <UButton
+                      label="Link"
+                      icon="i-lucide-link"
+                      size="xs"
+                      variant="outline"
+                      @click="onCreateTranslation('link')"
+                    />
+                    <UButton
+                      v-if="showCreateNew"
+                      label="New"
+                      color="neutral"
+                      size="xs"
+                      variant="outline"
+                      icon="i-lucide:copy-plus"
+                      @click="onCreateTranslation('manual')"
+                    />
+                    <span class="mr-0 ml-auto text-xs text-gray-500">
+                      Finger: {{ tag.translation?.fingerprint }}
                     </span>
                   </div>
                 </template>
@@ -334,7 +375,12 @@ const previewStyle = computed(() => ({
             :disabled="loading"
             @click="emit('close', false)"
           />
-          <UButton label="Save" type="submit" :loading="loading" />
+          <UButton
+            label="Save"
+            type="submit"
+            :loading="loading"
+            icon="i-lucide-save"
+          />
         </div>
       </UForm>
     </template>

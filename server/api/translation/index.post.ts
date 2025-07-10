@@ -1,7 +1,8 @@
+import { numericID } from '~/utils/id'
 import { zTranslation } from '~/utils/schemas'
 import { readZodBody } from '~/utils/validate'
 import prisma from '~/server/libs/prisma'
-import SparkMD5 from 'spark-md5'
+import { fpTranslation } from '~/utils'
 
 /**
  * @route POST /api/translation
@@ -9,7 +10,7 @@ import SparkMD5 from 'spark-md5'
  * @access Private
  */
 export default defineEventHandler(async (event) => {
-  await requireUserSession(event)
+  const session = await requireUserSession(event)
   const body = await readZodBody(event, zTranslation.parse)
   if (!body.origin) {
     throw createError({
@@ -17,28 +18,76 @@ export default defineEventHandler(async (event) => {
       statusMessage: 'Missing origin text',
     })
   }
-  
-  let md5 = body.md5
-  if (!md5) {
-    md5 = SparkMD5.hash(body.origin)
-  }
 
-  const translation = await prisma.translation.create({
-    data: {
-      origin: body.origin,
-      md5,
-      en: body.en || '',
-      zh_cn: body.zh_cn || '',
-      zh_tw: body.zh_tw || '',
-      ja: body.ja || '',
-      ko: body.ko || '',
-      ru: body.ru || '',
-      fr: body.fr || '',
-      de: body.de || '',
-      es: body.es || '',
-      pt: body.pt || '',
+  let fingerprint = fpTranslation(body.origin)
+
+  const existing = await prisma.translation.findUnique({
+    where: {
+      fingerprint,
     },
   })
 
-  return translation
+  if (existing && !body.force) {
+    await prisma.translationLog.create({
+      data: {
+        action: 'INSERT',
+        status: 'REFUSED',
+        origin: body.origin,
+        fingerprint,
+        userID: numericID(session.user.id),
+      },
+    })
+    throw createError({
+      statusCode: 409,
+      statusMessage: 'Translation already exists',
+    })
+  }
+
+  if(existing && body.force) {
+    fingerprint = fpTranslation(body.origin + Date.now())
+  }
+
+  try {
+    const translation = await prisma.translation.create({
+      data: {
+        origin: body.origin,
+        fingerprint,
+        en: body.en || '',
+        zh_cn: body.zh_cn || '',
+        zh_tw: body.zh_tw || '',
+        ja: body.ja || '',
+        ko: body.ko || '',
+        ru: body.ru || '',
+        fr: body.fr || '',
+        de: body.de || '',
+        es: body.es || '',
+        pt: body.pt || '',
+      },
+    })
+    await prisma.translationLog.create({
+      data: {
+        action: body.force ? 'FORCE_INSERT' : 'INSERT',
+        status: 'SUCCESS',
+        origin: body.origin,
+        fingerprint,
+        userID: numericID(session.user.id),
+      },
+    })
+    return translation
+  } catch (error) {
+    console.error(error)
+    await prisma.translationLog.create({
+      data: {
+        action: body.force ? 'FORCE_INSERT' : 'INSERT',
+        status: 'ERROR',
+        origin: body.origin,
+        fingerprint,
+        userID: numericID(session.user.id),
+      },
+    })
+    throw createError({
+      statusCode: 500,
+      statusMessage: 'Failed to create translation',
+    })
+  }
 })

@@ -127,7 +127,7 @@ async function onAuthSubmit() {
                 label="Cancel"
                 @click="emit('close', false)"
               />
-              <UButton type="submit" label="Save" />
+              <UButton type="submit" label="Save" icon="i-lucide-save" />
             </div>
           </UForm>
         </template>
@@ -186,7 +186,7 @@ async function onAuthSubmit() {
                   label="Cancel"
                   @click="emit('close', false)"
                 />
-                <UButton type="submit" label="Save" />
+                <UButton type="submit" label="Save" icon="i-lucide-save" />
               </div>
             </UForm>
           </div>

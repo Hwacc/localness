@@ -12,7 +12,8 @@ import type { ID } from '~/types/global'
 import { DEFAULT_LINE_COLOR, DEFAULT_LINE_WIDTH } from '~/constants'
 import { injectTaskContext } from '~/providers/TaskProvider.vue'
 import { Task } from '~/libs/task-queue'
-import { TranslationSelectModal } from '#components'
+import { TranslationLinkModal } from '#components'
+import type { ITranslation } from '~/types/Translation'
 
 definePageMeta({
   middleware: ['protected'],
@@ -50,11 +51,11 @@ const tagModal = overlay.create(TagInfoModal, {
     tag: {} as ITag,
     clip: '',
     onSave: () => {},
-    onCreatTrans: () => {},
+    onCreateTrans: () => {},
     onClose: () => {},
   },
 })
-const transSelectModal = overlay.create(TranslationSelectModal, {
+const transLinkModal = overlay.create(TranslationLinkModal, {
   props: {
     onClose: () => {},
   },
@@ -135,48 +136,47 @@ onMounted(async () => {
   editor.value.asyncOn<ITag>(
     'async-tag-remove',
     async ({ success, fail, payload }) => {
-      try {
-        console.log('async-tag-remove', payload)
-        if (payload.translationID || payload.translation) {
-          const _deleteModal = overlay.create(AlertModal, {
-            props: {
-              mode: 'delete',
-              title: 'Delete Tag',
-              message:
-                'This tag has content text or translations. Are you sure you want to delete it?',
-              onOk: async (_, { close }) => {
-                try {
-                  _deleteModal.patch({ loading: true })
-                  await tagStore.deleteTag(payload.id)
-                  autoSave.remove(payload.id)
-                  success(true)
-                  toast.add({
-                    title: 'Success',
-                    description: 'Tag deleted successfully',
-                    color: 'success',
-                    icon: 'i-lucide:circle-check',
-                  })
-                  close()
-                } catch (error) {
-                  fail(error)
-                } finally {
-                  _deleteModal.patch({ loading: false })
-                }
-              },
+      console.log('async-tag-remove', payload)
+      if (payload.translationID || payload.translation) {
+        const _deleteModal = overlay.create(AlertModal, {
+          props: {
+            mode: 'delete',
+            title: 'Delete Tag',
+            message:
+              'This tag has content text or translations. Are you sure you want to delete it?',
+            onOk: async (_, { close }) => {
+              try {
+                _deleteModal.patch({ loading: true })
+                await tagStore.deleteTag(payload.id)
+                autoSave.remove(payload.id)
+                success(true)
+                toast.add({
+                  title: 'Success',
+                  description: 'Tag deleted successfully',
+                  color: 'success',
+                  icon: 'i-lucide:circle-check',
+                })
+                close()
+              } catch (error) {
+                fail(error)
+              } finally {
+                _deleteModal.patch({ loading: false })
+              }
             },
-          })
-          _deleteModal.open()
-        } else {
-          try {
-            await tagStore.deleteTag(payload.id)
-            autoSave.remove(payload.id)
-            success(true)
-          } catch (error) {
-            fail(error)
-          }
+            onClose: (isOK: boolean) => {
+              !isOK && success(false)
+            },
+          },
+        })
+        _deleteModal.open()
+      } else {
+        try {
+          await tagStore.deleteTag(payload.id)
+          autoSave.remove(payload.id)
+          success(true)
+        } catch (error) {
+          fail(error)
         }
-      } catch (error) {
-        fail(error)
       }
     }
   )
@@ -193,6 +193,7 @@ onMounted(async () => {
       }
     }
   )
+
   editor.value.on('tag-change', (arg: { action: string; tag: ITag }) =>
     autoSave.add(arg.tag)
   )
@@ -214,10 +215,12 @@ onMounted(async () => {
         onSave: (tag, translation, close) => {
           try {
             tagModal.patch({ loading: true })
+            console.log('on tag save', tag, translation)
             if (translation) {
               // TODO: update translation
             }
             // TODO: update tag
+            success(tag)
             close()
           } catch (error) {
             fail(error)
@@ -225,31 +228,57 @@ onMounted(async () => {
             tagModal.patch({ loading: false })
           }
         },
-        onCreatTrans: async (type) => {
+        onCreateTrans: async (type, _translation) => {
           try {
             tagModal.patch({ loading: true })
-            if (type === 'ocr') {
-              const updatedTranslation = await translationGenerator.ocr({
-                image: clip,
-              })
-              if (updatedTranslation) {
+            const handleUpdateTag = async (
+              trans: ITranslation | null | undefined
+            ) => {
+              if (trans && trans.id) {
                 const updatedTag = await tagStore.updateTag(payload.id, {
-                  translationID: updatedTranslation.id,
+                  translationID: trans.id,
                 })
-                success(updatedTag)
                 tagModal.patch({
                   tag: updatedTag,
                 })
+                success(updatedTag)
                 toast.add({
                   title: 'Success',
-                  description: 'Translation created',
+                  description:
+                    type === 'link'
+                      ? 'Translation linked'
+                      : 'Translation created',
                   color: 'success',
                   icon: 'i-lucide:check',
                 })
-              }
-            } else if (type === 'bind') {
-              // TODO: bind existing translation
-              transSelectModal.open()
+              } else success(undefined)
+            }
+            if (type === 'ocr') {
+              // ocr -> create translation -> update tag
+              const createdTrans = await translationGenerator.ocr({
+                image: clip,
+              })
+              handleUpdateTag(createdTrans)
+            } else if (type === 'link') {
+              // link -> link a existing translation -> update tag
+              transLinkModal.patch({
+                onSave: async (trans, { close }: { close: () => void }) => {
+                  handleUpdateTag(trans)
+                  close()
+                },
+                onClose: (isOK: boolean) => {
+                  !isOK && success(undefined)
+                },
+              })
+              transLinkModal.open()
+            } else if (type === 'manual') {
+              // manual -> create translation -> update tag
+              console.log('manual', _translation?.fingerprint)
+              const createdTrans = await translationGenerator.manual({
+                translation: _translation as ITranslation,
+              })
+              console.log('createdTrans', createdTrans?.fingerprint)
+              handleUpdateTag(createdTrans)
             }
           } catch (error) {
             fail(error)
@@ -257,8 +286,8 @@ onMounted(async () => {
             tagModal.patch({ loading: false })
           }
         },
-        onClose: (isSuccess: boolean) => {
-          !isSuccess && success(undefined)
+        onClose: (isOK: boolean) => {
+          !isOK && success(undefined)
         },
       })
       tagModal.open()
@@ -267,22 +296,26 @@ onMounted(async () => {
 
   editor.value.asyncOn<{ image: string; tag: ITag }>(
     'async-tag-ocr',
-    async ({ success, payload }) => {
+    async ({ success, fail, payload }) => {
       const ocrTask = new Task(
         async () => {
-          const { image, tag } = payload
-          const updatedTranslation = await translationGenerator.ocr({ image })
-          if (updatedTranslation) {
-            const updatedTag = await tagStore.updateTag(tag.id, {
-              translationID: updatedTranslation.id,
-            })
-            success(updatedTag)
-            toast.add({
-              title: 'Success',
-              description: 'Translation created',
-              color: 'success',
-              icon: 'i-lucide:check',
-            })
+          try {
+            const { image, tag } = payload
+            const updatedTranslation = await translationGenerator.ocr({ image })
+            if (updatedTranslation) {
+              const updatedTag = await tagStore.updateTag(tag.id, {
+                translationID: updatedTranslation.id,
+              })
+              success(updatedTag)
+              toast.add({
+                title: 'Success',
+                description: 'Translation created',
+                color: 'success',
+                icon: 'i-lucide:check',
+              })
+            } else success(undefined)
+          } catch (error) {
+            fail(error)
           }
         },
         {
@@ -294,11 +327,33 @@ onMounted(async () => {
     }
   )
 
-  editor.value.asyncOn<{ tag: ITag }>(
+  editor.value.asyncOn<ITag>(
     'async-tag-link',
     async ({ success, fail, payload }) => {
       try {
-        transSelectModal.open()
+        transLinkModal.patch({
+          onSave: async (translation, { close }: { close: () => void }) => {
+            if (translation) {
+              const updatedTag = await tagStore.updateTag(payload.id, {
+                translationID: translation.id,
+              })
+              success(updatedTag)
+              toast.add({
+                title: 'Success',
+                description: 'Translation linked',
+                color: 'success',
+                icon: 'i-lucide:check',
+              })
+            } else {
+              success(undefined)
+            }
+            close()
+          },
+          onClose: (isOK: boolean) => {
+            !isOK && success(undefined)
+          },
+        })
+        transLinkModal.open()
       } catch (error) {
         fail(error)
       }
