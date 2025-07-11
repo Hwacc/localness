@@ -40,9 +40,9 @@ const emit = defineEmits<{
     @update:model-value="(l) => emit('update:modelValue', l)"
   >
     <template #default="{ modelValue: val }">
-      <div class="flex items-center gap-2">
+      <div class="flex items-center gap-2 line-wrap">
         <div
-          class="w-20"
+          class="w-20 line"
           :style="{ 
             backgroundColor: lineColor,
             height: `${LineItems.find((o: any) => o.value === val)!.value}px` 
@@ -52,9 +52,9 @@ const emit = defineEmits<{
       </div>
     </template>
     <template #item="{ item }">
-      <div class="flex items-center gap-2">
+      <div class="w-full flex items-center gap-2">
         <div
-          class="w-20"
+          class="w-full line"
           :style="{
             backgroundColor: lineColor,
             height: `${item.value}px`,

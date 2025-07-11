@@ -39,6 +39,10 @@ export default defineNuxtConfig({
       path: '~/components/modals',
       pathPrefix: false,
     },
+    {
+      path: '~/components/slideovers',
+      pathPrefix: false,
+    },
     '~/components',
   ],
   routeRules: {

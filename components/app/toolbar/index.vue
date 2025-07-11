@@ -40,7 +40,7 @@ function onLineColorChange(c: string | undefined) {
 <template>
   <div class="flex flex-col bg-gray-50">
     <!-- Top Navigation -->
-    <div class="flex items-center justify-center py-4 bg-white shadow">
+    <div class="flex items-center justify-center py-4 px-2 bg-white shadow">
       <div class="flex items-center gap-4">
         <div class="flex items-center gap-2">
           <UTooltip text="Zoom Out">
@@ -78,7 +78,7 @@ function onLineColorChange(c: string | undefined) {
         </div>
         <UTooltip text="Drag">
           <UButton
-            :class="[mode === 'drag' && 'bg-green-400 text-white']"
+            :class="[mode === 'drag' && 'bg-green-400 text-white hover:text-green-400']"
             icon="i-lucide:hand"
             size="md"
             color="neutral"
@@ -89,7 +89,7 @@ function onLineColorChange(c: string | undefined) {
         </UTooltip>
         <UTooltip text="Add Tag">
           <UButton
-            :class="[mode === 'draw' && 'bg-green-400 text-white']"
+            :class="[mode === 'draw' && 'bg-green-400 text-white hover:text-green-400']"
             icon="i-lucide:pencil-ruler"
             size="md"
             color="neutral"

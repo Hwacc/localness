@@ -237,39 +237,44 @@ const previewStyle = computed(() => ({
             </div>
           </template>
           <template #styles>
-            <div class="flex flex-col gap-2.5">
-              <UFormField label="Fill">
+            <div class="flex flex-col gap-4">
+              <UFormField label="Preview">
                 <div
-                  class="w-full flex items-center justify-center h-12 image-container"
+                  class="w-full flex items-center justify-center h-16 image-container"
                 >
                   <div
-                    class="w-[50%] h-[calc(100%-0.5rem)] my-auto"
+                    class="w-[50%] h-[calc(100%-2rem)] my-auto"
                     :style="previewStyle"
                   ></div>
                 </div>
               </UFormField>
-              <UFormField label="Stroke Color">
-                <LineColorPicker v-model="state.style.stroke" class="mt-2.5" />
-              </UFormField>
-              <UFormField label="Stroke Width">
-                <LineWidthSelect
-                  v-model="state.style.strokeWidth"
-                  :line-color="state.style.stroke"
-                  class="mt-2.5"
-                />
-              </UFormField>
-              <UFormField label="Corner Radius">
-                <div class="flex items-center gap-4 mt-4">
-                  <USlider
-                    v-model="state.style.cornerRadius"
-                    class="w-[50%]"
-                    :min="0"
-                    :max="10"
-                    :step="1"
+              <div class="grid grid-cols-3 grid-rows-1 gap-4">
+                <UFormField label="Stroke Color">
+                  <LineColorPicker
+                    v-model="state.style.stroke"
+                    class="w-full h-8"
                   />
-                  <span>{{ state.style.cornerRadius }} px</span>
-                </div>
-              </UFormField>
+                </UFormField>
+                <UFormField label="Stroke Width">
+                  <LineWidthSelect
+                    v-model="state.style.strokeWidth"
+                    class="w-full h-8 line-width-select"
+                    :line-color="state.style.stroke"
+                  />
+                </UFormField>
+                <UFormField label="Corner Radius">
+                  <div class="flex items-center gap-4 h-8">
+                    <USlider
+                      v-model="state.style.cornerRadius"
+                      class="flex-1"
+                      :min="0"
+                      :max="10"
+                      :step="1"
+                    />
+                    <span>{{ state.style.cornerRadius }} px</span>
+                  </div>
+                </UFormField>
+              </div>
             </div>
           </template>
           <template #translations>
@@ -401,5 +406,15 @@ const previewStyle = computed(() => ({
     #e0e0e0 10px,
     #e0e0e0 20px
   );
+}
+
+:deep(.line-width-select) {
+  & :deep(.line-wrap) {
+    width: 100%;
+  }
+  & :deep(.line) {
+    flex: 1;
+    width: 100%;
+  }
 }
 </style>
