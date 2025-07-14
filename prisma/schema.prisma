@@ -117,20 +117,51 @@ model Translation {
   updatedAt   DateTime         @updatedAt @map("updated_at")
   origin      String
   fingerprint String           @unique
-  en          String?
-  zh_cn       String?
-  zh_tw       String?
-  ja          String?
-  ko          String?
-  ru          String?
-  fr          String?
-  de          String?
-  es          String?
-  pt          String?
   tags        Tag[]
   logs        TranslationLog[]
 
+  vue   TranslationVue?
+  react TranslationReact?
+
   @@index([fingerprint])
+}
+
+model TranslationVue {
+  id        Int      @id @default(autoincrement())
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+  en        String?
+  zh_cn     String?
+  zh_tw     String?
+  ja        String?
+  ko        String?
+  ru        String?
+  fr        String?
+  de        String?
+  es        String?
+  pt        String?
+
+  translation   Translation @relation(fields: [translationID], references: [id], onDelete: Cascade)
+  translationID Int         @unique @map("translation_id")
+}
+
+model TranslationReact {
+  id        Int      @id @default(autoincrement())
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+  en        String?
+  zh_cn     String?
+  zh_tw     String?
+  ja        String?
+  ko        String?
+  ru        String?
+  fr        String?
+  de        String?
+  es        String?
+  pt        String?
+
+  translation   Translation @relation(fields: [translationID], references: [id], onDelete: Cascade)
+  translationID Int         @unique @map("translation_id")
 }
 
 enum TranslationLogAction {
