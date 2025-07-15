@@ -1,6 +1,5 @@
 import { omit } from 'lodash-es'
 import prisma from '~/server/libs/prisma'
-import { fpTranslation } from '~/utils'
 import { numericID } from '~/utils/id'
 import { zTranslation } from '~/utils/schemas'
 import { readZodBody } from '~/utils/validate'
@@ -39,7 +38,6 @@ export default defineEventHandler(async (event) => {
     })
   }
   // generate new fingerprint
-  const fingerprint = fpTranslation(body.origin)
   try {
     const updatedTranslation = await prisma.translation.update({
       where: {
@@ -47,7 +45,6 @@ export default defineEventHandler(async (event) => {
       },
       data: {
         ...omit(body, ['id', 'fingerprint']),
-        fingerprint,
       },
     })
     await prisma.translationLog.create({
@@ -55,7 +52,7 @@ export default defineEventHandler(async (event) => {
         action: 'UPDATE',
         status: 'SUCCESS',
         origin: body.origin,
-        fingerprint,
+        fingerprint: existing.fingerprint,
         userID: numericID(session.user.id),
       },
     })
@@ -67,7 +64,7 @@ export default defineEventHandler(async (event) => {
         action: 'UPDATE',
         status: 'ERROR',
         origin: body.origin,
-        fingerprint,
+        fingerprint: existing.fingerprint,
         userID: numericID(session.user.id),
       },
     })

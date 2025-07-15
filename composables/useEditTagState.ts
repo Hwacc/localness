@@ -1,3 +1,4 @@
+import { cloneDeep } from 'lodash-es'
 import z from 'zod/v4'
 import {
   DEFAULT_CORNER_RADIUS,
@@ -65,7 +66,9 @@ export function useEditTagState(tag: MaybeRef<ITag>) {
       align: unref(tag).labelStyle?.align || DEFAULT_LABEL_ALIGN,
     },
     i18nKey: unref(tag).i18nKey || '',
-    translation: unref(tag).translation || null,
+    translation: unref(tag).translation
+      ? cloneDeep(unref(tag).translation) ?? null
+      : null,
   })
 
   watch(

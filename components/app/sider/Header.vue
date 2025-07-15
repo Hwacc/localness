@@ -71,6 +71,11 @@ const projectMenuItems: DropdownMenuItem[] = [
     },
   },
   {
+    label: 'Export Project',
+    icon: 'i-tabler:package-export',
+    onSelect: () => {},
+  },
+  {
     label: 'Project Settings',
     icon: 'i-lucide:settings',
     onSelect: () => {
