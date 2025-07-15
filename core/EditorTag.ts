@@ -1,5 +1,5 @@
 import type { ITag } from '~/types/Tag'
-import { Frame, Text, type IJSONOptions } from 'leafer-ui'
+import { Frame, Text, type IJSONOptions, type ITextInputData } from 'leafer-ui'
 import { isEmpty, pick } from 'lodash-es'
 import {
   DEFAULT_LINE_COLOR,
@@ -78,10 +78,10 @@ class EditorTag extends Frame {
       textWrap: labelStyle?.textWrap ?? DEFAULT_LABEL_WRAP,
     }
     if (!this.textNode) {
-      this.textNode = new Text(options)
+      this.textNode = new Text(options as ITextInputData)
       this.add(this.textNode)
     } else {
-      this.textNode.set(options)
+      this.textNode.set(options as ITextInputData)
     }
 
     switch (this.textAlign) {
@@ -139,6 +139,7 @@ class EditorTag extends Frame {
 
   public update(rTag: Partial<ITag>) {
     this.remoteTag = { ...this.remoteTag, ...rTag }
+    this.lock(rTag.locked ?? false)
     this.updateStyle(rTag.style)
     this.updateLabelStyle(rTag.labelStyle)
   }

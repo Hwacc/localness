@@ -1,4 +1,4 @@
-import type { IStroke, ITextWrap } from 'leafer-ui'
+import type { IStroke } from 'leafer-ui'
 import type { ID } from './global'
 import type { ITranslation } from './Translation'
 
@@ -13,7 +13,7 @@ export type LabelStyle = {
   fill?: string
   fontSize?: number
   fontWeight?: 'normal' | 'bold'
-  textWrap?: ITextWrap
+  textWrap?: string
   align?:
     | 'top-left'
     | 'top-right'

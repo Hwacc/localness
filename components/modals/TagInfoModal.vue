@@ -39,7 +39,7 @@ const emit = defineEmits<{
   save: [
     {
       tag: Omit<ZEditTag, 'translation'>
-      translation: ZTranslation | undefined
+      translation: ZTranslation | null
       isTransOriginChanged: boolean
       close: () => void
     }
@@ -63,24 +63,27 @@ const { state } = useEditTagState(tag)
 const editableTranslationContent = computed<string>({
   get(): string {
     return (
-      (state.translation[selectedFramework.value]?.[
+      (state.translation?.[selectedFramework.value]?.[
         selectedLanguage.value
       ] as string) || ''
     )
   },
   set(value: string) {
-    let temp = state.translation[selectedFramework.value]
+    let temp = state.translation?.[selectedFramework.value]
     if (!temp) {
       temp = {}
     }
     temp[selectedLanguage.value] = value
+    if (!state.translation) {
+      state.translation = {}
+    }
     state.translation[selectedFramework.value] = temp
   },
 })
 
 const isTransOriginChanged = ref<boolean>(false)
 watch(
-  () => state.translation.origin,
+  () => state.translation?.origin,
   (val) => {
     if (!val) {
       isTransOriginChanged.value = false
@@ -93,15 +96,16 @@ watch(
 
 async function onSubmit() {
   const preTag = omit(state, ['translation'])
-  const preTranslation = {
-    id: tag.value.translationID,
-    ...state.translation,
-  }
   console.log('on submit', state.translation)
   try {
     emit('save', {
       tag: preTag,
-      translation: preTranslation,
+      translation: state.translation
+        ? {
+            id: tag.value.translationID,
+            ...state.translation,
+          }
+        : null,
       isTransOriginChanged: isTransOriginChanged.value,
       close: () => emit('close', true),
     })
@@ -112,7 +116,7 @@ async function onSubmit() {
 
 function onCreateTranslation(type: 'ocr' | 'link' | 'manual') {
   if (type === 'manual') {
-    if (!state.translation.origin) return
+    if (!state.translation?.origin) return
     const fingerprint = fpTranslation(state.translation.origin)
     emit('createTrans', type, {
       ...state.translation,

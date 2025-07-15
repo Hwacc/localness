@@ -22,17 +22,28 @@ export const schema = z.object({
   labelStyle: z.object({
     fill: z.string().optional(),
     fontSize: z.number().optional(),
-    fontWeight: z.string().optional(),
+    fontWeight: z.enum(['normal', 'bold']).optional(),
     textWrap: z.string().optional(),
-    align: z.string().optional(),
+    align: z
+      .enum([
+        'top-left',
+        'top-right',
+        'bottom-left',
+        'bottom-right',
+        'left',
+        'right',
+      ])
+      .optional(),
   }),
   i18nKey: z.string().optional(),
-  translation: z.object({
-    origin: z.string().optional(),
-    fingerprint: z.string().optional(),
-    vue: zTranslationContent.optional(),
-    react: zTranslationContent.optional(),
-  }),
+  translation: z
+    .object({
+      origin: z.string().optional(),
+      fingerprint: z.string().optional(),
+      vue: zTranslationContent.optional(),
+      react: zTranslationContent.optional(),
+    })
+    .nullable(),
 })
 export type Schema = z.infer<typeof schema>
 
@@ -48,17 +59,13 @@ export function useEditTagState(tag: MaybeRef<ITag>) {
     labelStyle: {
       fill: unref(tag).labelStyle?.fill || DEFAULT_LABEL_FILL,
       fontSize: unref(tag).labelStyle?.fontSize || DEFAULT_LABEL_FONT_SIZE,
-      fontWeight: unref(tag).labelStyle?.fontWeight || DEFAULT_LABEL_FONT_WEIGHT,
+      fontWeight:
+        unref(tag).labelStyle?.fontWeight || DEFAULT_LABEL_FONT_WEIGHT,
       textWrap: unref(tag).labelStyle?.textWrap || DEFAULT_LABEL_WRAP,
       align: unref(tag).labelStyle?.align || DEFAULT_LABEL_ALIGN,
     },
     i18nKey: unref(tag).i18nKey || '',
-    translation: {
-      origin: unref(tag).translation?.origin || '',
-      fingerprint: unref(tag).translation?.fingerprint || '',
-      vue: unref(tag).translation?.vue || {},
-      react: unref(tag).translation?.react || {},
-    },
+    translation: unref(tag).translation || null,
   })
 
   watch(

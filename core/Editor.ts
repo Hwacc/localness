@@ -149,7 +149,7 @@ class Editor extends EditorInteraction {
       style: {
         stroke: this.lineColor,
         strokeWidth: this.lineWidth,
-      }
+      },
     })
     this.tempTag.set({ editable: false })
     this.registerTagEvents(this.tempTag)
@@ -194,7 +194,7 @@ class Editor extends EditorInteraction {
       this.app.editor.hittable = true
       const { width = 0, height = 0 } = this.tempTag
       if (width <= 10 || height <= 10) {
-        this.tempTag.remove()
+        this.tempTag.destroy()
       } else {
         this.tempTag.set({ editable: true })
         try {
@@ -205,7 +205,7 @@ class Editor extends EditorInteraction {
           this.tempTag.update(remoteTag)
         } catch (error) {
           console.error('tag add error', error)
-          this.tempTag.remove()
+          this.tempTag.destroy()
         }
       }
     }
@@ -251,7 +251,7 @@ class Editor extends EditorInteraction {
     const selectedOne = this.app.editor.list[0] as EditorTag
     try {
       await this.asyncEmit('async-tag-remove', selectedOne?.toTagJSON())
-      selectedOne?.remove()
+      selectedOne?.destroy()
       this.app.editor.target = undefined
     } catch (error) {
       console.error('tag remove error', error)
@@ -338,6 +338,10 @@ class Editor extends EditorInteraction {
       this.emit('tag-click', tag.toTagJSON())
     })
     tag.on(PointerEvent.DOUBLE_TAP, () => this.onInfoClick())
+    tag.on('custom-lock', (e: { locked: boolean }) => {
+      // tag lock state change, update lock btn state
+      this.funcBtnGroup.lockBtn.slocked = e.locked
+    })
   }
 
   private renderTags(tags: ITag[]) {
