@@ -37,6 +37,10 @@ export default defineEventHandler(async (event) => {
         in: ids,
       },
     },
+    include: {
+      vue: true,
+      react: true,
+    }
   })
   const pagination = new Pagination(
     Number(page ?? 1),

@@ -15,7 +15,8 @@ const search = ref('')
 const table = useTemplateRef('table')
 const data = ref<ITranslation[]>([])
 
-const columns: TableColumn<ITranslation>[] = [
+const framework = ref<'vue' | 'react'>('vue')
+const columns = computed<TableColumn<ITranslation>[]>(() => [
   {
     id: 'id',
     accessorKey: 'id',
@@ -30,7 +31,7 @@ const columns: TableColumn<ITranslation>[] = [
     enableHiding: false,
     cell: ({ row }) => (
       <div
-        class="w-[20rem] overflow-hidden line-clamp-2"
+        class="w-max max-w-[20rem] whitespace-normal line-clamp-2"
         title={row.getValue('origin')}
       >
         {row.getValue('origin') || 'N/A'}
@@ -48,17 +49,20 @@ const columns: TableColumn<ITranslation>[] = [
           <span>{lang.short}</span>
         </div>
       ),
-      cell: ({ row }: { row: TableRow<ITranslation> }) => (
-        <div
-          class="max-w-[20rem] overflow-hidden line-clamp-2"
-          title={row.getValue(lang.value)}
-        >
-          {row.getValue(lang.value) || 'N/A'}
-        </div>
-      ),
+      cell: ({ row }: { row: TableRow<ITranslation> }) => {
+        const value = row.original[framework.value]?.[lang.value]
+        return (
+          <div
+            class="w-max max-w-[15rem] whitespace-normal line-clamp-2"
+            title={value || ''}
+          >
+            {value || 'N/A'}
+          </div>
+        )
+      },
     } as unknown as TableColumn<ITranslation>
   }),
-]
+])
 
 const columnsDropdownItems = computed<DropdownMenuItem[]>(() => {
   if (!table.value) return []
@@ -151,24 +155,27 @@ function onSave() {
             label="Search"
             @click="onSearch"
           />
-          <UDropdownMenu
-            :ui="{
-              group: 'max-h-50',
-            }"
-            :items="columnsDropdownItems"
-            :content="{ align: 'end' }"
-          >
-            <template #default>
-              <UButton
-                label="Columns"
-                color="neutral"
-                variant="outline"
-                trailing-icon="i-lucide-chevron-down"
-                class="ml-auto"
-                aria-label="Columns select dropdown"
-              />
-            </template>
-          </UDropdownMenu>
+          <div class="flex items-center ml-auto mr-0 gap-2">
+            <FrameworkGroup v-model="framework" />
+            <UDropdownMenu
+              :ui="{
+                group: 'max-h-50',
+              }"
+              :items="columnsDropdownItems"
+              :content="{ align: 'end' }"
+            >
+              <template #default>
+                <UButton
+                  label="Columns"
+                  color="neutral"
+                  variant="outline"
+                  trailing-icon="i-lucide-chevron-down"
+                  class="ml-auto"
+                  aria-label="Columns select dropdown"
+                />
+              </template>
+            </UDropdownMenu>
+          </div>
         </div>
         <div class="w-full space-y-2">
           <UTable
@@ -176,12 +183,12 @@ function onSave() {
             :columns="columns"
             :data="data"
             :ui="{
-              td: 'whitespace-normal',
+              th: 'p-2.5',
+              td: 'p-2.5',
               tr: 'data-[selected=true]:bg-primary/30 data-[selected=true]:hover:!bg-primary/30',
             }"
             @select="
               (row) => {
-                console.log('select', row)
                 table?.tableApi.toggleAllRowsSelected(false)
                 row.toggleSelected()
               }

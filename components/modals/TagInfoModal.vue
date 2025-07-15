@@ -1,13 +1,9 @@
 <script setup lang="ts">
 import type { ITag } from '~/types/Tag'
-import { z } from 'zod/v4'
-import {
-  DEFAULT_CORNER_RADIUS,
-  DEFAULT_LINE_COLOR,
-  DEFAULT_LINE_WIDTH,
-  TRANSLATION_LANGUAGES,
-} from '~/constants'
+import { TRANSLATION_LANGUAGES } from '~/constants'
 import { isEmpty, omit } from 'lodash-es'
+import type { Schema as ZEditTag } from '~/composables/useEditTagState'
+import { schema as zEditTag } from '~/composables/useEditTagState'
 
 const props = defineProps<{
   tag: ITag
@@ -61,46 +57,25 @@ const selectedItem = computed(() => {
   }
 })
 
-const zEditTag = z.object({
-  locked: z.boolean(),
-  style: z.object({
-    fill: z.string().optional(),
-    stroke: z.string().optional(),
-    strokeWidth: z.number().optional(),
-    cornerRadius: z.number().optional(),
-  }),
-  i18nKey: z.string().optional(),
-  translation: zTranslation,
-})
-type ZEditTag = z.infer<typeof zEditTag>
+const selectedFramework = ref<'vue' | 'react'>('vue')
+const { state } = useEditTagState(tag)
 
-const state = reactive<ZEditTag>({
-  locked: tag.value.locked,
-  style: {
-    fill: tag.value.style?.fill || '',
-    stroke:
-      typeof tag.value.style?.stroke === 'string'
-        ? tag.value.style.stroke
-        : DEFAULT_LINE_COLOR,
-    strokeWidth: tag.value.style?.strokeWidth || DEFAULT_LINE_WIDTH,
-    cornerRadius: tag.value.style?.cornerRadius || DEFAULT_CORNER_RADIUS,
+const editableTranslationContent = computed<string>({
+  get(): string {
+    return (
+      (state.translation[selectedFramework.value]?.[
+        selectedLanguage.value
+      ] as string) || ''
+    )
   },
-  i18nKey: tag.value.i18nKey || '',
-  translation: { ...(tag.value.translation || {}) },
-})
-watch(tag, (val) => {
-  state.locked = val.locked
-  state.style = {
-    fill: val.style?.fill || '',
-    stroke:
-      typeof val.style?.stroke === 'string'
-        ? val.style.stroke
-        : DEFAULT_LINE_COLOR,
-    strokeWidth: val.style?.strokeWidth || DEFAULT_LINE_WIDTH,
-    cornerRadius: val.style?.cornerRadius || DEFAULT_CORNER_RADIUS,
-  }
-  state.i18nKey = val.i18nKey || ''
-  state.translation = { ...(val.translation || {}) }
+  set(value: string) {
+    let temp = state.translation[selectedFramework.value]
+    if (!temp) {
+      temp = {}
+    }
+    temp[selectedLanguage.value] = value
+    state.translation[selectedFramework.value] = temp
+  },
 })
 
 const isTransOriginChanged = ref<boolean>(false)
@@ -118,12 +93,12 @@ watch(
 
 async function onSubmit() {
   const preTag = omit(state, ['translation'])
-  let preTranslation = state.translation
+  const preTranslation = {
+    id: tag.value.translationID,
+    ...state.translation,
+  }
+  console.log('on submit', state.translation)
   try {
-    if (isTransOriginChanged.value && preTranslation.origin) {
-      const fingerprint = fpTranslation(preTranslation.origin)
-      preTranslation = { ...preTranslation, fingerprint }
-    }
     emit('save', {
       tag: preTag,
       translation: preTranslation,
@@ -345,10 +320,11 @@ const previewStyle = computed(() => ({
                   />
                 </template>
               </UFormField>
-              <UFormField label="Translations">
+              <UFormField label="Translations" :ui="{ label: 'w-full' }">
                 <template #label="{ label }">
                   <div class="flex items-center gap-3">
                     <span>{{ label }}</span>
+
                     <USelect
                       v-model="selectedLanguage"
                       :items="TRANSLATION_LANGUAGES"
@@ -363,11 +339,16 @@ const previewStyle = computed(() => ({
                       </template>
                     </USelect>
                     <AIButton class="[&>span]:h-6 [&>span]:leading-1" />
+                    <FrameworkGroup
+                      v-model="selectedFramework"
+                      class="ml-auto mr-0"
+                      size="sm"
+                    />
                   </div>
                 </template>
                 <template #default>
                   <UTextarea
-                    v-model="state.translation[selectedLanguage] as string"
+                    v-model="editableTranslationContent"
                     class="w-full"
                     :maxrows="4"
                     autoresize
@@ -388,8 +369,8 @@ const previewStyle = computed(() => ({
           <UButton
             label="Save"
             type="submit"
-            :loading="loading"
             icon="i-lucide-save"
+            :loading="loading"
           />
         </div>
       </UForm>

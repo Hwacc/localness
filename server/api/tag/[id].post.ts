@@ -25,7 +25,12 @@ export default defineEventHandler(async (event) => {
     },
     data: body as any,
     include: {
-      translation: true
+      translation: {
+        include: {
+          vue: true,
+          react: true,
+        },
+      },
     },
   })
   return updatedTag

@@ -14,6 +14,7 @@ import { injectTaskContext } from '~/providers/TaskProvider.vue'
 import { Task } from '~/libs/task-queue'
 import { TranslationLinkModal } from '#components'
 import type { ITranslation } from '~/types/Translation'
+import { isEmpty, map, pick } from 'lodash-es'
 
 definePageMeta({
   middleware: ['protected'],
@@ -225,16 +226,23 @@ onMounted(async () => {
                 return
               }
             }
-            if (translation && translation.id && !isTransOriginChanged) {
-              // trans origin not changed -> update translation
-              updatedTrans = await useApi(
-                `/api/translation/${translation.id}`,
-                {
-                  method: 'POST',
-                  body: translation,
-                }
-              )
-            }
+            const contentPromises = map(
+              pick(translation, ['vue', 'react']),
+              (item, key) => {
+                console.log('mapItem', item)
+                if (isEmpty(item)) return Promise.resolve()
+                return useApi(
+                  `/api/translation/${
+                    updatedTrans ? updatedTrans.id : translation?.id
+                  }/${key}`,
+                  {
+                    method: 'POST',
+                    body: item,
+                  }
+                )
+              }
+            )
+            await Promise.all(contentPromises)
             const updatedTag = await tagStore.updateTag(
               payload.id,
               updatedTrans

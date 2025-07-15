@@ -26,7 +26,12 @@ export default defineEventHandler(async (event) => {
   const createdTag = prisma.tag.create({
     data: data as any,
     include: {
-      translation: true,
+      translation: {
+        include: {
+          vue: true,
+          react: true,
+        },
+      },
     },
   })
   return createdTag

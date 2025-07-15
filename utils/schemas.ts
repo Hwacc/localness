@@ -101,18 +101,24 @@ export const zPageSetting = z.object(
 )
 export type ZPageSetting = z.infer<typeof zPageSetting>
 
+export const zTranslationContent = z.looseObject({
+  en: z.string().nullable().optional(),
+  zh_cn: z.string().nullable().optional(),
+  zh_tw: z.string().nullable().optional(),
+  ja: z.string().nullable().optional(),
+  ko: z.string().nullable().optional(),
+  ru: z.string().nullable().optional(),
+  fr: z.string().nullable().optional(),
+  de: z.string().nullable().optional(),
+  es: z.string().nullable().optional(),
+  pt: z.string().nullable().optional(), 
+})
+export type ZTranslationContent = z.infer<typeof zTranslationContent>
+
 export const zTranslation = z.looseObject({
-  origin: z.string().optional(),
-  fingerprint: z.string().optional(),
-  en: z.string().optional(),
-  zh_cn: z.string().optional(),
-  zh_tw: z.string().optional(),
-  ja: z.string().optional(),
-  ko: z.string().optional(),
-  ru: z.string().optional(),
-  fr: z.string().optional(),
-  de: z.string().optional(),
-  es: z.string().optional(),
-  pt: z.string().optional(),
+  origin: z.string().nullable().optional(),
+  fingerprint: z.string().nullable().optional(),
+  vue: zTranslationContent.nullable().optional(),
+  react: zTranslationContent.nullable().optional(),
 })
 export type ZTranslation = z.infer<typeof zTranslation>

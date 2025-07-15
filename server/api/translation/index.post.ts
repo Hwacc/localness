@@ -52,17 +52,11 @@ export default defineEventHandler(async (event) => {
       data: {
         origin: body.origin,
         fingerprint,
-        en: body.en || '',
-        zh_cn: body.zh_cn || '',
-        zh_tw: body.zh_tw || '',
-        ja: body.ja || '',
-        ko: body.ko || '',
-        ru: body.ru || '',
-        fr: body.fr || '',
-        de: body.de || '',
-        es: body.es || '',
-        pt: body.pt || '',
       },
+      include: {
+        vue: true,
+        react: true,
+      }
     })
     await prisma.translationLog.create({
       data: {
@@ -76,6 +70,7 @@ export default defineEventHandler(async (event) => {
     return translation
   } catch (error) {
     console.error(error)
+    // record error log
     await prisma.translationLog.create({
       data: {
         action: body.force ? 'FORCE_INSERT' : 'INSERT',
@@ -83,7 +78,7 @@ export default defineEventHandler(async (event) => {
         origin: body.origin,
         fingerprint,
         userID: numericID(session.user.id),
-      },
+      }
     })
     throw createError({
       statusCode: 500,

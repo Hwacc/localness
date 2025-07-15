@@ -1,5 +1,5 @@
-import prisma from "~/server/libs/prisma"
-import { numericID } from "~/utils/id"
+import prisma from '~/server/libs/prisma'
+import { numericID } from '~/utils/id'
 
 /**
  * @route GET /api/tag/:id
@@ -21,7 +21,12 @@ export default defineEventHandler(async (event) => {
       id: nID,
     },
     include: {
-      translation: true,
+      translation: {
+        include: {
+          vue: true,
+          react: true,
+        },
+      },
     },
   })
   return tag

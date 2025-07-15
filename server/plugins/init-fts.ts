@@ -8,7 +8,7 @@ export default defineNitroPlugin(async () => {
   if (result.length === 0) {
     console.log('[FTS] Translation_FTS Initializing...')
     await prisma.$executeRawUnsafe(`
-      CREATE VIRTUAL TABLE Translation_FTS USING fts5(origin, en, zh_cn);
+      CREATE VIRTUAL TABLE Translation_FTS USING fts5(origin);
     `)
 
     // create trigger
@@ -16,8 +16,8 @@ export default defineNitroPlugin(async () => {
       CREATE TRIGGER IF NOT EXISTS Translation_FTS_AfterInsert
       AFTER INSERT ON Translation
       BEGIN
-        INSERT INTO Translation_FTS (rowid, origin, en, zh_cn)
-        VALUES (new.id, new.origin, new.en, new.zh_cn);
+        INSERT INTO Translation_FTS (rowid, origin)
+        VALUES (new.id, new.origin);
       END;
     `)
 
@@ -27,9 +27,7 @@ export default defineNitroPlugin(async () => {
       AFTER UPDATE ON Translation
       BEGIN
         UPDATE Translation_FTS
-        SET origin = new.origin,
-            en = new.en,
-            zh_cn = new.zh_cn
+        SET origin = new.origin
         WHERE rowid = new.id;
       END;
     `)
