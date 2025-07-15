@@ -104,6 +104,7 @@ model Tag {
   className     String       @map("class_name")
   locked        Boolean      @default(false)
   style         Json
+  labelStyle    Json         @map("label_style")
   page          Page         @relation(fields: [pageID], references: [id], onDelete: Cascade)
   pageID        Int          @map("page_id")
   translation   Translation? @relation(fields: [translationID], references: [id])

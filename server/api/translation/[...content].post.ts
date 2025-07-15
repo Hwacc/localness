@@ -4,7 +4,11 @@ import { numericID } from '~/utils/id'
 import { zTranslationContent } from '~/utils/schemas'
 import { readZodBody } from '~/utils/validate'
 
-
+/**
+ * @route POST /api/translation/:id/:framework
+ * @description Update a translation content
+ * @access Private
+ */
 export default defineEventHandler(async (event) => {
   await requireUserSession(event)
 

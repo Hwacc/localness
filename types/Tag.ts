@@ -7,19 +7,20 @@ export type TagStyle = {
   cornerRadius?: number
   strokeWidth?: number
   stroke?: IStroke
-  text?: {
-    fontSize?: number
-    fontWeight?: 'normal' | 'bold'
-    fill?: string
-    wrap?: ITextWrap
-    align?:
-      | 'top-left'
-      | 'top-right'
-      | 'bottom-left'
-      | 'bottom-right'
-      | 'left'
-      | 'right'
-  }
+}
+
+export type LabelStyle = {
+  fill?: string
+  fontSize?: number
+  fontWeight?: 'normal' | 'bold'
+  textWrap?: ITextWrap
+  align?:
+    | 'top-left'
+    | 'top-right'
+    | 'bottom-left'
+    | 'bottom-right'
+    | 'left'
+    | 'right'
 }
 
 export interface ITag {
@@ -32,6 +33,7 @@ export interface ITag {
   className: string
   locked: boolean
   style: TagStyle
+  labelStyle: LabelStyle
   createdAt?: string
   updatedAt?: string
   translationID?: ID
@@ -52,6 +54,7 @@ export class Tag implements ITag {
   className: string = ''
   locked: boolean = false
   style: TagStyle = {} as TagStyle
+  labelStyle: LabelStyle = {} as LabelStyle
   createdAt?: string | undefined
   updatedAt?: string | undefined
   translation?: ITranslation | undefined

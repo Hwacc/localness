@@ -18,12 +18,12 @@ export default defineEventHandler(async (event) => {
     })
   }
   const nID = numericID(id)
-  const body = await readZodBody(event, zTag.parse)
+  const body = await readZodBody(event, zTag.partial().parse)
   const updatedTag = await prisma.tag.update({
     where: {
       id: nID,
     },
-    data: body as any,
+    data: body,
     include: {
       translation: {
         include: {

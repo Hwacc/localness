@@ -1,6 +1,11 @@
 import z from 'zod/v4'
 import {
   DEFAULT_CORNER_RADIUS,
+  DEFAULT_LABEL_ALIGN,
+  DEFAULT_LABEL_FILL,
+  DEFAULT_LABEL_FONT_SIZE,
+  DEFAULT_LABEL_FONT_WEIGHT,
+  DEFAULT_LABEL_WRAP,
   DEFAULT_LINE_COLOR,
   DEFAULT_LINE_WIDTH,
 } from '~/constants'
@@ -13,6 +18,13 @@ export const schema = z.object({
     stroke: z.string().optional(),
     strokeWidth: z.number().optional(),
     cornerRadius: z.number().optional(),
+  }),
+  labelStyle: z.object({
+    fill: z.string().optional(),
+    fontSize: z.number().optional(),
+    fontWeight: z.string().optional(),
+    textWrap: z.string().optional(),
+    align: z.string().optional(),
   }),
   i18nKey: z.string().optional(),
   translation: z.object({
@@ -32,6 +44,13 @@ export function useEditTagState(tag: MaybeRef<ITag>) {
       stroke: (unref(tag).style?.stroke || DEFAULT_LINE_COLOR) as string,
       strokeWidth: unref(tag).style?.strokeWidth || DEFAULT_LINE_WIDTH,
       cornerRadius: unref(tag).style?.cornerRadius || DEFAULT_CORNER_RADIUS,
+    },
+    labelStyle: {
+      fill: unref(tag).labelStyle?.fill || DEFAULT_LABEL_FILL,
+      fontSize: unref(tag).labelStyle?.fontSize || DEFAULT_LABEL_FONT_SIZE,
+      fontWeight: unref(tag).labelStyle?.fontWeight || DEFAULT_LABEL_FONT_WEIGHT,
+      textWrap: unref(tag).labelStyle?.textWrap || DEFAULT_LABEL_WRAP,
+      align: unref(tag).labelStyle?.align || DEFAULT_LABEL_ALIGN,
     },
     i18nKey: unref(tag).i18nKey || '',
     translation: {

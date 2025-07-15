@@ -5,6 +5,11 @@ import {
   DEFAULT_LINE_COLOR,
   DEFAULT_LINE_WIDTH,
   DEFAULT_CORNER_RADIUS,
+  DEFAULT_LABEL_FILL,
+  DEFAULT_LABEL_FONT_SIZE,
+  DEFAULT_LABEL_FONT_WEIGHT,
+  DEFAULT_LABEL_WRAP,
+  DEFAULT_LABEL_ALIGN,
 } from '~/constants'
 import { Editor } from './Editor'
 
@@ -12,6 +17,7 @@ class EditorTag extends Frame {
   public remoteTag: Partial<ITag> = {} as ITag
   public isLocked: boolean = false
   private textNode: Text | null = null
+  private textAlign: ITag['labelStyle']['align'] = DEFAULT_LABEL_ALIGN
 
   constructor(tag: Partial<ITag>) {
     super({
@@ -52,10 +58,11 @@ class EditorTag extends Frame {
       heightRange: { min: 20, max: Infinity },
     })
 
-    this.drawI18nKey(tag.style?.text)
+    this.textAlign = tag.labelStyle?.align || DEFAULT_LABEL_ALIGN
+    this.drawI18nKey(tag.labelStyle)
   }
 
-  private drawI18nKey(textStyle?: ITag['style']['text']) {
+  private drawI18nKey(labelStyle?: ITag['labelStyle']) {
     if (!this.remoteTag.i18nKey) {
       if (this.textNode) {
         this.textNode.remove()
@@ -63,23 +70,59 @@ class EditorTag extends Frame {
       }
       return
     }
-    const textOptions = {
+    const options = {
       text: this.remoteTag.i18nKey ?? '',
-      fontSize: textStyle?.fontSize ?? 14,
-      fontWeight: textStyle?.fontWeight ?? 'bold',
-      textWrap: textStyle?.wrap ?? 'none',
-      fill: textStyle?.fill ?? 'red',
+      fill: labelStyle?.fill ?? DEFAULT_LABEL_FILL,
+      fontSize: labelStyle?.fontSize ?? DEFAULT_LABEL_FONT_SIZE,
+      fontWeight: labelStyle?.fontWeight ?? DEFAULT_LABEL_FONT_WEIGHT,
+      textWrap: labelStyle?.textWrap ?? DEFAULT_LABEL_WRAP,
     }
     if (!this.textNode) {
-      this.textNode = new Text(textOptions)
+      this.textNode = new Text(options)
       this.add(this.textNode)
     } else {
-      this.textNode.set(textOptions)
+      this.textNode.set(options)
     }
-    this.textNode.set({
-      x: (this.remoteTag.width ?? 0) - (this.textNode.width ?? 0),
-      y: -(this.textNode.height ?? 0) - 2,
-    })
+
+    switch (this.textAlign) {
+      case 'top-right':
+      default:
+        this.textNode.set({
+          x: (this.remoteTag.width ?? 0) - (this.textNode.width ?? 0),
+          y: -(this.textNode.height ?? 0) - 2,
+        })
+        break
+      case 'top-left':
+        this.textNode.set({
+          x: 0,
+          y: -(this.textNode.height ?? 0) - 2,
+        })
+        break
+      case 'bottom-left':
+        this.textNode.set({
+          x: 0,
+          y: this.remoteTag.height ?? 0,
+        })
+        break
+      case 'bottom-right':
+        this.textNode.set({
+          x: (this.remoteTag.width ?? 0) - (this.textNode.width ?? 0),
+          y: this.remoteTag.height ?? 0,
+        })
+        break
+      case 'left':
+        this.textNode.set({
+          x: -(this.textNode.width ?? 0) - 2,
+          y: ((this.remoteTag.height ?? 0) - (this.textNode.height ?? 0)) / 2,
+        })
+        break
+      case 'right':
+        this.textNode.set({
+          x: (this.remoteTag.width ?? 0) + 2,
+          y: ((this.remoteTag.height ?? 0) - (this.textNode.height ?? 0)) / 2,
+        })
+        break
+    }
   }
 
   public lock(_lock: boolean) {
@@ -97,7 +140,7 @@ class EditorTag extends Frame {
   public update(rTag: Partial<ITag>) {
     this.remoteTag = { ...this.remoteTag, ...rTag }
     this.updateStyle(rTag.style)
-    this.drawI18nKey(rTag.style?.text)
+    this.updateLabelStyle(rTag.labelStyle)
   }
 
   public updateStyle(rStyle: Partial<ITag['style']> | undefined) {
@@ -108,6 +151,16 @@ class EditorTag extends Frame {
       stroke: rStyle.stroke ?? DEFAULT_LINE_COLOR,
       strokeWidth: rStyle.strokeWidth ?? DEFAULT_LINE_WIDTH,
     })
+  }
+
+  public updateLabelStyle(
+    rLabelStyle: Partial<ITag['labelStyle']> | undefined
+  ) {
+    if (isEmpty(rLabelStyle)) return
+    if (rLabelStyle.align && rLabelStyle.align !== this.textAlign) {
+      this.textAlign = rLabelStyle.align
+    }
+    this.drawI18nKey(rLabelStyle)
   }
 
   public async clip() {
@@ -122,14 +175,13 @@ class EditorTag extends Frame {
 
   public toTagJSON(options?: IJSONOptions): ITag {
     const original = super.toJSON(options)
-    const text = this.textNode?.toJSON()
+    const labelObject = this.textNode?.toJSON()
     const baseProps = pick(original, [
       'x',
       'y',
       'width',
       'height',
       'className',
-      'tag',
       'translationID',
       'translation',
     ])
@@ -139,17 +191,18 @@ class EditorTag extends Frame {
       'strokeWidth',
       'stroke',
     ]) as ITag['style']
-    if (text) {
-      styleProps.text = pick(text, [
-        'fontSize',
-        'fontWeight',
-        'fill',
-        'wrap',
-        'align',
-      ])
-    }
+    const labelStyle = pick(labelObject, [
+      'fontSize',
+      'fontWeight',
+      'fill',
+      'textWrap',
+    ])
     this.remoteTag.tagID = this.id
     this.remoteTag.style = { ...styleProps } as unknown as ITag['style']
+    this.remoteTag.labelStyle = {
+      ...labelStyle,
+      align: this.textAlign,
+    }
     this.remoteTag.locked = this.isLocked
     return { ...this.remoteTag, ...baseProps } as ITag
   }

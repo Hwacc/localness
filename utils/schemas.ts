@@ -1,4 +1,3 @@
-import type { ITag } from '~/types/Tag'
 import { z } from 'zod/v4'
 import { OCR_LANGUAGES } from '../constants'
 
@@ -14,23 +13,21 @@ export const zPassword = z
   )
 export type ZPassword = z.infer<typeof zPassword>
 
-type ZTagOmit = Omit<
-  Record<keyof ITag, z.ZodType>,
-  'id' | 'createdAt' | 'updatedAt' | 'translation'
->
-export const zTag = z.object<ZTagOmit>(
+
+export const zTag = z.object(
   {
-    pageID: z.number().nonnegative().optional(),
-    tagID: z.string().optional(),
-    className: z.string().optional(),
-    width: z.number().nonnegative().optional(),
-    height: z.number().nonnegative().optional(),
-    x: z.number().nonnegative().optional(),
-    y: z.number().nonnegative().optional(),
-    locked: z.boolean().optional(),
-    style: z.any().optional(),
-    translationID: z.number().nonnegative().nullable().optional(),
+    pageID: z.number().nonnegative(),
+    tagID: z.string(),
+    className: z.string(),
+    width: z.number().nonnegative(),
+    height: z.number().nonnegative(),
+    x: z.number().nonnegative(),
+    y: z.number().nonnegative(),
+    locked: z.boolean(),
+    style: z.any(),
+    labelStyle: z.any(),
     i18nKey: z.string().nullable().optional(),
+    translationID: z.number().nonnegative().nullable().optional(),
   },
   'Tag parameters validate failed'
 )

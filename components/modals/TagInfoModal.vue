@@ -127,6 +127,66 @@ const previewStyle = computed(() => ({
   border: `${state.style.strokeWidth}px solid ${state.style.stroke}`,
   borderRadius: `${state.style.cornerRadius}px`,
 }))
+
+const previewLabelStyle = computed(() => {
+  let position: {
+    top?: number | string
+    right?: number | string
+    bottom?: number | string
+    left?: number | string
+    transform: string
+  } = {
+    top: 0,
+    right: 0,
+    transform: 'translateY(-100%)',
+  }
+  switch (state.labelStyle.align) {
+    case 'top-left':
+      position = {
+        top: '2px',
+        left: 0,
+        transform: 'translateY(-100%)',
+      }
+      break
+    case 'top-right':
+    default:
+      break
+    case 'bottom-left':
+      position = {
+        bottom: '-2px',
+        left: 0,
+        transform: 'translateY(100%)',
+      }
+      break
+    case 'bottom-right':
+      position = {
+        bottom: '-2px',
+        right: 0,
+        transform: 'translateY(100%)',
+      }
+      break
+    case 'left':
+      position = {
+        top: '50%',
+        left: '-2px',
+        transform: 'translateX(-100%) translateY(-50%)',
+      }
+      break
+    case 'right':
+      position = {
+        top: '50%',
+        right: '-2px',
+        transform: 'translateX(100%) translateY(-50%)',
+      }
+      break
+  }
+  return {
+    color: state.labelStyle.fill,
+    fontSize: state.labelStyle.fontSize,
+    fontWeight: state.labelStyle.fontWeight,
+    ...position,
+  }
+})
 </script>
 
 <template>
@@ -211,6 +271,7 @@ const previewStyle = computed(() => ({
               </UFormField>
             </div>
           </template>
+
           <template #styles>
             <div class="flex flex-col gap-4">
               <UFormField label="Preview">
@@ -218,12 +279,14 @@ const previewStyle = computed(() => ({
                   class="w-full flex items-center justify-center h-16 image-container"
                 >
                   <div
-                    class="w-[50%] h-[calc(100%-2rem)] my-auto"
+                    class="w-[50%] h-[calc(100%-2rem)] my-auto relative"
                     :style="previewStyle"
-                  ></div>
+                  >
+                    <div class="absolute" :style="previewLabelStyle">Label</div>
+                  </div>
                 </div>
               </UFormField>
-              <div class="grid grid-cols-3 grid-rows-1 gap-4">
+              <div class="grid grid-cols-3 gap-4">
                 <UFormField label="Stroke Color">
                   <LineColorPicker
                     v-model="state.style.stroke"
@@ -249,9 +312,52 @@ const previewStyle = computed(() => ({
                     <span>{{ state.style.cornerRadius }} px</span>
                   </div>
                 </UFormField>
+                <UFormField label="Text Color">
+                  <LineColorPicker
+                    v-model="state.labelStyle.fill"
+                    class="w-full h-8"
+                  />
+                </UFormField>
+                <UFormField label="Text Weight">
+                  <USelect
+                    v-model="state.labelStyle.fontWeight"
+                    :items="[
+                      { label: 'Normal', value: 'normal' },
+                      { label: 'Bold', value: 'bold' },
+                    ]"
+                    class="w-full h-8"
+                  />
+                </UFormField>
+                <UFormField label="Text Size">
+                  <div class="flex items-center gap-4 h-8">
+                    <USlider
+                      v-model="state.labelStyle.fontSize"
+                      class="flex-1"
+                      :min="12"
+                      :max="20"
+                      :step="1"
+                    />
+                    <span>{{ state.labelStyle.fontSize }} px</span>
+                  </div>
+                </UFormField>
+                <UFormField label="Text Align">
+                  <USelect
+                    v-model="state.labelStyle.align"
+                    :items="[
+                      { label: 'Top-Left', value: 'top-left' },
+                      { label: 'Top-Right', value: 'top-right' },
+                      { label: 'Bottom-Left', value: 'bottom-left' },
+                      { label: 'Bottom-Right', value: 'bottom-right' },
+                      { label: 'Left', value: 'left' },
+                      { label: 'Right', value: 'right' },
+                    ]"
+                    class="w-full h-8"
+                  />
+                </UFormField>
               </div>
             </div>
           </template>
+
           <template #translations>
             <div
               v-if="isEmpty(state.translation)"

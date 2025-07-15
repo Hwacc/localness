@@ -22,6 +22,11 @@ export const SCALE_OPTIONS = [
 export const DEFAULT_CORNER_RADIUS = 4
 export const DEFAULT_LINE_WIDTH = 2
 export const DEFAULT_LINE_COLOR = '#FEB027'
+export const DEFAULT_LABEL_FONT_SIZE = 14
+export const DEFAULT_LABEL_FONT_WEIGHT = 'bold'
+export const DEFAULT_LABEL_FILL = '#FF0000'
+export const DEFAULT_LABEL_WRAP = 'none'
+export const DEFAULT_LABEL_ALIGN = 'top-right'
 
 export const WELCOME_TEXTS = [
   'Hello World',

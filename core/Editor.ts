@@ -149,7 +149,7 @@ class Editor extends EditorInteraction {
       style: {
         stroke: this.lineColor,
         strokeWidth: this.lineWidth,
-      },
+      }
     })
     this.tempTag.set({ editable: false })
     this.registerTagEvents(this.tempTag)

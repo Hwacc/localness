@@ -10,7 +10,12 @@ import { readZodBody } from '~/utils/validate'
 export default defineEventHandler(async (event) => {
   await requireUserSession(event)
   const data = await readZodBody(event, zTag.parse)
-
+  if (!data.pageID) {
+    throw createError({
+      statusCode: 400,
+      statusMessage: 'Missing pageID',
+    })
+  }
   const page = await prisma.page.findUnique({
     where: {
       id: data.pageID as number,
@@ -24,7 +29,7 @@ export default defineEventHandler(async (event) => {
   }
 
   const createdTag = prisma.tag.create({
-    data: data as any,
+    data: data,
     include: {
       translation: {
         include: {
