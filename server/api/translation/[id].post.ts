@@ -39,13 +39,12 @@ export default defineEventHandler(async (event) => {
   }
   // generate new fingerprint
   try {
+    const safeData = omit(body, ['id', 'fingerprint', 'vue', 'react'])
     const updatedTranslation = await prisma.translation.update({
       where: {
         id: nID,
       },
-      data: {
-        ...omit(body, ['id', 'fingerprint']),
-      },
+      data: safeData
     })
     await prisma.translationLog.create({
       data: {

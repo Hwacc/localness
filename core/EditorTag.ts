@@ -1,5 +1,11 @@
 import type { ITag } from '~/types/Tag'
-import { Frame, Text, type IJSONOptions, type ITextInputData } from 'leafer-ui'
+import {
+  dataType,
+  Frame,
+  Text,
+  type IJSONOptions,
+  type ITextInputData,
+} from 'leafer-ui'
 import { isEmpty, pick } from 'lodash-es'
 import {
   DEFAULT_LINE_COLOR,
@@ -13,11 +19,11 @@ import {
 } from '~/constants'
 import { Editor } from './Editor'
 
+Text.addAttr('align', 'top-right', dataType)
 class EditorTag extends Frame {
   public remoteTag: Partial<ITag> = {} as ITag
   public isLocked: boolean = false
   private textNode: Text | null = null
-  private textAlign: ITag['labelStyle']['align'] = DEFAULT_LABEL_ALIGN
 
   constructor(tag: Partial<ITag>) {
     super({
@@ -58,7 +64,6 @@ class EditorTag extends Frame {
       heightRange: { min: 20, max: Infinity },
     })
 
-    this.textAlign = tag.labelStyle?.align || DEFAULT_LABEL_ALIGN
     this.drawI18nKey(tag.labelStyle)
   }
 
@@ -76,6 +81,7 @@ class EditorTag extends Frame {
       fontSize: labelStyle?.fontSize ?? DEFAULT_LABEL_FONT_SIZE,
       fontWeight: labelStyle?.fontWeight ?? DEFAULT_LABEL_FONT_WEIGHT,
       textWrap: labelStyle?.textWrap ?? DEFAULT_LABEL_WRAP,
+      align: labelStyle?.align ?? DEFAULT_LABEL_ALIGN,
     }
     if (!this.textNode) {
       this.textNode = new Text(options as ITextInputData)
@@ -84,7 +90,7 @@ class EditorTag extends Frame {
       this.textNode.set(options as ITextInputData)
     }
 
-    switch (this.textAlign) {
+    switch ((this.textNode as any).align) {
       case 'top-right':
       default:
         this.textNode.set({
@@ -158,8 +164,11 @@ class EditorTag extends Frame {
     rLabelStyle: Partial<ITag['labelStyle']> | undefined
   ) {
     if (isEmpty(rLabelStyle)) return
-    if (rLabelStyle.align && rLabelStyle.align !== this.textAlign) {
-      this.textAlign = rLabelStyle.align
+    if (
+      rLabelStyle.align &&
+      rLabelStyle.align !== (this.textNode as any).align
+    ) {
+      ;(this.textNode as any).align = rLabelStyle.align
     }
     this.drawI18nKey(rLabelStyle)
   }
@@ -197,13 +206,11 @@ class EditorTag extends Frame {
       'fontWeight',
       'fill',
       'textWrap',
+      'align',
     ])
     this.remoteTag.tagID = this.id
     this.remoteTag.style = { ...styleProps } as unknown as ITag['style']
-    this.remoteTag.labelStyle = {
-      ...labelStyle,
-      align: this.textAlign,
-    }
+    this.remoteTag.labelStyle = labelStyle as ITag['labelStyle']
     this.remoteTag.locked = this.isLocked
     return { ...this.remoteTag, ...baseProps } as ITag
   }

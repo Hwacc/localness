@@ -22,7 +22,12 @@ export default defineEventHandler(async (event) => {
       pageID: nPageID,
     },
     include: {
-      translation: true,
+      translation: {
+        include: {
+          vue: true,
+          react: true,
+        },
+      },
     },
   })
   return tags

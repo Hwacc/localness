@@ -10,7 +10,7 @@ export function useTranslationGenerator() {
   const alertModal = overlay.create(AlertModal, {
     props: {
       mode: 'warning',
-      title: '',
+      title: 'Warning',
       loading: false,
       slots: {
         body: () => {

@@ -41,8 +41,8 @@ export const schema = z.object({
     .object({
       origin: z.string().optional(),
       fingerprint: z.string().optional(),
-      vue: zTranslationContent.optional(),
-      react: zTranslationContent.optional(),
+      vue: zTranslationContent.nullable().optional(),
+      react: zTranslationContent.nullable().optional(),
     })
     .nullable(),
 })

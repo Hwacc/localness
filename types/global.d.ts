@@ -27,3 +27,10 @@ declare module '#auth-utils' {
   // eslint-disable-next-line @typescript-eslint/no-empty-object-type
   interface SecureSessionData{}
 }
+
+declare module '*?worker' {
+  const WorkerFactory: {
+    new (): Worker
+  }
+  export default WorkerFactory
+}

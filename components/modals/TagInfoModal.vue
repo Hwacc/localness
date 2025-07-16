@@ -206,6 +206,7 @@ const previewLabelStyle = computed(() => {
         :schema="zEditTag"
         :state="state"
         @submit="onSubmit"
+        @error="(e) => console.error('error', e)"
       >
         <UTabs
           :items="tabsItems"

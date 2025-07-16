@@ -63,6 +63,9 @@ export default defineNuxtConfig({
     storesDirs: ['./stores/**'],
   },
   vite: {
+    worker: {
+      format: 'es',
+    },
     plugins: [tailwindcss()],
   },
 })

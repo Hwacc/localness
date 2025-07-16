@@ -1,3 +1,14 @@
+
+<script lang="ts">
+// @ts-expect-error Vite worker import, no type declaration available
+import ExportWorker from '~/assets/workers/export/index.ts?worker'
+const exportWorker = new ExportWorker()
+
+exportWorker.onmessage = (e: MessageEvent<any>) => {
+  console.log('exportWorker', e)
+}
+</script>
+
 <script setup lang="ts">
 import type { DropdownMenuItem } from '@nuxt/ui'
 import { ProjectModal } from '#components'
