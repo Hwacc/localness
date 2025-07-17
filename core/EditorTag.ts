@@ -23,7 +23,7 @@ Text.addAttr('align', 'top-right', dataType)
 class EditorTag extends Frame {
   public remoteTag: Partial<ITag> = {} as ITag
   public isLocked: boolean = false
-  private textNode: Text | null = null
+  private labelNode: Text | null = null
 
   constructor(tag: Partial<ITag>) {
     super({
@@ -69,9 +69,9 @@ class EditorTag extends Frame {
 
   private drawI18nKey(labelStyle?: ITag['labelStyle']) {
     if (!this.remoteTag.i18nKey) {
-      if (this.textNode) {
-        this.textNode.remove()
-        this.textNode = null
+      if (this.labelNode) {
+        this.labelNode.remove()
+        this.labelNode = null
       }
       return
     }
@@ -83,52 +83,13 @@ class EditorTag extends Frame {
       textWrap: labelStyle?.textWrap ?? DEFAULT_LABEL_WRAP,
       align: labelStyle?.align ?? DEFAULT_LABEL_ALIGN,
     }
-    if (!this.textNode) {
-      this.textNode = new Text(options as ITextInputData)
-      this.add(this.textNode)
+    if (!this.labelNode) {
+      this.labelNode = new Text(options as ITextInputData)
+      this.add(this.labelNode)
     } else {
-      this.textNode.set(options as ITextInputData)
+      this.labelNode.set(options as ITextInputData)
     }
-
-    switch ((this.textNode as any).align) {
-      case 'top-right':
-      default:
-        this.textNode.set({
-          x: (this.remoteTag.width ?? 0) - (this.textNode.width ?? 0),
-          y: -(this.textNode.height ?? 0) - 2,
-        })
-        break
-      case 'top-left':
-        this.textNode.set({
-          x: 0,
-          y: -(this.textNode.height ?? 0) - 2,
-        })
-        break
-      case 'bottom-left':
-        this.textNode.set({
-          x: 0,
-          y: this.remoteTag.height ?? 0,
-        })
-        break
-      case 'bottom-right':
-        this.textNode.set({
-          x: (this.remoteTag.width ?? 0) - (this.textNode.width ?? 0),
-          y: this.remoteTag.height ?? 0,
-        })
-        break
-      case 'left':
-        this.textNode.set({
-          x: -(this.textNode.width ?? 0) - 2,
-          y: ((this.remoteTag.height ?? 0) - (this.textNode.height ?? 0)) / 2,
-        })
-        break
-      case 'right':
-        this.textNode.set({
-          x: (this.remoteTag.width ?? 0) + 2,
-          y: ((this.remoteTag.height ?? 0) - (this.textNode.height ?? 0)) / 2,
-        })
-        break
-    }
+    this.updateLabelAlign()
   }
 
   public lock(_lock: boolean) {
@@ -166,11 +127,62 @@ class EditorTag extends Frame {
     if (isEmpty(rLabelStyle)) return
     if (
       rLabelStyle.align &&
-      rLabelStyle.align !== (this.textNode as any).align
+      this.labelNode &&
+      rLabelStyle.align !== (this.labelNode as any).align
     ) {
-      ;(this.textNode as any).align = rLabelStyle.align
+      ;(this.labelNode as any).align = rLabelStyle.align
     }
     this.drawI18nKey(rLabelStyle)
+  }
+
+  public updateLabelAlign(bounds?: { width: number; height: number }) {
+    if (!this.labelNode) return
+    // map sizes
+    const { width, height } = bounds ?? {
+      width: this.remoteTag.width ?? 0,
+      height: this.remoteTag.height ?? 0,
+    }
+    const labelWidth = this.labelNode.width ?? 0
+    const labelHeight = this.labelNode.height ?? 0
+    switch ((this.labelNode as any).align) {
+      case 'top-right':
+      default:
+        this.labelNode.set({
+          x: width - labelWidth,
+          y: -labelHeight - 2,
+        })
+        break
+      case 'top-left':
+        this.labelNode.set({
+          x: 0,
+          y: -labelHeight - 2,
+        })
+        break
+      case 'bottom-left':
+        this.labelNode.set({
+          x: 0,
+          y: height,
+        })
+        break
+      case 'bottom-right':
+        this.labelNode.set({
+          x: width - labelWidth,
+          y: height,
+        })
+        break
+      case 'left':
+        this.labelNode.set({
+          x: -labelWidth - 2,
+          y: (height - labelHeight) / 2,
+        })
+        break
+      case 'right':
+        this.labelNode.set({
+          x: width + 2,
+          y: (height - labelHeight) / 2,
+        })
+        break
+    }
   }
 
   public async clip() {
@@ -185,7 +197,7 @@ class EditorTag extends Frame {
 
   public toTagJSON(options?: IJSONOptions): ITag {
     const original = super.toJSON(options)
-    const labelObject = this.textNode?.toJSON()
+    const labelObject = this.labelNode?.toJSON()
     const baseProps = pick(original, [
       'x',
       'y',

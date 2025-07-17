@@ -35,7 +35,10 @@ export interface ITaskJobCallback {
   (error?: QueueError, result?: QueueResult): void
 }
 export interface ITaskJob {
-  (callback?: ITaskJobCallback): Promise<any> | null | undefined
+  (callback: ITaskJobCallback, context: Record<string, any>):
+    | Promise<any>
+    | null
+    | undefined
   timeout?: number // to override queue timeout
 }
 
@@ -69,6 +72,7 @@ export type QueueOptions = {
   state: TaskState
   type: 'task' | 'queue'
   createAt: number
+  context?: Record<string, any>
   name?: string
   description?: string
   concurrency?: number

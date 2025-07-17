@@ -3,7 +3,7 @@ import { isEmpty } from 'lodash-es'
 import type { ID } from '~/types/global'
 import type { ITag } from '~/types/Tag'
 
-export const useAutoSave = () => {
+export function useAutoSave() {
   const toast = useToast()
   const overlay = useOverlay()
 

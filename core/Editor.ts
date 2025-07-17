@@ -75,6 +75,12 @@ class Editor extends EditorInteraction {
 
     this.debounceTagChangeEvent = debounce(
       (action: string, target: IUI) => {
+        if (action === 'scale') {
+          ;(target as EditorTag).updateLabelAlign({
+            width: target.width ?? 0,
+            height: target.height ?? 0,
+          })
+        }
         this.emit('tag-change', {
           action,
           tag: (target as EditorTag).toTagJSON(),

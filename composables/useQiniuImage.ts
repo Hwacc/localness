@@ -1,6 +1,6 @@
 import { parseURL, parseQuery } from 'ufo'
 
-export const useQiniuImage = () => {
+export function useQiniuImage() {
   const { $imageCache, $dayjs } = useNuxtApp()
 
   /**

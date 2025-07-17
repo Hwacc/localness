@@ -1,6 +1,6 @@
 import * as qiniu from 'qiniu-js'
 
-export const useQiniuUpload = async (file: File, token: string) => {
+export async function useQiniuUpload(file: File, token: string) {
   const toast = useToast()
   /**
    * key: null use file hash

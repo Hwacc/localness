@@ -1,14 +1,3 @@
-
-<script lang="ts">
-// @ts-expect-error Vite worker import, no type declaration available
-import ExportWorker from '~/assets/workers/export/index.ts?worker'
-const exportWorker = new ExportWorker()
-
-exportWorker.onmessage = (e: MessageEvent<any>) => {
-  console.log('exportWorker', e)
-}
-</script>
-
 <script setup lang="ts">
 import type { DropdownMenuItem } from '@nuxt/ui'
 import { ProjectModal } from '#components'
@@ -27,6 +16,8 @@ const { createProject, updateProject, setCurrentProject } = projectStore
 const { editor, autoSave } = injectEditorContext()
 const { taskList } = injectTaskContext()
 
+const exporter = useProjectExport()
+
 const toast = useToast()
 const overlay = useOverlay()
 
@@ -38,7 +29,7 @@ const projectModal = overlay.create(ProjectModal, {
     onSave: () => {},
   },
 })
-const projectMenuItems: DropdownMenuItem[] = [
+const projectMenuItems = computed<DropdownMenuItem[]>(() => [
   {
     label: 'New Project',
     icon: 'i-lucide:folder-plus',
@@ -84,7 +75,11 @@ const projectMenuItems: DropdownMenuItem[] = [
   {
     label: 'Export Project',
     icon: 'i-tabler:package-export',
-    onSelect: () => {},
+    disabled: !exporter.ready.value,
+    onSelect: () => {
+      const queue = exporter.exportProject()
+      queue?.start()
+    },
   },
   {
     label: 'Project Settings',
@@ -101,7 +96,7 @@ const projectMenuItems: DropdownMenuItem[] = [
       projectModal.open()
     },
   },
-]
+])
 
 const enterTaskIndex = ref<number | null>(null)
 const clearTag = ref<number>(new Date().getTime())
@@ -132,6 +127,10 @@ function getTaskStateIcon(state: TaskState) {
       return { icon: 'i-ri:question-line', color: 'text-gray-500' }
   }
 }
+
+onUnmounted(() => {
+  console.log('onUnmounted')
+})
 </script>
 
 <template>

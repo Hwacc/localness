@@ -3,7 +3,7 @@
  * reference queue.js at: https://github.com/jessetane/queue
  */
 
-import { flatten, isArray } from 'lodash-es'
+import { flatten, isArray, merge } from 'lodash-es'
 import {
   QueueEvent,
   type QueueOptions,
@@ -50,6 +50,8 @@ export default class TaskQueue extends EventTarget {
   tasks: Array<Task | TaskQueue>
   timers: number[]
 
+  context: Record<string, any>
+
   private recordResults: Array<QueueResult | null> = [] // record queue result
 
   constructor(options: Partial<QueueOptions> = {}) {
@@ -75,6 +77,15 @@ export default class TaskQueue extends EventTarget {
     this.running = false
     this.tasks = []
     this.timers = []
+
+    this.context = new Proxy(this.options.context || {}, {
+      get: (target, prop, receiver) => {
+        return Reflect.get(target, prop, receiver)
+      },
+      set: (target, prop, receiver) => {
+        return Reflect.set(target, prop, receiver)
+      },
+    })
 
     if (this.options.explosive) {
       this.addEventListener('error', this.explodeError)
@@ -128,7 +139,7 @@ export default class TaskQueue extends EventTarget {
    * @returns Task | TaskQueue | undefined
    */
   find(task: Task | TaskQueue | string | undefined) {
-    if(!task) return
+    if (!task) return
     if (typeof task === 'string') {
       const findIndex = this.tasks.findIndex((t) => t.options.id === task)
       return this.tasks[findIndex]
@@ -141,7 +152,7 @@ export default class TaskQueue extends EventTarget {
    * @param task Task | TaskQueue | string
    */
   remove(task: Task | TaskQueue | string | undefined) {
-    if(!task) return
+    if (!task) return
     if (typeof task === 'string') {
       const findIndex = this.tasks.findIndex((t) => t.options.id === task)
       this.tasks.splice(findIndex, 1)
@@ -192,8 +203,9 @@ export default class TaskQueue extends EventTarget {
     // try to get job from task or queue
     if (task instanceof TaskQueue) {
       // this task is a queue, so we wrap it as job like
-      job = async () => {
+      job = async (_, context) => {
         return new Promise<any[] | null>((resolve, reject) => {
+          task.context = merge(context, task.context)
           task.start((error, results) => {
             if (error) reject(error)
             else resolve(results)
@@ -326,7 +338,7 @@ export default class TaskQueue extends EventTarget {
       })
     ) // dispatch start event
     // do a job
-    const jobPromise = job?.(next)
+    const jobPromise = job?.(next, this.context)
     if (jobPromise && jobPromise instanceof Promise) {
       jobPromise
         .then(function (result) {
