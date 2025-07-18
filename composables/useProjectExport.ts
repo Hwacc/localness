@@ -1,4 +1,7 @@
+import { isEmpty } from 'lodash-es'
+import { ExportWorkerBells } from '~/assets/workers/export/types'
 import TaskQueue, { Task } from '~/libs/task-queue'
+import type { IProject } from '~/types/Project'
 
 interface WorkerEx extends Worker {
   postAsyncMessage: (
@@ -12,6 +15,7 @@ export function useProjectExport() {
   const worker = shallowRef<WorkerEx>()
   const ready = ref(false)
   const projectStore = useProjectStore()
+  const qiniu = useQiniuImage()
 
   if (import.meta.client) {
     // @ts-expect-error Vite worker import, no type declaration available
@@ -42,7 +46,7 @@ export function useProjectExport() {
         }
         worker.value.addEventListener('message', (e: MessageEvent) => {
           const { bell } = e.data
-          if (bell === 'worker-ready') {
+          if (bell === ExportWorkerBells.READY) {
             ready.value = true
           }
         })
@@ -58,27 +62,122 @@ export function useProjectExport() {
       concurrency: 1,
       explosive: true,
     })
-
     const requestTask = new Task(
       async () => {
-        const project = await useApi(
-          `/api/project/export/${projectStore.curProject.id}`
+        const project = await useApi<IProject>(
+          `/api/project/export/${projectStore.curProject.id}`,
+          {
+            method: 'POST',
+          }
         )
-        const res = await worker.value?.postAsyncMessage({
-          bell: 'set-data',
+        worker.value?.postMessage({
+          bell: ExportWorkerBells.SET_DATA,
           payload: project,
         })
-        console.log('main received ', res)
-        return project
+        if (!isEmpty(project.pages)) {
+          const pageTasks = project.pages.map((page) => {
+            const pageQueue = new TaskQueue({
+              concurrency: 1,
+              name: `Export page ${page.name}`,
+              description: `Exporting page ${page.name}...`,
+            })
+            const imageUrlTask = new Task(
+              async (_, context) => {
+                const image = await qiniu.get(page.image)
+                context.image = image
+                await worker.value?.postAsyncMessage({
+                  bell: ExportWorkerBells.PRE_PAINT,
+                  payload: {
+                    page,
+                    image,
+                  },
+                })
+                return image
+              },
+              {
+                name: `Get image ${page.name}`,
+                description: `Getting image ${page.name}...`,
+              }
+            )
+            const genrateImageTask = new Task(
+              async () => {
+                const res = await worker.value?.postAsyncMessage({
+                  bell: ExportWorkerBells.PAINT,
+                })
+                console.log('paint success', res.data)
+                const url = URL.createObjectURL(res.data)
+                const a = document.createElement('a')
+                a.href = url
+                a.download = `${page.name}.jpg`
+                a.click()
+                URL.revokeObjectURL(url)
+                return true
+              },
+              {
+                name: `Generate image`,
+                description: `Generating image...`,
+              }
+            )
+            const generateTagsTask = new Task(
+              async () => {
+                await sleep(2000)
+                return true
+              },
+              {
+                name: `Generate tags`,
+                description: `Generating tags...`,
+              }
+            )
+            pageQueue.push(imageUrlTask)
+            pageQueue.push(genrateImageTask)
+            pageQueue.push(generateTagsTask)
+            return pageQueue
+          })
+          queue.unshiftPatch(...pageTasks)
+        }
+        return { status: 'ok' }
       },
       {
-        id: 'request-project-data',
-        name: 'Request Project Data',
-        description: 'Request project data for export',
+        name: 'Collect Project Data',
+        description: 'Collecting project data for export...',
       }
     )
 
+    const generateXlsxTask = new Task(
+      async (_, context) => {
+        console.log('generate xlsx', context)
+        await sleep(2000)
+        return true
+      },
+      {
+        name: 'Generate xlsx',
+        description: 'Generating xlsx...',
+      }
+    )
+    const generateZipTask = new Task(
+      async () => {
+        await sleep(2000)
+        return true
+      },
+      {
+        name: 'Generate zip',
+        description: 'Generating zip...',
+      }
+    )
+    const downloadTask = new Task(
+      async () => {
+        await sleep(2000)
+        return true
+      },
+      {
+        name: 'Download',
+        description: 'Downloading...',
+      }
+    )
     queue.push(requestTask)
+    queue.push(generateXlsxTask)
+    queue.push(generateZipTask)
+    queue.push(downloadTask)
     return queue
   }
 

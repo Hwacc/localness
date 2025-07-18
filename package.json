@@ -19,6 +19,7 @@
     "@leafer-in/state": "^1.7.0",
     "@leafer-in/view": "^1.7.0",
     "@leafer-in/viewport": "^1.7.0",
+    "@leafer/worker": "^1.8.0",
     "@nuxt/eslint": "1.4.1",
     "@nuxt/icon": "1.13.0",
     "@nuxt/image": "1.10.0",

@@ -4,15 +4,14 @@
  */
 
 import { flatten, isArray, merge } from 'lodash-es'
-import {
-  QueueEvent,
-  type QueueOptions,
-  type QueueResult,
-  type QueueError,
-  type ITaskJob,
-  TaskState,
-  type ITask,
+import type {
+  IQueueResultSuccess,
+  IQueueResultError,
+  ITask,
+  ITaskJob,
+  QueueOptions,
 } from './types'
+import { QueueEvent, TaskState } from './types'
 
 const has = Object.prototype.hasOwnProperty
 
@@ -52,7 +51,7 @@ export default class TaskQueue extends EventTarget {
 
   context: Record<string, any>
 
-  private recordResults: Array<QueueResult | null> = [] // record queue result
+  private recordResults: Array<IQueueResultSuccess | null> = [] // record queue result
 
   constructor(options: Partial<QueueOptions> = {}) {
     super()
@@ -133,6 +132,13 @@ export default class TaskQueue extends EventTarget {
     return methodsResult
   }
 
+  unshiftPatch(...queues: TaskQueue[]) {
+    queues.forEach((q) => (q.options.autostart = false))
+    const methodsResult = this.tasks.unshift(...queues)
+    if (this.options.autostart) this._start()
+    return methodsResult
+  }
+
   /**
    * find task by id
    * @param task Task | TaskQueue | string
@@ -167,8 +173,8 @@ export default class TaskQueue extends EventTarget {
 
   public start(
     callback?: (
-      error: QueueError | undefined,
-      results: Array<QueueResult | null>
+      error: IQueueResultError | undefined,
+      results: Array<IQueueResultSuccess | null>
     ) => void
   ) {
     if (this.running) throw new Error('already started')
@@ -233,7 +239,7 @@ export default class TaskQueue extends EventTarget {
      * @param error
      * @param result
      */
-    const next = (err?: QueueError, ...res: any[]) => {
+    const next = (err?: IQueueResultError, ...res: any[]) => {
       if (once && this.session === session) {
         once = false
         this.pending--
@@ -247,20 +253,18 @@ export default class TaskQueue extends EventTarget {
         } else if (!didTimeout) {
           const flatRes =
             res.length === 0 ? null : res.length === 1 ? res[0] : flatten(res)
-          const preResult: QueueResult = {
+          const preResult: IQueueResultSuccess = {
             id: task.options.id!,
             index: resultIndex,
             state: TaskState.Success,
             type: task.options.type,
+            info: task.options,
             result: flatRes,
           }
           const sendSuccess = () => {
             this.recordResults[resultIndex] = preResult
             this.dispatchEvent(
-              new QueueEvent(
-                'success',
-                this.recordResults[resultIndex] as QueueResult
-              )
+              new QueueEvent('success', this.recordResults[resultIndex])
             )
           }
           if (task instanceof TaskQueue && isArray(flatRes)) {
@@ -272,20 +276,14 @@ export default class TaskQueue extends EventTarget {
               preResult.state = TaskState.Timeout
               this.recordResults[resultIndex] = preResult
               this.dispatchEvent(
-                new QueueEvent(
-                  'timeout',
-                  this.recordResults[resultIndex] as QueueResult
-                )
+                new QueueEvent('timeout', this.recordResults[resultIndex])
               )
             }
             if (someError) {
               preResult.state = TaskState.Error
               this.recordResults[resultIndex] = preResult
               this.dispatchEvent(
-                new QueueEvent(
-                  'error',
-                  this.recordResults[resultIndex] as QueueError
-                )
+                new QueueEvent('error', this.recordResults[resultIndex])
               )
             } else sendSuccess()
           } else sendSuccess()
@@ -311,13 +309,10 @@ export default class TaskQueue extends EventTarget {
           index: resultIndex,
           state: TaskState.Timeout,
           type: task.options.type,
-          result: null,
+          info: task.options,
         }
         this.dispatchEvent(
-          new QueueEvent(
-            'timeout',
-            this.recordResults[resultIndex] as QueueResult
-          )
+          new QueueEvent('timeout', this.recordResults[resultIndex])
         )
         next()
       }, timeout) as unknown as number
@@ -335,6 +330,7 @@ export default class TaskQueue extends EventTarget {
         index: resultIndex,
         state: TaskState.Running,
         type: task.options.type,
+        info: task.options,
       })
     ) // dispatch start event
     // do a job
@@ -349,8 +345,9 @@ export default class TaskQueue extends EventTarget {
             id: task.options.id!,
             index: resultIndex,
             state: TaskState.Error,
-            error: err || new Error('Unknown error'),
             type: task.options.type,
+            info: task.options,
+            error: err || new Error('Unknown error'),
           })
         })
     }
@@ -364,7 +361,7 @@ export default class TaskQueue extends EventTarget {
     this.running = false
   }
 
-  end(error?: QueueError) {
+  end(error?: IQueueResultError) {
     this.clearTimers()
     this.tasks.length = 0
     this.pending = 0
@@ -380,8 +377,8 @@ export default class TaskQueue extends EventTarget {
 
   private addCallbackToEndEvent(
     cb: (
-      error: QueueError | undefined,
-      results: Array<QueueResult | null>
+      error: IQueueResultError | undefined,
+      results: Array<IQueueResultSuccess | null>
     ) => void
   ) {
     const onEnd = (evt: any) => {
@@ -399,7 +396,7 @@ export default class TaskQueue extends EventTarget {
     })
   }
 
-  done(error?: QueueError) {
+  done(error?: IQueueResultError) {
     this.session++
     this.running = false
     this.dispatchEvent(

@@ -78,6 +78,15 @@ const projectMenuItems = computed<DropdownMenuItem[]>(() => [
     disabled: !exporter.ready.value,
     onSelect: () => {
       const queue = exporter.exportProject()
+      queue?.addEventListener('start', (e) => {
+        console.log('export start', e.detail.info.name)
+      })
+      queue?.addEventListener('success', (e) => {
+        console.log('export success', e.detail.info.name)
+      })
+      queue?.addEventListener('end', (e) => {
+        console.log('export end', e.detail)
+      })
       queue?.start()
     },
   },

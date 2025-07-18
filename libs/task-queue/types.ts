@@ -6,33 +6,42 @@ export enum TaskState {
   Running = 3,
 }
 
-export type QueueResult = {
+export interface IQueueResultBase {
   id: string
   index: number
   state: TaskState
   type: 'task' | 'queue'
-  error?: Error
+  info: {
+    name?: string
+    description?: string
+    progress?: number
+  } & Record<string, any>
+}
+
+export interface IQueueResultSuccess extends IQueueResultBase {
   result?: any[] | any
 }
 
-export type QueueError = {
-  id: string
-  state: TaskState
+export interface IQueueResultError extends IQueueResultBase {
   error?: Error
-  index: number
-  type: 'task' | 'queue'
+}
+export interface IQueueResultTimeout extends IQueueResultBase {
+  [key: string]: any
 }
 
 export type QueueEventsMap = {
-  end: { error: QueueError | undefined; result: Array<QueueResult | null> }
-  error: QueueError
-  timeout: QueueResult
-  success: QueueResult
-  start: QueueResult
+  end: {
+    error: IQueueResultError | undefined
+    result: Array<IQueueResultSuccess | null>
+  }
+  error: IQueueResultError | null
+  timeout: IQueueResultTimeout | null
+  success: IQueueResultSuccess | null
+  start: IQueueResultSuccess | null
 }
 
 export interface ITaskJobCallback {
-  (error?: QueueError, result?: QueueResult): void
+  (error?: IQueueResultError, result?: IQueueResultSuccess): void
 }
 export interface ITaskJob {
   (callback: ITaskJobCallback, context: Record<string, any>):

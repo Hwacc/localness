@@ -2,7 +2,7 @@ import prisma from '~/server/libs/prisma'
 import { numericID } from '~/utils/id'
 
 /**
- * @route GET /api/project/export/:id
+ * @route POST /api/project/export/:id
  * @description Export a project
  * @access Private
  */
@@ -22,14 +22,32 @@ export default defineEventHandler(async (event) => {
     },
     include: {
       pages: {
+        where: {
+          AND: [{ image: { not: null } }, { image: { not: '' } }],
+        },
         orderBy: {
           updatedAt: 'desc',
         },
         include: {
           tags: {
+            where: {
+              AND: [
+                { i18nKey: { not: null } },
+                { i18nKey: { not: '' } },
+                {
+                  translationID: { not: null },
+                },
+              ],
+            },
             include: {
               translation: {
-                select: {
+                where: {
+                  AND: [
+                    { origin: { not: undefined } },
+                    { origin: { not: '' } },
+                  ],
+                },
+                include: {
                   vue: true,
                   react: true,
                 },

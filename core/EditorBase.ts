@@ -34,7 +34,7 @@ abstract class EditorBase {
     this.view = view
     this.app = new App({
       view,
-      tree: { type: 'viewport' },
+      tree: { type: 'design' },
       pointSnap: true,
       pixelSnap: true,
       editor: {
