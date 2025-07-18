@@ -250,6 +250,10 @@ export default class TaskQueue extends EventTarget {
         if (err) {
           this.recordResults[resultIndex] = err
           this.dispatchEvent(new QueueEvent('error', err))
+          if (this.options.explosive) {
+            this.end(err)
+            return
+          }
         } else if (!didTimeout) {
           const flatRes =
             res.length === 0 ? null : res.length === 1 ? res[0] : flatten(res)
