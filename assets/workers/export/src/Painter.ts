@@ -9,8 +9,9 @@ import {
 import mitt from 'mitt'
 
 class PainterTag extends Frame {
-  
+
 }
+
 class Painter {
   private leafer: Leafer
   private image: Image

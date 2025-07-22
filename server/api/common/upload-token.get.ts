@@ -1,7 +1,7 @@
-import { generateUploadToken } from '~/server/libs/qiniu'
+import OSSManager from '~/server/libs/oss'
 
 export default defineEventHandler(async (event) => {
   await requireUserSession(event)
-  const token = generateUploadToken()
+  const token = OSSManager.generateUploadToken()
   return token
 })

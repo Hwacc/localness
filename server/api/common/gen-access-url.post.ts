@@ -1,15 +1,18 @@
-import { generateDownloadAccessUrl } from '~/server/libs/qiniu'
 import { z } from 'zod/v4'
 import { readZodBody } from '~/utils/validate'
+import OSSManager from '~/server/libs/oss'
 
-const zGen = z.object({
-  key: z.string(),
-  deadline: z.number().optional(),
-}, 'Key and deadline are required')
+const zGen = z.object(
+  {
+    key: z.string(),
+    deadline: z.number().optional(),
+  },
+  'Key is required'
+)
 
 export default defineEventHandler(async (event) => {
   await requireUserSession(event)
   const { key, deadline } = await readZodBody(event, zGen.parse)
-  const url = generateDownloadAccessUrl(key, deadline)
+  const url = OSSManager.generateDownloadAccessUrl(key, deadline)
   return url
 })
