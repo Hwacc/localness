@@ -11,6 +11,7 @@ import { PointerEvent, Image, DragEvent } from 'leafer-ui'
 import '@leafer-in/view'
 import '@leafer-in/viewport'
 import '@leafer-in/export'
+import '@leafer-in/editor'
 import { debounce, isEmpty } from 'lodash-es'
 import { DotMatrix } from 'leafer-x-dot-matrix'
 import type { ITag } from '~/types/Tag'
@@ -37,7 +38,7 @@ class Editor extends EditorInteraction {
   private lineWidth = 2
   private lineColor = '#FEB027'
   private dotMatrix: DotMatrix
-  private debounceTagChangeEvent: (action: string, target: IUI) => void
+  private debounceTagChangeEvent: (action: string, target: EditorTag) => void
 
   public static imageClipper: ImageClipper
 
@@ -74,7 +75,7 @@ class Editor extends EditorInteraction {
     this.dotMatrix.enableDotMatrix(true)
 
     this.debounceTagChangeEvent = debounce(
-      (action: string, target: IUI) => {
+      (action: string, target: EditorTag) => {
         if (action === 'scale') {
           ;(target as EditorTag).updateLabelAlign({
             width: target.width ?? 0,
@@ -233,16 +234,16 @@ class Editor extends EditorInteraction {
     }
   }
   override onEditorMove(e: EditorMoveEvent) {
-    this.debounceTagChangeEvent('move', e.target)
+    this.debounceTagChangeEvent('move', e.target as IUI as EditorTag)
   }
   override onEditorScale(e: EditorScaleEvent) {
-    this.debounceTagChangeEvent('scale', e.target)
+    this.debounceTagChangeEvent('scale', e.target as IUI as EditorTag)
   }
   override onEditorRotate(e: EditorRotateEvent) {
-    this.debounceTagChangeEvent('rotate', e.target)
+    this.debounceTagChangeEvent('rotate', e.target as IUI as EditorTag)
   }
   override onEditorSkew(e: EditorSkewEvent) {
-    this.debounceTagChangeEvent('skew', e.target)
+    this.debounceTagChangeEvent('skew', e.target as IUI as EditorTag)
   }
 
   override onEditorSelect() {

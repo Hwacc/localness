@@ -10,8 +10,8 @@ export class QiniuOSS extends BaseOSS {
   constructor() {
     super()
     this.mac = new qiniu.auth.digest.Mac(
-      process.env.NUXT_QINIU_ACCESS_KEY,
-      process.env.NUXT_QINIU_SCRERT_KEY
+      process.env.NUXT_OSS_ACCESS_KEY,
+      process.env.NUXT_OSS_SCRERT_KEY
     )
     const options = {
       scope: 'coze-i18n',
