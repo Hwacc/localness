@@ -31,6 +31,7 @@ const emit = defineEmits<
 >()
 
 const toast = useToast()
+const ossUploader = useOSSUpload()
 
 const innerUrl = ref<string | null>(url)
 const innerFile = shallowRef<File | undefined>(file)
@@ -102,7 +103,6 @@ async function handleUpload() {
   if (!innerFile.value) {
     return null
   }
-  console.log('innerFile', innerFile.value.size, limitSize)
   if (limitSize > 0 && innerFile.value.size > limitSize) {
     toast.add({
       title: 'Error',
@@ -113,7 +113,7 @@ async function handleUpload() {
   }
   const uploadToken = await useApi<string>('/api/common/upload-token')
   if (!uploadToken) return null
-  const res = await useQiniuUpload(innerFile.value, uploadToken)
+  const res = await ossUploader.upload(innerFile.value, uploadToken)
   return res
 }
 

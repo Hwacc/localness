@@ -2,6 +2,7 @@ import { BaseOSS } from './BaseOSS'
 import fs from 'node:fs'
 import path from 'node:path'
 import { PassThrough, pipeline } from 'node:stream'
+import { OSSEngine } from '~/constants'
 
 class PublicFolder {
   private resourcesPath: string = path.join(process.cwd(), 'public/upload')
@@ -42,11 +43,11 @@ export class LocalOSS extends BaseOSS {
   private publicFolder = new PublicFolder()
   generateUploadToken(): string {
     // we dont need upload token for local oss, use user session judge instead
-    return ''
+    return OSSEngine.LOCAL
   }
   generateDownloadAccessUrl(): string {
     // we dont need download access
-    return ''
+    return OSSEngine.LOCAL
   }
   uploadAsset(filename: string, buffer: Buffer): Promise<string> {
     if (!buffer) {

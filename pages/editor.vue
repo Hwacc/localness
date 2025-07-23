@@ -23,7 +23,7 @@ definePageMeta({
 const pageStore = usePageStore()
 const { curPage, tagList } = storeToRefs(pageStore)
 const tagStore = useTagStore()
-const qiniuImage = useQiniuImage()
+const ossImage = useOSSImage()
 const autoSave = useAutoSave()
 const taskContext = injectTaskContext()
 const translationGenerator = useTranslationGenerator()
@@ -70,7 +70,7 @@ const isImageLoading = ref(false)
 watchEffect(() => {
   if (!editor.value || !curPage.value) return
   const initImage = async () => {
-    const imageUrl = await qiniuImage.get(curPage.value?.image)
+    const imageUrl = await ossImage.get(curPage.value?.image)
     editor.value?.setImage(imageUrl)
   }
   if (!editor.value.ready) {
@@ -81,7 +81,7 @@ watchEffect(() => {
 })
 
 onMounted(async () => {
-  const imageUrl = await qiniuImage.get(curPage.value?.image)
+  const imageUrl = await ossImage.get(curPage.value?.image)
   const { Editor } = await import('~/core/Editor')
 
   if (!editorContainer.value) return

@@ -100,11 +100,15 @@ async function onSubmit(_: FormSubmitEvent<ZPage>) {
     if (mode === 'edit') {
       // update page
       const uploadRes = await uploaderRef.value?.upload()
+      if (uploadRes) {
+        state.image = uploadRes.key
+      }
       await updatePage(page.id, uploadRes ? state : omit(state, 'image'))
     } else if (mode === 'create') {
       // create page
       const uploadRes = await uploaderRef.value?.upload()
       if (!uploadRes) return
+      state.image = uploadRes.key
       await createPage(state)
     }
     emit('save', state as Pick<IPage, 'name' | 'image' | 'settings'>, {

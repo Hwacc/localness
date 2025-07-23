@@ -15,7 +15,7 @@ export function useProjectExport() {
   const worker = shallowRef<WorkerEx>()
   const ready = ref(false)
   const projectStore = useProjectStore()
-  const qiniu = useQiniuImage()
+  const ossImage = useOSSImage()
 
   if (import.meta.client) {
     // @ts-expect-error Vite worker import, no type declaration available
@@ -83,7 +83,7 @@ export function useProjectExport() {
             })
             const imageUrlTask = new Task(
               async (_, context) => {
-                const image = await qiniu.get(page.image)
+                const image = await ossImage.get(page.image)
                 context.image = image
                 await worker.value?.postAsyncMessage({
                   bell: ExportWorkerBells.PRE_PAINT,

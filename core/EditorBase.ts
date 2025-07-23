@@ -1,6 +1,5 @@
 import mitt, { type EventType, type Handler } from 'mitt'
 import { App, Frame, Group, Image, LeaferEvent } from 'leafer-ui'
-
 interface EditorEvents {
   [event: EventType]: any // 支持任意事件名
 }

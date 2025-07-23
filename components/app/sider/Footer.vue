@@ -6,7 +6,7 @@ import { hasProtocol } from 'ufo'
 const authStore = useAuthStore()
 const store = useUserStore()
 const overlay = useOverlay()
-const qiniuImage = useQiniuImage()
+const ossImage = useOSSImage()
 
 const avartarUrl = ref('')
 watchEffect(async () => {
@@ -14,7 +14,7 @@ watchEffect(async () => {
   if (storeUrl) {
     if (hasProtocol(storeUrl)) avartarUrl.value = storeUrl
     else {
-      avartarUrl.value = await qiniuImage.get(storeUrl)
+      avartarUrl.value = await ossImage.get(storeUrl)
     }
   }
 })

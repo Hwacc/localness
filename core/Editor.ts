@@ -68,7 +68,7 @@ class Editor extends EditorInteraction {
       }
     )
 
-    this.app.editor.buttons.add(this.funcBtnGroup)
+    this.app.editor?.buttons.add(this.funcBtnGroup)
 
     this.dotMatrix = new DotMatrix(this.app)
     this.dotMatrix.enableDotMatrix(true)

@@ -25,7 +25,7 @@ const pageMenuItems: DropdownMenuItem[] = [
   },
 ]
 
-const qiniuImage = useQiniuImage()
+const ossImage = useOSSImage()
 const imageFileData = shallowRef<File | undefined>()
 const imageDropZoneRef = useTemplateRef<HTMLElement>('imageDropZoneRef')
 const { isOverDropZone } = useDropZone(imageDropZoneRef, {
@@ -78,7 +78,7 @@ function showCreatePageModal() {
 
 async function showEditPageModal() {
   if (!editPage.value) return
-  const url = await qiniuImage.get(editPage.value.image)
+  const url = await ossImage.get(editPage.value.image)
   pageModal.patch({
     mode: 'edit',
     page: { ...editPage.value, image: url },
@@ -194,7 +194,10 @@ function showDeleteAlertModal() {
           <template #content>
             <div class="flex flex-col gap-2 p-2">
               <p class="font-bold text-sm">Preview:</p>
-              <img v-qiniu="page.image" class="w-[17.5rem] object-scale-down" />
+              <img
+                v-oss-image="page.image"
+                class="w-[17.5rem] object-scale-down"
+              />
             </div>
           </template>
         </UPopover>

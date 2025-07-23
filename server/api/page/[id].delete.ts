@@ -1,5 +1,5 @@
 import prisma from '~/server/libs/prisma'
-import { deleteAsset } from '~/server/libs/qiniu'
+import OSSManager from '~/server/libs/oss'
 import { numericID } from '~/utils/id'
 
 /**
@@ -31,7 +31,7 @@ export default defineEventHandler(async (event) => {
       statusMessage: 'Page not found',
     })
   }
-  const deleteAssetFlag = await deleteAsset(page?.image || '')
+  const deleteAssetFlag = await OSSManager.deleteAsset(page?.image || '')
   if (!deleteAssetFlag) {
     throw createError({
       statusCode: 500,

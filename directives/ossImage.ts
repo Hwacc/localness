@@ -1,9 +1,11 @@
 import type { Directive } from 'vue'
 import { useImage } from '@vueuse/core'
 import { hasProtocol } from 'ufo'
+import { OSSEngine } from '~/constants'
 
-const doQiniu = async (el: HTMLElement, binding: any) => {
-  const qImage = useQiniuImage()
+const doImage = async (el: HTMLElement, binding: any) => {
+  const { ossEngine, ossBaseUrl } = useRuntimeConfig().public
+  const ossImage = useOSSImage()
   const { value, arg } = binding
 
   const isBg = arg === 'background' || arg === 'bg'
@@ -13,9 +15,17 @@ const doQiniu = async (el: HTMLElement, binding: any) => {
     ;(el as HTMLImageElement).src = 'http://iph.href.lu/600x400?text=Loading...'
   }
   let url = value
-  if (!hasProtocol(value)) {
-    url = await qImage.get(value)
+
+  if (ossEngine === OSSEngine.LOCAL) {
+    if (!hasProtocol(value) && !value.startsWith(ossBaseUrl)) {
+      url = await ossImage.get(value)
+    }
+  } else {
+    if (!hasProtocol(value)) {
+      url = await ossImage.get(value)
+    }
   }
+
   if (isBg) {
     const { isLoading, error } = await useImage({ src: url })
     watchEffect(() => {
@@ -36,13 +46,13 @@ const doQiniu = async (el: HTMLElement, binding: any) => {
   }
 }
 
-export const qiniuDirective: Directive = {
+export const ossImageDirective: Directive = {
   async mounted(el, binding) {
-    await doQiniu(el, binding)
+    await doImage(el, binding)
   },
   async updated(el, binding) {
     const { value, oldValue } = binding
     if (value === oldValue) return
-    await doQiniu(el, binding)
+    await doImage(el, binding)
   },
 }

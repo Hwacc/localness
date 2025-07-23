@@ -1,4 +1,6 @@
+import { isEmpty } from 'lodash-es'
 import OSSManager from '~/server/libs/oss'
+import { getFileKey, uuidFilename } from '~/utils/file'
 
 /**
  * @route POST /api/common/upload-file
@@ -14,16 +16,29 @@ export default defineEventHandler(async (event) => {
       statusMessage: 'Missing file',
     })
   }
-
   const allFiles = form.filter((item) => item.type)
+  const uploadedFiles = await Promise.all(
+    allFiles.map((item) => {
+      if (!item.filename) {
+        throw createError({
+          statusCode: 400,
+          statusMessage: 'Missing filename',
+        })
+      }
+      return OSSManager.uploadAsset(uuidFilename(item.filename), item.data)
+    })
+  )
 
-  allFiles.map(item => {
-    if (!item.filename) {
-      throw createError({
-        statusCode: 400,
-        statusMessage: 'Missing filename',
-      })
-    }
-    OSSManager.uploadAsset(item.filename, item.data)
+  if (isEmpty(uploadedFiles)) {
+    throw createError({
+      statusCode: 500,
+      statusMessage: 'Failed to upload file',
+    })
+  }
+
+  const result = uploadedFiles.map((item) => {
+    return getFileKey(item)
   })
+
+  return result
 })

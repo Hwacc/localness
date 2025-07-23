@@ -11,7 +11,6 @@ export interface Emits {
 </script>
 
 <script setup lang="ts">
-// eslint-disable-next-line import/first
 import type { HTMLAttributes } from 'vue'
 
 const {
@@ -54,7 +53,7 @@ function onDelete(e: MouseEvent) {
     @click="onClick"
   >
     <img
-      v-qiniu="url"
+      v-oss-image="url"
       class="w-full max-h-[28.125rem] object-scale-down"
       alt="Preview Image"
     />

@@ -4,6 +4,12 @@ export enum UserRole {
   GUEST = 'GUEST',
 }
 
+export enum OSSEngine {
+  LOCAL = 'LOCAL',
+  CLOUDFLARE = 'CLOUDFLARE',
+  QINIU = 'QINIU',
+}
+
 export const SCALE_OPTIONS = [
   {
     label: '100%',

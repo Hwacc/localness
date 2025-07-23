@@ -14,7 +14,8 @@ export default defineNuxtConfig({
   ],
   runtimeConfig: {
     public: {
-      imageBase: process.env.NUXT_PUBLIC_QINIU_DOMAIN,
+      ossEngine: process.env.NUXT_PUBLIC_OSS_ENGINE,
+      ossBaseUrl: process.env.NUXT_PUBLIC_OSS_BASE_URL,
     },
   },
   css: ['~/assets/css/index.css'],

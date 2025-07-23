@@ -1,58 +1,39 @@
 import type { BaseOSS } from './oss/BaseOSS'
 import { LocalOSS } from './oss/LocalOSS'
 import { QiniuOSS } from './oss/QiniuOSS'
-
-enum EngineTypes {
-  LOCAL = 'LOCAL',
-  CLOUDFLARE = 'CLOUDFLARE',
-  QINIU = 'QINIU',
-}
+import { OSSEngine } from '~/constants'
 
 class OSSManager {
   private static instance: OSSManager
-  private engineType: EngineTypes =
-    (process.env.NUXT_OSS_ENGINE_TYPE as EngineTypes) || EngineTypes.LOCAL
+  private engineType: OSSEngine =
+    (process.env.NUXT_OSS_ENGINE_TYPE as OSSEngine) || OSSEngine.LOCAL
   private oss!: BaseOSS
 
   private constructor() {
-    if (this.engineType === EngineTypes.QINIU) {
+    if (this.engineType === OSSEngine.QINIU) {
       this.oss = new QiniuOSS()
-    } else if (this.engineType === EngineTypes.LOCAL) {
+    } else if (this.engineType === OSSEngine.LOCAL) {
       this.oss = new LocalOSS()
     }
   }
 
   public generateUploadToken() {
-    if (this.engineType === EngineTypes.QINIU) {
-      return this.oss.generateUploadToken()
-    }
-    return ''
+    return this.oss.generateUploadToken()
   }
 
   public generateDownloadAccessUrl(key: string, deadline?: number) {
-    if (this.engineType === EngineTypes.QINIU) {
-      return this.oss.generateDownloadAccessUrl(key, deadline)
-    }
-    return ''
+    return this.oss.generateDownloadAccessUrl(key, deadline)
   }
 
   public uploadAsset(filename: string, buffer: Buffer): Promise<string> {
-    if (this.engineType === EngineTypes.QINIU) {
-      return this.oss.uploadAsset(filename, buffer)
-    }
-    if (this.engineType === EngineTypes.LOCAL) {
-      return this.oss.uploadAsset(filename, buffer)
-    }
-    return Promise.resolve('')
+    return this.oss.uploadAsset(filename, buffer)
   }
 
   public deleteAsset(key: string): Promise<boolean> {
-    if (this.engineType === EngineTypes.QINIU) {
-      return this.oss.deleteAsset(key)
-    }
-    return Promise.resolve(false)
+    return this.oss.deleteAsset(key)
   }
 
+  // singleton pattern
   public static getInstance(): OSSManager {
     if (!this.instance) {
       this.instance = new OSSManager()
