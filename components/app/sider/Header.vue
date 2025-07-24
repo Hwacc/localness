@@ -77,6 +77,7 @@ const projectMenuItems = computed<DropdownMenuItem[]>(() => [
     icon: 'i-tabler:package-export',
     disabled: !exporter.ready.value,
     onSelect: () => {
+      // TODO: make a step modal to export
       const queue = exporter.exportProject()
       queue?.addEventListener('start', (e) => {
         console.log('export start', e.detail.info.name)
