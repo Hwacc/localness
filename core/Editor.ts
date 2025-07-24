@@ -26,6 +26,7 @@ import ImageClipper from './ImageClipper'
 import FuncBtnGroup from './buttons/FuncBtnGroup'
 import { FuncBtnType } from './buttons/FuncBtn'
 import EditorTag from './EditorTag'
+import { DEFAULT_LINE_COLOR, DEFAULT_LINE_WIDTH } from '~/constants'
 
 class Editor extends EditorInteraction {
   private tempTag: EditorTag | null = null
@@ -35,8 +36,8 @@ class Editor extends EditorInteraction {
   }
 
   private funcBtnGroup: FuncBtnGroup
-  private lineWidth = 2
-  private lineColor = '#FEB027'
+  private lineWidth = DEFAULT_LINE_WIDTH
+  private lineColor = DEFAULT_LINE_COLOR
   private dotMatrix: DotMatrix
   private debounceTagChangeEvent: (action: string, target: EditorTag) => void
 

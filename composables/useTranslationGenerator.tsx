@@ -4,6 +4,7 @@ import { omit } from 'lodash-es'
 import { AlertModal, UAlert, UButton } from '#components'
 
 export function useTranslationGenerator() {
+  const toast = useToast()
   const pageStore = usePageStore()
   const overlay = useOverlay()
 
@@ -152,7 +153,15 @@ export function useTranslationGenerator() {
       method: 'POST',
       body: { image, language: lang },
     })
-    if (!ocrRes) return
+    if (!ocrRes) {
+      toast.add({
+        title: 'Error',
+        description: 'Failed to OCR image',
+        icon: 'i-lucide:circle-x',
+        color: 'error',
+      })
+      return
+    }
     return await generateTranslation({
       origin: ocrRes.text,
       fingerprint: ocrRes.fingerprint,

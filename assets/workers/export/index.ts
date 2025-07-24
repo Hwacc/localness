@@ -1,10 +1,10 @@
-import type { IProject } from '~/types/Project'
 import { ExportWorkerBells } from './types'
 import { Painter } from './src/Painter'
-
-let projectData: IProject
+import { Lister } from './src/Lister'
 
 const painter = new Painter()
+const lister = new Lister()
+
 painter.on('ready', () => {
   sendMessage(ExportWorkerBells.READY, { status: 'ready' })
 })
@@ -32,13 +32,14 @@ function sendMessage(bell: string, payload: any, error?: any) {
 
 self.addEventListener('message', (evt: MessageEvent) => {
   console.log('Export worker receive message', evt)
-  const { bell, payload, type } = evt.data
+  const { bell, payload } = evt.data
   switch (bell) {
-    case ExportWorkerBells.SET_DATA:
-      projectData = payload
-      break
     case ExportWorkerBells.PRE_PAINT:
       painter.setImage(payload.image)
+      break
+    case ExportWorkerBells.SET_TAGS:
+      painter.setTags(payload.tags)
+      sendMessage(ExportWorkerBells.SET_TAGS, { status: 'ok' })
       break
     case ExportWorkerBells.PAINT:
       painter.export().then((res) => {
@@ -49,7 +50,20 @@ self.addEventListener('message', (evt: MessageEvent) => {
         })
       })
       break
-
+    case ExportWorkerBells.GENERATE_XLSX:
+      lister.setTags(payload.tags)
+      lister.generateXlsx().then((res) => {
+        sendMessage(ExportWorkerBells.GENERATE_XLSX, {
+          status: 'ok',
+          data: res,
+        })
+      }).catch((error) => {
+        sendMessage(`error:${ExportWorkerBells.GENERATE_XLSX}`, {
+          status: 'error',
+          error,
+        })
+      })
+      break
     default:
       break
   }

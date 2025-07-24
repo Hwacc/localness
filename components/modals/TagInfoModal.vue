@@ -186,7 +186,7 @@ const previewLabelStyle = computed(() => {
   }
   return {
     color: state.labelStyle.fill,
-    fontSize: state.labelStyle.fontSize,
+    fontSize: state.labelStyle.fontSize + 'px',
     fontWeight: state.labelStyle.fontWeight,
     ...position,
   }

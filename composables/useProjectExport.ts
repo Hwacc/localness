@@ -1,7 +1,8 @@
-import { isEmpty } from 'lodash-es'
+import { flatMapDeep, isEmpty } from 'lodash-es'
 import { ExportWorkerBells } from '~/assets/workers/export/types'
 import TaskQueue, { Task } from '~/libs/task-queue'
 import type { IProject } from '~/types/Project'
+import JSZip from 'jszip'
 
 interface WorkerEx extends Worker {
   postAsyncMessage: (
@@ -62,18 +63,16 @@ export function useProjectExport() {
       concurrency: 1,
       explosive: true,
     })
+
     const requestTask = new Task(
-      async () => {
+      async (_, context) => {
         const project = await useApi<IProject>(
           `/api/project/export/${projectStore.curProject.id}`,
           {
             method: 'POST',
           }
         )
-        worker.value?.postMessage({
-          bell: ExportWorkerBells.SET_DATA,
-          payload: project,
-        })
+        context.project = project
         if (!isEmpty(project.pages)) {
           const pageTasks = project.pages.map((page) => {
             const pageQueue = new TaskQueue({
@@ -82,59 +81,62 @@ export function useProjectExport() {
               description: `Exporting page ${page.name}...`,
             })
             const imageUrlTask = new Task(
-              async (_, context) => {
+              async () => {
                 const image = await ossImage.get(page.image)
-                context.image = image
                 await worker.value?.postAsyncMessage({
                   bell: ExportWorkerBells.PRE_PAINT,
                   payload: {
                     page,
-                    image,
+                    image: `${image}?t=${Date.now()}`,
                   },
                 })
-                return image
+                return { status: 'ok' }
               },
               {
                 name: `Get image ${page.name}`,
                 description: `Getting image ${page.name}...`,
               }
             )
-            const genrateImageTask = new Task(
-              async () => {
-                const res = await worker.value?.postAsyncMessage({
-                  bell: ExportWorkerBells.PAINT,
-                })
-                console.log('paint success', res.data)
-                const url = URL.createObjectURL(res.data)
-                const a = document.createElement('a')
-                a.href = url
-                a.download = `${page.name}.jpg`
-                a.click()
-                URL.revokeObjectURL(url)
-                return true
-              },
-              {
-                name: `Generate image`,
-                description: `Generating image...`,
-              }
-            )
             const generateTagsTask = new Task(
               async () => {
-                await sleep(2000)
-                return true
+                const tags = page.tags
+                await worker.value?.postAsyncMessage({
+                  bell: ExportWorkerBells.SET_TAGS,
+                  payload: {
+                    tags,
+                  },
+                })
+                return { status: 'ok' }
               },
               {
                 name: `Generate tags`,
                 description: `Generating tags...`,
               }
             )
+            const genrateImageTask = new Task(
+              async (_, context) => {
+                const res = await worker.value?.postAsyncMessage({
+                  bell: ExportWorkerBells.PAINT,
+                })
+                context.images.push({
+                  name: `${page.name}.jpg`,
+                  data: res.data,
+                })
+                return { status: 'ok' }
+              },
+              {
+                name: `Generate image`,
+                description: `Generating image...`,
+              }
+            )
             pageQueue.push(imageUrlTask)
-            pageQueue.push(genrateImageTask)
             pageQueue.push(generateTagsTask)
+            pageQueue.push(genrateImageTask)
             return pageQueue
           })
           queue.unshiftPatch(...pageTasks)
         }
+        context.images = new Array<{ name: string; data: Blob }>()
         return { status: 'ok' }
       },
       {
@@ -146,8 +148,21 @@ export function useProjectExport() {
     const generateXlsxTask = new Task(
       async (_, context) => {
         console.log('generate xlsx', context)
-        await sleep(2000)
-        return true
+        const project = context.project as IProject
+        const allTags = flatMapDeep(project.pages, (page) => {
+          return page.tags.map((tag) => {
+            return {
+              ...tag,
+              pic: `${page.name}.jpg`,
+            }
+          })
+        })
+        const res = await worker.value?.postAsyncMessage({
+          bell: ExportWorkerBells.GENERATE_XLSX,
+          payload: { tags: allTags },
+        })
+        context.xlsx = res.data
+        return { status: 'ok' }
       },
       {
         name: 'Generate xlsx',
@@ -155,9 +170,17 @@ export function useProjectExport() {
       }
     )
     const generateZipTask = new Task(
-      async () => {
-        await sleep(2000)
-        return true
+      async (_, context) => {
+        const zip = new JSZip()
+        if (!isEmpty(context.images)) {
+          context.images.forEach((image: { name: string; data: Blob }) => {
+            zip.file(image.name, image.data)
+          })
+        }
+        context.xlsx && zip.file(`${context.project.name}.xlsx`, context.xlsx)
+        const buffer = await zip.generateAsync({ type: 'blob' })
+        context.zip = buffer
+        return { status: 'ok' }
       },
       {
         name: 'Generate zip',
@@ -165,9 +188,15 @@ export function useProjectExport() {
       }
     )
     const downloadTask = new Task(
-      async () => {
-        await sleep(2000)
-        return true
+      async (_, context) => {
+        const blob = context.zip
+        const url = URL.createObjectURL(blob)
+        const a = document.createElement('a')
+        a.href = url
+        a.download = `${context.project.name}.zip`
+        a.click()
+        URL.revokeObjectURL(url)
+        return { status: 'ok' }
       },
       {
         name: 'Download',
