@@ -190,7 +190,7 @@ export const TRANSLATION_LANGUAGES = [
   {
     short: 'Jpn',
     label: 'Japanese',
-    value: 'jp',
+    value: 'ja',
     icon: 'i-circle-flags:jp',
   },
   {

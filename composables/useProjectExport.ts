@@ -147,7 +147,6 @@ export function useProjectExport() {
 
     const generateXlsxTask = new Task(
       async (_, context) => {
-        console.log('generate xlsx', context)
         const project = context.project as IProject
         const allTags = flatMapDeep(project.pages, (page) => {
           return page.tags.map((tag) => {

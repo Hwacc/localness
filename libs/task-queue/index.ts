@@ -410,6 +410,14 @@ export default class TaskQueue extends EventTarget {
       })
     )
     // when down reset records
+    this.context = new Proxy(this.options.context || {}, {
+      get: (target, prop, receiver) => {
+        return Reflect.get(target, prop, receiver)
+      },
+      set: (target, prop, receiver) => {
+        return Reflect.set(target, prop, receiver)
+      },
+    })
     this.recordResults = []
   }
 }
