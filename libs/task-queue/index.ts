@@ -268,7 +268,7 @@ export default class TaskQueue extends EventTarget {
           const sendSuccess = () => {
             this.recordResults[resultIndex] = preResult
             this.dispatchEvent(
-              new QueueEvent('success', this.recordResults[resultIndex])
+              new QueueEvent('success', preResult)
             )
           }
           if (task instanceof TaskQueue && isArray(flatRes)) {
@@ -280,14 +280,14 @@ export default class TaskQueue extends EventTarget {
               preResult.state = TaskState.Timeout
               this.recordResults[resultIndex] = preResult
               this.dispatchEvent(
-                new QueueEvent('timeout', this.recordResults[resultIndex])
+                new QueueEvent('timeout', preResult)
               )
             }
             if (someError) {
               preResult.state = TaskState.Error
               this.recordResults[resultIndex] = preResult
               this.dispatchEvent(
-                new QueueEvent('error', this.recordResults[resultIndex])
+                new QueueEvent('error', preResult)
               )
             } else sendSuccess()
           } else sendSuccess()

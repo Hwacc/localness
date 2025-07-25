@@ -57,7 +57,7 @@ export function useProjectExport() {
       })
   }
 
-  function exportProject() {
+  function exportProject(params: ZExport) {
     if (!ready.value) return null
     const queue = new TaskQueue({
       concurrency: 1,
@@ -70,6 +70,7 @@ export function useProjectExport() {
           `/api/project/export/${projectStore.curProject.id}`,
           {
             method: 'POST',
+            body: params,
           }
         )
         context.project = project

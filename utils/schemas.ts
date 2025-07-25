@@ -13,7 +13,6 @@ export const zPassword = z
   )
 export type ZPassword = z.infer<typeof zPassword>
 
-
 export const zTag = z.object(
   {
     pageID: z.number().nonnegative(),
@@ -108,7 +107,7 @@ export const zTranslationContent = z.looseObject({
   fr: z.string().nullable().optional(),
   de: z.string().nullable().optional(),
   es: z.string().nullable().optional(),
-  pt: z.string().nullable().optional(), 
+  pt: z.string().nullable().optional(),
 })
 export type ZTranslationContent = z.infer<typeof zTranslationContent>
 
@@ -119,3 +118,21 @@ export const zTranslation = z.looseObject({
   react: zTranslationContent.nullable().optional(),
 })
 export type ZTranslation = z.infer<typeof zTranslation>
+
+export const zExport = z.object(
+  {
+    pages: z.array(z.string()),
+    fileFormat: z.array(
+      z.string().refine((v) => v === 'xlsx' || v === 'json', {
+        message: 'fileFormat must be xlsx or json',
+      })
+    ),
+    i18nKey: z.boolean(),
+    dateRange: z.object({
+      start: z.iso.datetime().optional(),
+      end: z.iso.datetime().optional(),
+    }),
+  },
+  'Export parameters validate failed'
+)
+export type ZExport = z.infer<typeof zExport>

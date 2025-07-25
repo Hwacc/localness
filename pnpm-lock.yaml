@@ -11,6 +11,9 @@ importers:
       '@iconify-json/lucide':
         specifier: ^1.2.56
         version: 1.2.56
+      '@internationalized/date':
+        specifier: ^3.8.2
+        version: 3.8.2
       '@leafer-in/editor':
         specifier: ^1.8.0
         version: 1.8.0(@leafer-in/interface@1.8.0(@leafer-ui/interface@1.8.0)(@leafer/interface@1.8.0))(@leafer-in/resize@1.8.0(@leafer-in/interface@1.8.0(@leafer-ui/interface@1.8.0)(@leafer/interface@1.8.0))(@leafer-ui/draw@1.8.0)(@leafer-ui/interface@1.8.0))(@leafer-ui/core@1.8.0)(@leafer-ui/draw@1.8.0)(@leafer-ui/interface@1.8.0)

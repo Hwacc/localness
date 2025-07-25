@@ -1,5 +1,9 @@
 <script lang="ts">
-import type { ITask, QueueResult, TaskState } from '~/libs/task-queue/types'
+import type {
+  ITask,
+  TaskState,
+  IQueueResultBase,
+} from '~/libs/task-queue/types'
 import TaskQueue from '~/libs/task-queue'
 import { pick } from 'lodash-es'
 
@@ -51,7 +55,7 @@ const backendTaskQueue = new TaskQueue({
 })
 
 const taskList = reactive<IFrontendTask[]>([])
-function mergeResult(result: QueueResult) {
+function mergeResult(result: IQueueResultBase) {
   const foundTask = taskList.find((t) => t.id === result.id)
   if (foundTask) {
     Object.assign(foundTask, result)

@@ -1,5 +1,6 @@
 import prisma from '~/server/libs/prisma'
 import { numericID } from '~/utils/id'
+import { zExport } from '~/utils/schemas'
 
 /**
  * @route POST /api/project/export/:id
@@ -16,6 +17,14 @@ export default defineEventHandler(async (event) => {
     })
   }
   const nID = numericID(id)
+
+  const body = await readValidatedBody(event, zExport.parse)
+
+  const inPages = body.pages.map((pageID) => numericID(pageID))
+  const inEmptyI18nKey = body.i18nKey
+  const startUpdatedAt = body.dateRange?.start
+  const endUpdatedAt = body.dateRange?.end
+
   const project = await prisma.project.findUnique({
     where: {
       id: nID,
@@ -23,7 +32,11 @@ export default defineEventHandler(async (event) => {
     include: {
       pages: {
         where: {
-          AND: [{ image: { not: null } }, { image: { not: '' } }],
+          AND: [
+            { id: { in: inPages } },
+            { image: { not: null } },
+            { image: { not: '' } },
+          ],
         },
         orderBy: {
           updatedAt: 'desc',
@@ -32,8 +45,10 @@ export default defineEventHandler(async (event) => {
           tags: {
             where: {
               AND: [
-                { i18nKey: { not: null } },
-                { i18nKey: { not: '' } },
+                { i18nKey: inEmptyI18nKey ? undefined : { not: null } },
+                { i18nKey: inEmptyI18nKey ? undefined : { not: '' } },
+                { updatedAt: { gte: startUpdatedAt } },
+                { updatedAt: { lte: endUpdatedAt } },
                 {
                   translationID: { not: null },
                 },

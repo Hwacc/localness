@@ -12,6 +12,7 @@
   },
   "dependencies": {
     "@iconify-json/lucide": "^1.2.56",
+    "@internationalized/date": "^3.8.2",
     "@leafer-in/editor": "^1.8.0",
     "@leafer-in/export": "^1.8.0",
     "@leafer-in/find": "^1.8.0",

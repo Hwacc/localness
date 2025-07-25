@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import type { DropdownMenuItem } from '@nuxt/ui'
-import { ProjectModal } from '#components'
+import { ProjectExportModal, ProjectModal } from '#components'
 import { injectEditorContext } from '~/providers/EditorProvider.vue'
 import {
   injectTaskContext,
@@ -16,8 +16,6 @@ const { createProject, updateProject, setCurrentProject } = projectStore
 const { editor, autoSave } = injectEditorContext()
 const { taskList } = injectTaskContext()
 
-const exporter = useProjectExport()
-
 const toast = useToast()
 const overlay = useOverlay()
 
@@ -28,6 +26,9 @@ const projectModal = overlay.create(ProjectModal, {
     mode: 'create',
     onSave: () => {},
   },
+})
+const projectExportModal = overlay.create(ProjectExportModal, {
+  props: {},
 })
 const projectMenuItems = computed<DropdownMenuItem[]>(() => [
   {
@@ -75,20 +76,21 @@ const projectMenuItems = computed<DropdownMenuItem[]>(() => [
   {
     label: 'Export Project',
     icon: 'i-tabler:package-export',
-    disabled: !exporter.ready.value,
     onSelect: () => {
       // TODO: make a step modal to export
-      const queue = exporter.exportProject()
-      queue?.addEventListener('start', (e) => {
-        console.log('export start', e.detail.info.name)
-      })
-      queue?.addEventListener('success', (e) => {
-        console.log('export success', e.detail.info.name)
-      })
-      queue?.addEventListener('end', (e) => {
-        console.log('export end', e.detail)
-      })
-      queue?.start()
+      projectExportModal.open()
+
+      // const queue = exporter.exportProject()
+      // queue?.addEventListener('start', (e: any) => {
+      //   console.log('export start', e.detail.info.name)
+      // })
+      // queue?.addEventListener('success', (e: any) => {
+      //   console.log('export success', e.detail.info.name)
+      // })
+      // queue?.addEventListener('end', (e: any) => {
+      //   console.log('export end', e.detail)
+      // })
+      // queue?.start()
     },
   },
   {
