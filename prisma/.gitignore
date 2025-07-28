@@ -1,0 +1,4 @@
+migrations
+generated
+*.db
+*.db-journal

@@ -31,8 +31,11 @@ export function provideEditorContext(contextValue: IEditorContext) {
   provide(injectionKey, contextValue)
   return contextValue
 }
+
+export default defineComponent({
+  name: 'EditorProvider',
+})
 </script>
-<script setup lang="ts"></script>
 <template>
   <slot />
 </template>

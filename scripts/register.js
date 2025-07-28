@@ -1,5 +1,4 @@
-// register.js
-import { PrismaClient } from '@prisma/client'
+import { PrismaClient } from '../prisma/generated/client/default.js'
 import bcrypt from 'bcryptjs'
 import readline from 'readline'
 import 'dotenv/config'

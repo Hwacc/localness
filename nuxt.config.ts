@@ -1,6 +1,7 @@
 // https://nuxt.com/docs/api/configuration/nuxt-config
 import tailwindcss from '@tailwindcss/vite'
 import { resolve } from 'node:path'
+import fs from 'node:fs/promises'
 
 export default defineNuxtConfig({
   alias: {
@@ -73,6 +74,43 @@ export default defineNuxtConfig({
     },
     plugins: [tailwindcss()],
   },
+  nitro: {
+    externals: {
+      external: ['@prisma/client', '.prisma'],
+    },
+    hooks: {
+      /**
+       * when we built prisma client with esm mode, there is a '__dirname' not be complied
+       * so we need a polyfill to fix __dirname in nitro.mjs to make it work
+       * @returns
+       */
+      compiled: async () => {
+        console.log('polyfill: build:compiled')
+        const nirtroFileUrl = resolve(
+          process.cwd(),
+          './.output/server/chunks/_/nitro.mjs'
+        )
+        let content = ''
+        try {
+          // try to read nitro mjs file
+          content = await fs.readFile(nirtroFileUrl, 'utf8')
+          // eslint-disable-next-line @typescript-eslint/no-unused-vars
+        } catch (error) {
+          return
+        }
+        content = content.replace('__dirname', 'globalThis.__dirname')
+        const injectCode = /*javascript*/ `
+          import { fileURLToPath as fileURLToPath$polyfill } from 'node:url';
+          import { dirname as dirname$polyfill } from 'node:path';
+          const __filename = fileURLToPath$polyfill(import.meta.url);
+          globalThis.__dirname = dirname$polyfill(__filename);
+        `
+        content = injectCode + content
+        await fs.writeFile(nirtroFileUrl, content)
+        console.log('polyfill: Nitro file updated')
+      },
+    },
+  },
   typescript: {
     tsConfig: {
       compilerOptions: {
@@ -80,5 +118,8 @@ export default defineNuxtConfig({
         emitDecoratorMetadata: true,
       },
     },
+  },
+  build: {
+    transpile: [/prisma/],
   },
 })
