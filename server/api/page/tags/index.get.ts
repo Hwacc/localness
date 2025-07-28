@@ -1,6 +1,6 @@
-import prisma from '~/server/libs/prisma'
+import prisma from '#server/libs/prisma'
 import { z } from 'zod/v4'
-import { numericID } from '~/utils/id'
+import { numericID } from '#server/helper/id'
 
 const zQuery = z.object({
   pageID: z.string(),

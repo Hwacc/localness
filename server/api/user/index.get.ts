@@ -1,5 +1,5 @@
-import prisma from '~/server/libs/prisma'
-import { numericID } from '~/utils/id'
+import prisma from '#server/libs/prisma'
+import { numericID } from '#server/helper/id'
 
 /**
  * @route GET /api/user

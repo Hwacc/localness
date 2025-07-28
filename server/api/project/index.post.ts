@@ -1,7 +1,6 @@
-import prisma from '~/server/libs/prisma'
+import prisma from '#server/libs/prisma'
 import z from 'zod/v4'
-import { readZodBody } from '~/utils/validate'
-import { zProjectSetting } from '~/utils/schemas'
+import { readZodBody } from '#server/helper/validate'
 
 const zProject = z.object({
   name: z.string().min(3),

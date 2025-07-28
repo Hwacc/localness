@@ -1,6 +1,5 @@
-import prisma from '~/server/libs/prisma'
-import { zTag } from '~/utils/schemas'
-import { readZodBody } from '~/utils/validate'
+import prisma from '#server/libs/prisma'
+import { readZodBody } from '#server/helper/validate'
 
 /**
  * @route POST /api/tag

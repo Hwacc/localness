@@ -1,4 +1,4 @@
-import OSSManager from '~/server/libs/oss'
+import OSSManager from '#server/libs/oss'
 
 export default defineEventHandler(async (event) => {
   await requireUserSession(event)

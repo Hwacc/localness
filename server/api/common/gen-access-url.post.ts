@@ -1,6 +1,6 @@
 import { z } from 'zod/v4'
-import { readZodBody } from '~/utils/validate'
-import OSSManager from '~/server/libs/oss'
+import { readZodBody } from '#server/helper/validate'
+import OSSManager from '#server/libs/oss'
 
 const zGen = z.object(
   {

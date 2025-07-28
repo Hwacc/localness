@@ -2,7 +2,7 @@ import { BaseOSS } from './BaseOSS'
 import fs from 'node:fs'
 import path from 'node:path'
 import { PassThrough, pipeline } from 'node:stream'
-import { OSSEngine } from '~/constants'
+import { OSSEngine } from '#shared/constants'
 
 class PublicFolder {
   private resourcesPath: string = path.join(process.cwd(), 'public/upload')

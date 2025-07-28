@@ -1,8 +1,7 @@
-import prisma from '~/server/libs/prisma'
 import { z } from 'zod/v4'
-import { readZodBody } from '~/utils/validate'
-import { zID, zPageSetting } from '~/utils/schemas'
-import { numericID } from '~/utils/id'
+import prisma from '#server/libs/prisma'
+import { readZodBody } from '#server/helper/validate'
+import { numericID } from '#server/helper/id'
 
 const zPage = z.object(
   {

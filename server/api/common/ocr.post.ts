@@ -1,7 +1,5 @@
-import { zOCR } from '~/utils/schemas'
-import { readZodBody } from '~/utils/validate'
-import { ocr } from '~/server/libs/ocr'
-import { fpTranslation } from '~/utils'
+import { ocr } from '#server/libs/ocr'
+import { readZodBody } from '#server/helper/validate'
 
 export default defineEventHandler(async (event) => {
   await requireUserSession(event)

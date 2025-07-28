@@ -1,7 +1,7 @@
-import prisma from '~/server/libs/prisma'
 import { z } from 'zod/v4'
-import { numericID } from '~/utils/id'
-import { readZodBody } from '~/utils/validate'
+import prisma from '#server/libs/prisma'
+import { numericID } from '#server/helper/id'
+import { readZodBody } from '#server/helper/validate'
 
 const zProfile = z.object(
   {

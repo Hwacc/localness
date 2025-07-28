@@ -1,6 +1,6 @@
-import prisma from '~/server/libs/prisma'
-import OSSManager from '~/server/libs/oss'
-import { numericID } from '~/utils/id'
+import prisma from '#server/libs/prisma'
+import OSSManager from '#server/libs/oss'
+import { numericID } from '#server/helper/id'
 
 /**
  * @route DELETE /api/page/:id

@@ -1,6 +1,5 @@
 import { isEmpty } from 'lodash-es'
-import OSSManager from '~/server/libs/oss'
-import { getFileKey, uuidFilename } from '~/utils/file'
+import OSSManager from '#server/libs/oss'
 
 /**
  * @route POST /api/common/upload-file

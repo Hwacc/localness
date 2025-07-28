@@ -1,4 +1,4 @@
-import prisma from '~/server/libs/prisma'
+import prisma from '#server/libs/prisma'
 
 export default defineNitroPlugin(async () => {
   const result = await prisma.$queryRawUnsafe<any[]>(`

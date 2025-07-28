@@ -1,7 +1,6 @@
-import prisma from '~/server/libs/prisma'
-import { numericID } from '~/utils/id'
-import { zProjectSetting } from '~/utils/schemas'
-import { readZodBody } from '~/utils/validate'
+import prisma from '#server/libs/prisma'
+import { numericID } from '#server/helper/id'
+import { readZodBody } from '#server/helper/validate'
 
 export default defineEventHandler(async (event) => {
   const session = await requireUserSession(event)

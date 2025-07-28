@@ -1,7 +1,7 @@
 import type { BaseOSS } from './oss/BaseOSS'
 import { LocalOSS } from './oss/LocalOSS'
 import { QiniuOSS } from './oss/QiniuOSS'
-import { OSSEngine } from '~/constants'
+import { OSSEngine } from '#shared/constants'
 
 class OSSManager {
   private static instance: OSSManager

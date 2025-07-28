@@ -1,5 +1,4 @@
-import prisma from '~/server/libs/prisma'
-import { Pagination } from '~/types/Pagination'
+import prisma from '#server/libs/prisma'
 
 /**
  * @route GET /api/translation/search
@@ -30,7 +29,7 @@ export default defineEventHandler(async (event) => {
     Number(limit),
     offset
   )
-  const ids = rows.map((row) => row.rowid)
+  const ids = rows.map((row: any) => row.rowid)
   const translations = await prisma.translation.findMany({
     where: {
       id: {

@@ -1,7 +1,11 @@
 // https://nuxt.com/docs/api/configuration/nuxt-config
 import tailwindcss from '@tailwindcss/vite'
+import { resolve } from 'node:path'
 
 export default defineNuxtConfig({
+  alias: {
+    '#server': resolve(process.cwd(), './server'),
+  },
   compatibilityDate: '2025-05-15',
   devtools: { enabled: true },
   modules: [
@@ -25,8 +29,8 @@ export default defineNuxtConfig({
     },
     clientBundle: {
       scan: true,
-      sizeLimitKb: 256
-    }
+      sizeLimitKb: 256,
+    },
   },
   imports: {
     dirs: ['utils/**'],
@@ -61,12 +65,20 @@ export default defineNuxtConfig({
     },
   },
   pinia: {
-    storesDirs: ['./stores/**'],
+    storesDirs: ['./app/stores/**'],
   },
   vite: {
     worker: {
       format: 'es',
     },
     plugins: [tailwindcss()],
+  },
+  typescript: {
+    tsConfig: {
+      compilerOptions: {
+        experimentalDecorators: true,
+        emitDecoratorMetadata: true,
+      },
+    },
   },
 })

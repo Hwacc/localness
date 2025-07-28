@@ -1,9 +1,6 @@
-import { numericID } from '~/utils/id'
-import { zTranslation } from '~/utils/schemas'
-import { readZodBody } from '~/utils/validate'
-import prisma from '~/server/libs/prisma'
-import { fpTranslation } from '~/utils'
-
+import { numericID } from '#server/helper/id'
+import { readZodBody } from '#server/helper/validate'
+import prisma from '#server/libs/prisma'
 /**
  * @route POST /api/translation
  * @description Create a new translation

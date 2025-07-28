@@ -1,9 +1,9 @@
-import prisma from '~/server/libs/prisma'
+import prisma from '#server/libs/prisma'
 import { omit } from 'lodash-es'
 import bcrypt from 'bcryptjs'
 import { z } from 'zod/v4'
-import { zPassword } from '~/utils/schemas'
-import { readZodBody } from '~/utils/validate'
+import { readZodBody } from '#server/helper/validate'
+
 
 const zLogin = z.object({
   username: z.string().min(3, 'Username must be at least 3 characters long'),
