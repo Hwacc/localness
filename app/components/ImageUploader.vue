@@ -72,7 +72,7 @@ async function onInputChange(e: any) {
       emit('upload-start')
       const res = await handleUpload()
       if (!res) return
-      const url = await useApi<string>('/api/common/gen-access-url', {
+      const url = await useApi<string>('/api/common/gen-oss-url', {
         method: 'POST',
         body: {
           key: res.key,

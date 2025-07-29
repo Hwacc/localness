@@ -19,9 +19,9 @@ export function useOSSImage() {
       }
     }
     
-    // if ossEngine is QINIU, generate access url
+    // if ossEngine is QINIU, generate oss url
     if (ossEngine === OSSEngine.QINIU) {
-      const url = await useApi<string>('/api/common/gen-access-url', {
+      const url = await useApi<string>('/api/common/gen-oss-url', {
         method: 'POST',
         body: { key },
       })

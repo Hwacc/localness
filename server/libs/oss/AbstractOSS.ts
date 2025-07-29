@@ -1,4 +1,4 @@
-export abstract class BaseOSS {
+export abstract class AbstractOSS {
   abstract generateUploadToken(): string
   abstract generateDownloadAccessUrl(key: string, deadline?: number): string
 

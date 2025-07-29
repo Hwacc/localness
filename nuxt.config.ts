@@ -85,7 +85,7 @@ export default defineNuxtConfig({
        * @returns
        */
       compiled: async () => {
-        console.log('polyfill: build:compiled')
+        if (process.env.NODE_ENV !== 'production') return
         const nirtroFileUrl = resolve(
           process.cwd(),
           './.output/server/chunks/_/nitro.mjs'

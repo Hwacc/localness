@@ -17,6 +17,13 @@ declare module '#auth-utils' {
   // eslint-disable-next-line @typescript-eslint/no-empty-object-type
   interface User extends IUser {}
 
+  interface AgentJWT {
+    token_type: string
+    access_token: string
+    refresh_token: string
+    expires_in: number
+  }
+
   // eslint-disable-next-line @typescript-eslint/no-empty-object-type
   interface SecureSessionData{}
 }

@@ -6,6 +6,7 @@
         props.class
       )
     "
+    type="button"
   >
     <span
       class="btn-content inline-flex size-full items-center justify-center px-2"

@@ -3,12 +3,18 @@ import { omit } from 'lodash-es'
 import bcrypt from 'bcryptjs'
 import { z } from 'zod/v4'
 import { readZodBody } from '#server/helper/validate'
-
+import AgentManager from '#server/libs/agent'
 
 const zLogin = z.object({
   username: z.string().min(3, 'Username must be at least 3 characters long'),
   password: zPassword,
 })
+
+/**
+ * @route POST /api/login
+ * @description Login
+ * @access Public
+ */
 export default defineEventHandler(async (event) => {
   const { username, password } = await readZodBody(event, zLogin.parse)
 
@@ -32,6 +38,8 @@ export default defineEventHandler(async (event) => {
     })
   }
 
+  const agentJWT = await AgentManager.getJWTToken()
+
   await setUserSession(
     event,
     {
@@ -39,6 +47,9 @@ export default defineEventHandler(async (event) => {
         id: user.id,
         username: user.username,
         role: user.role,
+      },
+      secureSessionData: {
+        agentJWT,
       },
     },
     {

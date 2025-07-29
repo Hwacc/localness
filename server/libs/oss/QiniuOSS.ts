@@ -1,7 +1,7 @@
 import qiniu from 'qiniu'
-import { BaseOSS } from './BaseOSS'
+import { AbstractOSS } from './AbstractOSS'
 
-export class QiniuOSS extends BaseOSS {
+export class QiniuOSS extends AbstractOSS {
   private mac: qiniu.auth.digest.Mac
   private bucketManager: qiniu.rs.BucketManager
   private putPolicy: qiniu.rs.PutPolicy

@@ -126,6 +126,15 @@ function onCreateTranslation(type: 'ocr' | 'link' | 'manual') {
   emit('createTrans', type)
 }
 
+async function onCreateI18nKey() {
+  await useApi('/api/tag/ai/gen-i18n-key', {
+    method: 'POST',
+    body: {
+      id: tag.value.id,
+    },
+  })
+}
+
 const previewStyle = computed(() => ({
   border: `${state.style.strokeWidth}px solid ${state.style.stroke}`,
   borderRadius: `${state.style.cornerRadius}px`,
@@ -393,7 +402,7 @@ const previewLabelStyle = computed(() => {
               <UFormField label="I18n Key">
                 <div class="w-full flex items-center gap-2.5">
                   <UInput v-model="state.i18nKey" class="w-full" />
-                  <AIButton />
+                  <AIButton @click="onCreateI18nKey"/>
                 </div>
               </UFormField>
               <UFormField label="Text" :ui="{ label: 'w-full' }">

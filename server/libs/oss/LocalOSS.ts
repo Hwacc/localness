@@ -1,10 +1,10 @@
-import { BaseOSS } from './BaseOSS'
+import { AbstractOSS } from './AbstractOSS'
 import fs from 'node:fs'
 import path from 'node:path'
 import { PassThrough, pipeline } from 'node:stream'
 import { OSSEngine } from '#shared/constants'
 
-class PublicFolder {
+class PublicFolderAssitant {
   private resourcesPath: string = path.join(process.cwd(), 'public/upload')
   constructor() {
     // create public folder
@@ -39,8 +39,8 @@ class PublicFolder {
   }
 }
 
-export class LocalOSS extends BaseOSS {
-  private publicFolder = new PublicFolder()
+export class LocalOSS extends AbstractOSS {
+  private publicAssitant = new PublicFolderAssitant()
   generateUploadToken(): string {
     // we dont need upload token for local oss, use user session judge instead
     return OSSEngine.LOCAL
@@ -53,9 +53,9 @@ export class LocalOSS extends BaseOSS {
     if (!buffer) {
       throw new Error('LocalOSS uploadAsset: Buffer is required')
     }
-    return this.publicFolder.write(filename, buffer)
+    return this.publicAssitant.write(filename, buffer)
   }
   deleteAsset(key: string): Promise<boolean> {
-    return this.publicFolder.delete(key)
+    return this.publicAssitant.delete(key)
   }
 }

@@ -10,6 +10,11 @@ const zGen = z.object(
   'Key is required'
 )
 
+/**
+ * @route POST /api/common/gen-oss-url
+ * @description Generate download oss url
+ * @access Private
+ */
 export default defineEventHandler(async (event) => {
   await requireUserSession(event)
   const { key, deadline } = await readZodBody(event, zGen.parse)

@@ -1,4 +1,4 @@
-import type { BaseOSS } from './oss/BaseOSS'
+import type { AbstractOSS } from './oss/AbstractOSS'
 import { LocalOSS } from './oss/LocalOSS'
 import { QiniuOSS } from './oss/QiniuOSS'
 import { OSSEngine } from '#shared/constants'
@@ -7,7 +7,7 @@ class OSSManager {
   private static instance: OSSManager
   private engineType: OSSEngine =
     (process.env.NUXT_OSS_ENGINE_TYPE as OSSEngine) || OSSEngine.LOCAL
-  private oss!: BaseOSS
+  private oss!: AbstractOSS
 
   private constructor() {
     if (this.engineType === OSSEngine.QINIU) {
