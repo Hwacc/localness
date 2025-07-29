@@ -34,13 +34,25 @@ const tabsItems = [
 
 const emit = defineEmits<{
   close: [boolean]
-  createTrans: [type: 'ocr' | 'link' | 'manual', translation?: ZTranslation]
   save: [
     {
       tag: Omit<ZEditTag, 'translation'>
       translation: ZTranslation | null
       isTransOriginChanged: boolean
       close: () => void
+    }
+  ]
+  createTrans: [
+    {
+      type: 'ocr' | 'link' | 'manual'
+      translation?: ZTranslation
+    }
+  ]
+  createI18nKey: [
+    {
+      id: ID
+      origin: string
+      i18nKey?: string
     }
   ]
 }>()
@@ -117,21 +129,26 @@ function onCreateTranslation(type: 'ocr' | 'link' | 'manual') {
   if (type === 'manual') {
     if (!state.translation?.origin) return
     const fingerprint = fpTranslation(state.translation.origin)
-    emit('createTrans', type, {
-      ...state.translation,
-      fingerprint,
+    emit('createTrans', {
+      type,
+      translation: {
+        ...state.translation,
+        fingerprint,
+      },
     })
     return
   }
-  emit('createTrans', type)
+  emit('createTrans', {
+    type,
+  })
 }
 
 async function onCreateI18nKey() {
-  await useApi('/api/tag/ai/gen-i18n-key', {
-    method: 'POST',
-    body: {
-      id: tag.value.id,
-    },
+  if (!state.translation?.origin) return
+  emit('createI18nKey', {
+    id: tag.value.id,
+    i18nKey: state.i18nKey,
+    origin: state.translation?.origin,
   })
 }
 
@@ -402,7 +419,7 @@ const previewLabelStyle = computed(() => {
               <UFormField label="I18n Key">
                 <div class="w-full flex items-center gap-2.5">
                   <UInput v-model="state.i18nKey" class="w-full" />
-                  <AIButton @click="onCreateI18nKey"/>
+                  <AIButton @click="onCreateI18nKey" />
                 </div>
               </UFormField>
               <UFormField label="Text" :ui="{ label: 'w-full' }">

@@ -263,7 +263,7 @@ onMounted(async () => {
             tagModal.patch({ loading: false })
           }
         },
-        onCreateTrans: async (type, translation) => {
+        onCreateTrans: async ({ type, translation }) => {
           try {
             tagModal.patch({ loading: true })
             const handleUpdateTag = async (
@@ -313,6 +313,15 @@ onMounted(async () => {
               )
               await handleUpdateTag(createdTrans)
             }
+          } catch (error) {
+            console.error('tag info error', error)
+          } finally {
+            tagModal.patch({ loading: false })
+          }
+        },
+        onCreateI18nKey: async () => {
+          try {
+            tagModal.patch({ loading: true })
           } catch (error) {
             console.error('tag info error', error)
           } finally {
