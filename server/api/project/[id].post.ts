@@ -1,16 +1,7 @@
 import prisma from '#server/libs/prisma'
-import { z } from 'zod/v4'
 import { numericID } from '#server/helper/id'
 import { readZodBody } from '#server/helper/validate'
 
-const zProject = z.object(
-  {
-    name: z.string().min(3),
-    description: z.optional(z.string()),
-    settings: zProjectSetting,
-  },
-  'Project parameters validate failed'
-)
 /**
  * @route POST /api/project/:id
  * @description Update a project
@@ -67,6 +58,7 @@ export default defineEventHandler(async (event) => {
         projectID: nID,
         ocrLanguage: settings?.ocrLanguage ?? 'eng',
         ocrEngine: settings?.ocrEngine ?? 1,
+        prompt: settings?.prompt ?? '',
       },
       update: settings,
     })

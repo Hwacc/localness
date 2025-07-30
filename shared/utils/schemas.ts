@@ -13,6 +13,28 @@ export const zPassword = z
   )
 export type ZPassword = z.infer<typeof zPassword>
 
+export const zProject = z.object({
+  name: z.string().min(3),
+  description: z.string().optional(),
+  settings: z.object({
+    ocrLanguage: z.string(),
+    ocrEngine: z.number(),
+    prompt: z.string().optional(),
+  }),
+})
+export type ZProject = z.infer<typeof zProject>
+
+export const zPage = z.object({
+  name: z.string().min(3),
+  image: z.string(),
+  settings: z.object({
+    ocrLanguage: z.string(),
+    ocrEngine: z.number(),
+    prompt: z.string().optional(),
+  }),
+})
+export type ZPage = z.infer<typeof zPage>
+
 export const zTagSetting = z.object(
   {
     locked: z.boolean(),
@@ -79,6 +101,7 @@ export const zProjectSetting = z.object(
       .refine((v) => v === 1 || v === 2, {
         message: 'ocrEngine must be 1 or 2',
       }),
+    prompt: z.string().optional(),
   },
   'Project setting parameters validate failed'
 )
@@ -100,6 +123,7 @@ export const zPageSetting = z.object(
       .refine((v) => v === 1 || v === 2, {
         message: 'ocrEngine must be 1 or 2',
       }),
+    prompt: z.string().optional(),
   },
   'Page setting parameters validate failed'
 )
@@ -144,7 +168,6 @@ export const zExport = z.object(
   'Export parameters validate failed'
 )
 export type ZExport = z.infer<typeof zExport>
-
 
 export const zGenI18nKey = z.object({
   tagID: z.number().nonnegative(),

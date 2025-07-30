@@ -1,6 +1,5 @@
 <script setup lang="ts">
 import type { FormSubmitEvent } from '@nuxt/ui'
-import { z } from 'zod/v4'
 import type { ImageUploader } from '#components'
 import { omit } from 'lodash-es'
 
@@ -29,15 +28,6 @@ const previewUrl = computed(() => {
   return ''
 })
 
-const zPage = z.object({
-  name: z.string().min(3),
-  image: z.string(),
-  settings: z.object({
-    ocrLanguage: z.string(),
-    ocrEngine: z.number(),
-  }),
-})
-type ZPage = z.infer<typeof zPage>
 const projectStore = useProjectStore()
 const state = reactive<ZPage>({
   name: page.name,
@@ -51,6 +41,7 @@ const state = reactive<ZPage>({
       page.settings?.ocrEngine ??
       projectStore.curProject?.settings?.ocrEngine ??
       1,
+    prompt: page.settings?.prompt ?? '',
   },
 })
 watch(
@@ -80,6 +71,11 @@ const tabsItems = computed(() => [
     label: 'Basic',
     icon: 'i-lucide:info',
     slot: 'basic',
+  },
+  {
+    label: 'Prompt',
+    icon: 'i-mage:stars-c',
+    slot: 'prompt',
   },
   {
     label: 'Settings',
@@ -163,6 +159,9 @@ async function onSubmit(_: FormSubmitEvent<ZPage>) {
                 </div>
               </UFormField>
             </div>
+          </template>
+          <template #prompt>
+            <MarkdownPrompt v-model="state.settings.prompt"/>
           </template>
           <template #settings>
             <div class="flex flex-col gap-2.5">

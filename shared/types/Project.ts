@@ -5,6 +5,7 @@ import type { ID } from '.'
 export interface IProjectSetting {
   ocrLanguage: string
   ocrEngine: number
+  prompt?: string
 }
 
 export interface IProject {
@@ -37,6 +38,7 @@ export class Project implements IProject {
     this.settings = {
       ocrLanguage: 'eng',
       ocrEngine: 1,
+      prompt: '',
     }
   }
 }

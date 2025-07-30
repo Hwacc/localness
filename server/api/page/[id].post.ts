@@ -1,16 +1,6 @@
 import prisma from '#server/libs/prisma'
-import { z } from 'zod/v4'
 import { numericID } from '#server/helper/id'
 import { readZodBody } from '#server/helper/validate'
-
-const zPage = z.object(
-  {
-    name: z.string().min(3),
-    image: z.string().nonempty().optional(),
-    settings: zPageSetting.optional(),
-  },
-  'Page parameters validate failed'
-)
 
 /**
  * @route POST /api/page/:id
@@ -45,6 +35,7 @@ export default defineEventHandler(async (event) => {
         pageID: nID,
         ocrLanguage: settings?.ocrLanguage ?? 'eng',
         ocrEngine: settings?.ocrEngine ?? 1,
+        prompt: settings?.prompt ?? '',
       },
       update: settings,
     })

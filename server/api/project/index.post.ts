@@ -1,12 +1,5 @@
 import prisma from '#server/libs/prisma'
-import z from 'zod/v4'
 import { readZodBody } from '#server/helper/validate'
-
-const zProject = z.object({
-  name: z.string().min(3),
-  description: z.optional(z.string()),
-  settings: zProjectSetting,
-}, 'Project parameters validate failed')
 
 /**
  * @route POST /api/project

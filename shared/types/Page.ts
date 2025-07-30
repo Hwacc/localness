@@ -13,6 +13,7 @@ export interface IPage {
   settings: {
     ocrLanguage: string
     ocrEngine: number
+    prompt?: string
   }
 }
 
@@ -24,12 +25,14 @@ export class Page implements IPage {
   settings: {
     ocrLanguage: string
     ocrEngine: number
+    prompt?: string
   }
   constructor(name?: string) {
     this.name = name ?? 'Undefined'
     this.settings = {
       ocrLanguage: 'eng',
       ocrEngine: 1,
+      prompt: '',
     }
   }
 }

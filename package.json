@@ -11,6 +11,7 @@
     "register": "node ./scripts/register.js"
   },
   "dependencies": {
+    "@bytemd/vue-next": "^1.22.0",
     "@coze/api": "^1.3.5",
     "@iconify-json/lucide": "^1.2.56",
     "@internationalized/date": "^3.8.2",
@@ -38,6 +39,7 @@
     "@vueuse/core": "^13.3.0",
     "@vueuse/shared": "^13.5.0",
     "bcryptjs": "^3.0.2",
+    "bytemd": "^1.22.0",
     "clsx": "^2.1.1",
     "cropperjs": "^2.0.0",
     "dayjs": "^1.11.13",

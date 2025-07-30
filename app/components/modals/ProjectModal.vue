@@ -1,6 +1,5 @@
 <script setup lang="ts">
 import type { FormSubmitEvent } from '@nuxt/ui'
-import { z } from 'zod/v4'
 
 type Mode = 'edit' | 'create'
 const { mode, project = new Project('') } = defineProps<{
@@ -8,22 +7,13 @@ const { mode, project = new Project('') } = defineProps<{
   project?: IProject
 }>()
 
-const zProject = z.object({
-  name: z.string().min(3),
-  description: z.optional(z.string()),
-  settings: z.object({
-    ocrLanguage: z.string(),
-    ocrEngine: z.number(),
-  }),
-})
-type ZProject = z.infer<typeof zProject>
-
 const state = reactive<ZProject>({
   name: project.name,
   description: project.description ?? '',
   settings: {
     ocrLanguage: project.settings?.ocrLanguage ?? 'eng',
     ocrEngine: project.settings?.ocrEngine ?? 1,
+    prompt: project.settings?.prompt ?? '',
   },
 })
 
@@ -56,6 +46,11 @@ const tabsItems = computed(() => [
     slot: 'basic',
   },
   {
+    label: 'Prompt',
+    icon: 'i-mage:stars-c',
+    slot: 'prompt',
+  },
+  {
     label: 'Settings',
     icon: 'i-lucide:settings',
     slot: 'settings',
@@ -73,6 +68,7 @@ const emit = defineEmits<{
 }>()
 
 async function onSubmit(_: FormSubmitEvent<ZProject>) {
+  console.log('submit', state)
   emit('save', state as Pick<IProject, 'name' | 'description' | 'settings'>, {
     close: () => emit('close', true),
   })
@@ -107,6 +103,9 @@ async function onSubmit(_: FormSubmitEvent<ZProject>) {
                 />
               </UFormField>
             </div>
+          </template>
+          <template #prompt>
+            <MarkdownPrompt v-model="state.settings.prompt"/>
           </template>
           <template #settings>
             <div class="flex flex-col gap-2.5">

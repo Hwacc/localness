@@ -25,6 +25,12 @@ const tabsItems = [
     slot: 'styles',
   },
   {
+    label: 'Prompt',
+    desc: '',
+    icon: 'i-mage:stars-c',
+    slot: 'prompt',
+  },
+  {
     label: 'Translations',
     desc: '',
     icon: 'i-garden:translation-exists-stroke-12',
@@ -388,7 +394,9 @@ const previewLabelStyle = computed(() => {
               </div>
             </div>
           </template>
-
+          <template #prompt>
+            <MarkdownPrompt v-model="state.settings.prompt" />
+          </template>
           <template #translations>
             <div
               v-if="isEmpty(state.translation)"

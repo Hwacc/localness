@@ -1,17 +1,7 @@
-import { z } from 'zod/v4'
 import prisma from '#server/libs/prisma'
 import { readZodBody } from '#server/helper/validate'
 import { numericID } from '#server/helper/id'
 
-const zPage = z.object(
-  {
-    projectID: zID,
-    name: z.string().min(3),
-    image: z.string().nonempty(), // image key
-    settings: zPageSetting,
-  },
-  'Page parameters validate failed'
-)
 /**
  * @route POST /api/page
  * @description Create a new page
@@ -21,7 +11,9 @@ export default defineEventHandler(async (event) => {
   await requireUserSession(event)
   const { projectID, name, image, settings } = await readZodBody(
     event,
-    zPage.parse
+    zPage.extend({
+      projectID: zID,
+    }).parse
   )
   if (!projectID) {
     throw createError({

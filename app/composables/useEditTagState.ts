@@ -37,6 +37,7 @@ export const schema = z.object({
         ])
         .optional(),
     }),
+    prompt: z.string().optional(),
   }),
   translation: z
     .object({
@@ -73,6 +74,7 @@ export function useEditTagState(tag: MaybeRef<ITag>) {
         textWrap: unref(tag).settings?.labelStyle?.textWrap || DEFAULT_LABEL_WRAP,
         align: unref(tag).settings?.labelStyle?.align || DEFAULT_LABEL_ALIGN,
       },
+      prompt: unref(tag).settings?.prompt || '',
     },
     translation: unref(tag).translation
       ? cloneDeep(unref(tag).translation) ?? null
@@ -101,6 +103,7 @@ export function useEditTagState(tag: MaybeRef<ITag>) {
           textWrap: settings?.labelStyle?.textWrap || DEFAULT_LABEL_WRAP,
           align: settings?.labelStyle?.align || DEFAULT_LABEL_ALIGN,
         },
+        prompt: settings?.prompt || '',
       }
       state.translation = {
         origin: val.translation?.origin || '',

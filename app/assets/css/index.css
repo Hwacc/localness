@@ -1,5 +1,6 @@
 @import 'tailwindcss';
 @import '@nuxt/ui';
+@import 'bytemd/dist/index.css';
 
 @theme inline {
   --animate-aurora: aurora 60s linear infinite;
@@ -51,6 +52,15 @@
     }
     100% {
       transform: rotateX(360deg) rotateY(180deg) rotateZ(360deg);
+    }
+  }
+}
+
+/* hide bytemd toolbar third icon full screen */
+.bytemd-toolbar-right {
+  & .bytemd-toolbar-icon {
+    &:nth-child(3) {
+      @apply hidden;
     }
   }
 }
