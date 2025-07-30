@@ -4,10 +4,7 @@ export type ImageCache = {
   url: string
   deadline: number
 }
-
-export type AgentJWT = {
-  token_type: string
-  access_token: string
-  refresh_token: string
-  expires_in: number
+export interface CozeAgentI18nKeyResult {
+  tag_id: number
+  i18n_key: string
 }

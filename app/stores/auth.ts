@@ -8,6 +8,8 @@ export const useAuthStore = defineStore('auth', () => {
     fetch: refreshSession,
   } = useUserSession()
 
+  console.log('auth store', loggedIn.value, session.value)
+
   async function login(username: string, password: string): Promise<boolean> {
     try {
       const res = await useApi<{ user: IUser }>('/login', {

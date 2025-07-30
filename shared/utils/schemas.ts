@@ -136,3 +136,12 @@ export const zExport = z.object(
   'Export parameters validate failed'
 )
 export type ZExport = z.infer<typeof zExport>
+
+
+export const zGenI18nKey = z.object({
+  tagID: z.number().nonnegative(),
+  tagOrigin: z.string(),
+  tagI18nKey: z.string().optional(),
+  tagPrompt: z.string().optional(),
+})
+export type ZGenI18nKey = z.infer<typeof zGenI18nKey>

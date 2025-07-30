@@ -263,6 +263,7 @@ onMounted(async () => {
             tagModal.patch({ loading: false })
           }
         },
+
         onCreateTrans: async ({ type, translation }) => {
           try {
             tagModal.patch({ loading: true })
@@ -319,15 +320,43 @@ onMounted(async () => {
             tagModal.patch({ loading: false })
           }
         },
-        onCreateI18nKey: async () => {
+
+        onCreateI18nKey: async ({ id, origin, i18nKey }) => {
           try {
             tagModal.patch({ loading: true })
+            const result = await useApi<{ tagID: ID; i18nKey: string } | null>(
+              '/api/tag/ai/gen-i18n-key',
+              {
+                method: 'POST',
+                body: {
+                  tagID: id,
+                  tagOrigin: origin,
+                  tagI18nKey: i18nKey,
+                },
+              }
+            )
+            if (result) {
+              const updatedTag = await tagStore.updateTag(result.tagID, {
+                i18nKey: result.i18nKey,
+              })
+              tagModal.patch({
+                tag: updatedTag,
+              })
+              send(updatedTag)
+              toast.add({
+                title: 'Success',
+                description: 'Tag updated',
+                color: 'success',
+                icon: 'i-lucide:check',
+              })
+            } else send(undefined)
           } catch (error) {
             console.error('tag info error', error)
           } finally {
             tagModal.patch({ loading: false })
           }
         },
+
         onClose: (isOK: boolean) => {
           !isOK && send(undefined)
           disconnect()

@@ -9,6 +9,7 @@ export default defineNuxtConfig({
   },
   compatibilityDate: '2025-05-15',
   devtools: { enabled: true },
+  sourcemap: process.env.NODE_ENV === 'development',
   modules: [
     '@nuxt/ui',
     '@nuxt/icon',

@@ -5,7 +5,7 @@ import {
   type IJSONOptions,
   type ITextInputData,
 } from 'leafer-ui'
-import { isEmpty, pick } from 'lodash-es'
+import { isEmpty, isNil, pick } from 'lodash-es'
 import {
   DEFAULT_LINE_COLOR,
   DEFAULT_LINE_WIDTH,
@@ -123,7 +123,7 @@ class EditorTag extends Frame {
   public updateLabelStyle(
     rLabelStyle: Partial<ITag['labelStyle']> | undefined
   ) {
-    if (isEmpty(rLabelStyle)) return
+    if (isNil(rLabelStyle)) return
     if (
       rLabelStyle.align &&
       this.labelNode &&

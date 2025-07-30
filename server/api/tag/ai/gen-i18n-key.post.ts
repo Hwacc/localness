@@ -1,5 +1,7 @@
-import { requireAgentJWT } from "#server/helper/guard"
-import { readZodBody } from "#server/helper/validate"
+import type { CozeAgentI18nKeyResult } from '#shared/types'
+import AgentManager from '#server/libs/agent'
+import { readZodBody } from '#server/helper/validate'
+import { numericID } from '#server/helper/id'
 
 /**
  * @route POST /api/ai/gen-i18n-key
@@ -7,12 +9,24 @@ import { readZodBody } from "#server/helper/validate"
  * @access Private
  */
 export default defineEventHandler(async (event) => {
-  const agentJWT = await requireAgentJWT(event)
-  
-  // const { tagID } = await readZodBody(event)
-  //TODO: do agent call
-
-  
-
-  return 'good'
+  await requireUserSession(event)
+  const params = await readZodBody(event, zGenI18nKey.parse)
+  const result =
+    await AgentManager.generateI18nKey<CozeAgentI18nKeyResult | null>({
+      ...params,
+      tagID: numericID(params.tagID),
+    })
+  if (!result) {
+    throw createError({
+      statusCode: 400,
+      statusMessage: 'Failed to generate i18n key',
+    })
+  }
+  if (result.tag_id && result.i18n_key) {
+    return {
+      tagID: result.tag_id,
+      i18nKey: result.i18n_key,
+    }
+  }
+  return null
 })
