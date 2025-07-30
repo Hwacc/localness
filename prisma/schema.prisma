@@ -1,29 +1,13 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
-
-/**
- * @prisma/generator
- * according to https://github.com/prisma/prisma/issues/26565
- * when we build prisma client in node_modules, directly import @prisma/client
- * cannot automatically find client we've built, so we built it in common folder 
- * and import it directly to use prisma 
- */
 generator client {
   provider     = "prisma-client-js"
   output       = "generated/client"
-  runtime      = "nodejs"
   moduleFormat = "esm"
+  runtime      = "nodejs"
 }
 
 datasource db {
   provider = "sqlite"
   url      = env("DATABASE_URL")
-}
-
-enum UserRole {
-  ADMIN @map("ADMIN")
-  USER  @map("USER")
-  GUEST @map("GUEST")
 }
 
 model User {
@@ -33,12 +17,12 @@ model User {
   username       String           @unique
   nickname       String?
   email          String?
-  avatar         String?
   password       String
-  role           UserRole         @default(USER)
-  ownProjects    Project[]        @relation(name: "ProjectOwner")
-  projects       UserProject[]
+  role           String           @default("USER")
+  avatar         String?
+  ownProjects    Project[]        @relation("ProjectOwner")
   translationLog TranslationLog[]
+  projects       UserProject[]
 
   @@unique([username, id])
 }
@@ -49,31 +33,30 @@ model Project {
   updatedAt     DateTime         @updatedAt @map("updated_at")
   name          String
   description   String?
-  pages         Page[]
-  owner         User             @relation(name: "ProjectOwner", fields: [ownerUsername, ownerID], references: [username, id])
   ownerUsername String           @map("owner_username")
   ownerID       Int              @map("owner_id")
-  users         UserProject[]
+  pages         Page[]
+  owner         User             @relation("ProjectOwner", fields: [ownerUsername, ownerID], references: [username, id])
   settings      ProjectSettings?
+  users         UserProject[]
 }
 
 model ProjectSettings {
   id          Int      @id @default(autoincrement())
   createdAt   DateTime @default(now()) @map("created_at")
   updatedAt   DateTime @updatedAt @map("updated_at")
-  project     Project  @relation(fields: [projectID], references: [id], onDelete: Cascade)
-  projectID   Int      @map("project_id")
+  projectID   Int      @unique @map("project_id")
   ocrLanguage String   @map("ocr_language")
   ocrEngine   Int      @map("ocr_engine")
-
-  @@unique([projectID])
+  prompt      String?
+  project     Project  @relation(fields: [projectID], references: [id], onDelete: Cascade)
 }
 
 model UserProject {
-  user      User    @relation(fields: [userID], references: [id])
-  project   Project @relation(fields: [projectID], references: [id])
   userID    Int     @map("user_id")
   projectID Int     @map("project_id")
+  project   Project @relation(fields: [projectID], references: [id])
+  user      User    @relation(fields: [userID], references: [id])
 
   @@id([userID, projectID])
 }
@@ -84,22 +67,21 @@ model Page {
   updatedAt DateTime      @updatedAt @map("updated_at")
   name      String
   image     String?
-  project   Project?      @relation(fields: [projectID], references: [id], onDelete: Cascade)
   projectID Int?          @map("project_id")
-  tags      Tag[]
+  project   Project?      @relation(fields: [projectID], references: [id], onDelete: Cascade)
   settings  PageSettings?
+  tags      Tag[]
 }
 
 model PageSettings {
   id          Int      @id @default(autoincrement())
   createdAt   DateTime @default(now()) @map("created_at")
   updatedAt   DateTime @updatedAt @map("updated_at")
-  page        Page     @relation(fields: [pageID], references: [id], onDelete: Cascade)
-  pageID      Int      @map("page_id")
+  pageID      Int      @unique @map("page_id")
   ocrLanguage String   @map("ocr_language")
   ocrEngine   Int      @map("ocr_engine")
-
-  @@unique([pageID])
+  prompt      String?
+  page        Page     @relation(fields: [pageID], references: [id], onDelete: Cascade)
 }
 
 model Tag {
@@ -112,93 +94,90 @@ model Tag {
   width         Float
   height        Float
   className     String       @map("class_name")
-  locked        Boolean      @default(false)
-  style         Json
-  labelStyle    Json         @map("label_style")
-  page          Page         @relation(fields: [pageID], references: [id], onDelete: Cascade)
   pageID        Int          @map("page_id")
-  translation   Translation? @relation(fields: [translationID], references: [id])
   translationID Int?         @map("translation_id")
   i18nKey       String?      @map("i18n_key")
+  translation   Translation? @relation(fields: [translationID], references: [id])
+  page          Page         @relation(fields: [pageID], references: [id], onDelete: Cascade)
+  settings      TagSettings?
+}
+
+model TagSettings {
+  id         Int      @id @default(autoincrement())
+  createdAt  DateTime @default(now()) @map("created_at")
+  updatedAt  DateTime @updatedAt @map("updated_at")
+  tagID      Int      @unique @map("tag_id")
+  tag        Tag      @relation(fields: [tagID], references: [id], onDelete: Cascade)
+  locked     Boolean  @default(false)
+  style      Json
+  labelStyle Json     @map("label_style")
+  prompt     String?
 }
 
 model Translation {
-  id          Int              @id @default(autoincrement())
-  createdAt   DateTime         @default(now()) @map("created_at")
-  updatedAt   DateTime         @updatedAt @map("updated_at")
+  id          Int               @id @default(autoincrement())
+  createdAt   DateTime          @default(now()) @map("created_at")
+  updatedAt   DateTime          @updatedAt @map("updated_at")
   origin      String
-  fingerprint String           @unique
+  fingerprint String            @unique
   tags        Tag[]
   logs        TranslationLog[]
-
-  vue   TranslationVue?
-  react TranslationReact?
+  react       TranslationReact?
+  vue         TranslationVue?
 
   @@index([fingerprint])
 }
 
 model TranslationVue {
-  id        Int      @id @default(autoincrement())
-  createdAt DateTime @default(now()) @map("created_at")
-  updatedAt DateTime @updatedAt @map("updated_at")
-  en        String?
-  zh_cn     String?
-  zh_tw     String?
-  ja        String?
-  ko        String?
-  ru        String?
-  fr        String?
-  de        String?
-  es        String?
-  pt        String?
-
-  translation   Translation @relation(fields: [translationID], references: [id], onDelete: Cascade)
+  id            Int         @id @default(autoincrement())
+  createdAt     DateTime    @default(now()) @map("created_at")
+  updatedAt     DateTime    @updatedAt @map("updated_at")
+  en            String?
+  zh_cn         String?
+  zh_tw         String?
+  ja            String?
+  ko            String?
+  ru            String?
+  fr            String?
+  de            String?
+  es            String?
+  pt            String?
   translationID Int         @unique @map("translation_id")
+  translation   Translation @relation(fields: [translationID], references: [id], onDelete: Cascade)
 }
 
 model TranslationReact {
-  id        Int      @id @default(autoincrement())
-  createdAt DateTime @default(now()) @map("created_at")
-  updatedAt DateTime @updatedAt @map("updated_at")
-  en        String?
-  zh_cn     String?
-  zh_tw     String?
-  ja        String?
-  ko        String?
-  ru        String?
-  fr        String?
-  de        String?
-  es        String?
-  pt        String?
-
-  translation   Translation @relation(fields: [translationID], references: [id], onDelete: Cascade)
+  id            Int         @id @default(autoincrement())
+  createdAt     DateTime    @default(now()) @map("created_at")
+  updatedAt     DateTime    @updatedAt @map("updated_at")
+  en            String?
+  zh_cn         String?
+  zh_tw         String?
+  ja            String?
+  ko            String?
+  ru            String?
+  fr            String?
+  de            String?
+  es            String?
+  pt            String?
   translationID Int         @unique @map("translation_id")
-}
-
-enum TranslationLogAction {
-  INSERT       @map("INSERT")
-  UPDATE       @map("UPDATE")
-  DELETE       @map("DELETE")
-  FORCE_INSERT @map("FORCE_INSERT")
-}
-
-enum TranslationLogStatus {
-  SUCCESS @map("SUCCESS")
-  FAILED  @map("FAILED")
-  REFUSED @map("REFUSED")
-  ERROR   @map("ERROR")
+  translation   Translation @relation(fields: [translationID], references: [id], onDelete: Cascade)
 }
 
 model TranslationLog {
-  id        Int                  @id @default(autoincrement())
-  origin    String
-  action    TranslationLogAction
-  status    TranslationLogStatus
-  createdAt DateTime             @default(now()) @map("created_at")
-
-  userID Int?  @map("user_id")
-  user   User? @relation(fields: [userID], references: [id], onDelete: SetNull)
-
+  id          Int          @id @default(autoincrement())
+  origin      String
+  action      String
+  status      String
+  createdAt   DateTime     @default(now()) @map("created_at")
+  userID      Int?         @map("user_id")
   fingerprint String?
-  translation Translation? @relation(fields: [fingerprint], references: [fingerprint], onDelete: SetNull)
+  translation Translation? @relation(fields: [fingerprint], references: [fingerprint])
+  user        User?        @relation(fields: [userID], references: [id])
+}
+
+model Translation_FTS {
+  origin String?
+
+  @@ignore
 }

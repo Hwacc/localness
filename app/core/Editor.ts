@@ -150,14 +150,20 @@ class Editor extends EditorInteraction {
     if (this.mode !== 'draw' || !isEmpty(this.app.editor.list)) return
     this.app.editor.visible = false
     this.app.editor.hittable = false
-    this.tempTag = new EditorTag({
-      tagID: `Tag_${Date.now()}`,
-      className: 'tag',
-      style: {
-        stroke: this.lineColor,
-        strokeWidth: this.lineWidth,
+    this.tempTag = new EditorTag(
+      {
+        tagID: `Tag_${Date.now()}`,
+        className: 'tag',
       },
-    })
+      {
+        locked: false,
+        style: {
+          stroke: this.lineColor,
+          strokeWidth: this.lineWidth,
+        },
+        labelStyle: {},
+      }
+    )
     this.tempTag.set({ editable: false })
     this.registerTagEvents(this.tempTag)
     this.groupTag.add(this.tempTag)
@@ -355,7 +361,7 @@ class Editor extends EditorInteraction {
     this.groupTag.clear()
     if (isEmpty(tags)) return
     tags.forEach((tag) => {
-      const graphicTag = new EditorTag(tag)
+      const graphicTag = new EditorTag(tag, tag.settings)
       this.groupTag.add(graphicTag)
       this.registerTagEvents(graphicTag)
     })

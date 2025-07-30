@@ -15,7 +15,7 @@ export const useProjectStore = defineStore('project', () => {
     console.log('projs', projs)
     projects.value = projs ?? []
     if (projs.length > 0 && !curProject.value.id) {
-      setCurrentProject(projects.value[0])
+      setCurrentProject(projects.value[0]!)
     }
     return projects.value
   }
@@ -73,7 +73,7 @@ export const useProjectStore = defineStore('project', () => {
         projects.value.find((p) => p.id === (proj as ID)) ?? new Project()
     }
     if (!isEmpty(curProject.value.pages)) {
-      pageStore.setCurrentPage(curProject.value.pages[0])
+      pageStore.setCurrentPage(curProject.value.pages[0]!)
     } else {
       pageStore.setCurrentPage(new Page())
     }

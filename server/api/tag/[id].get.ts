@@ -21,6 +21,14 @@ export default defineEventHandler(async (event) => {
       id: nID,
     },
     include: {
+      settings: {
+        omit: {
+          id: true,
+          tagID: true,
+          createdAt: true,
+          updatedAt: true,
+        },
+      },
       translation: {
         include: {
           vue: true,

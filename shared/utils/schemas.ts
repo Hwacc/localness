@@ -13,6 +13,17 @@ export const zPassword = z
   )
 export type ZPassword = z.infer<typeof zPassword>
 
+export const zTagSetting = z.object(
+  {
+    locked: z.boolean(),
+    style: z.any(),
+    labelStyle: z.any(),
+    prompt: z.string().optional(),
+  },
+  'Tag setting parameters validate failed'
+)
+export type ZTagSetting = z.infer<typeof zTagSetting>
+
 export const zTag = z.object(
   {
     pageID: z.number().nonnegative(),
@@ -22,15 +33,12 @@ export const zTag = z.object(
     height: z.number().nonnegative(),
     x: z.number().nonnegative(),
     y: z.number().nonnegative(),
-    locked: z.boolean(),
-    style: z.any(),
-    labelStyle: z.any(),
     i18nKey: z.string().nullable().optional(),
     translationID: z.number().nonnegative().nullable().optional(),
+    settings: zTagSetting.optional(),
   },
   'Tag parameters validate failed'
 )
-
 export type ZTag = z.infer<typeof zTag>
 
 export const zID = z.union(

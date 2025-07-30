@@ -1,8 +1,6 @@
-import type { ID } from "./global"
 import type { IProject } from "./Project"
 import type { ITag } from "./Tag"
-
-
+import type { ID } from '.'
 export interface IPage {
   id: ID
   name: string

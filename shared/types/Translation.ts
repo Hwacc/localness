@@ -1,5 +1,4 @@
-import type { ID } from './global'
-
+import type { ID } from '.'
 export interface TranslationContent {
   en?: string
   zh_cn?: string

@@ -8,8 +8,8 @@ import { readZodBody } from '#server/helper/validate'
  */
 export default defineEventHandler(async (event) => {
   await requireUserSession(event)
-  const data = await readZodBody(event, zTag.parse)
-  if (!data.pageID) {
+  const { settings, ...body } = await readZodBody(event, zTag.parse)
+  if (!body.pageID) {
     throw createError({
       statusCode: 400,
       statusMessage: 'Missing pageID',
@@ -17,7 +17,7 @@ export default defineEventHandler(async (event) => {
   }
   const page = await prisma.page.findUnique({
     where: {
-      id: data.pageID as number,
+      id: body.pageID as number,
     },
   })
   if (!page) {
@@ -27,8 +27,24 @@ export default defineEventHandler(async (event) => {
     })
   }
 
-  const createdTag = prisma.tag.create({
-    data: data,
+  const createdTag = await prisma.tag.create({
+    data: body,
+  })
+
+  await prisma.tagSettings.create({
+    data: {
+      tagID: createdTag.id,
+      locked: settings?.locked ?? false,
+      style: settings?.style ?? {},
+      labelStyle: settings?.labelStyle ?? {},
+      prompt: settings?.prompt ?? '',
+    },
+  })
+
+  return await prisma.tag.findUnique({
+    where: {
+      id: createdTag.id,
+    },
     include: {
       translation: {
         include: {
@@ -36,7 +52,14 @@ export default defineEventHandler(async (event) => {
           react: true,
         },
       },
+      settings: {
+        omit: {
+          id: true,
+          tagID: true,
+          createdAt: true,
+          updatedAt: true,
+        },
+      },
     },
   })
-  return createdTag
 })

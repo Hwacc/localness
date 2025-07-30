@@ -1,6 +1,6 @@
 import type { IStroke } from 'leafer-ui'
-import type { ID } from './global'
 import type { ITranslation } from './Translation'
+import type { ID } from '.'
 
 export type TagStyle = {
   fill?: string
@@ -23,6 +23,13 @@ export type LabelStyle = {
     | 'right'
 }
 
+export interface ITagSetting {
+  locked: boolean
+  style: TagStyle
+  labelStyle: LabelStyle
+  prompt?: string
+}
+
 export interface ITag {
   id: ID
   tagID: string
@@ -31,15 +38,13 @@ export interface ITag {
   width: number
   height: number
   className: string
-  locked: boolean
-  style: TagStyle
-  labelStyle: LabelStyle
   createdAt?: string
   updatedAt?: string
   translationID?: ID
   translation?: ITranslation
   pageID: ID
   i18nKey?: string
+  settings?: ITagSetting
 }
 
 export class Tag implements ITag {
@@ -52,11 +57,18 @@ export class Tag implements ITag {
   width: number = 0
   height: number = 0
   className: string = ''
-  locked: boolean = false
-  style: TagStyle = {} as TagStyle
-  labelStyle: LabelStyle = {} as LabelStyle
   createdAt?: string | undefined
   updatedAt?: string | undefined
   translation?: ITranslation | undefined
   i18nKey?: string | undefined
+  settings?: ITagSetting
+
+  constructor() {
+    this.settings = {
+      locked: false,
+      style: {} as TagStyle,
+      labelStyle: {} as LabelStyle,
+      prompt: '',
+    }
+  }
 }

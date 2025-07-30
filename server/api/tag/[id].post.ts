@@ -17,13 +17,35 @@ export default defineEventHandler(async (event) => {
     })
   }
   const nID = numericID(id)
-  const body = await readZodBody(event, zTag.partial().parse)
+  const { settings, ...body } = await readZodBody(event, zTag.partial().parse)
+
+  if (settings) {
+    await prisma.tagSettings.upsert({
+      where: {
+        tagID: nID,
+      },
+      create: {
+        tagID: nID,
+        ...settings,
+      },
+      update: settings,
+    })
+  }
+
   const updatedTag = await prisma.tag.update({
     where: {
       id: nID,
     },
     data: body,
     include: {
+      settings: {
+        omit: {
+          id: true,
+          tagID: true,
+          createdAt: true,
+          updatedAt: true,
+        },
+      },
       translation: {
         include: {
           vue: true,

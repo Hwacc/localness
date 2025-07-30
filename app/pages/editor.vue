@@ -209,7 +209,13 @@ onMounted(async () => {
         tag: payload,
         clip,
         loading: false,
-        onSave: async ({ tag, translation, isTransOriginChanged, close }) => {
+        onSave: async ({
+          tag,
+          settings,
+          translation,
+          isTransOriginChanged,
+          close,
+        }) => {
           try {
             tagModal.patch({ loading: true })
             let updatedTrans: ITranslation | null = null
@@ -226,7 +232,6 @@ onMounted(async () => {
             const contentPromises = map(
               pick(translation, ['vue', 'react']),
               (item, key) => {
-                console.log('mapItem', item)
                 if (isEmpty(item)) return Promise.resolve()
                 return useApi(
                   `/api/translation/${
@@ -245,9 +250,10 @@ onMounted(async () => {
               updatedTrans
                 ? {
                     ...tag,
+                    settings,
                     translationID: updatedTrans.id,
                   }
-                : tag
+                : { ...tag, settings }
             )
             send(updatedTag)
             toast.add({

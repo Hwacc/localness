@@ -1,6 +1,6 @@
-import type { ID } from './global'
 import type { IUser } from './User'
 import type { IPage } from './Page'
+import type { ID } from '.'
 
 export interface IProjectSetting {
   ocrLanguage: string

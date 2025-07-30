@@ -36,7 +36,8 @@ const emit = defineEmits<{
   close: [boolean]
   save: [
     {
-      tag: Omit<ZEditTag, 'translation'>
+      tag: Omit<ZEditTag, 'translation' | 'settings'>
+      settings: ZTagSetting
       translation: ZTranslation | null
       isTransOriginChanged: boolean
       close: () => void
@@ -106,11 +107,11 @@ watch(
 )
 
 async function onSubmit() {
-  const preTag = omit(state, ['translation'])
-  console.log('on submit', state.translation)
+  const preTag = omit(state, ['translation', 'settings'])
   try {
     emit('save', {
       tag: preTag,
+      settings: state.settings,
       translation: state.translation
         ? {
             id: tag.value.translationID,
@@ -153,8 +154,8 @@ async function onCreateI18nKey() {
 }
 
 const previewStyle = computed(() => ({
-  border: `${state.style.strokeWidth}px solid ${state.style.stroke}`,
-  borderRadius: `${state.style.cornerRadius}px`,
+  border: `${state.settings.style.strokeWidth}px solid ${state.settings.style.stroke}`,
+  borderRadius: `${state.settings.style.cornerRadius}px`,
 }))
 
 const previewLabelStyle = computed(() => {
@@ -169,7 +170,7 @@ const previewLabelStyle = computed(() => {
     right: 0,
     transform: 'translateY(-100%)',
   }
-  switch (state.labelStyle.align) {
+  switch (state.settings.labelStyle.align) {
     case 'top-left':
       position = {
         top: '2px',
@@ -210,9 +211,9 @@ const previewLabelStyle = computed(() => {
       break
   }
   return {
-    color: state.labelStyle.fill,
-    fontSize: state.labelStyle.fontSize + 'px',
-    fontWeight: state.labelStyle.fontWeight,
+    color: state.settings.labelStyle.fill,
+    fontSize: state.settings.labelStyle.fontSize + 'px',
+    fontWeight: state.settings.labelStyle.fontWeight,
     ...position,
   }
 })
@@ -289,14 +290,14 @@ const previewLabelStyle = computed(() => {
                 />
                 <UButton
                   :icon="
-                    state.locked
+                    state.settings.locked
                       ? 'i-lucide:lock-keyhole'
                       : 'i-lucide:lock-keyhole-open'
                   "
                   size="md"
                   color="primary"
                   variant="outline"
-                  @click="state.locked = !state.locked"
+                  @click="state.settings.locked = !state.settings.locked"
                 />
               </UFormField>
             </div>
@@ -319,38 +320,38 @@ const previewLabelStyle = computed(() => {
               <div class="grid grid-cols-3 gap-4">
                 <UFormField label="Stroke Color">
                   <LineColorPicker
-                    v-model="state.style.stroke"
+                    v-model="state.settings.style.stroke"
                     class="w-full h-8"
                   />
                 </UFormField>
                 <UFormField label="Stroke Width">
                   <LineWidthSelect
-                    v-model="state.style.strokeWidth"
+                    v-model="state.settings.style.strokeWidth"
                     class="w-full h-8 line-width-select"
-                    :line-color="state.style.stroke"
+                    :line-color="state.settings.style.stroke"
                   />
                 </UFormField>
                 <UFormField label="Corner Radius">
                   <div class="flex items-center gap-4 h-8">
                     <USlider
-                      v-model="state.style.cornerRadius"
+                      v-model="state.settings.style.cornerRadius"
                       class="flex-1"
                       :min="0"
                       :max="10"
                       :step="1"
                     />
-                    <span>{{ state.style.cornerRadius }} px</span>
+                    <span>{{ state.settings.style.cornerRadius }} px</span>
                   </div>
                 </UFormField>
                 <UFormField label="Text Color">
                   <LineColorPicker
-                    v-model="state.labelStyle.fill"
+                    v-model="state.settings.labelStyle.fill"
                     class="w-full h-8"
                   />
                 </UFormField>
                 <UFormField label="Text Weight">
                   <USelect
-                    v-model="state.labelStyle.fontWeight"
+                    v-model="state.settings.labelStyle.fontWeight"
                     :items="[
                       { label: 'Normal', value: 'normal' },
                       { label: 'Bold', value: 'bold' },
@@ -361,18 +362,18 @@ const previewLabelStyle = computed(() => {
                 <UFormField label="Text Size">
                   <div class="flex items-center gap-4 h-8">
                     <USlider
-                      v-model="state.labelStyle.fontSize"
+                      v-model="state.settings.labelStyle.fontSize"
                       class="flex-1"
                       :min="12"
                       :max="20"
                       :step="1"
                     />
-                    <span>{{ state.labelStyle.fontSize }} px</span>
+                    <span>{{ state.settings.labelStyle.fontSize }} px</span>
                   </div>
                 </UFormField>
                 <UFormField label="Text Align">
                   <USelect
-                    v-model="state.labelStyle.align"
+                    v-model="state.settings.labelStyle.align"
                     :items="[
                       { label: 'Top-Left', value: 'top-left' },
                       { label: 'Top-Right', value: 'top-right' },

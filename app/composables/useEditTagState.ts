@@ -12,30 +12,32 @@ import {
 } from '#shared/constants'
 
 export const schema = z.object({
-  locked: z.boolean(),
-  style: z.object({
-    fill: z.string().optional(),
-    stroke: z.string().optional(),
-    strokeWidth: z.number().optional(),
-    cornerRadius: z.number().optional(),
-  }),
-  labelStyle: z.object({
-    fill: z.string().optional(),
-    fontSize: z.number().optional(),
-    fontWeight: z.enum(['normal', 'bold']).optional(),
-    textWrap: z.string().optional(),
-    align: z
-      .enum([
-        'top-left',
-        'top-right',
-        'bottom-left',
-        'bottom-right',
-        'left',
-        'right',
-      ])
-      .optional(),
-  }),
   i18nKey: z.string().optional(),
+  settings: z.looseObject({
+    locked: z.boolean(),
+    style: z.object({
+      fill: z.string().optional(),
+      stroke: z.string().optional(),
+      strokeWidth: z.number().optional(),
+      cornerRadius: z.number().optional(),
+    }),
+    labelStyle: z.object({
+      fill: z.string().optional(),
+      fontSize: z.number().optional(),
+      fontWeight: z.enum(['normal', 'bold']).optional(),
+      textWrap: z.string().optional(),
+      align: z
+        .enum([
+          'top-left',
+          'top-right',
+          'bottom-left',
+          'bottom-right',
+          'left',
+          'right',
+        ])
+        .optional(),
+    }),
+  }),
   translation: z
     .object({
       origin: z.string().optional(),
@@ -49,22 +51,29 @@ export type Schema = z.infer<typeof schema>
 
 export function useEditTagState(tag: MaybeRef<ITag>) {
   const state = reactive<Schema>({
-    locked: unref(tag).locked,
-    style: {
-      fill: unref(tag).style?.fill || '',
-      stroke: (unref(tag).style?.stroke || DEFAULT_LINE_COLOR) as string,
-      strokeWidth: unref(tag).style?.strokeWidth || DEFAULT_LINE_WIDTH,
-      cornerRadius: unref(tag).style?.cornerRadius || DEFAULT_CORNER_RADIUS,
-    },
-    labelStyle: {
-      fill: unref(tag).labelStyle?.fill || DEFAULT_LABEL_FILL,
-      fontSize: unref(tag).labelStyle?.fontSize || DEFAULT_LABEL_FONT_SIZE,
-      fontWeight:
-        unref(tag).labelStyle?.fontWeight || DEFAULT_LABEL_FONT_WEIGHT,
-      textWrap: unref(tag).labelStyle?.textWrap || DEFAULT_LABEL_WRAP,
-      align: unref(tag).labelStyle?.align || DEFAULT_LABEL_ALIGN,
-    },
     i18nKey: unref(tag).i18nKey || '',
+    settings: {
+      locked: unref(tag).settings?.locked ?? false,
+      style: {
+        fill: unref(tag).settings?.style?.fill || '',
+        stroke: (unref(tag).settings?.style?.stroke ||
+          DEFAULT_LINE_COLOR) as string,
+        strokeWidth:
+          unref(tag).settings?.style?.strokeWidth || DEFAULT_LINE_WIDTH,
+        cornerRadius:
+          unref(tag).settings?.style?.cornerRadius || DEFAULT_CORNER_RADIUS,
+      },
+      labelStyle: {
+        fill: unref(tag).settings?.labelStyle?.fill || DEFAULT_LABEL_FILL,
+        fontSize:
+          unref(tag).settings?.labelStyle?.fontSize || DEFAULT_LABEL_FONT_SIZE,
+        fontWeight:
+          unref(tag).settings?.labelStyle?.fontWeight ||
+          DEFAULT_LABEL_FONT_WEIGHT,
+        textWrap: unref(tag).settings?.labelStyle?.textWrap || DEFAULT_LABEL_WRAP,
+        align: unref(tag).settings?.labelStyle?.align || DEFAULT_LABEL_ALIGN,
+      },
+    },
     translation: unref(tag).translation
       ? cloneDeep(unref(tag).translation) ?? null
       : null,
@@ -73,14 +82,26 @@ export function useEditTagState(tag: MaybeRef<ITag>) {
   watch(
     () => unref(tag),
     (val) => {
-      state.locked = val.locked
-      state.style = {
-        fill: val.style?.fill || '',
-        stroke: (val.style?.stroke || DEFAULT_LINE_COLOR) as string,
-        strokeWidth: val.style?.strokeWidth || DEFAULT_LINE_WIDTH,
-        cornerRadius: val.style?.cornerRadius || DEFAULT_CORNER_RADIUS,
-      }
+      const settings = val.settings
       state.i18nKey = val.i18nKey || ''
+      state.settings = {
+        locked: settings?.locked ?? false,
+        style: {
+          fill: settings?.style?.fill || '',
+          stroke: (settings?.style?.stroke || DEFAULT_LINE_COLOR) as string,
+          strokeWidth: settings?.style?.strokeWidth || DEFAULT_LINE_WIDTH,
+          cornerRadius: settings?.style?.cornerRadius || DEFAULT_CORNER_RADIUS,
+        },
+        labelStyle: {
+          fill: settings?.labelStyle?.fill || DEFAULT_LABEL_FILL,
+          fontSize:
+            settings?.labelStyle?.fontSize || DEFAULT_LABEL_FONT_SIZE,
+          fontWeight:
+            settings?.labelStyle?.fontWeight || DEFAULT_LABEL_FONT_WEIGHT,
+          textWrap: settings?.labelStyle?.textWrap || DEFAULT_LABEL_WRAP,
+          align: settings?.labelStyle?.align || DEFAULT_LABEL_ALIGN,
+        },
+      }
       state.translation = {
         origin: val.translation?.origin || '',
         fingerprint: val.translation?.fingerprint || '',

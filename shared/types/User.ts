@@ -1,6 +1,7 @@
 import { UserRole } from '#shared/constants'
-import type { ID } from './global'
 import type { IProject } from './Project'
+import type { ID } from '.'
+
 export interface IUser {
   id: ID
   username: string

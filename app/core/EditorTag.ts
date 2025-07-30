@@ -24,7 +24,7 @@ class EditorTag extends Frame {
   public isLocked: boolean = false
   private labelNode: Text | null = null
 
-  constructor(tag: Partial<ITag>) {
+  constructor(tag: Partial<ITag>, settings?: ITag['settings']) {
     super({
       id: tag.tagID,
       className: tag.className,
@@ -33,16 +33,16 @@ class EditorTag extends Frame {
       overflow: 'show',
       width: tag.width,
       height: tag.height,
-      fill: tag.style?.fill ?? 'transparent',
-      cornerRadius: tag.style?.cornerRadius ?? DEFAULT_CORNER_RADIUS,
-      stroke: tag.style?.stroke ?? DEFAULT_LINE_COLOR,
-      strokeWidth: tag.style?.strokeWidth ?? DEFAULT_LINE_WIDTH,
+      fill: settings?.style?.fill ?? 'transparent',
+      cornerRadius: settings?.style?.cornerRadius ?? DEFAULT_CORNER_RADIUS,
+      stroke: settings?.style?.stroke ?? DEFAULT_LINE_COLOR,
+      strokeWidth: settings?.style?.strokeWidth ?? DEFAULT_LINE_WIDTH,
       dragBounds: 'parent',
       editable: true,
       editConfig: {
-        moveable: !tag.locked,
-        rotatable: !tag.locked,
-        resizeable: !tag.locked,
+        moveable: !settings?.locked,
+        rotatable: !settings?.locked,
+        resizeable: !settings?.locked,
       },
       event: {
         mounted: () => {
@@ -57,16 +57,16 @@ class EditorTag extends Frame {
     })
 
     this.remoteTag = tag
-    this.isLocked = tag.locked ?? false
+    this.isLocked = settings?.locked ?? false
     this.set({
       widthRange: { min: 20, max: Infinity },
       heightRange: { min: 20, max: Infinity },
     })
 
-    this.drawI18nKey(tag.labelStyle)
+    this.drawI18nKey(settings?.labelStyle)
   }
 
-  private drawI18nKey(labelStyle?: ITag['labelStyle']) {
+  private drawI18nKey(labelStyle?: ITagSetting['labelStyle']) {
     if (!this.remoteTag.i18nKey) {
       if (this.labelNode) {
         this.labelNode.remove()
@@ -105,12 +105,12 @@ class EditorTag extends Frame {
 
   public update(rTag: Partial<ITag>) {
     this.remoteTag = { ...this.remoteTag, ...rTag }
-    this.lock(rTag.locked ?? false)
-    this.updateStyle(rTag.style)
-    this.updateLabelStyle(rTag.labelStyle)
+    this.lock(rTag.settings?.locked ?? false)
+    this.updateStyle(rTag.settings?.style)
+    this.updateLabelStyle(rTag.settings?.labelStyle)
   }
 
-  public updateStyle(rStyle: Partial<ITag['style']> | undefined) {
+  public updateStyle(rStyle?: Partial<ITagSetting['style']>) {
     if (isEmpty(rStyle)) return
     this.set({
       fill: rStyle.fill ?? 'transparent',
@@ -121,7 +121,7 @@ class EditorTag extends Frame {
   }
 
   public updateLabelStyle(
-    rLabelStyle: Partial<ITag['labelStyle']> | undefined
+    rLabelStyle?: Partial<ITagSetting['labelStyle']>
   ) {
     if (isNil(rLabelStyle)) return
     if (
@@ -211,7 +211,7 @@ class EditorTag extends Frame {
       'cornerRadius',
       'strokeWidth',
       'stroke',
-    ]) as ITag['style']
+    ]) as ITagSetting['style']
     const labelStyle = pick(labelObject, [
       'fontSize',
       'fontWeight',
@@ -220,9 +220,10 @@ class EditorTag extends Frame {
       'align',
     ])
     this.remoteTag.tagID = this.id
-    this.remoteTag.style = { ...styleProps } as unknown as ITag['style']
-    this.remoteTag.labelStyle = labelStyle as ITag['labelStyle']
-    this.remoteTag.locked = this.isLocked
+    this.remoteTag.settings = this.remoteTag.settings ?? ({} as ITagSetting)
+    this.remoteTag.settings.style = { ...styleProps } as ITagSetting['style']
+    this.remoteTag.settings.labelStyle = labelStyle as ITagSetting['labelStyle']
+    this.remoteTag.settings.locked = this.isLocked
     return { ...this.remoteTag, ...baseProps } as ITag
   }
 }
