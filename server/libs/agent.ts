@@ -1,4 +1,4 @@
-import type { AbstractAgent, JWTResult } from './agent/AbstractAgent'
+import type { AbstractAgent } from './agent/AbstractAgent'
 import type { ZGenI18nKey } from '#shared/utils/schemas'
 import { CozeAgent } from './agent/CozeAgent'
 
@@ -8,10 +8,6 @@ class AgentManager {
 
   private constructor() {
     this.agent = new CozeAgent()
-  }
-
-  public async getJWTToken(): Promise<JWTResult> {
-    return this.agent.getJwt()
   }
 
   public async generateI18nKey<T>(parmas?: ZGenI18nKey): Promise<T> {
