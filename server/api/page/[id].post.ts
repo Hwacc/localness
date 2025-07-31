@@ -1,6 +1,7 @@
 import prisma from '#server/libs/prisma'
 import { numericID } from '#server/helper/id'
 import { readZodBody } from '#server/helper/validate'
+import { z } from 'zod/v4'
 
 /**
  * @route POST /api/page/:id
@@ -17,7 +18,12 @@ export default defineEventHandler(async (event) => {
     })
   }
   const nID = numericID(id)
-  const { name, image, settings } = await readZodBody(event, zPage.parse)
+  const { name, image, settings } = await readZodBody(
+    event,
+    zPage.extend({
+      image: z.string().optional(),
+    }).parse
+  )
   if (!name) {
     throw createError({
       statusCode: 400,

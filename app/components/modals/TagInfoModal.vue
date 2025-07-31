@@ -60,6 +60,7 @@ const emit = defineEmits<{
       id: ID
       origin: string
       i18nKey?: string
+      prompt?: string
     }
   ]
 }>()
@@ -156,6 +157,7 @@ async function onCreateI18nKey() {
     id: tag.value.id,
     i18nKey: state.i18nKey,
     origin: state.translation?.origin,
+    prompt: state.settings.prompt,
   })
 }
 

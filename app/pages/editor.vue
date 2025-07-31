@@ -17,6 +17,8 @@ definePageMeta({
   middleware: ['protected'],
 })
 
+const projectStore = useProjectStore()
+const { curProject } = storeToRefs(projectStore)
 const pageStore = usePageStore()
 const { curPage, tagList } = storeToRefs(pageStore)
 const tagStore = useTagStore()
@@ -327,7 +329,7 @@ onMounted(async () => {
           }
         },
 
-        onCreateI18nKey: async ({ id, origin, i18nKey }) => {
+        onCreateI18nKey: async ({ id, origin, i18nKey, prompt }) => {
           try {
             tagModal.patch({ loading: true })
             const result = await useApi<{ tagID: ID; i18nKey: string } | null>(
@@ -335,9 +337,12 @@ onMounted(async () => {
               {
                 method: 'POST',
                 body: {
+                  projectPrompt: curProject.value?.settings?.prompt,
+                  pagePrompt: curPage.value?.settings?.prompt,
                   tagID: id,
                   tagOrigin: origin,
                   tagI18nKey: i18nKey,
+                  tagPrompt: prompt,
                 },
               }
             )

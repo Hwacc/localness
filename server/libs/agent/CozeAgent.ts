@@ -81,6 +81,20 @@ export class CozeAgent extends AbstractAgent {
       if (!parmas)
         throw new Error('Failed to generate i18n key: Missing parameters')
       await this.initClient()
+      console.log(
+        'parmas',
+        transform(
+          parmas,
+          (result, val, key) => {
+            if (key === 'tagI18nKey') {
+              result['tag_i18n_key'] = val
+              return
+            }
+            result[snakeCase(key)] = val
+          },
+          {} as Record<string, any>
+        )
+      )
       const response = this.apiClient?.workflows.runs.stream({
         workflow_id: '7514668272895213594',
         parameters:

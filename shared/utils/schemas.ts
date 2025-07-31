@@ -170,6 +170,9 @@ export const zExport = z.object(
 export type ZExport = z.infer<typeof zExport>
 
 export const zGenI18nKey = z.object({
+  projectPrompt: z.string().optional(),
+  pagePrompt: z.string().optional(),
+  pageImage: z.string().optional(),
   tagID: z.number().nonnegative(),
   tagOrigin: z.string(),
   tagI18nKey: z.string().optional(),
