@@ -1,7 +1,6 @@
 export default defineNuxtRouteMiddleware(async () => {
-  if (import.meta.server) return
-  const authStore = useAuthStore()
-  if (authStore.loggedIn) {
+  const { loggedIn } = useUserSession()
+  if (loggedIn.value) {
     return navigateTo('/transfer')
   }
 })

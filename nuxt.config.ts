@@ -53,7 +53,7 @@ export default defineNuxtConfig({
     '~/components',
   ],
   routeRules: {
-    '/': { prerender: true },
+    '/': { prerender: false, ssr: true },
     '/transfer': { ssr: false },
     '/editor': { ssr: false },
   },

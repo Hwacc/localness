@@ -2,7 +2,7 @@
  * here we use prisma client which we built in common folder
  * according to https://github.com/prisma/prisma/issues/26565
  */
-import { PrismaClient } from '~~/prisma/generated/client'
+import { PrismaClient } from '~~/prisma/client'
 
 const prismaClientSingleton = () => {
   return new PrismaClient()

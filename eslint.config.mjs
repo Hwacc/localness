@@ -4,7 +4,7 @@ import withNuxt from './.nuxt/eslint.config.mjs'
 export default withNuxt(
   // Your custom configs here
   {
-    ignores: ['prisma/generated/**/*'],
+    ignores: ['prisma/client/**/*'],
     rules: {
       'no-console': 'off',
       semi: ['error', 'never'],

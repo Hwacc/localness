@@ -1,4 +1,4 @@
 migrations
-generated
+client
 *.db
 *.db-journal
