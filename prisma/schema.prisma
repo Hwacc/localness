@@ -48,7 +48,7 @@ model ProjectSettings {
   projectID   Int      @unique @map("project_id")
   ocrLanguage String   @map("ocr_language")
   ocrEngine   Int      @map("ocr_engine")
-  prompt      String?
+  prompt      String?  @default("")
   project     Project  @relation(fields: [projectID], references: [id], onDelete: Cascade)
 }
 
@@ -80,7 +80,7 @@ model PageSettings {
   pageID      Int      @unique @map("page_id")
   ocrLanguage String   @map("ocr_language")
   ocrEngine   Int      @map("ocr_engine")
-  prompt      String?
+  prompt      String?  @default("")
   page        Page     @relation(fields: [pageID], references: [id], onDelete: Cascade)
 }
 
@@ -111,7 +111,7 @@ model TagSettings {
   locked     Boolean  @default(false)
   style      Json
   labelStyle Json     @map("label_style")
-  prompt     String?
+  prompt     String?  @default("")
 }
 
 model Translation {
