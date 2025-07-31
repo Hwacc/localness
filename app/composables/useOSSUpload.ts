@@ -80,7 +80,7 @@ export function useOSSUpload() {
         }
         console.log('upload complete', res)
         return {
-          key: res[0],
+          key: res[0]!,
           fsize: file.size,
           name: file.name,
         }

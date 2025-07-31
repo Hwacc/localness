@@ -3,10 +3,10 @@ import fs from 'node:fs'
 import path from 'node:path'
 import { PassThrough, pipeline } from 'node:stream'
 import { OSSEngine } from '#shared/constants'
-
 class PublicFolderAssitant {
-  private resourcesPath: string = path.join(process.cwd(), 'public/upload')
+  private resourcesPath: string = path.resolve(process.cwd(), 'runtime/uploads')
   constructor() {
+    console.log('LocalOSS ResourcesPath:', this.resourcesPath)
     // create public folder
     if (!fs.existsSync(this.resourcesPath)) {
       fs.mkdirSync(this.resourcesPath, {

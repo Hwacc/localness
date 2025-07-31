@@ -11,7 +11,7 @@
     "register": "dotenv -e .env.production node ./scripts/register.js",
     "prisma:generate:prod": "dotenv -e .env.production npx prisma generate",
     "prisma:migrate:prod": "dotenv -e .env.production npx prisma migrate deploy",
-    "start:prod": "dotenv -e .env.production node .output/server/index.mjs"
+    "start:prod": "pm2 start ecosystem.config.cjs"
   },
   "dependencies": {
     "@bytemd/vue-next": "^1.22.0",

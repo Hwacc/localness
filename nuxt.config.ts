@@ -5,7 +5,7 @@ import fs from 'node:fs/promises'
 
 export default defineNuxtConfig({
   alias: {
-    '#server': resolve(process.cwd(), './server'),
+    '#server': resolve(process.cwd(), 'server'),
   },
   compatibilityDate: '2025-05-15',
   devtools: { enabled: true },
@@ -76,6 +76,12 @@ export default defineNuxtConfig({
     plugins: [tailwindcss()],
   },
   nitro: {
+    publicAssets: [
+      {
+        baseURL: '/uploads',
+        dir: resolve(process.cwd(), 'runtime/uploads'),
+      },
+    ],
     externals: {
       external: ['@prisma/client', '.prisma'],
     },
@@ -89,7 +95,7 @@ export default defineNuxtConfig({
         if (process.env.NODE_ENV !== 'production') return
         const nirtroFileUrl = resolve(
           process.cwd(),
-          './.output/server/chunks/_/nitro.mjs'
+          '.output/server/chunks/_/nitro.mjs'
         )
         let content = ''
         try {
