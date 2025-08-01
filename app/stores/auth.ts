@@ -1,6 +1,7 @@
 export const useAuthStore = defineStore('auth', () => {
   const toast = useToast()
   const {
+    ready,
     loggedIn,
     user,
     session,
@@ -18,8 +19,10 @@ export const useAuthStore = defineStore('auth', () => {
         },
       })
       if (res && res.user) {
+        console.log('login success', res, loggedIn.value)
         await refreshSession()
-        return true
+        console.log('login success ---> refreshSession', loggedIn.value)
+        return loggedIn.value
       }
       return false
     } catch (error) {
@@ -62,6 +65,7 @@ export const useAuthStore = defineStore('auth', () => {
   }
 
   return {
+    ready,
     user,
     loggedIn,
     login,

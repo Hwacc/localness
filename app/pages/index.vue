@@ -25,6 +25,7 @@ const state = reactive<ZLogin>({ username: '', password: '' })
 
 async function onSubmit() {
   const success = await login(state.username, state.password)
+  console.log('login page --->', success)
   if (success) {
     await navigateTo('/transfer')
   }

@@ -2,9 +2,10 @@ module.exports = {
   apps: [
     {
       name: 'rana',
-      script: '.output/server/index.mjs',
+      script: './.output/server/index.mjs',
       cwd: process.cwd(),
       instances: 1,
+      port: '8848',
       
       env: {
         NODE_ENV: 'production',
