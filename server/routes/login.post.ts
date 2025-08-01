@@ -36,7 +36,7 @@ export default defineEventHandler(async (event) => {
       statusMessage: 'Invalid password',
     })
   }
-  await setUserSession(
+  const userSession = await setUserSession(
     event,
     {
       user: {
@@ -49,7 +49,7 @@ export default defineEventHandler(async (event) => {
       maxAge: 60 * 60 * 24 * 30,
     }
   )
-
+  console.log('userSession', userSession)
   return {
     user: omit(user, ['password', 'createdAt', 'updatedAt']),
   }
