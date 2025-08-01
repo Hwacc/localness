@@ -93,16 +93,27 @@ export default defineNuxtConfig({
        */
       compiled: async () => {
         if (process.env.NODE_ENV !== 'production') return
-        const nirtroFileUrl = resolve(
-          process.cwd(),
-          '.output/server/chunks/_/nitro.mjs'
-        )
+        const chunksDir = resolve(process.cwd(), '.output/server/chunks')
+        let nirtroFileUrl = ''
         let content = ''
         try {
-          // try to read nitro mjs file
+          // Search for nitro.mjs in all subdirectories
+          const files = await fs.readdir(chunksDir, { recursive: true, withFileTypes: true })
+          const nitroFile = files.find(
+            file => file.isFile() && file.name === 'nitro.mjs'
+          )
+          if (!nitroFile) {
+            console.warn('nitro.mjs not found in', chunksDir)
+            return
+          }
+          // Get the full path by joining the chunksDir with the relative path of the file
+          const relativePath = nitroFile.parentPath 
+            ? resolve(nitroFile.parentPath, nitroFile.name)
+            : nitroFile.name
+          nirtroFileUrl = resolve(chunksDir, relativePath)
           content = await fs.readFile(nirtroFileUrl, 'utf8')
-          // eslint-disable-next-line @typescript-eslint/no-unused-vars
         } catch (error) {
+          console.error('Error searching for nitro.mjs:', error)
           return
         }
         content = content.replace('__dirname', 'globalThis.__dirname')
