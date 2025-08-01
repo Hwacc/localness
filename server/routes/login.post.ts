@@ -50,6 +50,7 @@ export default defineEventHandler(async (event) => {
         httpOnly: false,
         secure: false,
         sameSite: 'lax',
+        maxAge: 60 * 60 * 24 * 30,
       },
       maxAge: 60 * 60 * 24 * 30,
     }
