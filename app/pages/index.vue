@@ -24,7 +24,6 @@ type ZLogin = z.infer<typeof zLogin>
 const state = reactive<ZLogin>({ username: '', password: '' })
 
 async function onSubmit() {
-  console.log(state)
   const success = await login(state.username, state.password)
   if (success) {
     await navigateTo('/transfer')

@@ -17,6 +17,11 @@ export default defineEventHandler(async (event) => {
   const id = numericID(session.user.id)
   const user = await prisma.user.findUnique({
     where: { id },
+    omit: {
+      password: true,
+      createdAt: true,
+      updatedAt: true,
+    },
   })
   return user
 })
