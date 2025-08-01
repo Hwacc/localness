@@ -65,7 +65,7 @@ export function useOSSUpload() {
       const form = new FormData()
       form.append('file', file)
       try {
-        const res = await $fetch<string[]>('/api/common/upload-file', {
+        const res = await $fetch<string[]>('/upload', {
           method: 'POST',
           body: form,
         })

@@ -167,6 +167,9 @@ importers:
       ufo:
         specifier: ^1.6.1
         version: 1.6.1
+      unstorage:
+        specifier: ^1.16.1
+        version: 1.16.1(@netlify/blobs@9.1.2)(db0@0.3.2)(ioredis@5.6.1)
       uuid:
         specifier: ^11.1.0
         version: 11.1.0

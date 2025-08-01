@@ -3,6 +3,7 @@ import type { PrismaClient } from '@prisma/client'
 import type { cn } from '~/utils'
 import type { IUser } from './User'
 import type { FIFOCache } from 'fifo-ttl-cache'
+import type { Storage } from 'unstorage'
 
 declare module '#app' {
   interface NuxtApp {
@@ -10,6 +11,13 @@ declare module '#app' {
     $dayjs: typeof dayjs
     $cn: typeof cn
     $imageCache: FIFOCache<string, ImageCache>
+  }
+
+}
+
+declare module 'h3' {
+  interface H3EventContext {
+    ossStorage: Storage
   }
 }
 

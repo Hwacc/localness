@@ -76,12 +76,6 @@ export default defineNuxtConfig({
     plugins: [tailwindcss()],
   },
   nitro: {
-    publicAssets: [
-      {
-        baseURL: '/uploads',
-        dir: resolve(process.cwd(), 'runtime/uploads'),
-      },
-    ],
     externals: {
       external: ['@prisma/client', '.prisma'],
     },
