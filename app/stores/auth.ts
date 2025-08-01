@@ -19,9 +19,7 @@ export const useAuthStore = defineStore('auth', () => {
         },
       })
       if (res && res.user) {
-        console.log('login success', res, loggedIn.value)
         await refreshSession()
-        console.log('login success ---> refreshSession', loggedIn.value)
         return loggedIn.value
       }
       return false

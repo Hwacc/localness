@@ -15,6 +15,7 @@ const zLogin = z.object({
  * @access Public
  */
 export default defineEventHandler(async (event) => {
+  const isHttps = event.context.isHttps
   const { username, password } = await readZodBody(event, zLogin.parse)
 
   const user = await prisma.user.findUnique({
@@ -36,7 +37,7 @@ export default defineEventHandler(async (event) => {
       statusMessage: 'Invalid password',
     })
   }
-  const userSession = await setUserSession(
+  await setUserSession(
     event,
     {
       user: {
@@ -47,15 +48,14 @@ export default defineEventHandler(async (event) => {
     },
     {
       cookie: {
-        httpOnly: false,
-        secure: false,
-        sameSite: 'lax',
+        httpOnly: isHttps,
+        secure: isHttps,
+        sameSite: isHttps ? 'strict' : 'lax',
         maxAge: 60 * 60 * 24 * 30,
       },
       maxAge: 60 * 60 * 24 * 30,
     }
   )
-  console.log('userSession', userSession)
   return {
     user: omit(user, ['password', 'createdAt', 'updatedAt']),
   }

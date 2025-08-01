@@ -90,7 +90,7 @@ export const usePageStore = defineStore('page', () => {
       if (curPage.value.id === id) {
         curPage.value = isEmpty(projectStore.curProject.pages)
           ? new Page()
-          : projectStore.curProject.pages[0]
+          : projectStore.curProject.pages[0]!
       }
       if (import.meta.client) {
         toast.add({
