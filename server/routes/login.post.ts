@@ -46,6 +46,11 @@ export default defineEventHandler(async (event) => {
       },
     },
     {
+      cookie: {
+        httpOnly: false,
+        secure: false,
+        sameSite: 'lax',
+      },
       maxAge: 60 * 60 * 24 * 30,
     }
   )

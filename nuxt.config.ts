@@ -98,16 +98,19 @@ export default defineNuxtConfig({
         let content = ''
         try {
           // Search for nitro.mjs in all subdirectories
-          const files = await fs.readdir(chunksDir, { recursive: true, withFileTypes: true })
+          const files = await fs.readdir(chunksDir, {
+            recursive: true,
+            withFileTypes: true,
+          })
           const nitroFile = files.find(
-            file => file.isFile() && file.name === 'nitro.mjs'
+            (file) => file.isFile() && file.name === 'nitro.mjs'
           )
           if (!nitroFile) {
             console.warn('nitro.mjs not found in', chunksDir)
             return
           }
           // Get the full path by joining the chunksDir with the relative path of the file
-          const relativePath = nitroFile.parentPath 
+          const relativePath = nitroFile.parentPath
             ? resolve(nitroFile.parentPath, nitroFile.name)
             : nitroFile.name
           nirtroFileUrl = resolve(chunksDir, relativePath)
