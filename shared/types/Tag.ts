@@ -27,7 +27,7 @@ export interface ITagSetting {
   locked: boolean
   style: TagStyle
   labelStyle: LabelStyle
-  prompt?: string
+  prompt?: string | null
 }
 
 export interface ITag {

@@ -8,7 +8,7 @@ export default defineNuxtConfig({
     '#server': resolve(process.cwd(), 'server'),
   },
   compatibilityDate: '2025-05-15',
-  devtools: { enabled: true },
+  devtools: { enabled: process.env.NODE_ENV !== 'production' },
   sourcemap: process.env.NODE_ENV === 'development',
   modules: [
     '@nuxt/ui',
