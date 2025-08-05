@@ -1,5 +1,4 @@
 import prisma from '#server/libs/prisma'
-import OSSManager from '#server/libs/oss'
 import { numericID } from '#server/helper/id'
 
 /**
@@ -9,6 +8,7 @@ import { numericID } from '#server/helper/id'
  */
 export default defineEventHandler(async (event) => {
   await requireUserSession(event)
+  const ossStorage = event.context.ossStorage
   const id = getRouterParam(event, 'id')
   if (!id) {
     throw createError({
@@ -31,12 +31,12 @@ export default defineEventHandler(async (event) => {
       statusMessage: 'Page not found',
     })
   }
-  const deleteAssetFlag = await OSSManager.deleteAsset(page?.image || '')
-  if (!deleteAssetFlag) {
-    throw createError({
-      statusCode: 500,
-      statusMessage: 'Failed to delete oss asset',
-    })
+  if (page.image) {
+    try {
+      await ossStorage.removeItem(page?.image || '')
+    } catch (error) {
+      console.error(error)
+    }
   }
   const deletedPage = await prisma.page.delete({
     where: {
