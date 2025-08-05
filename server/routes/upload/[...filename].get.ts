@@ -1,3 +1,5 @@
+import { OSSEngine } from '#shared/constants'
+
 /**
  * @route GET /upload/:filename
  * @description Get a file
@@ -16,9 +18,9 @@ export default defineEventHandler(async (event) => {
   }
   const ossStorage = event.context.ossStorage
   let file: any = ''
-  if (process.env.NUXT_PUBLIC_OSS_ENGINE === 'qiniu') {
+  if (process.env.NUXT_PUBLIC_OSS_ENGINE === OSSEngine.QINIU) {
     file = await ossStorage.getItem(filename, { deadline: Number(deadline) })
-  } else if (process.env.NUXT_PUBLIC_OSS_ENGINE === 'local') {
+  } else if (process.env.NUXT_PUBLIC_OSS_ENGINE === OSSEngine.LOCAL) {
     file = await ossStorage.getItemRaw(getFileKey(filename))
   }
   if (!file) {
