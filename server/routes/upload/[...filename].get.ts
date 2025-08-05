@@ -5,6 +5,8 @@
  */
 export default defineEventHandler(async (event) => {
   await requireUserSession(event)
+  const { deadline } = getQuery<{ deadline: string }>(event)
+
   const filename = event.context.params?.filename
   if (!filename) {
     throw createError({
@@ -12,9 +14,13 @@ export default defineEventHandler(async (event) => {
       statusMessage: 'Missing filename',
     })
   }
-
   const ossStorage = event.context.ossStorage
-  const file = await ossStorage.getItemRaw(getFileKey(filename))
+  let file: any = ''
+  if (process.env.NUXT_PUBLIC_OSS_ENGINE === 'qiniu') {
+    file = await ossStorage.getItem(filename, { deadline: Number(deadline) })
+  } else if (process.env.NUXT_PUBLIC_OSS_ENGINE === 'local') {
+    file = await ossStorage.getItemRaw(getFileKey(filename))
+  }
   if (!file) {
     throw createError({
       statusCode: 404,

@@ -18,13 +18,10 @@ export function useOSSImage() {
         return cached.url
       }
     }
-    
+
     // if ossEngine is QINIU, generate oss url
     if (ossEngine === OSSEngine.QINIU) {
-      const url = await useApi<string>('/api/common/gen-oss-url', {
-        method: 'POST',
-        body: { key },
-      })
+      const url = await useApi<string>(`/upload/${key}`)
       const { search } = parseURL(url)
       $imageCache.set(key, {
         url,

@@ -72,13 +72,7 @@ async function onInputChange(e: any) {
       emit('upload-start')
       const res = await handleUpload()
       if (!res) return
-      const url = await useApi<string>('/api/common/gen-oss-url', {
-        method: 'POST',
-        body: {
-          key: res.key,
-          deadline: 1,
-        },
-      })
+      const url = await useApi<string>(`/upload/${res.key}?deadline=1`)
       innerUrl.value = url
       emit('upload-end', url)
     } catch (error) {
