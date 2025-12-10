@@ -1,5 +1,5 @@
 generator client {
-  provider     = "prisma-client-js"
+  provider     = "prisma-client"
   output       = env("DATABASE_CLIENT")
   moduleFormat = "esm"
   runtime      = "nodejs"
@@ -7,7 +7,6 @@ generator client {
 
 datasource db {
   provider = "sqlite"
-  url      = env("DATABASE_URL")
 }
 
 model User {
@@ -97,8 +96,8 @@ model Tag {
   pageID        Int          @map("page_id")
   translationID Int?         @map("translation_id")
   i18nKey       String?      @map("i18n_key")
-  translation   Translation? @relation(fields: [translationID], references: [id])
   page          Page         @relation(fields: [pageID], references: [id], onDelete: Cascade)
+  translation   Translation? @relation(fields: [translationID], references: [id])
   settings      TagSettings?
 }
 
@@ -107,11 +106,11 @@ model TagSettings {
   createdAt  DateTime @default(now()) @map("created_at")
   updatedAt  DateTime @updatedAt @map("updated_at")
   tagID      Int      @unique @map("tag_id")
-  tag        Tag      @relation(fields: [tagID], references: [id], onDelete: Cascade)
   locked     Boolean  @default(false)
   style      Json
   labelStyle Json     @map("label_style")
   prompt     String?  @default("")
+  tag        Tag      @relation(fields: [tagID], references: [id], onDelete: Cascade)
 }
 
 model Translation {
@@ -176,8 +175,37 @@ model TranslationLog {
   user        User?        @relation(fields: [userID], references: [id])
 }
 
+/// The underlying table does not contain a valid unique identifier and can therefore currently not be handled by Prisma Client.
 model Translation_FTS {
-  origin String?
+  origin Unsupported("")?
 
+  @@ignore
+}
+
+/// The underlying table does not contain a valid unique identifier and can therefore currently not be handled by Prisma Client.
+model Translation_FTS_config {
+  k Unsupported("")  @id
+  v Unsupported("")?
+
+  @@ignore
+}
+
+model Translation_FTS_data {
+  id    Int    @id @default(autoincrement())
+  block Bytes?
+}
+
+model Translation_FTS_docsize {
+  id Int    @id @default(autoincrement())
+  sz Bytes?
+}
+
+/// The underlying table does not contain a valid unique identifier and can therefore currently not be handled by Prisma Client.
+model Translation_FTS_idx {
+  segid Unsupported("")
+  term  Unsupported("")
+  pgno  Unsupported("")?
+
+  @@id([segid, term])
   @@ignore
 }

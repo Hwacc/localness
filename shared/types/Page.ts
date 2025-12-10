@@ -13,7 +13,7 @@ export interface IPage {
   settings: {
     ocrLanguage: string
     ocrEngine: number
-    prompt?: string
+    prompt?: string | null
   }
 }
 

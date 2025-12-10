@@ -5,7 +5,7 @@ import type { ID } from '.'
 export interface IProjectSetting {
   ocrLanguage: string
   ocrEngine: number
-  prompt?: string
+  prompt?: string | null
 }
 
 export interface IProject {

@@ -1,5 +1,10 @@
 import { OSSEngine } from '#shared/constants'
 
+/**
+ * @route GET /upload/token
+ * @description Get a upload token for client upload
+ * @access Private
+ */
 export default defineEventHandler(async (event) => {
   await requireUserSession(event)
   const ossStorage = event.context.ossStorage

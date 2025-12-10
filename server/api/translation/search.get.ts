@@ -29,6 +29,7 @@ export default defineEventHandler(async (event) => {
     Number(limit),
     offset
   )
+  
   const ids = rows.map((row: any) => row.rowid)
   const translations = await prisma.translation.findMany({
     where: {

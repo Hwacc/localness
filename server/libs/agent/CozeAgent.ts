@@ -34,7 +34,12 @@ export class CozeAgent extends AbstractAgent {
 
   private async initClient() {
     if (!this.isExpired() && !this.apiClient) return
-    await this.getJwt()
+    try {
+      await this.getJwt()
+    } catch (error) {
+      console.error('Failed to get JWT OAuth token:', error)
+      throw error
+    }
     this.apiClient = new CozeAPI({
       baseURL: this.sceret.coze_api_base,
       token: this.jwt.access_token,

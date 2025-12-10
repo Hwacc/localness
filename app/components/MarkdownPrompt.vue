@@ -3,10 +3,9 @@
 import { Editor as BytemdEditor } from '@bytemd/vue-next'
 
 const { modelValue = '' } = defineProps<{
-  modelValue?: string
+  modelValue?: string | null
 }>()
 
-console.log(modelValue)
 const emit = defineEmits<{
   'update:modelValue': [value: string]
 }>()

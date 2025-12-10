@@ -8,7 +8,11 @@ export default defineNitroPlugin(async () => {
   if (result.length === 0) {
     console.log('[FTS] Translation_FTS Initializing...')
     await prisma.$executeRawUnsafe(`
-      CREATE VIRTUAL TABLE Translation_FTS USING fts5(origin);
+      CREATE VIRTUAL TABLE Translation_FTS USING fts5(
+        origin, 
+        content='Translation',
+        content_rowid='id',
+      );
     `)
 
     // create trigger
@@ -43,5 +47,8 @@ export default defineNitroPlugin(async () => {
     console.log('[FTS] Translation_FTS Done.')
   } else {
     console.log('[FTS] Translation_FTS Already initialized.')
+    console.log('[FTS] Translation_FTS Syncing...')
+    await prisma.$executeRawUnsafe(`INSERT INTO Translation_FTS(Translation_FTS) VALUES('rebuild');`)
+    console.log('[FTS] Translation_FTS Synced.')
   }
 })
