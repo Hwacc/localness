@@ -18,13 +18,15 @@ export default defineEventHandler(async (event) => {
   const offset = (Number(page ?? 1) - 1) * Number(limit)
 
   const count = await prisma.$queryRawUnsafe<any[]>(
-    `SELECT COUNT(*) FROM Translation_FTS WHERE Translation_FTS MATCH $1`,
+    `SELECT COUNT(*) FROM Translation_FTS WHERE Translation_FTS MATCH ?`,
     keyword
   )
   if (count.length === 0) return new Pagination(1, Number(limit), 0, [])
 
+
+  console.log('search', keyword, Number(limit), offset)
   const rows = await prisma.$queryRawUnsafe<any[]>(
-    `SELECT rowid FROM Translation_FTS WHERE Translation_FTS MATCH $1 LIMIT $2 OFFSET $3`,
+    `SELECT rowid FROM Translation_FTS WHERE Translation_FTS MATCH ? LIMIT ? OFFSET ?`,
     keyword,
     Number(limit),
     offset
