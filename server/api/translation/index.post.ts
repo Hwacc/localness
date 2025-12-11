@@ -1,6 +1,7 @@
 import { numericID } from '#server/helper/id'
 import { readZodBody } from '#server/helper/validate'
 import prisma from '#server/libs/prisma'
+import { LogAction, LogStatus } from '#shared/constants/log'
 /**
  * @route POST /api/translation
  * @description Create a new translation
@@ -27,8 +28,8 @@ export default defineEventHandler(async (event) => {
   if (existing && !body.force) {
     await prisma.translationLog.create({
       data: {
-        action: 'INSERT',
-        status: 'REFUSED',
+        action: LogAction.CREATE,
+        status: LogStatus.REFUSED,
         origin: body.origin,
         fingerprint,
         userID: numericID(session.user.id),
@@ -57,8 +58,8 @@ export default defineEventHandler(async (event) => {
     })
     await prisma.translationLog.create({
       data: {
-        action: body.force ? 'FORCE_INSERT' : 'INSERT',
-        status: 'SUCCESS',
+        action: body.force ? LogAction.FORCE_CREATE : LogAction.CREATE,
+        status: LogStatus.SUCCESS,
         origin: body.origin,
         fingerprint,
         userID: numericID(session.user.id),
@@ -70,8 +71,8 @@ export default defineEventHandler(async (event) => {
     // record error log
     await prisma.translationLog.create({
       data: {
-        action: body.force ? 'FORCE_INSERT' : 'INSERT',
-        status: 'ERROR',
+        action: body.force ? LogAction.FORCE_CREATE : LogAction.CREATE,
+        status: LogStatus.FAILED,
         origin: body.origin,
         fingerprint,
         userID: numericID(session.user.id),

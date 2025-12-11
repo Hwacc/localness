@@ -1,3 +1,4 @@
+import { LogAction, LogStatus } from '#shared/constants/log'
 import prisma from '#server/libs/prisma'
 import { numericID } from '#server/helper/id'
 
@@ -35,10 +36,10 @@ export default defineEventHandler(async (event) => {
     })
     await prisma.translationLog.create({
       data: {
-        action: 'DELETE',
-        status: 'SUCCESS',
-        origin: deletedTranslation.origin,
         fingerprint: deletedTranslation.fingerprint,
+        action: LogAction.DELETE,
+        status: LogStatus.SUCCESS,
+        origin: deletedTranslation.origin,
         userID: numericID(session.user.id),
       },
     })
@@ -47,8 +48,8 @@ export default defineEventHandler(async (event) => {
     console.error(error)
     await prisma.translationLog.create({
       data: {
-        action: 'DELETE',
-        status: 'ERROR',
+        action: LogAction.DELETE,
+        status: LogStatus.FAILED,
         origin: existing.origin,
         fingerprint: existing.fingerprint,
         userID: numericID(session.user.id),

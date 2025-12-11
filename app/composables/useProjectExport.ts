@@ -18,10 +18,9 @@ export function useProjectExport() {
   const ossImage = useOSSImage()
 
   if (import.meta.client) {
-    // @ts-expect-error Vite worker import, no type declaration available
     import('~/assets/workers/export/index.ts?worker')
       .then((res) => {
-        worker.value = new res.default()
+        worker.value = new res.default() as WorkerEx
         if (!worker.value) return
         worker.value.postAsyncMessage = (
           message: {

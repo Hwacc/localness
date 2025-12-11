@@ -2,6 +2,7 @@ import { omit } from 'lodash-es'
 import prisma from '#server/libs/prisma'
 import { numericID } from '#server/helper/id'
 import { readZodBody } from '#server/helper/validate'
+import { LogAction, LogStatus } from '#shared/constants/log'
 
 /**
  * @route POST /api/translation/:id
@@ -47,8 +48,8 @@ export default defineEventHandler(async (event) => {
     })
     await prisma.translationLog.create({
       data: {
-        action: 'UPDATE',
-        status: 'SUCCESS',
+        action: LogAction.UPDATE,
+        status: LogStatus.SUCCESS,
         origin: body.origin,
         fingerprint: existing.fingerprint,
         userID: numericID(session.user.id),
@@ -59,8 +60,8 @@ export default defineEventHandler(async (event) => {
     console.error(error)
     await prisma.translationLog.create({
       data: {
-        action: 'UPDATE',
-        status: 'ERROR',
+        action: LogAction.UPDATE,
+        status: LogStatus.FAILED,
         origin: body.origin,
         fingerprint: existing.fingerprint,
         userID: numericID(session.user.id),

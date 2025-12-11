@@ -1,8 +1,8 @@
 <script setup lang="ts">
 import { TRANSLATION_LANGUAGES } from '#shared/constants'
 import { isEmpty, omit } from 'lodash-es'
-import type { Schema as ZEditTag } from '~/composables/useEditTagState'
-import { schema as zEditTag } from '~/composables/useEditTagState'
+import type { ZTagState } from '~/composables/useEditTagState'
+import { zTagState } from '~/composables/useEditTagState'
 
 const props = defineProps<{
   tag: ITag
@@ -39,24 +39,24 @@ const tabsItems = [
 ]
 
 const emit = defineEmits<{
-  close: [boolean]
+  close: [value: boolean]
   save: [
-    {
-      tag: Omit<ZEditTag, 'translation' | 'settings'>
+    payload: {
+      tag: Omit<ZTagState, 'translation' | 'settings'>
       settings: ZTagSetting
-      translation: ZTranslation | null
+      translation: ZTranslation
       isTransOriginChanged: boolean
       close: () => void
     }
   ]
   createTrans: [
-    {
+    payload: {
       type: 'ocr' | 'link' | 'manual'
       translation?: ZTranslation
     }
   ]
   createI18nKey: [
-    {
+    payload: {
       id: ID
       origin: string
       i18nKey?: string
@@ -124,7 +124,7 @@ async function onSubmit() {
             id: tag.value.translationID,
             ...state.translation,
           }
-        : null,
+        : {},
       isTransOriginChanged: isTransOriginChanged.value,
       close: () => emit('close', true),
     })
@@ -237,7 +237,7 @@ const previewLabelStyle = computed(() => {
     <template #body>
       <UForm
         class="w-full"
-        :schema="zEditTag"
+        :schema="zTagState"
         :state="state"
         @submit="onSubmit"
         @error="(e) => console.error('error', e)"

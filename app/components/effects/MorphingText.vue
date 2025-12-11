@@ -65,9 +65,10 @@ function setStyles(fraction: number) {
   )}px)`
   text1Ref.value.style.opacity = `${Math.pow(invertedFraction, 0.4) * 100}%`
 
-  text1Ref.value.textContent = props.texts[textIndex.value % props.texts.length]
+  text1Ref.value.textContent =
+    props.texts[textIndex.value % props.texts.length] ?? null
   text2Ref.value.textContent =
-    props.texts[(textIndex.value + 1) % props.texts.length]
+    props.texts[(textIndex.value + 1) % props.texts.length] ?? null
 }
 
 function doMorph() {

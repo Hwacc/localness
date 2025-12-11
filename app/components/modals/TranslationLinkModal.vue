@@ -113,8 +113,8 @@ async function onSearch() {
 function onSave() {
   const row = table.value?.tableApi.getSelectedRowModel()
   let translation = null
-  if (row?.flatRows.length) {
-    translation = row.flatRows[0].original
+  if (row?.flatRows?.length) {
+    translation = row.flatRows[0]?.original ?? null
   }
   emit('save', translation, { close: () => emit('close', true) })
 }
@@ -187,8 +187,8 @@ function onSave() {
             }"
             @select="
               (row) => {
-                table?.tableApi.toggleAllRowsSelected(false)
-                row.toggleSelected()
+                (table?.tableApi as any)?.toggleAllRowsSelected?.(false)
+                (row as any)?.toggleSelected()
               }
             "
           ></UTable>

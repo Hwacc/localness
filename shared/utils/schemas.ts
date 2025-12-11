@@ -126,24 +126,24 @@ export const zPageSetting = z.object(
 export type ZPageSetting = z.infer<typeof zPageSetting>
 
 export const zTranslationContent = z.looseObject({
-  en: zNilable.or(z.string()),
-  zh_cn: zNilable.or(z.string()),
-  zh_tw: zNilable.or(z.string()),
-  ja: zNilable.or(z.string()),
-  ko: zNilable.or(z.string()),
-  ru: zNilable.or(z.string()),
-  fr: zNilable.or(z.string()),
-  de: zNilable.or(z.string()),
-  es: zNilable.or(z.string()),
-  pt: zNilable.or(z.string()),
+  en: zNilable.or(z.string()).optional(),
+  zh_cn: zNilable.or(z.string()).optional(),
+  zh_tw: zNilable.or(z.string()).optional(),
+  ja: zNilable.or(z.string()).optional(),
+  ko: zNilable.or(z.string()).optional(),
+  ru: zNilable.or(z.string()).optional(),
+  fr: zNilable.or(z.string()).optional(),
+  de: zNilable.or(z.string()).optional(),
+  es: zNilable.or(z.string()).optional(),
+  pt: zNilable.or(z.string()).optional(),
 })
 export type ZTranslationContent = z.infer<typeof zTranslationContent>
 
 export const zTranslation = z.looseObject({
-  origin: zNilable.or(z.string()),
-  fingerprint: zNilable.or(z.string()),
-  vue: zNilable.or(zTranslationContent),
-  react: zNilable.or(zTranslationContent),
+  origin: zNilable.or(z.string()).optional(),
+  fingerprint: zNilable.or(z.string()).optional(),
+  vue: zNilable.or(zTranslationContent).optional(),
+  react: zNilable.or(zTranslationContent).optional(),
 })
 export type ZTranslation = z.infer<typeof zTranslation>
 
