@@ -1,6 +1,11 @@
 import { ocr } from '#server/libs/ocr'
 import { readZodBody } from '#server/helper/validate'
 
+/**
+ * @route POST /api/common/ocr
+ * @description OCR image
+ * @access Private
+ */
 export default defineEventHandler(async (event) => {
   await requireUserSession(event)
   const { image, language: lang } = await readZodBody(event, zOCR.parse)

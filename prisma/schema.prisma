@@ -1,6 +1,6 @@
 generator client {
   provider     = "prisma-client"
-  output       = env("DATABASE_CLIENT")
+  output       = "client"
   moduleFormat = "esm"
   runtime      = "nodejs"
 }
@@ -22,6 +22,9 @@ model User {
   ownProjects    Project[]        @relation("ProjectOwner")
   translationLog TranslationLog[]
   projects       UserProject[]
+  tagLogs        TagLog[]
+  pageLogs       PageLog[]
+  projectLogs    ProjectLog[]
 
   @@unique([username, id])
 }
@@ -32,12 +35,13 @@ model Project {
   updatedAt     DateTime         @updatedAt @map("updated_at")
   name          String
   description   String?
-  ownerUsername String           @map("owner_username")
-  ownerID       Int              @map("owner_id")
+  ownerUsername String?           @map("owner_username")
+  ownerID       Int?              @map("owner_id")
   pages         Page[]
-  owner         User             @relation("ProjectOwner", fields: [ownerUsername, ownerID], references: [username, id])
+  owner         User?             @relation("ProjectOwner", fields: [ownerUsername, ownerID], references: [username, id])
   settings      ProjectSettings?
   users         UserProject[]
+  projectLogs   ProjectLog[]
 }
 
 model ProjectSettings {
@@ -60,6 +64,22 @@ model UserProject {
   @@id([userID, projectID])
 }
 
+model ProjectLog {
+  id         Int      @id @default(autoincrement())
+  action     String
+  status     String
+  createdAt  DateTime @default(now()) @map("created_at")
+  beforeData Json?    @map("before_data")
+  afterData  Json?    @map("after_data")
+  projectID  Int?     @map("project_id")
+  userID     Int?     @map("user_id")
+  project    Project? @relation(fields: [projectID], references: [id], onDelete: NoAction)
+  user       User?    @relation(fields: [userID], references: [id], onDelete: SetNull)
+
+  @@index([userID])
+  @@index([createdAt])
+}
+
 model Page {
   id        Int           @id @default(autoincrement())
   createdAt DateTime      @default(now()) @map("created_at")
@@ -70,6 +90,7 @@ model Page {
   project   Project?      @relation(fields: [projectID], references: [id], onDelete: Cascade)
   settings  PageSettings?
   tags      Tag[]
+  pageLogs  PageLog[]
 }
 
 model PageSettings {
@@ -81,6 +102,22 @@ model PageSettings {
   ocrEngine   Int      @map("ocr_engine")
   prompt      String?  @default("")
   page        Page     @relation(fields: [pageID], references: [id], onDelete: Cascade)
+}
+
+model PageLog {
+  id         Int      @id @default(autoincrement())
+  action     String
+  status     String
+  createdAt  DateTime @default(now()) @map("created_at")
+  beforeData Json?    @map("before_data")
+  afterData  Json?    @map("after_data")
+  pageID     Int?     @map("page_id")
+  userID     Int?     @map("user_id")
+  page       Page?    @relation(fields: [pageID], references: [id], onDelete: NoAction)
+  user       User?    @relation(fields: [userID], references: [id], onDelete: SetNull)
+
+  @@index([userID])
+  @@index([createdAt])
 }
 
 model Tag {
@@ -99,6 +136,7 @@ model Tag {
   page          Page         @relation(fields: [pageID], references: [id], onDelete: Cascade)
   translation   Translation? @relation(fields: [translationID], references: [id])
   settings      TagSettings?
+  tagLogs       TagLog[]
 }
 
 model TagSettings {
@@ -113,6 +151,22 @@ model TagSettings {
   tag        Tag      @relation(fields: [tagID], references: [id], onDelete: Cascade)
 }
 
+model TagLog {
+  id         Int      @id @default(autoincrement())
+  action     String
+  status     String
+  createdAt  DateTime @default(now()) @map("created_at")
+  beforeData Json?    @map("before_data")
+  afterData  Json?    @map("after_data")
+  tagID      Int?     @map("tag_id")
+  userID     Int?     @map("user_id")
+  tag        Tag?     @relation(fields: [tagID], references: [id], onDelete: NoAction)
+  user       User?    @relation(fields: [userID], references: [id], onDelete: SetNull)
+
+  @@index([userID])
+  @@index([createdAt])
+}
+
 model Translation {
   id          Int               @id @default(autoincrement())
   createdAt   DateTime          @default(now()) @map("created_at")
@@ -125,6 +179,22 @@ model Translation {
   vue         TranslationVue?
 
   @@index([fingerprint])
+}
+
+model TranslationLog {
+  id          Int          @id @default(autoincrement())
+  action      String
+  status      String
+  createdAt   DateTime     @default(now()) @map("created_at")
+  userID      Int?         @map("user_id")
+  fingerprint String?
+  beforeData  Json?        @map("before_data")
+  afterData   Json?        @map("after_data")
+  translation Translation? @relation(fields: [fingerprint], references: [fingerprint], onDelete: NoAction)
+  user        User?        @relation(fields: [userID], references: [id], onDelete: SetNull)
+
+  @@index([userID])
+  @@index([createdAt])
 }
 
 model TranslationVue {
@@ -161,51 +231,4 @@ model TranslationReact {
   pt            String?
   translationID Int         @unique @map("translation_id")
   translation   Translation @relation(fields: [translationID], references: [id], onDelete: Cascade)
-}
-
-model TranslationLog {
-  id          Int          @id @default(autoincrement())
-  origin      String
-  action      String
-  status      String
-  createdAt   DateTime     @default(now()) @map("created_at")
-  userID      Int?         @map("user_id")
-  fingerprint String?
-  translation Translation? @relation(fields: [fingerprint], references: [fingerprint])
-  user        User?        @relation(fields: [userID], references: [id])
-}
-
-/// The underlying table does not contain a valid unique identifier and can therefore currently not be handled by Prisma Client.
-model Translation_FTS {
-  origin Unsupported("")?
-
-  @@ignore
-}
-
-/// The underlying table does not contain a valid unique identifier and can therefore currently not be handled by Prisma Client.
-model Translation_FTS_config {
-  k Unsupported("")  @id
-  v Unsupported("")?
-
-  @@ignore
-}
-
-model Translation_FTS_data {
-  id    Int    @id @default(autoincrement())
-  block Bytes?
-}
-
-model Translation_FTS_docsize {
-  id Int    @id @default(autoincrement())
-  sz Bytes?
-}
-
-/// The underlying table does not contain a valid unique identifier and can therefore currently not be handled by Prisma Client.
-model Translation_FTS_idx {
-  segid Unsupported("")
-  term  Unsupported("")
-  pgno  Unsupported("")?
-
-  @@id([segid, term])
-  @@ignore
 }

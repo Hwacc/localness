@@ -10,7 +10,7 @@ const zLogin = z.object({
 })
 
 /**
- * @route POST /api/login
+ * @route POST /login
  * @description Login
  * @access Public
  */

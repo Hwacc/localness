@@ -12,7 +12,9 @@ const zAuth = z.object(
 )
 
 /**
- * Change password
+ * @route POST /auth/change
+ * @description Change password
+ * @access Private
  */
 export default defineEventHandler(async (event) => {
   const session = await requireUserSession(event)

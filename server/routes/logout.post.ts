@@ -1,5 +1,5 @@
 /**
- * @route POST /api/logout
+ * @route POST /logout
  * @description Logout
  * @access Private
  */

@@ -1,10 +1,14 @@
-import { PrismaClient } from '../prisma/client/default.js'
+import { PrismaClient } from '../prisma/client/client'
+import { PrismaBetterSqlite3 } from '@prisma/adapter-better-sqlite3'
 import bcrypt from 'bcryptjs'
 import readline from 'readline'
 import 'dotenv/config'
 import 'nuxt-auth-utils'
 
-const prisma = new PrismaClient()
+const adapter = new PrismaBetterSqlite3({
+  url: process.env.DATABASE_URL || 'file:../runtime/db/dev.db',
+})
+const prisma = new PrismaClient({ adapter })
 
 const rl = readline.createInterface({
   input: process.stdin,
@@ -16,7 +20,9 @@ async function register() {
   const password = await askQuestion('请输入密码：', true)
   const passwordRegex = /^(?=.*[a-zA-Z])(?=.*\d)[a-zA-Z\d_]{6,16}$/
   if (!passwordRegex.test(password)) {
-    console.log('密码需要有字母,数字和_组成,最少包含一个字母和数字,最短6位,最长16位')
+    console.log(
+      '密码需要有字母,数字和_组成,最少包含一个字母和数字,最短6位,最长16位'
+    )
     return
   }
   const confirmPassword = await askQuestion('请再次输入密码：', true)
@@ -43,7 +49,10 @@ async function register() {
   }
 }
 
-async function askQuestion(question, isPassword = false) {
+async function askQuestion(
+  question: string,
+  isPassword = false
+): Promise<string> {
   return new Promise((resolve) => {
     rl.question(question, (answer) => {
       if (isPassword) {

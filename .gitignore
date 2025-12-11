@@ -27,3 +27,6 @@ logs
 # runtime files
 runtime/uploads/*
 !runtime/uploads/.gitkeep
+!runtime/uploads/welcome.png
+runtime/db/*
+!runtime/db/.gitkeep
