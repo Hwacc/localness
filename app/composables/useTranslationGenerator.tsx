@@ -71,6 +71,7 @@ export function useTranslationGenerator() {
       ])
       if (checkedID) {
         // open ask modal
+        alertModal.open()
         alertModal.patch({
           interceptCancel: true,
           onOk: async (_, { close }) => {
@@ -117,8 +118,7 @@ export function useTranslationGenerator() {
           onClose: (isOk) => {
             if (!isOk) resolve(null)
           },
-        })
-        alertModal.open()
+        }) 
       } else {
         // create new Translation
         useApi<ITranslation>(`/api/translation`, {
