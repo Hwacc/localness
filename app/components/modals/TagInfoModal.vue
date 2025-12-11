@@ -3,6 +3,7 @@ import { TRANSLATION_LANGUAGES } from '#shared/constants'
 import { isEmpty, omit } from 'lodash-es'
 import type { ZTagState } from '~/composables/useEditTagState'
 import { zTagState } from '~/composables/useEditTagState'
+import InputModal from './InputModal.vue'
 
 const props = defineProps<{
   tag: ITag
@@ -63,6 +64,8 @@ const emit = defineEmits<{
     }
   ]
 }>()
+
+const overlay = useOverlay()
 
 const selectedLanguage = ref<string>('en')
 const selectedItem = computed(() => {
@@ -132,17 +135,36 @@ async function onSubmit() {
   }
 }
 
+const inputModal = overlay.create(InputModal)
 function onCreateTranslation(type: 'ocr' | 'link' | 'manual') {
   if (type === 'manual') {
-    if (!state.translation?.origin) return
-    const fingerprint = fpTranslation(state.translation.origin)
-    emit('createTrans', {
-      type,
-      translation: {
-        ...state.translation,
-        fingerprint,
-      },
-    })
+    const _emit = () => {
+      if (!state.translation?.origin) return
+      const fingerprint = fpTranslation(state.translation.origin)
+      emit('createTrans', {
+        type,
+        translation: {
+          ...state.translation,
+          fingerprint,
+        },
+      })
+    }
+    if (!state.translation?.origin) {
+      inputModal.open({
+        title: 'Input Dialog',
+        label: 'Enter the original text to create',
+        textArea: true,
+        onClose: (value) => {
+          console.log('on close', value)
+          if (value) {
+            state.translation.origin = value
+            _emit()
+          }
+        },
+      })
+    } else {
+      _emit()
+    }
     return
   }
   emit('createTrans', {
@@ -228,7 +250,7 @@ const previewLabelStyle = computed(() => {
 
 <template>
   <UModal
-    class="max-w-[50rem]"
+    class="max-w-200"
     title="Tag Info"
     :dismissible="!loading"
     @update:open="(isOpen) => !isOpen && emit('close', false)"
@@ -309,7 +331,6 @@ const previewLabelStyle = computed(() => {
               </UFormField>
             </div>
           </template>
-
           <template #styles>
             <div class="flex flex-col gap-4">
               <UFormField label="Preview">
@@ -415,15 +436,26 @@ const previewLabelStyle = computed(() => {
                 Link a existing translation
               </UButton>
               <span>OR</span>
-              <UButton
-                color="primary"
-                variant="solid"
-                icon="i-mdi:ocr"
-                :disabled="loading"
-                @click="onCreateTranslation('ocr')"
-              >
-                Create with OCR
-              </UButton>
+              <div class="flex gap-4">
+                <UButton
+                  color="neutral"
+                  variant="soft"
+                  icon="i-lucide:a-large-small"
+                  :disabled="loading"
+                  @click="onCreateTranslation('manual')"
+                >
+                  Create New
+                </UButton>
+                <UButton
+                  color="primary"
+                  variant="solid"
+                  icon="i-mdi:ocr"
+                  :disabled="loading"
+                  @click="onCreateTranslation('ocr')"
+                >
+                  Create with OCR
+                </UButton>
+              </div>
             </div>
             <div v-else class="flex flex-col gap-2.5">
               <UFormField label="I18n Key">
