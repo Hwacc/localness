@@ -70,6 +70,8 @@ export function useEditTagState(tag: MaybeRef<ITag>) {
   watch(
     () => unref(tag),
     (val) => {
+
+      console.log('watch tag', val)
       const { settings, i18nKey, translation } = val
       state.i18nKey = i18nKey ?? ''
       state.settings = {

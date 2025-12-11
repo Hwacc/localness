@@ -11,6 +11,10 @@ const props = defineProps<{
 }>()
 const { tag, clip, loading } = toRefs(props)
 
+watch(() => props.tag, (v) => {
+ console.log('test', v)
+})
+
 const tabsItems = [
   {
     label: 'Basic',

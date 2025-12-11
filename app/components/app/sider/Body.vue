@@ -69,24 +69,23 @@ const alertModal = overlay.create(AlertModal, {
 })
 
 function showCreatePageModal() {
+  pageModal.open()
   pageModal.patch({
     file: imageFileData.value,
   })
-  pageModal.open()
 }
 
 async function showEditPageModal() {
   if (!editPage.value) return
   const url = await ossImage.get(editPage.value.image)
-  pageModal.patch({
+  pageModal.open({
     mode: 'edit',
     page: { ...editPage.value, image: url },
   })
-  pageModal.open()
 }
 
 function showDeleteAlertModal() {
-  alertModal.patch({
+  alertModal.open({
     mode: 'delete',
     title: 'Delete Page',
     message: 'Are you sure you want to delete this page?',
@@ -97,7 +96,6 @@ function showDeleteAlertModal() {
       close()
     },
   })
-  alertModal.open()
 }
 </script>
 

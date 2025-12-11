@@ -34,7 +34,7 @@ const projectMenuItems = computed<DropdownMenuItem[]>(() => [
     label: 'New Project',
     icon: 'i-lucide:folder-plus',
     onSelect: () => {
-      projectModal.patch({
+      projectModal.open({
         mode: 'create',
         project: new Project(''),
         onSave: async (p, { close }) => {
@@ -62,7 +62,6 @@ const projectMenuItems = computed<DropdownMenuItem[]>(() => [
           close()
         },
       })
-      projectModal.open()
     },
   },
   {
@@ -83,7 +82,7 @@ const projectMenuItems = computed<DropdownMenuItem[]>(() => [
     label: 'Project Settings',
     icon: 'i-lucide:settings',
     onSelect: () => {
-      projectModal.patch({
+      projectModal.open({
         mode: 'edit',
         project: projectStore.curProject,
         onSave: async (p, { close }) => {
@@ -91,7 +90,6 @@ const projectMenuItems = computed<DropdownMenuItem[]>(() => [
           close()
         },
       })
-      projectModal.open()
     },
   },
 ])

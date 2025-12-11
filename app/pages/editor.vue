@@ -207,7 +207,7 @@ onMounted(async () => {
         height: payload.height,
         quality: 1,
       })
-      tagModal.patch({
+      tagModal.open({
         tag: payload,
         clip,
         loading: false,
@@ -305,7 +305,7 @@ onMounted(async () => {
               await handleUpdateTag(createdTrans)
             } else if (type === 'link') {
               // link -> link a existing translation -> update tag
-              transLinkModal.patch({
+              transLinkModal.open({
                 onSave: async (trans, { close }: { close: () => void }) => {
                   await handleUpdateTag(trans)
                   close()
@@ -314,7 +314,6 @@ onMounted(async () => {
                   !isOK && send(undefined)
                 },
               })
-              transLinkModal.open()
             } else if (type === 'manual') {
               // manual -> create translation -> update tag
               const createdTrans = await translationGenerator.manual(
@@ -373,7 +372,6 @@ onMounted(async () => {
           disconnect()
         },
       })
-      tagModal.open()
     }
   )
 
@@ -414,7 +412,7 @@ onMounted(async () => {
     'async-tag-link',
     async ({ success, fail, payload }) => {
       try {
-        transLinkModal.patch({
+        transLinkModal.open({
           onSave: async (translation, { close }: { close: () => void }) => {
             if (translation) {
               const updatedTag = await tagStore.updateTag(payload.id, {
@@ -436,7 +434,6 @@ onMounted(async () => {
             !isOK && success(undefined)
           },
         })
-        transLinkModal.open()
       } catch (error) {
         fail(error)
       }

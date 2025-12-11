@@ -58,6 +58,7 @@ export function useAutoSave() {
   async function ask(): Promise<void> {
     if (isEmpty(tagChangeList.value)) return Promise.resolve()
     return new Promise((resolve, reject) => {
+      askModal.open()
       askModal.patch({
         onClose: () => {
           reset()
@@ -76,7 +77,6 @@ export function useAutoSave() {
           }
         },
       })
-      askModal.open()
     })
   }
 
@@ -118,6 +118,6 @@ export function useAutoSave() {
     ask,
     immediate,
     reset,
-    remove
+    remove,
   }
 }
