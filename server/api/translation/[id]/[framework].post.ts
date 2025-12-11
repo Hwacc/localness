@@ -10,18 +10,13 @@ import { readZodBody } from '#server/helper/validate'
  */
 export default defineEventHandler(async (event) => {
   await requireUserSession(event)
-
-  const pathname = event.context.params?.content
-  if (!pathname) {
+  if (!event.context.params) {
     throw createError({
       statusCode: 400,
-      statusMessage: 'Missing path name',
+      statusMessage: 'Missing params',
     })
   }
-
-  const params = pathname.split('/')
-  const id = params[0]
-  const framework = params[1]
+  const { id, framework } = event.context.params
   if (!id || !framework) {
     throw createError({
       statusCode: 400,
@@ -37,7 +32,7 @@ export default defineEventHandler(async (event) => {
 
   const nID = numericID(id)
   const body = await readZodBody(event, zTranslationContent.parse)
-  
+
   if (framework === 'vue') {
     return await prisma.translationVue.upsert({
       where: {
