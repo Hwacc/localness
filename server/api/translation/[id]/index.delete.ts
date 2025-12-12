@@ -36,11 +36,12 @@ export default defineEventHandler(async (event) => {
     })
     await prisma.translationLog.create({
       data: {
-        fingerprint: deletedTranslation.fingerprint,
         action: LogAction.DELETE,
         status: LogStatus.SUCCESS,
-        origin: deletedTranslation.origin,
         userID: numericID(session.user.id),
+        beforeData: deletedTranslation,
+        translationID: deletedTranslation.id,
+        fingerprint: deletedTranslation.fingerprint,
       },
     })
     return deletedTranslation
@@ -50,7 +51,8 @@ export default defineEventHandler(async (event) => {
       data: {
         action: LogAction.DELETE,
         status: LogStatus.FAILED,
-        origin: existing.origin,
+        beforeData: existing,
+        translationID: existing.id,
         fingerprint: existing.fingerprint,
         userID: numericID(session.user.id),
       },

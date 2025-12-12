@@ -30,7 +30,8 @@ export default defineEventHandler(async (event) => {
       data: {
         action: LogAction.CREATE,
         status: LogStatus.REFUSED,
-        origin: body.origin,
+        beforeData: existing,
+        translationID: existing.id,
         fingerprint,
         userID: numericID(session.user.id),
       },
@@ -41,7 +42,7 @@ export default defineEventHandler(async (event) => {
     })
   }
 
-  if(existing && body.force) {
+  if (existing && body.force) {
     fingerprint = fpTranslation(body.origin + Date.now())
   }
 
@@ -54,13 +55,15 @@ export default defineEventHandler(async (event) => {
       include: {
         vue: true,
         react: true,
-      }
+      },
     })
     await prisma.translationLog.create({
       data: {
         action: body.force ? LogAction.FORCE_CREATE : LogAction.CREATE,
         status: LogStatus.SUCCESS,
-        origin: body.origin,
+        beforeData: existing ?? undefined,
+        afterData: translation,
+        translationID: translation.id,
         fingerprint,
         userID: numericID(session.user.id),
       },
@@ -69,14 +72,16 @@ export default defineEventHandler(async (event) => {
   } catch (error) {
     console.error(error)
     // record error log
+    console.log('existing',  existing)
     await prisma.translationLog.create({
       data: {
         action: body.force ? LogAction.FORCE_CREATE : LogAction.CREATE,
         status: LogStatus.FAILED,
-        origin: body.origin,
+        beforeData: existing ?? undefined,
+        translationID: existing ? existing.id : undefined,
         fingerprint,
         userID: numericID(session.user.id),
-      }
+      },
     })
     throw createError({
       statusCode: 500,

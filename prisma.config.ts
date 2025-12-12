@@ -10,4 +10,16 @@ export default defineConfig({
   datasource: {
     url: env('DATABASE_URL'),
   },
+  experimental: {
+    externalTables: true
+  },
+  tables: {
+    external: [
+      'Translation_FTS',
+      'Translation_FTS_data',
+      'Translation_FTS_config',
+      'Translation_FTS_docsize',
+      'Translation_FTS_idx'
+    ]
+  }
 })

@@ -35,10 +35,10 @@ model Project {
   updatedAt     DateTime         @updatedAt @map("updated_at")
   name          String
   description   String?
-  ownerUsername String?           @map("owner_username")
-  ownerID       Int?              @map("owner_id")
+  ownerUsername String?          @map("owner_username")
+  ownerID       Int?             @map("owner_id")
   pages         Page[]
-  owner         User?             @relation("ProjectOwner", fields: [ownerUsername, ownerID], references: [username, id])
+  owner         User?            @relation("ProjectOwner", fields: [ownerUsername, ownerID], references: [username, id])
   settings      ProjectSettings?
   users         UserProject[]
   projectLogs   ProjectLog[]
@@ -182,16 +182,17 @@ model Translation {
 }
 
 model TranslationLog {
-  id          Int          @id @default(autoincrement())
-  action      String
-  status      String
-  createdAt   DateTime     @default(now()) @map("created_at")
-  userID      Int?         @map("user_id")
-  fingerprint String?
-  beforeData  Json?        @map("before_data")
-  afterData   Json?        @map("after_data")
-  translation Translation? @relation(fields: [fingerprint], references: [fingerprint], onDelete: NoAction)
-  user        User?        @relation(fields: [userID], references: [id], onDelete: SetNull)
+  id            Int          @id @default(autoincrement())
+  action        String
+  status        String
+  createdAt     DateTime     @default(now()) @map("created_at")
+  userID        Int?         @map("user_id")
+  translationID Int?         @map("translation_id")
+  fingerprint   String?
+  beforeData    Json?        @map("before_data")
+  afterData     Json?        @map("after_data")
+  translation   Translation? @relation(fields: [translationID], references: [id], onDelete: NoAction)
+  user          User?        @relation(fields: [userID], references: [id], onDelete: SetNull)
 
   @@index([userID])
   @@index([createdAt])

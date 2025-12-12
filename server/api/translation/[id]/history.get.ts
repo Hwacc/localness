@@ -1,7 +1,7 @@
 
 /**
- * @route get /api/translation/loglist
- * @description Get translation log list
+ * @route get /api/translation/history
+ * @description Get translation history list
  * @access Private
  */
 export default defineEventHandler(async (event) => {

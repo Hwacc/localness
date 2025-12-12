@@ -18,9 +18,9 @@ CREATE TABLE "Project" (
     "updated_at" DATETIME NOT NULL,
     "name" TEXT NOT NULL,
     "description" TEXT,
-    "owner_username" TEXT NOT NULL,
-    "owner_id" INTEGER NOT NULL,
-    CONSTRAINT "Project_owner_username_owner_id_fkey" FOREIGN KEY ("owner_username", "owner_id") REFERENCES "User" ("username", "id") ON DELETE RESTRICT ON UPDATE CASCADE
+    "owner_username" TEXT,
+    "owner_id" INTEGER,
+    CONSTRAINT "Project_owner_username_owner_id_fkey" FOREIGN KEY ("owner_username", "owner_id") REFERENCES "User" ("username", "id") ON DELETE SET NULL ON UPDATE CASCADE
 );
 
 -- CreateTable
@@ -157,10 +157,11 @@ CREATE TABLE "TranslationLog" (
     "status" TEXT NOT NULL,
     "created_at" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "user_id" INTEGER,
+    "translation_id" INTEGER,
     "fingerprint" TEXT,
     "before_data" JSONB,
     "after_data" JSONB,
-    CONSTRAINT "TranslationLog_fingerprint_fkey" FOREIGN KEY ("fingerprint") REFERENCES "Translation" ("fingerprint") ON DELETE NO ACTION ON UPDATE CASCADE,
+    CONSTRAINT "TranslationLog_translation_id_fkey" FOREIGN KEY ("translation_id") REFERENCES "Translation" ("id") ON DELETE NO ACTION ON UPDATE CASCADE,
     CONSTRAINT "TranslationLog_user_id_fkey" FOREIGN KEY ("user_id") REFERENCES "User" ("id") ON DELETE SET NULL ON UPDATE CASCADE
 );
 
