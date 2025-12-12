@@ -1,8 +1,6 @@
 <script setup lang="ts">
 import type { Editor, EditorMode } from '~/core/Editor'
 import { useDebounceFn, useResizeObserver } from '@vueuse/core'
-import TagInfoModal from '~/components/modals/TagInfoModal.vue'
-
 import EditorProvider, {
   provideEditorContext,
 } from '~/providers/EditorProvider.vue'
@@ -11,14 +9,11 @@ import { DEFAULT_LINE_COLOR, DEFAULT_LINE_WIDTH } from '#shared/constants'
 import { injectTaskContext } from '~/providers/TaskProvider.vue'
 import { Task } from '~/libs/task-queue'
 import { TranslationLinkModal } from '#components'
-import { isEmpty, map, pick } from 'lodash-es'
 
 definePageMeta({
   middleware: ['protected'],
 })
 
-const projectStore = useProjectStore()
-const { curProject } = storeToRefs(projectStore)
 const pageStore = usePageStore()
 const { curPage, tagList } = storeToRefs(pageStore)
 const tagStore = useTagStore()
@@ -46,15 +41,6 @@ useResizeObserver(
 )
 
 const overlay = useOverlay()
-const tagModal = overlay.create(TagInfoModal, {
-  props: {
-    tag: {} as ITag,
-    clip: '',
-    onSave: () => {},
-    onCreateTrans: () => {},
-    onClose: () => {},
-  },
-})
 const transLinkModal = overlay.create(TranslationLinkModal, {
   props: {
     onClose: () => {},
@@ -198,6 +184,7 @@ onMounted(async () => {
     autoSave.add(arg.tag)
   )
 
+  const { open: openTagModal } = useTagModal()
   editor.value.connectOn<'connect-tag-info', ITag, ITag | undefined>(
     'connect-tag-info',
     async ({ send, disconnect, payload }) => {
@@ -208,164 +195,13 @@ onMounted(async () => {
         height: payload.height,
         quality: 1,
       })
-      tagModal.open({
+      openTagModal({
         tag: payload,
         clip,
-        loading: false,
-        onSave: async ({
-          tag,
-          settings,
-          translation,
-          isTransOriginChanged,
-        }) => {
-          try {
-            tagModal.patch({ loading: true })
-            let updatedTrans: ITranslation | null = null
-            if (translation) {
-              // trans origin changed -> create new translation
-              if (isTransOriginChanged) {
-                updatedTrans = await translationGenerator.manual(
-                  translation as ITranslation
-                )
-              }
-              // update translation content
-              const contentPromises = map(
-                pick(translation, ['vue', 'react']),
-                (item, key) => {
-                  if (isEmpty(item)) return Promise.resolve()
-                  return useApi(
-                    `/api/translation/${
-                      updatedTrans ? updatedTrans.id : translation?.id
-                    }/${key}`,
-                    {
-                      method: 'POST',
-                      body: item,
-                    }
-                  )
-                }
-              )
-              await Promise.all(contentPromises)
-            }
-            const updatedTag = await tagStore.updateTag(
-              payload.id,
-              updatedTrans
-                ? {
-                    ...tag,
-                    settings,
-                    translationID: updatedTrans.id,
-                  }
-                : { ...tag, settings }
-            )
-            send(updatedTag)
-            tagModal.patch({ tag: updatedTag })
-            toast.add({
-              title: 'Success',
-              description: 'Tag updated',
-              color: 'success',
-              icon: 'i-lucide:check',
-            })
-          } catch (error) {
-            console.error('tag info error', error)
-          } finally {
-            tagModal.patch({ loading: false })
-          }
-        },
-
-        onCreateTrans: async ({ type, translation }) => {
-          try {
-            tagModal.patch({ loading: true })
-            const handleUpdateTag = async (
-              trans: ITranslation | null | undefined
-            ) => {
-              if (trans && trans.id) {
-                const updatedTag = await tagStore.updateTag(payload.id, {
-                  translationID: trans.id,
-                })
-                tagModal.patch({
-                  tag: updatedTag,
-                })
-                send(updatedTag)
-                toast.add({
-                  title: 'Success',
-                  description:
-                    type === 'link'
-                      ? 'Translation linked'
-                      : 'Translation created',
-                  color: 'success',
-                  icon: 'i-lucide:check',
-                })
-              } else send(undefined)
-            }
-            if (type === 'ocr') {
-              // ocr -> create translation -> update tag
-              const createdTrans = await translationGenerator.ocr({
-                image: clip,
-              })
-              await handleUpdateTag(createdTrans)
-            } else if (type === 'link') {
-              // link -> link a existing translation -> update tag
-              transLinkModal.open({
-                onSave: async (trans) => {
-                  await handleUpdateTag(trans)
-                },
-                onClose: (isOK: boolean) => {
-                  !isOK && send(undefined)
-                },
-              })
-            } else if (type === 'manual') {
-              // manual -> create translation -> update tag
-              const createdTrans = await translationGenerator.manual(
-                translation as ITranslation
-              )
-              await handleUpdateTag(createdTrans)
-            }
-          } catch (error) {
-            console.error('tag info error', error)
-          } finally {
-            tagModal.patch({ loading: false })
-          }
-        },
-
-        onCreateI18nKey: async ({ id, origin, i18nKey, prompt }) => {
-          try {
-            tagModal.patch({ loading: true })
-            const result = await useApi<{ tagID: ID; i18nKey: string } | null>(
-              '/api/tag/ai/gen-i18n-key',
-              {
-                method: 'POST',
-                body: {
-                  projectPrompt: curProject.value?.settings?.prompt,
-                  pagePrompt: curPage.value?.settings?.prompt,
-                  tagID: id,
-                  tagOrigin: origin,
-                  tagI18nKey: i18nKey,
-                  tagPrompt: prompt,
-                },
-              }
-            )
-            if (result) {
-              const updatedTag = await tagStore.updateTag(result.tagID, {
-                i18nKey: result.i18nKey,
-              })
-              tagModal.patch({
-                tag: updatedTag,
-              })
-              send(updatedTag)
-              toast.add({
-                title: 'Success',
-                description: 'Tag updated',
-                color: 'success',
-                icon: 'i-lucide:check',
-              })
-            } else send(undefined)
-          } catch (error) {
-            console.error('tag info error', error)
-          } finally {
-            tagModal.patch({ loading: false })
-          }
-        },
-
-        onClose: (isOK: boolean) => {
+        onSave: (updatedTag) => send(updatedTag),
+        onCreateTranslation: (updatedTag) => send(updatedTag),
+        onCreateI18nKey: (updatedTag) => send(updatedTag),
+        onClose: (isOK) => {
           !isOK && send(undefined)
           disconnect()
         },
