@@ -81,6 +81,7 @@ watchEffect(() => {
 
 onMounted(async () => {
   const imageUrl = await ossImage.get(curPage.value?.image)
+  // @ts-expect-error support dynamic import
   const { Editor } = await import('~/core/Editor')
 
   if (!editorContainer.value) return
@@ -216,37 +217,35 @@ onMounted(async () => {
           settings,
           translation,
           isTransOriginChanged,
-          close,
         }) => {
           try {
             tagModal.patch({ loading: true })
             let updatedTrans: ITranslation | null = null
-            if (translation && isTransOriginChanged) {
+            if (translation) {
               // trans origin changed -> create new translation
-              updatedTrans = await translationGenerator.manual(
-                translation as ITranslation
-              )
-              if (!updatedTrans) {
-                tagModal.patch({ loading: false })
-                return
-              }
-            }
-            const contentPromises = map(
-              pick(translation, ['vue', 'react']),
-              (item, key) => {
-                if (isEmpty(item)) return Promise.resolve()
-                return useApi(
-                  `/api/translation/${
-                    updatedTrans ? updatedTrans.id : translation?.id
-                  }/${key}`,
-                  {
-                    method: 'POST',
-                    body: item,
-                  }
+              if (isTransOriginChanged) {
+                updatedTrans = await translationGenerator.manual(
+                  translation as ITranslation
                 )
               }
-            )
-            await Promise.all(contentPromises)
+              // update translation content
+              const contentPromises = map(
+                pick(translation, ['vue', 'react']),
+                (item, key) => {
+                  if (isEmpty(item)) return Promise.resolve()
+                  return useApi(
+                    `/api/translation/${
+                      updatedTrans ? updatedTrans.id : translation?.id
+                    }/${key}`,
+                    {
+                      method: 'POST',
+                      body: item,
+                    }
+                  )
+                }
+              )
+              await Promise.all(contentPromises)
+            }
             const updatedTag = await tagStore.updateTag(
               payload.id,
               updatedTrans
@@ -258,13 +257,13 @@ onMounted(async () => {
                 : { ...tag, settings }
             )
             send(updatedTag)
+            tagModal.patch({ tag: updatedTag })
             toast.add({
               title: 'Success',
               description: 'Tag updated',
               color: 'success',
               icon: 'i-lucide:check',
             })
-            close()
           } catch (error) {
             console.error('tag info error', error)
           } finally {
@@ -306,9 +305,8 @@ onMounted(async () => {
             } else if (type === 'link') {
               // link -> link a existing translation -> update tag
               transLinkModal.open({
-                onSave: async (trans, { close }: { close: () => void }) => {
+                onSave: async (trans) => {
                   await handleUpdateTag(trans)
-                  close()
                 },
                 onClose: (isOK: boolean) => {
                   !isOK && send(undefined)

@@ -44,7 +44,7 @@ const emit = defineEmits<{
     payload: {
       tag: Omit<ZTagState, 'translation' | 'settings'>
       settings: ZTagSetting
-      translation: ZTranslation
+      translation?: ZTranslation
       isTransOriginChanged: boolean
       close: () => void
     }
@@ -110,23 +110,28 @@ watch(
       isTransOriginChanged.value = false
       return
     }
-    isTransOriginChanged.value = val !== tag.value.translation?.origin
+    isTransOriginChanged.value =
+      val.trim() !== tag.value.translation?.origin?.trim()
   },
   { deep: true }
 )
 
 async function onSubmit() {
-  const preTag = omit(state, ['translation', 'settings'])
+  const _trimOrigin = state.translation?.origin?.trim()
+  if (isTransOriginChanged.value && _trimOrigin) {
+    state.translation.fingerprint = fpTranslation(_trimOrigin)
+  }
   try {
     emit('save', {
-      tag: preTag,
+      tag: omit(state, ['translation', 'settings']),
       settings: state.settings,
       translation: state.translation
         ? {
             id: tag.value.translationID,
             ...state.translation,
+            origin: _trimOrigin,
           }
-        : {},
+        : undefined,
       isTransOriginChanged: isTransOriginChanged.value,
       close: () => emit('close', true),
     })

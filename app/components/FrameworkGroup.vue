@@ -17,7 +17,7 @@ const emit = defineEmits<{ 'update:modelValue': ['vue' | 'react'] }>()
 </script>
 
 <template>
-  <UButtonGroup orientation="horizontal">
+  <UFieldGroup orientation="horizontal">
     <UButton
       v-for="framework in frameworks"
       :key="framework.value"
@@ -28,5 +28,5 @@ const emit = defineEmits<{ 'update:modelValue': ['vue' | 'react'] }>()
     >
       {{ framework.name }}
     </UButton>
-  </UButtonGroup>
+  </UFieldGroup>
 </template>

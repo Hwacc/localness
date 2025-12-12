@@ -56,12 +56,13 @@ export function useTranslationGenerator() {
 
   async function generateTranslation(trans: ITranslation) {
     if (!trans.origin) return null
-    let checkedID = null
+    let checkedID: ID | null = null
     if (trans.fingerprint) {
       checkedID = await useApi<ID | null>(
         `/api/translation/check?fp=${trans.fingerprint}`
       )
     }
+    console.log('checked', trans, checkedID)
     return new Promise<ITranslation | null>((resolve) => {
       const cleanTrans = omit(trans, [
         'id',

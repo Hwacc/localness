@@ -9,6 +9,8 @@
     { "path": "./.nuxt/tsconfig.node.json" }
   ],
   "compilerOptions": {
+    "target": "ESNext",
+    "moduleResolution": "bundler",
     "types": ["global"],
     "typeRoots": ["shared/types", "./node_modules/@types"],
     "experimentalDecorators": true,
