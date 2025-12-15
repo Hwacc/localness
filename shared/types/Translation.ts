@@ -1,4 +1,5 @@
 import type { ID } from '.'
+import type { ILog } from './Log'
 export interface TranslationContent {
   en?: string
   zh_cn?: string
@@ -29,4 +30,9 @@ export class Translation implements ITranslation {
   origin: string = ''
   vue: TranslationContent = {}
   react: TranslationContent = {}
+}
+
+export interface ITranslationLog extends ILog<ITranslation> {
+  translationID: ID
+  translation?: ITranslation | null
 }

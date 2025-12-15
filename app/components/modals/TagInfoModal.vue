@@ -4,6 +4,8 @@ import { isEmpty, omit } from 'lodash-es'
 import type { ZTagState } from '~/composables/useEditTagState'
 import { zTagState } from '~/composables/useEditTagState'
 import InputModal from './InputModal.vue'
+import { HistoryModal } from '#components'
+import type { ITranslationLog } from '~~/shared/types/Translation'
 
 const props = defineProps<{
   tag: ITag
@@ -184,6 +186,20 @@ async function onCreateI18nKey() {
     i18nKey: state.i18nKey,
     origin: state.translation?.origin,
     prompt: state.settings.prompt,
+  })
+}
+
+const transHistoryModal = overlay.create(HistoryModal)
+async function onViewTranslationHistory() {
+  const history = await useApi<ITranslationLog[]>(
+    `/api/translation/${tag.value.translationID}/history`,
+    {
+      method: 'GET',
+    }
+  )
+  transHistoryModal.open({
+    title: 'Translation History',
+    history,
   })
 }
 
@@ -488,6 +504,14 @@ const previewLabelStyle = computed(() => {
                       variant="outline"
                       icon="i-lucide:copy-plus"
                       @click="onCreateTranslation('manual')"
+                    />
+                    <UButton
+                      label="History"
+                      icon="i-lucide:history"
+                      size="xs"
+                      color="secondary"
+                      variant="outline"
+                      @click="onViewTranslationHistory"
                     />
                     <span class="mr-0 ml-auto text-xs text-gray-500">
                       Finger: {{ tag.translation?.fingerprint }}
