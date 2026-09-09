@@ -57,7 +57,7 @@ const navItems = [
             />
           </UTooltip>
         </div>
-        <div class="h-full">
+        <div class="h-full min-w-0 overflow-hidden">
           <slot />
         </div>
       </div>

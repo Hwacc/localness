@@ -1,8 +1,11 @@
-<script setup lang="ts">
+<script setup lang="tsx">
+import type { TableColumn, TableRow } from '@nuxt/ui'
 import { TeamRole, UserRole } from '#shared/constants'
+import { UAvatar, UBadge, UButton } from '#components'
 
 definePageMeta({
   middleware: ['protected'],
+  ssr: false,
 })
 
 const userStore = useUserStore()
@@ -23,19 +26,74 @@ const isAdmin = computed(() => user.value.role === UserRole.ADMIN)
 const myRole = computed(() => detail.value?.role)
 const isOwner = computed(() => myRole.value === TeamRole.OWNER)
 
-const teamItems = computed(() =>
-  teams.value.map((t) => ({
-    label: t.name,
-    value: t.id,
-  }))
-)
+const members = computed(() => detail.value?.members ?? [])
+
+function ownerCount(team: ITeam | null) {
+  return team?.members?.filter((m) => m.role === TeamRole.OWNER).length ?? 0
+}
+
+const memberColumns = computed<TableColumn<ITeamMember>[]>(() => {
+  const cols: TableColumn<ITeamMember>[] = [
+    {
+      id: 'user',
+      accessorKey: 'user',
+      header: 'Member',
+      cell: ({ row }: { row: TableRow<ITeamMember> }) => {
+        const member = row.original.user
+        return (
+          <div class="flex items-center gap-2.5">
+            <UAvatar src={member?.avatar} size="sm" />
+            <div class="min-w-0">
+              <p class="font-medium truncate">{member?.username}</p>
+              <p class="text-xs text-muted truncate">
+                {member?.email || member?.nickname || '—'}
+              </p>
+            </div>
+          </div>
+        )
+      },
+    },
+    {
+      id: 'role',
+      accessorKey: 'role',
+      header: 'Role',
+      cell: ({ row }: { row: TableRow<ITeamMember> }) => (
+        <UBadge
+          color={row.original.role === TeamRole.OWNER ? 'primary' : 'neutral'}
+          variant="subtle"
+        >
+          {row.original.role}
+        </UBadge>
+      ),
+    },
+  ]
+  if (isOwner.value) {
+    cols.push({
+      id: 'actions',
+      header: '',
+      cell: ({ row }: { row: TableRow<ITeamMember> }) => (
+        <UButton
+          size="xs"
+          color="error"
+          variant="ghost"
+          label="Remove"
+          disabled={
+            row.original.role === TeamRole.OWNER && ownerCount(detail.value) <= 1
+          }
+          onClick={() => removeMember(row.original.userId)}
+        />
+      ),
+    })
+  }
+  return cols
+})
 
 async function loadTeams() {
   const list = await useApi<ITeam[]>('/api/teams')
   teams.value = list ?? []
   if (
     teams.value.length > 0 &&
-    !teams.value.some((t) => t.id === selectedId.value)
+    !teams.value.some((t) => String(t.id) === String(selectedId.value))
   ) {
     selectedId.value = teams.value[0]!.id
   }
@@ -103,10 +161,6 @@ async function inviteMember() {
   }
 }
 
-function ownerCount(team: ITeam | null) {
-  return team?.members?.filter((m) => m.role === TeamRole.OWNER).length ?? 0
-}
-
 async function removeMember(userId: ID) {
   if (!validID(selectedId.value)) return
   await useApi(`/api/teams/${selectedId.value}/members/${userId}`, {
@@ -121,6 +175,10 @@ async function removeMember(userId: ID) {
   await loadDetail()
 }
 
+function isSelected(id: ID) {
+  return String(selectedId.value) === String(id)
+}
+
 onMounted(async () => {
   if (loggedIn.value && !user.value.id) {
     await userStore.getUser()
@@ -131,23 +189,24 @@ onMounted(async () => {
 </script>
 
 <template>
-  <div class="h-full flex flex-col p-4 gap-4 overflow-hidden">
-    <div class="flex items-center gap-3 flex-wrap">
-      <h1 class="text-lg font-bold">Teams</h1>
-      <USelect
-        v-model="selectedId"
-        class="w-56"
-        placeholder="Select team"
-        :items="teamItems"
-      />
+  <div class="h-full flex flex-col bg-gray-50">
+    <header
+      class="shrink-0 px-6 py-5 bg-white border-b border-default flex items-start justify-between gap-6"
+    >
+      <div class="min-w-0">
+        <h1 class="text-xl font-semibold tracking-tight">Teams</h1>
+        <p class="mt-1 text-sm text-muted">
+          Create a team, invite existing users, and manage owners.
+        </p>
+      </div>
       <form
         v-if="isAdmin"
-        class="ml-auto flex items-center gap-2"
+        class="flex items-center gap-2 shrink-0"
         @submit.prevent="createTeam"
       >
         <UInput
           v-model="newTeamName"
-          class="w-48"
+          class="w-52"
           placeholder="New team name"
         />
         <UButton
@@ -158,85 +217,94 @@ onMounted(async () => {
           :disabled="newTeamName.trim().length < 2"
         />
       </form>
-    </div>
+    </header>
 
-    <div
-      v-if="!detail"
-      class="flex-1 flex items-center justify-center text-gray-500"
-    >
-      {{ teams.length ? 'Select a team.' : 'No teams yet. An ADMIN must create one.' }}
-    </div>
-    <div v-else class="flex-1 min-h-0 overflow-auto flex flex-col gap-4">
-      <div class="flex items-baseline gap-3">
-        <h2 class="text-base font-semibold">{{ detail.name }}</h2>
-        <span class="text-xs text-gray-500">
-          Your role: {{ myRole || (isAdmin ? 'ADMIN' : '—') }}
-        </span>
-      </div>
+    <div class="flex-1 min-h-0 grid grid-cols-[18rem_minmax(0,1fr)]">
+      <aside class="border-r border-default bg-white overflow-auto p-3">
+        <p class="px-2 py-1.5 text-xs font-medium text-muted uppercase tracking-wide">
+          Your teams
+        </p>
+        <div v-if="teams.length === 0" class="px-2 py-8 text-sm text-muted">
+          No teams yet. An ADMIN must create one.
+        </div>
+        <button
+          v-for="team in teams"
+          :key="team.id"
+          type="button"
+          class="w-full text-left rounded-lg px-3 py-2.5 mb-1 transition-colors"
+          :class="
+            isSelected(team.id)
+              ? 'bg-primary/10 text-highlighted'
+              : 'hover:bg-gray-50'
+          "
+          @click="selectedId = team.id"
+        >
+          <div class="font-medium truncate">{{ team.name }}</div>
+          <div class="mt-0.5 text-xs text-muted">
+            {{ team.members?.length ?? 0 }} members
+            <span v-if="team.role"> · {{ team.role }}</span>
+          </div>
+        </button>
+      </aside>
 
-      <form
-        v-if="isOwner"
-        class="flex items-center gap-2"
-        @submit.prevent="inviteMember"
-      >
-        <UInput
-          v-model="inviteUsername"
-          class="w-56"
-          placeholder="Invite by username"
-        />
-        <UButton
-          type="submit"
-          label="Invite"
-          icon="i-lucide:user-plus"
-          :loading="inviting"
-          :disabled="!inviteUsername.trim()"
-        />
-      </form>
-
-      <table class="w-full text-sm border border-gray-200 rounded overflow-hidden">
-        <thead class="bg-gray-50">
-          <tr>
-            <th class="p-2.5 text-left font-medium">Username</th>
-            <th class="p-2.5 text-left font-medium">Nickname</th>
-            <th class="p-2.5 text-left font-medium">Role</th>
-            <th v-if="isOwner" class="p-2.5 text-left font-medium">Actions</th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr v-if="loading">
-            <td class="p-4 text-gray-400" :colspan="isOwner ? 4 : 3">Loading…</td>
-          </tr>
-          <tr
-            v-for="member in detail.members"
-            :key="`${member.userId}-${member.teamId}`"
-            class="border-t border-gray-100"
+      <section class="min-h-0 flex flex-col p-6 gap-4 overflow-hidden">
+        <div
+          v-if="!detail"
+          class="flex-1 flex items-center justify-center text-sm text-muted"
+        >
+          Select a team from the list.
+        </div>
+        <template v-else>
+          <div
+            class="shrink-0 rounded-xl border border-default bg-white px-5 py-4 flex flex-wrap items-center gap-4"
           >
-            <td class="p-2.5">{{ member.user?.username }}</td>
-            <td class="p-2.5">{{ member.user?.nickname || '—' }}</td>
-            <td class="p-2.5">
-              <UBadge
-                :color="member.role === TeamRole.OWNER ? 'primary' : 'neutral'"
-                variant="subtle"
-                size="sm"
-              >
-                {{ member.role }}
-              </UBadge>
-            </td>
-            <td v-if="isOwner" class="p-2.5">
-              <UButton
-                size="xs"
-                color="error"
-                variant="ghost"
-                label="Remove"
-                :disabled="
-                  member.role === TeamRole.OWNER && ownerCount(detail) <= 1
-                "
-                @click="removeMember(member.userId)"
+            <div class="min-w-0 mr-auto">
+              <h2 class="text-lg font-semibold truncate">{{ detail.name }}</h2>
+              <p class="text-sm text-muted">
+                Your role: {{ myRole || (isAdmin ? 'ADMIN' : '—') }}
+              </p>
+            </div>
+            <form
+              v-if="isOwner"
+              class="flex items-center gap-2"
+              @submit.prevent="inviteMember"
+            >
+              <UInput
+                v-model="inviteUsername"
+                class="w-56"
+                placeholder="Invite by username"
               />
-            </td>
-          </tr>
-        </tbody>
-      </table>
+              <UButton
+                type="submit"
+                label="Invite"
+                icon="i-lucide:user-plus"
+                :loading="inviting"
+                :disabled="!inviteUsername.trim()"
+              />
+            </form>
+          </div>
+
+          <div
+            class="flex-1 min-h-0 rounded-xl border border-default bg-white overflow-hidden flex flex-col"
+          >
+            <div class="flex-1 min-h-0 overflow-auto">
+              <UTable
+                class="w-full"
+                :data="members"
+                :columns="memberColumns"
+                :loading="loading"
+                :get-row-id="(row: ITeamMember) => `${row.userId}-${row.teamId}`"
+              >
+                <template #empty>
+                  <div class="py-12 text-center text-sm text-muted">
+                    No members in this team.
+                  </div>
+                </template>
+              </UTable>
+            </div>
+          </div>
+        </template>
+      </section>
     </div>
   </div>
 </template>

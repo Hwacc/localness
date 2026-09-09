@@ -56,6 +56,8 @@ export default defineNuxtConfig({
     '/': { prerender: false, ssr: true },
     '/transfer': { ssr: false },
     '/editor': { ssr: false },
+    '/translations': { ssr: false },
+    '/teams': { ssr: false },
   },
   auth: {
     hash: {

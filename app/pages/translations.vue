@@ -1,18 +1,23 @@
-<script setup lang="ts">
+<script setup lang="tsx">
+import type { DropdownMenuItem, TableColumn, TableRow } from '@nuxt/ui'
+import type { Column } from '@tanstack/vue-table'
 import {
   DEFAULT_LOCALES,
   TRANSLATION_LANGUAGES,
 } from '#shared/constants'
+import { UBadge, UButton, UCheckbox, UIcon, UInput } from '#components'
 import { useDebounceFn } from '@vueuse/core'
 
 definePageMeta({
   middleware: ['protected'],
+  ssr: false,
 })
 
 const projectStore = useProjectStore()
 const { projects, curProject } = storeToRefs(projectStore)
 const { loggedIn } = useUserSession()
 const toast = useToast()
+const table = useTemplateRef('table')
 
 const q = ref('')
 const page = ref(1)
@@ -21,8 +26,8 @@ const total = ref(0)
 const rows = ref<II18nKeyRow[]>([])
 const loading = ref(false)
 const publishing = ref(false)
-const saving = ref<Record<string, boolean>>({})
 const drafts = ref<Record<string, string>>({})
+const rowSelection = ref<Record<string, boolean>>({})
 
 const projectItems = computed(() =>
   projects.value.map((p) => ({
@@ -72,13 +77,199 @@ function draftOf(row: II18nKeyRow, locale: string) {
 }
 
 function cellDraft(row: II18nKeyRow, locale: string) {
-  const key = cellKey(row.id, locale)
-  return drafts.value[key] ?? draftOf(row, locale)
+  return drafts.value[cellKey(row.id, locale)] ?? draftOf(row, locale)
 }
 
 function setCellDraft(row: II18nKeyRow, locale: string, value: string) {
   drafts.value = { ...drafts.value, [cellKey(row.id, locale)]: value }
 }
+
+const selectedKeyIds = computed(() =>
+  Object.entries(rowSelection.value)
+    .filter(([, selected]) => selected)
+    .map(([id]) => Number(id))
+    .filter((id) => Number.isInteger(id) && id > 0)
+)
+
+const dirtyCount = computed(() => rows.value.filter((r) => r.dirty).length)
+
+const columnPinning = ref({
+  left: ['select', 'key'],
+  right: ['actions'],
+})
+
+function pinHeader(
+  column: Column<II18nKeyRow, unknown>,
+  label: string,
+  position: 'left' | 'right' = 'left'
+) {
+  const isPinned = column.getIsPinned()
+  return (
+    <div class="flex items-center gap-1">
+      <span>{label}</span>
+      <UButton
+        color="neutral"
+        variant="ghost"
+        size="xs"
+        square
+        icon={isPinned ? 'i-lucide:pin-off' : 'i-lucide:pin'}
+        onClick={() => column.pin(isPinned === position ? false : position)}
+      />
+    </div>
+  )
+}
+
+const columns = computed<TableColumn<II18nKeyRow>[]>(() => [
+  {
+    id: 'select',
+    header: ({ table }) => (
+      <UCheckbox
+        modelValue={table.getIsAllPageRowsSelected()}
+        indeterminate={table.getIsSomePageRowsSelected()}
+        onUpdate:modelValue={(value: boolean | 'indeterminate') =>
+          table.toggleAllPageRowsSelected(!!value)
+        }
+      />
+    ),
+    cell: ({ row }) => (
+      <UCheckbox
+        modelValue={row.getIsSelected()}
+        onUpdate:modelValue={(value: boolean | 'indeterminate') =>
+          row.toggleSelected(!!value)
+        }
+      />
+    ),
+    enableHiding: false,
+    enableSorting: false,
+    size: 48,
+  },
+  {
+    id: 'key',
+    accessorKey: 'key',
+    header: ({ column }) => pinHeader(column, 'Key'),
+    enableHiding: false,
+    size: 200,
+    cell: ({ row }: { row: TableRow<II18nKeyRow> }) => (
+      <code class="text-xs font-mono break-all">{row.original.key}</code>
+    ),
+  },
+  {
+    id: 'origin',
+    accessorKey: 'origin',
+    header: ({ column }) => pinHeader(column, 'Origin'),
+    enableHiding: false,
+    size: 220,
+    cell: ({ row }: { row: TableRow<II18nKeyRow> }) => (
+      <div
+        class="max-w-56 line-clamp-2 text-muted"
+        title={row.original.origin || ''}
+      >
+        {row.original.origin || '—'}
+      </div>
+    ),
+  },
+  {
+    id: 'tagCount',
+    accessorKey: 'tagCount',
+    header: 'Tags',
+    size: 80,
+    cell: ({ row }: { row: TableRow<II18nKeyRow> }) => (
+      <UBadge variant="subtle" color="neutral">
+        {String(row.original.tagCount)}
+      </UBadge>
+    ),
+  },
+  {
+    id: 'status',
+    accessorKey: 'dirty',
+    header: ({ column }) => pinHeader(column, 'Status'),
+    size: 120,
+    cell: ({ row }: { row: TableRow<II18nKeyRow> }) => (
+      <UBadge
+        color={row.original.dirty ? 'warning' : 'success'}
+        variant="subtle"
+      >
+        {row.original.dirty ? 'Draft' : 'Published'}
+      </UBadge>
+    ),
+  },
+  ...localeCodes.value.map((code) => {
+    const meta = localeMeta(code)
+    return {
+      id: code,
+      header: ({ column }: { column: Column<II18nKeyRow, unknown> }) => (
+        <div class="flex items-center gap-1">
+          {meta ? <UIcon name={meta.icon} size="14" /> : null}
+          <span>{meta?.short || code}</span>
+          <UButton
+            color="neutral"
+            variant="ghost"
+            size="xs"
+            square
+            icon={column.getIsPinned() ? 'i-lucide:pin-off' : 'i-lucide:pin'}
+            onClick={() =>
+              column.pin(column.getIsPinned() === 'left' ? false : 'left')
+            }
+          />
+        </div>
+      ),
+      enableHiding: true,
+      size: 200,
+      cell: ({ row }: { row: TableRow<II18nKeyRow> }) => {
+        const original = row.original
+        return (
+          <UInput
+            modelValue={cellDraft(original, code)}
+            size="sm"
+            class="min-w-44"
+            onUpdate:modelValue={(v: string) =>
+              setCellDraft(original, code, v ?? '')
+            }
+            onBlur={() => saveDraft(original, code, cellDraft(original, code))}
+          />
+        )
+      },
+    } as TableColumn<II18nKeyRow>
+  }),
+  {
+    id: 'actions',
+    header: ({ column }) => pinHeader(column, '', 'right'),
+    enableHiding: false,
+    size: 110,
+    cell: ({ row }: { row: TableRow<II18nKeyRow> }) => (
+      <UButton
+        size="xs"
+        variant="outline"
+        color="neutral"
+        label="Publish"
+        disabled={!row.original.dirty || publishing.value}
+        onClick={() => publishKeys([Number(row.original.id)])}
+      />
+    ),
+  },
+])
+
+const columnsDropdownItems = computed<DropdownMenuItem[]>(() => {
+  if (!table.value) return []
+  const allColumns: any[] = table.value.tableApi.getAllColumns()
+  return allColumns
+    .filter((col) => col.getCanHide())
+    .map((col) => {
+      const trans = TRANSLATION_LANGUAGES.find((lang) => lang.value === col.id)
+      return {
+        type: 'checkbox' as const,
+        label: trans?.short || col.id,
+        icon: trans?.icon,
+        checked: col.getIsVisible(),
+        onUpdateChecked(checked: boolean) {
+          table.value?.tableApi.getColumn(col.id)?.toggleVisibility(!!checked)
+        },
+        onSelect(e: Event) {
+          e.preventDefault()
+        },
+      }
+    })
+})
 
 async function loadKeys() {
   if (!validID(curProject.value.id)) {
@@ -87,6 +278,7 @@ async function loadKeys() {
     return
   }
   loading.value = true
+  rowSelection.value = {}
   try {
     const params = new URLSearchParams({
       page: String(page.value),
@@ -132,31 +324,23 @@ watch(
 async function saveDraft(row: II18nKeyRow, locale: string, value: string) {
   const previous = draftOf(row, locale)
   if (previous === value) return
-  const key = cellKey(row.id, locale)
-  saving.value = { ...saving.value, [key]: true }
-  try {
-    await useApi(`/api/translation/${row.id}/vue`, {
-      method: 'POST',
-      body: { [locale]: value },
+  await useApi(`/api/translation/${row.id}/vue`, {
+    method: 'POST',
+    body: { [locale]: value },
+  })
+  const localeRow = row.locales.find((l) => l.locale === locale)
+  if (localeRow) {
+    localeRow.draftText = value
+  } else {
+    row.locales.push({
+      locale,
+      draftText: value,
+      publishedText: null,
     })
-    const localeRow = row.locales.find((l) => l.locale === locale)
-    if (localeRow) {
-      localeRow.draftText = value
-    } else {
-      row.locales.push({
-        locale,
-        draftText: value,
-        publishedText: null,
-      })
-    }
-    row.dirty = row.locales.some(
-      (l) => (l.draftText ?? '') !== (l.publishedText ?? '')
-    )
-  } finally {
-    const next = { ...saving.value }
-    delete next[key]
-    saving.value = next
   }
+  row.dirty = row.locales.some(
+    (l) => (l.draftText ?? '') !== (l.publishedText ?? '')
+  )
 }
 
 async function publishKeys(keyIds?: number[]) {
@@ -191,29 +375,25 @@ onMounted(async () => {
 </script>
 
 <template>
-  <div class="h-full flex flex-col p-4 gap-4 overflow-hidden">
-    <div class="flex items-center gap-3 flex-wrap">
-      <h1 class="text-lg font-bold">Translations</h1>
-      <USelect
-        v-model="selectedProjectId"
-        class="w-56"
-        placeholder="Select project"
-        :items="projectItems"
-      />
-      <UInput
-        v-model="q"
-        class="w-64"
-        placeholder="Search key or origin"
-        icon="i-lucide:search"
-      />
-      <div class="ml-auto flex items-center gap-2">
+  <div class="h-full min-w-0 overflow-hidden flex flex-col bg-gray-50">
+    <header
+      class="shrink-0 px-6 py-5 bg-white border-b border-default flex items-start justify-between gap-6"
+    >
+      <div class="min-w-0">
+        <h1 class="text-xl font-semibold tracking-tight">Translations</h1>
+        <p class="mt-1 text-sm text-muted">
+          Edit drafts in the table, then publish to the JSON API.
+        </p>
+      </div>
+      <div class="flex items-center gap-2 shrink-0">
         <UButton
           color="neutral"
           variant="outline"
-          label="Refresh"
-          icon="i-lucide:refresh-cw"
-          :loading="loading"
-          @click="loadKeys"
+          label="Publish selected"
+          icon="i-lucide:check-check"
+          :loading="publishing"
+          :disabled="selectedKeyIds.length === 0"
+          @click="publishKeys(selectedKeyIds)"
         />
         <UButton
           color="primary"
@@ -224,116 +404,109 @@ onMounted(async () => {
           @click="publishKeys()"
         />
       </div>
-    </div>
+    </header>
 
-    <div
-      v-if="!validID(curProject.id)"
-      class="flex-1 flex items-center justify-center text-gray-500"
-    >
-      Select a project to manage translations.
-    </div>
-    <div v-else class="flex-1 min-h-0 overflow-auto border border-gray-200 rounded">
-      <table class="w-full text-sm border-collapse">
-        <thead class="sticky top-0 bg-gray-50 z-10">
-          <tr>
-            <th class="p-2 text-left font-medium whitespace-nowrap">Key</th>
-            <th class="p-2 text-left font-medium whitespace-nowrap">Origin</th>
-            <th class="p-2 text-left font-medium whitespace-nowrap">Tags</th>
-            <th class="p-2 text-left font-medium whitespace-nowrap">Status</th>
-            <th
-              v-for="code in localeCodes"
-              :key="code"
-              class="p-2 text-left font-medium whitespace-nowrap min-w-40"
-            >
-              <span class="inline-flex items-center gap-1">
-                <UIcon
-                  v-if="localeMeta(code)"
-                  :name="localeMeta(code)!.icon"
-                  size="14"
-                />
-                {{ localeMeta(code)?.short || code }}
-              </span>
-            </th>
-            <th class="p-2 text-left font-medium whitespace-nowrap">Actions</th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr v-if="loading && rows.length === 0">
-            <td class="p-4 text-gray-400" :colspan="5 + localeCodes.length">
-              Loading…
-            </td>
-          </tr>
-          <tr v-else-if="rows.length === 0">
-            <td class="p-4 text-gray-400" :colspan="5 + localeCodes.length">
-              No keys yet. Create tags in the editor to populate this table.
-            </td>
-          </tr>
-          <tr
-            v-for="row in rows"
-            :key="row.id"
-            class="border-t border-gray-100 hover:bg-gray-50/80"
+    <div class="flex-1 min-h-0 min-w-0 p-6 flex flex-col gap-4 overflow-hidden">
+      <div
+        class="shrink-0 flex flex-wrap items-center gap-3 rounded-xl border border-default bg-white px-4 py-3"
+      >
+        <USelect
+          v-model="selectedProjectId"
+          class="w-56"
+          placeholder="Select project"
+          :items="projectItems"
+        />
+        <UInput
+          v-model="q"
+          class="w-72"
+          icon="i-lucide:search"
+          placeholder="Search key or origin"
+        />
+        <UBadge
+          v-if="validID(curProject.id)"
+          color="neutral"
+          variant="subtle"
+        >
+          {{ total }} keys
+        </UBadge>
+        <UBadge v-if="dirtyCount" color="warning" variant="subtle">
+          {{ dirtyCount }} unpublished
+        </UBadge>
+        <div class="ml-auto flex items-center gap-2">
+          <UDropdownMenu
+            :items="columnsDropdownItems"
+            :content="{ align: 'end' }"
+            :ui="{ group: 'max-h-64 overflow-auto' }"
           >
-            <td class="p-2 font-mono text-xs align-top max-w-48 break-all">
-              {{ row.key }}
-            </td>
-            <td
-              class="p-2 align-top max-w-56 text-gray-600 line-clamp-3"
-              :title="row.origin"
-            >
-              {{ row.origin || '—' }}
-            </td>
-            <td class="p-2 align-top">{{ row.tagCount }}</td>
-            <td class="p-2 align-top">
-              <UBadge
-                :color="row.dirty ? 'warning' : 'success'"
-                variant="subtle"
-                size="sm"
-              >
-                {{ row.dirty ? 'Draft' : 'Published' }}
-              </UBadge>
-            </td>
-            <td
-              v-for="code in localeCodes"
-              :key="`${row.id}-${code}`"
-              class="p-1 align-top min-w-40"
-            >
-              <UInput
-                :model-value="cellDraft(row, code)"
-                size="sm"
-                class="w-full"
-                @update:model-value="
-                  (v: string) => setCellDraft(row, code, v ?? '')
-                "
-                @blur="saveDraft(row, code, cellDraft(row, code))"
-              />
-            </td>
-            <td class="p-2 align-top">
-              <UButton
-                size="xs"
-                variant="outline"
-                color="neutral"
-                label="Publish"
-                :disabled="!row.dirty || publishing"
-                @click="publishKeys([Number(row.id)])"
-              />
-            </td>
-          </tr>
-        </tbody>
-      </table>
-    </div>
+            <UButton
+              label="Columns"
+              color="neutral"
+              variant="outline"
+              trailing-icon="i-lucide-chevron-down"
+            />
+          </UDropdownMenu>
+          <UButton
+            color="neutral"
+            variant="ghost"
+            icon="i-lucide:refresh-cw"
+            :loading="loading"
+            @click="loadKeys"
+          />
+        </div>
+      </div>
 
-    <div v-if="total > limit" class="flex justify-center">
-      <UPagination
-        :page="page"
-        :items-per-page="limit"
-        :total="total"
-        @update:page="
-          (p: number) => {
-            page = p
-            loadKeys()
-          }
-        "
-      />
+      <div
+        class="flex-1 min-h-0 min-w-0 rounded-xl border border-default bg-white overflow-hidden flex flex-col"
+      >
+        <div class="flex-1 min-h-0 min-w-0 overflow-hidden">
+          <UTable
+            ref="table"
+            v-model:row-selection="rowSelection"
+            v-model:column-pinning="columnPinning"
+            sticky="header"
+            class="h-full"
+            :data="rows"
+            :columns="columns"
+            :loading="loading"
+            :get-row-id="(row: II18nKeyRow) => String(row.id)"
+            :ui="{
+              root: 'h-full overflow-auto',
+              base: 'min-w-max',
+              th: 'bg-white',
+              td: 'align-top bg-white',
+            }"
+          >
+            <template #empty>
+              <div class="py-12 text-center text-sm text-muted">
+                {{
+                  validID(curProject.id)
+                    ? 'No keys yet. Create tags in the editor to populate this table.'
+                    : 'Select a project to manage translations.'
+                }}
+              </div>
+            </template>
+          </UTable>
+        </div>
+        <div
+          v-if="total > 0"
+          class="shrink-0 flex items-center justify-between px-4 py-3 border-t border-default"
+        >
+          <p class="text-xs text-muted">
+            Page {{ page }} · {{ rows.length }} of {{ total }}
+          </p>
+          <UPagination
+            :page="page"
+            :items-per-page="limit"
+            :total="total"
+            @update:page="
+              (p: number) => {
+                page = p
+                loadKeys()
+              }
+            "
+          />
+        </div>
+      </div>
     </div>
   </div>
 </template>
