@@ -137,7 +137,7 @@ export async function upsertLocaleDrafts(
         i18nKeyId,
         locale,
         draftText,
-        publishedText: draftText,
+        publishedText: null,
       },
       update: {
         draftText,

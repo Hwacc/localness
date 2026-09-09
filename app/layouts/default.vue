@@ -15,6 +15,18 @@ const navItems = [
     name: 'editor',
     to: '/editor',
   },
+  {
+    icon: 'i-lucide:languages',
+    label: 'Translations',
+    name: 'translations',
+    to: '/translations',
+  },
+  {
+    icon: 'i-lucide:users',
+    label: 'Teams',
+    name: 'teams',
+    to: '/teams',
+  },
 ]
 
 </script>
@@ -26,19 +38,24 @@ const navItems = [
         <div
           class="flex flex-col gap-4 items-center h-full px-1 py-2 border-r-1 border-gray-50"
         >
-          <UButton
+          <UTooltip
             v-for="item in navItems"
             :key="item.name"
-            :class="[
-              ' hover:text-green-600',
-              route.name === item.name && 'text-green-400 hover:text-green-400',
-            ]"
-            :icon="item.icon"
-            size="md"
-            color="neutral"
-            variant="ghost"
-            @click="navigateTo(item.to)"
-          />
+            :text="item.label"
+            :content="{ side: 'right' }"
+          >
+            <UButton
+              :class="[
+                ' hover:text-green-600',
+                route.name === item.name && 'text-green-400 hover:text-green-400',
+              ]"
+              :icon="item.icon"
+              size="md"
+              color="neutral"
+              variant="ghost"
+              @click="navigateTo(item.to)"
+            />
+          </UTooltip>
         </div>
         <div class="h-full">
           <slot />

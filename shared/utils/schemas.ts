@@ -170,6 +170,17 @@ export const zExport = z.object(
 )
 export type ZExport = z.infer<typeof zExport>
 
+export const zPublish = z.object({
+  keyIds: z.array(z.number().int().positive()).optional(),
+})
+export type ZPublish = z.infer<typeof zPublish>
+
+export const zI18nKeyPatch = z.object({
+  key: z.string().min(1).optional(),
+  description: zNilable.or(z.string()).optional(),
+})
+export type ZI18nKeyPatch = z.infer<typeof zI18nKeyPatch>
+
 export const zGenI18nKey = z.object({
   projectPrompt: zNilable.or(z.string()),
   pagePrompt: zNilable.or(z.string()),

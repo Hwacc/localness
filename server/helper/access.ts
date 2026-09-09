@@ -36,6 +36,30 @@ export async function requireTeamOwner(event: H3Event, teamId: number) {
   return { session, membership, userId }
 }
 
+export async function requireTeamAccess(event: H3Event, teamId: number) {
+  const session = await requireUserSession(event)
+  const userId = numericID(session.user.id)
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+    select: { id: true, role: true },
+  })
+  if (user?.role === UserRole.ADMIN) {
+    return { session, userId, membership: null as null, isAdmin: true }
+  }
+  const membership = await prisma.userTeam.findUnique({
+    where: {
+      userId_teamId: { userId, teamId },
+    },
+  })
+  if (!membership) {
+    throw createError({
+      statusCode: 403,
+      statusMessage: 'Forbidden',
+    })
+  }
+  return { session, userId, membership, isAdmin: false }
+}
+
 export async function requireTeamMember(event: H3Event, projectId: number) {
   const session = await requireUserSession(event)
   const userId = numericID(session.user.id)

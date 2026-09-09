@@ -1,5 +1,8 @@
+import type { Plugin } from '#app'
 import { ossImageDirective } from '~/directives/ossImage'
 
-export default defineNuxtPlugin((NuxtApp) => {
-  NuxtApp.vueApp.directive('oss-image', ossImageDirective)
+const ossImagePlugin: Plugin = defineNuxtPlugin((nuxtApp) => {
+  nuxtApp.vueApp.directive('oss-image', ossImageDirective)
 })
+
+export default ossImagePlugin
