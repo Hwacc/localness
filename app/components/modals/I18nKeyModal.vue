@@ -6,7 +6,7 @@ import {
 import { formatI18nKeyDisplay } from '#shared/utils'
 
 const props = defineProps<{
-  row: II18nKeyRow
+  row?: II18nKeyRow | null
   locales: string[]
   projectId: ID
   readonly?: boolean
@@ -19,10 +19,11 @@ const emit = defineEmits<{
 
 const toast = useToast()
 const loading = ref(false)
+const isCreate = computed(() => !props.row)
 
 const state = reactive({
-  key: props.row.key,
-  origin: props.row.origin,
+  key: '',
+  origin: '',
   locales: {} as Record<string, string>,
 })
 
@@ -30,13 +31,13 @@ const localeCodes = computed(() =>
   props.locales.length ? props.locales : [...DEFAULT_LOCALES]
 )
 
-function fillFromRow(row: II18nKeyRow) {
-  state.key = row.key
-  state.origin = row.origin
+function fillFromRow(row: II18nKeyRow | null | undefined) {
+  state.key = row?.key ?? ''
+  state.origin = row?.origin ?? ''
   const next: Record<string, string> = {}
   for (const code of localeCodes.value) {
     next[code] =
-      row.locales.find((locale) => locale.locale === code)?.draftText ?? ''
+      row?.locales.find((locale) => locale.locale === code)?.draftText ?? ''
   }
   state.locales = next
 }
@@ -44,7 +45,7 @@ function fillFromRow(row: II18nKeyRow) {
 fillFromRow(props.row)
 
 watch(
-  () => props.row.id,
+  () => props.row?.id,
   () => fillFromRow(props.row)
 )
 
@@ -83,21 +84,37 @@ async function onSave() {
   }
   loading.value = true
   try {
-    if (key !== props.row.key) {
-      await useApi(`/api/projects/${props.projectId}/i18n-keys/${props.row.id}`, {
-        method: 'PATCH',
-        body: { key },
+    if (isCreate.value) {
+      await useApi('/api/translation', {
+        method: 'POST',
+        body: {
+          projectId: Number(props.projectId),
+          key,
+          origin,
+          vue: state.locales,
+        },
+      })
+    } else {
+      const row = props.row!
+      if (key !== row.key) {
+        await useApi(
+          `/api/projects/${props.projectId}/i18n-keys/${row.id}`,
+          {
+            method: 'PATCH',
+            body: { key },
+          }
+        )
+      }
+      await useApi(`/api/translation/${row.id}`, {
+        method: 'POST',
+        body: {
+          origin,
+          vue: state.locales,
+        },
       })
     }
-    await useApi(`/api/translation/${props.row.id}`, {
-      method: 'POST',
-      body: {
-        origin,
-        vue: state.locales,
-      },
-    })
     toast.add({
-      title: 'Saved',
+      title: isCreate.value ? 'Created' : 'Saved',
       color: 'success',
       icon: 'i-lucide:check',
     })
@@ -113,7 +130,13 @@ async function onSave() {
 
 <template>
   <UModal
-    :title="readonly ? 'View translation' : 'Edit translation'"
+    :title="
+      readonly
+        ? 'View translation'
+        : isCreate
+          ? 'New translation'
+          : 'Edit translation'
+    "
     :ui="{ content: 'max-w-lg' }"
     @update:open="(open: boolean) => !open && emit('close', false)"
   >
@@ -158,7 +181,7 @@ async function onSave() {
         />
         <UButton
           v-if="!readonly"
-          label="Save"
+          :label="isCreate ? 'Create' : 'Save'"
           :loading="loading"
           @click="onSave"
         />

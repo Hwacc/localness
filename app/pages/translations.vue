@@ -89,6 +89,15 @@ const editModal = overlay.create(I18nKeyModal)
 const deleteModal = overlay.create(AlertModal)
 const unpublishModal = overlay.create(AlertModal)
 
+function openCreate() {
+  if (!validID(curProject.value.id)) return
+  editModal.open({
+    locales: localeCodes.value,
+    projectId: curProject.value.id,
+    onSaved: () => loadKeys(),
+  })
+}
+
 function openEdit(row: II18nKeyRow) {
   if (!validID(curProject.value.id)) return
   editModal.open({
@@ -537,6 +546,14 @@ onMounted(async () => {
         </p>
       </div>
       <div class="flex items-center gap-2 shrink-0">
+        <UButton
+          color="neutral"
+          variant="outline"
+          label="New translation"
+          icon="i-lucide:plus"
+          :disabled="!validID(curProject.id)"
+          @click="openCreate"
+        />
         <UButton
           color="neutral"
           variant="outline"

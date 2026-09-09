@@ -69,7 +69,7 @@ APIs: `GET/PUT /api/projects/:id/git-sync`, `POST .../products` (OWNER; clone re
 | `/` | Login |
 | `/dashboard` | Post-login home; no workspace bar |
 | `/editor` | **ssr: false** (sider project fetch needs cookies) |
-| `/translations` | Key table |
+| `/translations` | Key table; can create keys with no tag |
 | `/git` | Git sync; **ssr: false**; Pull/Push + conflict cards |
 | `/teams` | Teams; invite by existing username |
 

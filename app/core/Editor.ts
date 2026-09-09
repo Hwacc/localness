@@ -71,6 +71,13 @@ class Editor extends EditorInteraction {
 
     this.app.editor?.buttons.add(this.funcBtnGroup)
 
+    this.app.on(PointerEvent.DOUBLE_TAP, (e: PointerEvent) => {
+      this.onTagDoubleTap(e)
+    })
+    this.app.editor?.on(PointerEvent.DOUBLE_TAP, (e: PointerEvent) => {
+      this.onTagDoubleTap(e)
+    })
+
     this.dotMatrix = new DotMatrix(this.app)
     this.dotMatrix.enableDotMatrix(true)
 
@@ -269,9 +276,50 @@ class Editor extends EditorInteraction {
     }
   }
 
-  private async onInfoClick() {
-    if (isEmpty(this.app.editor.list)) return
-    const selectedOne = this.app.editor.list[0] as EditorTag
+  private findEditorTag(node: unknown): EditorTag | null {
+    let current = node as { parent?: unknown } | null | undefined
+    while (current) {
+      if (current instanceof EditorTag) return current
+      current = current.parent
+    }
+    return null
+  }
+
+  private onTagDoubleTap(e: PointerEvent) {
+    if (this.mode === 'drag') return
+    const target = e.target as IUI | undefined
+    const name = typeof target?.name === 'string' ? target.name : ''
+    switch (name) {
+      case 'resize-point':
+      case 'rotate-point':
+      case 'resize-line':
+      case 'circle':
+        return
+      default:
+        break
+    }
+    const hitTag = this.findEditorTag(target)
+    const selected = this.app.editor?.list?.[0]
+    const selectedTag = selected instanceof EditorTag ? selected : null
+    const tagToOpen =
+      hitTag ?? (name === 'rect' && selectedTag ? selectedTag : null)
+    if (!tagToOpen) return
+    if (this.app.editor) this.app.editor.target = tagToOpen
+    void this.onInfoClick(tagToOpen)
+  }
+
+  private lastInfoClickAt = 0
+
+  private async onInfoClick(tag?: EditorTag) {
+    const now = Date.now()
+    if (now - this.lastInfoClickAt < 400) return
+    this.lastInfoClickAt = now
+    const selectedOne =
+      tag ??
+      (this.app.editor?.list?.[0] instanceof EditorTag
+        ? this.app.editor.list[0]
+        : undefined)
+    if (!selectedOne) return
     try {
       const { receive } = this.connectEmit<
         'connect-tag-info',
@@ -354,7 +402,6 @@ class Editor extends EditorInteraction {
     tag.on(PointerEvent.TAP, () => {
       this.emit('tag-click', tag.toTagJSON())
     })
-    tag.on(PointerEvent.DOUBLE_TAP, () => this.onInfoClick())
     tag.on('custom-lock', (e: { locked: boolean }) => {
       // tag lock state change, update lock btn state
       this.funcBtnGroup.lockBtn.slocked = e.locked
