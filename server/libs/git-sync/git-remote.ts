@@ -1,6 +1,6 @@
 import { createError } from 'h3'
 import { execFile } from 'node:child_process'
-import { mkdtemp, rm } from 'node:fs/promises'
+import { mkdir, mkdtemp, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { promisify } from 'node:util'
@@ -31,6 +31,7 @@ export async function withClonedRepo<T>(params: {
   branch: string
   credentialKind: string
   token: string
+  sparsePath?: string
   run: (repoDir: string, commitSha: string) => Promise<T>
 }): Promise<T> {
   const dir = await mkdtemp(join(tmpdir(), 'localness-git-'))
@@ -40,23 +41,7 @@ export async function withClonedRepo<T>(params: {
     params.token
   )
   try {
-    await execFileAsync(
-      'git',
-      [
-        'clone',
-        '--depth',
-        '1',
-        '--branch',
-        params.branch,
-        authUrl,
-        dir,
-      ],
-      {
-        env: { ...process.env, GIT_TERMINAL_PROMPT: '0' },
-        timeout: 120_000,
-        maxBuffer: 20 * 1024 * 1024,
-      }
-    )
+    await cloneRepo(dir, authUrl, params.branch, params.sparsePath)
     const sha = await git(dir, ['rev-parse', 'HEAD'])
     return await params.run(dir, sha)
   } catch (error: unknown) {
@@ -69,6 +54,45 @@ export async function withClonedRepo<T>(params: {
   } finally {
     await rm(dir, { recursive: true, force: true })
   }
+}
+
+async function cloneRepo(
+  dir: string,
+  authUrl: string,
+  branch: string,
+  sparsePath?: string
+) {
+  const env = { ...process.env, GIT_TERMINAL_PROMPT: '0' }
+  const timeout = 120_000
+  const maxBuffer = 20 * 1024 * 1024
+  if (sparsePath) {
+    try {
+      await execFileAsync(
+        'git',
+        [
+          'clone',
+          '--depth',
+          '1',
+          '--sparse',
+          '--branch',
+          branch,
+          authUrl,
+          dir,
+        ],
+        { env, timeout, maxBuffer }
+      )
+      await git(dir, ['sparse-checkout', 'set', sparsePath])
+      return
+    } catch {
+      await rm(dir, { recursive: true, force: true })
+      await mkdir(dir, { recursive: true })
+    }
+  }
+  await execFileAsync(
+    'git',
+    ['clone', '--depth', '1', '--branch', branch, authUrl, dir],
+    { env, timeout, maxBuffer }
+  )
 }
 
 export async function commitAndPush(params: {

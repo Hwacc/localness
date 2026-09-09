@@ -51,8 +51,8 @@ Nuxt 4 · Vue 3 · Prisma · SQLite · @nuxt/ui · Pinia · nuxt-auth-utils · L
 
 LILT-style product folders: `<product>/source/` and `<product>/translated/`, flat `{ "id": "string" }` JSON. One Localness Project maps to one **product**. Unique `(adapter, remoteUrl, product)`. OWNER must set the HTTPS Git clone URL (`…/workspace/repo.git`) on `/git`; Bitbucket browser pages (`/src/<branch>/`) are normalized to that clone URL. There is **no** server default remote. Product options are **listed from that remote** (folders that contain `source/` or `translated/`), not a hardcoded whitelist. Load products also requires a token because it clones the remote.
 
-- **Pull** writes **draft** only (skip `__draft_*`). Multi-batch: later filename date (then later file) wins as the remote view. Source locale files live under `source/`; other locales under `translated/` (do not hand-edit `translated/`).
-- **Push** writes **published** source-locale strings to a new `source/` batch. Open conflicts → **409**.
+- **Pull** writes **draft** only (skip `__draft_*`). Only **new batch files** since last pull are parsed (paths stored on the binding, never returned to the client). Clone uses sparse checkout of the product folder. Within those files, later filename date (then later file) wins. Source locale files live under `source/`; other locales under `translated/` (do not hand-edit `translated/`).
+- **Push** writes a new `source/` batch with **only published source strings that are new or changed** since the last successful landing (`GitSyncBase`). Unchanged keys are omitted. Open conflicts → **409**. Empty delta → 400.
 - Three-way per `key + locale`: `GitSyncBase` (last successful landing), ours = platform draft, theirs = Git. `publishedText` is reference only.
 - Dual-track credentials on `GitSyncBinding.credentialKind` (OWNER writes; GET never returns the token, only `tokenConfigured`):
   - `repo_access_token` → Git HTTPS user `x-token-auth`

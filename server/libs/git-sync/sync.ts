@@ -10,6 +10,7 @@ import { withClonedRepo, commitAndPush } from './git-remote'
 import {
   isLiltProduct,
   listLiltProducts,
+  parseSeenFiles,
   readRemoteLocaleMaps,
   writeSourceBatch,
 } from './lilt-swbu'
@@ -205,17 +206,21 @@ export async function pullProject(projectId: number) {
     })
   }
   const override = localeOverride(binding.localeMap)
+  const skipRelPaths = new Set(parseSeenFiles(binding.seenFiles))
   return withClonedRepo({
     remoteUrl,
     branch: binding.branch,
     credentialKind: binding.credentialKind,
     token: binding.token,
+    sparsePath: binding.product,
     run: async (repoDir, commitSha) => {
-      const remote = await readRemoteLocaleMaps(
-        repoDir,
-        binding.product,
-        override
-      )
+      const { maps: remote, allRelPaths, newRelPaths } =
+        await readRemoteLocaleMaps(
+          repoDir,
+          binding.product,
+          override,
+          skipRelPaths
+        )
       const keys = await prisma.i18nKey.findMany({
         where: { projectId },
         include: { locales: true },
@@ -284,9 +289,18 @@ export async function pullProject(projectId: number) {
       }
       await prisma.gitSyncBinding.update({
         where: { id: binding.id },
-        data: { lastPulledAt: new Date() },
+        data: {
+          lastPulledAt: new Date(),
+          seenFiles: allRelPaths,
+        },
       })
-      return { applied, aligned, kept, conflicts }
+      return {
+        applied,
+        aligned,
+        kept,
+        conflicts,
+        newFiles: newRelPaths.length,
+      }
     },
   })
 }
@@ -337,18 +351,23 @@ export async function pushProject(
     where: { projectId },
     include: { locales: true },
   })
+  const bases = await prisma.gitSyncBase.findMany({
+    where: { projectId, locale: sourceLocal },
+  })
+  const lastPushed = new Map(bases.map((row) => [row.key, row.baseText]))
   const entries: Record<string, string> = {}
   for (const key of keys) {
     if (key.key.startsWith(DRAFT_KEY_PREFIX)) continue
     const loc = key.locales.find((l) => l.locale === sourceLocal)
     const text = loc?.publishedText?.trim()
     if (!text) continue
+    if (lastPushed.get(key.key) === text) continue
     entries[key.key] = text
   }
   if (!Object.keys(entries).length) {
     throw createError({
       statusCode: 400,
-      statusMessage: 'No published source strings to push',
+      statusMessage: 'No new published source strings to push',
     })
   }
   return withClonedRepo({
@@ -356,6 +375,7 @@ export async function pushProject(
     branch: binding.branch,
     credentialKind: binding.credentialKind,
     token: binding.token,
+    sparsePath: binding.product,
     run: async (repoDir, commitSha) => {
       const filename = await writeSourceBatch({
         repoRoot: repoDir,
@@ -369,9 +389,14 @@ export async function pushProject(
         authorName: 'Localness Git Sync',
       })
       if (pushed) {
+        const seen = new Set(parseSeenFiles(binding.seenFiles))
+        seen.add(`${binding.product}/source/${filename}`)
         await prisma.gitSyncBinding.update({
           where: { id: binding.id },
-          data: { lastPushedAt: new Date() },
+          data: {
+            lastPushedAt: new Date(),
+            seenFiles: [...seen],
+          },
         })
         for (const [key, text] of Object.entries(entries)) {
           await setBase({

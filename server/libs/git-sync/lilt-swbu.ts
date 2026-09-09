@@ -1,7 +1,7 @@
 import { createError } from 'h3'
 import { randomBytes } from 'node:crypto'
 import { readdir, readFile, writeFile, mkdir, stat } from 'node:fs/promises'
-import { join } from 'node:path'
+import { relative, sep, join } from 'node:path'
 import { remoteToLocale } from './credentials'
 
 export const LILT_FILENAME =
@@ -46,6 +46,19 @@ export async function listLiltProducts(
   return out
 }
 
+export function toRepoRelPath(repoRoot: string, absPath: string): string {
+  return relative(repoRoot, absPath).split(sep).join('/')
+}
+
+export function parseSeenFiles(raw: unknown): string[] {
+  if (!Array.isArray(raw)) return []
+  return [
+    ...new Set(
+      raw.filter((item): item is string => typeof item === 'string' && item.length > 0)
+    ),
+  ]
+}
+
 export function parseLiltFilename(name: string): {
   date: string
   batchId: string
@@ -85,7 +98,10 @@ export function buildSourceFilename(sourceRemoteLocale: string): string {
   const y = day.getUTCFullYear()
   const m = String(day.getUTCMonth() + 1).padStart(2, '0')
   const d = String(day.getUTCDate()).padStart(2, '0')
-  const batchId = randomBytes(12).toString('hex')
+  const hh = String(day.getUTCHours()).padStart(2, '0')
+  const mm = String(day.getUTCMinutes()).padStart(2, '0')
+  const ss = String(day.getUTCSeconds()).padStart(2, '0')
+  const batchId = `${hh}${mm}${ss}-${randomBytes(8).toString('hex')}`
   return `${y}${m}${d}-${batchId}_${sourceRemoteLocale}.json`
 }
 
@@ -139,8 +155,9 @@ function fileSortKey(path: string): FileHit | null {
 export async function readRemoteLocaleMaps(
   repoRoot: string,
   product: string,
-  localeOverride?: Record<string, string> | null
-): Promise<RemoteLocaleMap> {
+  localeOverride?: Record<string, string> | null,
+  skipRelPaths?: Set<string>
+): Promise<{ maps: RemoteLocaleMap; allRelPaths: string[]; newRelPaths: string[] }> {
   const result: RemoteLocaleMap = new Map()
   const dirs = [
     join(repoRoot, product, 'translated'),
@@ -155,7 +172,13 @@ export async function readRemoteLocaleMaps(
     }
   }
   files.sort((a, b) => a.sortKey.localeCompare(b.sortKey))
+  const allRelPaths: string[] = []
+  const newRelPaths: string[] = []
   for (const file of files) {
+    const rel = toRepoRelPath(repoRoot, file.path)
+    allRelPaths.push(rel)
+    if (skipRelPaths?.has(rel)) continue
+    newRelPaths.push(rel)
     const local = remoteToLocale(file.remoteLocale, localeOverride)
     if (!local) continue
     let parsed: unknown
@@ -179,7 +202,7 @@ export async function readRemoteLocaleMaps(
       localeMap.set(key, text)
     }
   }
-  return result
+  return { maps: result, allRelPaths, newRelPaths }
 }
 
 export async function writeSourceBatch(params: {

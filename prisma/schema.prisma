@@ -109,6 +109,7 @@ model GitSyncBinding {
   credentialKind  String   @map("credential_kind")
   token           String   @default("")
   localeMap       Json?    @map("locale_map")
+  seenFiles       Json?    @map("seen_files")
   lastPulledAt    DateTime? @map("last_pulled_at")
   lastPushedAt    DateTime? @map("last_pushed_at")
   project         Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)

@@ -270,12 +270,13 @@ async function pull() {
       aligned: number
       kept: number
       conflicts: number
+      newFiles: number
     }>(`/api/projects/${projectId.value}/git-sync/pull`, {
       method: 'POST',
     })
     toast.add({
       title: 'Pull finished',
-      description: `Applied ${result?.applied ?? 0}, kept ${result?.kept ?? 0}, conflicts ${result?.conflicts ?? 0}`,
+      description: `Applied ${result?.applied ?? 0}, kept ${result?.kept ?? 0}, conflicts ${result?.conflicts ?? 0}, new files ${result?.newFiles ?? 0}`,
       color: 'success',
     })
     await loadAll()
