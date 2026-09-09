@@ -3,13 +3,13 @@ import { OSSEngine } from '#shared/constants'
 
 export function useOSSImage() {
   const { $imageCache, $dayjs } = useNuxtApp()
+  const { ossEngine, ossBaseUrl } = useRuntimeConfig().public
   /**
    * Get image url from cache or oss
    * @param key image key
    */
   async function get(key: string): Promise<string> {
     if (!key) return key
-    const { ossEngine, ossBaseUrl } = useRuntimeConfig().public
 
     // get from cache
     const cached = $imageCache.get(key)

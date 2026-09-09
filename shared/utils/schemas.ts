@@ -1,7 +1,10 @@
 import { z } from 'zod/v4'
 import { OCR_LANGUAGES } from '#shared/constants'
 
-export const zNilable = z.union([z.null(), z.undefined()])
+/** Accepts T | null | undefined, including a missing object key (Zod v4). */
+export function zNilable<T extends z.ZodType>(schema: T) {
+  return schema.nullish()
+}
 
 export const PASSWORD_REGEX = /^(?=.*[a-zA-Z])(?=.*\d)[a-zA-Z\d_]*$/
 export const zPassword = z
@@ -16,12 +19,12 @@ export type ZPassword = z.infer<typeof zPassword>
 
 export const zProject = z.object({
   name: z.string().min(3),
-  description: zNilable.or(z.string()),
+  description: zNilable(z.string()),
   teamId: z.number().int().positive().optional(),
   settings: z.object({
     ocrLanguage: z.string(),
     ocrEngine: z.number(),
-    prompt: zNilable.or(z.string()),
+    prompt: zNilable(z.string()),
   }),
 })
 export type ZProject = z.infer<typeof zProject>
@@ -32,7 +35,7 @@ export const zPage = z.object({
   settings: z.object({
     ocrLanguage: z.string(),
     ocrEngine: z.number(),
-    prompt: zNilable.or(z.string()),
+    prompt: zNilable(z.string()),
   }),
 })
 export type ZPage = z.infer<typeof zPage>
@@ -42,7 +45,7 @@ export const zTagSetting = z.object(
     locked: z.boolean(),
     style: z.any(),
     labelStyle: z.any(),
-    prompt: zNilable.or(z.string()),
+    prompt: zNilable(z.string()),
   },
   'Tag setting parameters validate failed'
 )
@@ -57,9 +60,9 @@ export const zTag = z.object(
     height: z.number().nonnegative(),
     x: z.number().nonnegative(),
     y: z.number().nonnegative(),
-    i18nKey: zNilable.or(z.string()),
-    translationID: zNilable.or(z.number().nonnegative()),
-    i18nKeyId: zNilable.or(z.number().nonnegative()),
+    i18nKey: zNilable(z.string()),
+    translationID: zNilable(z.number().nonnegative()),
+    i18nKeyId: zNilable(z.number().nonnegative()),
     settings: zTagSetting.optional(),
   },
   'Tag parameters validate failed'
@@ -75,7 +78,7 @@ export type ZID = z.infer<typeof zID>
 export const zOCR = z.object(
   {
     image: z.string().nonempty(),
-    language: zNilable.or(
+    language: zNilable(
       z.string().refine((v) => OCR_LANGUAGES.some((l) => l.value === v), {
         message: `language must be one of ${OCR_LANGUAGES.map(
           (l) => l.value
@@ -89,19 +92,19 @@ export type ZOCR = z.infer<typeof zOCR>
 
 export const zProjectSetting = z.object(
   {
-    ocrLanguage: zNilable.or(
+    ocrLanguage: zNilable(
       z.string().refine((v) => OCR_LANGUAGES.some((l) => l.value === v), {
         message: `language must be one of ${OCR_LANGUAGES.map(
           (l) => l.value
         ).join(', ')}`,
       })
     ),
-    ocrEngine: zNilable.or(
+    ocrEngine: zNilable(
       z.number().refine((v) => v === 1 || v === 2, {
         message: 'ocrEngine must be 1 or 2',
       })
     ),
-    prompt: zNilable.or(z.string()),
+    prompt: zNilable(z.string()),
   },
   'Project setting parameters validate failed'
 )
@@ -109,46 +112,46 @@ export type ZProjectSetting = z.infer<typeof zProjectSetting>
 
 export const zPageSetting = z.object(
   {
-    ocrLanguage: zNilable.or(
+    ocrLanguage: zNilable(
       z.string().refine((v) => OCR_LANGUAGES.some((l) => l.value === v), {
         message: `language must be one of ${OCR_LANGUAGES.map(
           (l) => l.value
         ).join(', ')}`,
       })
     ),
-    ocrEngine: zNilable.or(
+    ocrEngine: zNilable(
       z.number().refine((v) => v === 1 || v === 2, {
         message: 'ocrEngine must be 1 or 2',
       })
     ),
-    prompt: zNilable.or(z.string()),
+    prompt: zNilable(z.string()),
   },
   'Page setting parameters validate failed'
 )
 export type ZPageSetting = z.infer<typeof zPageSetting>
 
 export const zTranslationContent = z.looseObject({
-  en: zNilable.or(z.string()).optional(),
-  zh_cn: zNilable.or(z.string()).optional(),
-  zh_tw: zNilable.or(z.string()).optional(),
-  ja: zNilable.or(z.string()).optional(),
-  ko: zNilable.or(z.string()).optional(),
-  ru: zNilable.or(z.string()).optional(),
-  fr: zNilable.or(z.string()).optional(),
-  de: zNilable.or(z.string()).optional(),
-  es: zNilable.or(z.string()).optional(),
-  pt: zNilable.or(z.string()).optional(),
+  en: zNilable(z.string()).optional(),
+  zh_cn: zNilable(z.string()).optional(),
+  zh_tw: zNilable(z.string()).optional(),
+  ja: zNilable(z.string()).optional(),
+  ko: zNilable(z.string()).optional(),
+  ru: zNilable(z.string()).optional(),
+  fr: zNilable(z.string()).optional(),
+  de: zNilable(z.string()).optional(),
+  es: zNilable(z.string()).optional(),
+  pt: zNilable(z.string()).optional(),
 })
 export type ZTranslationContent = z.infer<typeof zTranslationContent>
 
 export const zTranslation = z.looseObject({
-  origin: zNilable.or(z.string()).optional(),
-  fingerprint: zNilable.or(z.string()).optional(),
+  origin: zNilable(z.string()).optional(),
+  fingerprint: zNilable(z.string()).optional(),
   projectId: z.number().int().positive().optional(),
-  key: zNilable.or(z.string()).optional(),
+  key: zNilable(z.string()).optional(),
   force: z.boolean().optional(),
-  vue: zNilable.or(zTranslationContent).optional(),
-  react: zNilable.or(zTranslationContent).optional(),
+  vue: zNilable(zTranslationContent).optional(),
+  react: zNilable(zTranslationContent).optional(),
 })
 export type ZTranslation = z.infer<typeof zTranslation>
 
@@ -177,17 +180,17 @@ export type ZPublish = z.infer<typeof zPublish>
 
 export const zI18nKeyPatch = z.object({
   key: z.string().min(1).optional(),
-  description: zNilable.or(z.string()).optional(),
+  description: zNilable(z.string()).optional(),
 })
 export type ZI18nKeyPatch = z.infer<typeof zI18nKeyPatch>
 
 export const zGenI18nKey = z.object({
-  projectPrompt: zNilable.or(z.string()),
-  pagePrompt: zNilable.or(z.string()),
-  pageImage: zNilable.or(z.string()),
+  projectPrompt: zNilable(z.string()),
+  pagePrompt: zNilable(z.string()),
+  pageImage: zNilable(z.string()),
   tagID: z.number().nonnegative(),
   tagOrigin: z.string(),
-  tagI18nKey: zNilable.or(z.string()),
-  tagPrompt: zNilable.or(z.string()),
+  tagI18nKey: zNilable(z.string()),
+  tagPrompt: zNilable(z.string()),
 })
 export type ZGenI18nKey = z.infer<typeof zGenI18nKey>

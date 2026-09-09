@@ -1,8 +1,19 @@
 import { merge } from 'lodash-es'
+import { UserRole } from '#shared/constants'
+
+function emptyUser(): IUser {
+  return {
+    id: 0,
+    username: '',
+    role: UserRole.GUEST,
+    projects: [],
+    ownProjects: [],
+  }
+}
 
 export const useUserStore = defineStore('user', () => {
   const toast = useToast()
-  const user = ref<IUser>(new User())
+  const user = ref<IUser>(emptyUser())
 
   async function getUser() {
     const res = await useApi<IUser>('/api/user')

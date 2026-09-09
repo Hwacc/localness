@@ -45,7 +45,7 @@ async function onSubmit() {
           :animate="{ opacity: 1, scale: 1, y: 0 }"
           :exit="{ opacity: 0, scale: 0.8, y: 20 }"
         >
-          <RainbowComponent class="text-white rounded-[4px]" @click="onStart">
+          <RainbowComponent class="text-inverted rounded-[4px]" @click="onStart">
             Get Start
           </RainbowComponent>
         </motion.div>
@@ -92,7 +92,7 @@ async function onSubmit() {
 
             <UButton
               class="w-full justify-center"
-              color="neutral"
+              color="primary"
               size="lg"
               label="Login"
               type="submit"

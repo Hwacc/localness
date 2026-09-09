@@ -85,19 +85,24 @@ const themeMenuItems = computed<DropdownMenuItem[]>(() =>
               />
             </UTooltip>
           </div>
-          <UDropdownMenu
-            :items="themeMenuItems"
-            :content="{ side: 'right', align: 'end' }"
-          >
-            <UTooltip text="Theme" :content="{ side: 'right' }">
-              <UButton
-                :icon="themeTriggerIcon"
-                size="md"
-                color="neutral"
-                variant="ghost"
-              />
-            </UTooltip>
-          </UDropdownMenu>
+          <div class="flex flex-col items-center gap-3">
+            <UDropdownMenu
+              :items="themeMenuItems"
+              :content="{ side: 'right', align: 'end' }"
+            >
+              <UTooltip text="Theme" :content="{ side: 'right' }">
+                <UButton
+                  :icon="themeTriggerIcon"
+                  size="md"
+                  color="neutral"
+                  variant="ghost"
+                />
+              </UTooltip>
+            </UDropdownMenu>
+            <ClientOnly>
+              <AppUserAccount />
+            </ClientOnly>
+          </div>
         </div>
         <div class="h-full min-w-0 overflow-hidden bg-default">
           <slot />

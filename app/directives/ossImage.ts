@@ -2,6 +2,7 @@ import type { Directive } from 'vue'
 import { useImage } from '@vueuse/core'
 import { hasProtocol } from 'ufo'
 import { OSSEngine } from '#shared/constants'
+import { runInNuxtApp } from '~/utils/nuxt-app'
 
 const doImage = async (el: HTMLElement, binding: any) => {
   const { ossEngine, ossBaseUrl } = useRuntimeConfig().public
@@ -48,11 +49,11 @@ const doImage = async (el: HTMLElement, binding: any) => {
 
 export const ossImageDirective: Directive = {
   async mounted(el, binding) {
-    await doImage(el, binding)
+    await runInNuxtApp(() => doImage(el, binding))
   },
   async updated(el, binding) {
     const { value, oldValue } = binding
     if (value === oldValue) return
-    await doImage(el, binding)
+    await runInNuxtApp(() => doImage(el, binding))
   },
 }

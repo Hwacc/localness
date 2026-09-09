@@ -3,11 +3,9 @@ import { ProjectSelectSlideover } from '#components'
 
 const { loggedIn } = useUserSession()
 const { getProjects } = useProjectStore()
-const { getUser } = useUserStore()
 
 if (loggedIn.value) {
   await getProjects()
-  await getUser()
 }
 
 const openProjectSlideover = ref(false)
@@ -17,11 +15,12 @@ const onOpenProjectSlideover = () => {
 </script>
 
 <template>
-  <div class="relative w-[18.75rem] shrink-0 bg-muted shadow">
+  <div
+    class="relative z-10 w-[18.75rem] shrink-0 bg-muted border-r border-default shadow-[4px_0_18px_-4px_rgba(15,23,42,0.18)] dark:shadow-[4px_0_22px_-4px_rgba(0,0,0,0.65)]"
+  >
     <div class="h-full flex flex-col">
       <AppSiderHeader @open-project-shelf="onOpenProjectSlideover" />
       <AppSiderBody />
-      <AppSiderFooter />
     </div>
     <ProjectSelectSlideover v-model="openProjectSlideover" />
   </div>

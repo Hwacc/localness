@@ -1,7 +1,16 @@
 import { ErrorCodes } from '#shared/constants/error-codes'
+import { runInNuxtApp } from '~/utils/nuxt-app'
+
+function addClientToast(
+  options: Parameters<ReturnType<typeof useToast>['add']>[0]
+) {
+  if (!import.meta.client) return
+  runInNuxtApp(() => {
+    useToast().add(options)
+  })
+}
 
 export function useApi<T>(url: string, options: any = {}) {
-  const toast = useToast()
   const { logout } = useAuthStore()
   const defaultOptions = {
     headers: {
@@ -16,47 +25,43 @@ export function useApi<T>(url: string, options: any = {}) {
         'Request failed, please try again later'
 
       console.error('Response error:', errorCode, errorMessage)
-      if (import.meta.client) {
-        if (errorCode === ErrorCodes.UNAUTHORIZED) {
-          toast.add({
-            title: 'Error',
-            description: errorMessage,
-            icon: 'i-lucide:circle-x',
-            color: 'error',
-            'onUpdate:open': (open) => {
-              if (!open) logout()
-            },
-            actions: [
-              {
-                label: 'Logout',
-                color: 'error',
-                variant: 'solid',
-                onClick: () => {
-                  logout()
-                },
-              },
-            ],
-          })
-          return
-        }
-        toast.add({
+      if (errorCode === ErrorCodes.UNAUTHORIZED) {
+        addClientToast({
           title: 'Error',
           description: errorMessage,
           icon: 'i-lucide:circle-x',
           color: 'error',
+          'onUpdate:open': (open: boolean) => {
+            if (!open) logout()
+          },
+          actions: [
+            {
+              label: 'Logout',
+              color: 'error',
+              variant: 'solid',
+              onClick: () => {
+                logout()
+              },
+            },
+          ],
         })
+        return
       }
+      addClientToast({
+        title: 'Error',
+        description: errorMessage,
+        icon: 'i-lucide:circle-x',
+        color: 'error',
+      })
     },
 
     onRequestError({ error }: any) {
-      if (import.meta.client) {
-        toast.add({
-          title: 'Error',
-          description: 'Network error, please check your connection',
-          icon: 'i-lucide:circle-x',
-          color: 'error',
-        })
-      }
+      addClientToast({
+        title: 'Error',
+        description: 'Network error, please check your connection',
+        icon: 'i-lucide:circle-x',
+        color: 'error',
+      })
       console.error('Request error:', error)
     },
   }
@@ -73,8 +78,6 @@ export function useApi<T>(url: string, options: any = {}) {
       if (options.onRequestError) options.onRequestError(context)
     },
   }
-
-  console.log('useApi', url, mergedOptions)
 
   return $fetch<T>(url, mergedOptions)
 }
