@@ -1,6 +1,7 @@
 import prisma from '#server/libs/prisma'
 import { numericID } from '#server/helper/id'
 import { readZodBody } from '#server/helper/validate'
+import { requirePageTeamMember } from '#server/helper/access'
 import { z } from 'zod/v4'
 
 /**
@@ -18,6 +19,7 @@ export default defineEventHandler(async (event) => {
     })
   }
   const nID = numericID(id)
+  await requirePageTeamMember(event, nID)
   const { name, image, settings } = await readZodBody(
     event,
     zPage.extend({

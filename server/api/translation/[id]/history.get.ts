@@ -1,5 +1,6 @@
 import { numericID } from '~~/server/helper/id'
 import prisma from '~~/server/libs/prisma'
+import { requireI18nKeyTeamMember } from '#server/helper/access'
 
 /**
  * @route GET /api/translation/:id/history
@@ -8,8 +9,6 @@ import prisma from '~~/server/libs/prisma'
  * @access Private
  */
 export default defineEventHandler(async (event) => {
-  await requireUserSession(event)
-
   const id = getRouterParam(event, 'id')
   if (!id) {
     throw createError({
@@ -18,17 +17,22 @@ export default defineEventHandler(async (event) => {
     })
   }
   const nID = numericID(id)
+  await requireI18nKeyTeamMember(event, nID)
   const history = await prisma.translationLog.findMany({
     where: {
-      translationID: nID,
+      i18nKeyId: nID,
     },
     orderBy: {
       createdAt: 'desc',
     },
     include: {
       user: true,
-      translation: true,
+      i18nKey: true,
     },
   })
-  return history
+  return history.map((row) => ({
+    ...row,
+    translationID: row.i18nKeyId,
+    translation: row.i18nKey,
+  }))
 })

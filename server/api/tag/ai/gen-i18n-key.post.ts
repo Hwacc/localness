@@ -1,7 +1,7 @@
 import type { CozeAgentI18nKeyResult } from '#shared/types'
 import AgentManager from '#server/libs/agent'
 import { readZodBody } from '#server/helper/validate'
-import { numericID } from '#server/helper/id'
+import { requireTagTeamMember } from '#server/helper/access'
 
 /**
  * @route POST /api/ai/gen-i18n-key
@@ -11,6 +11,7 @@ import { numericID } from '#server/helper/id'
 export default defineEventHandler(async (event) => {
   await requireUserSession(event)
   const params = await readZodBody(event, zGenI18nKey.parse)
+  await requireTagTeamMember(event, numericID(params.tagID))
   const result =
     await AgentManager.generateI18nKey<CozeAgentI18nKeyResult | null>({
       ...params,

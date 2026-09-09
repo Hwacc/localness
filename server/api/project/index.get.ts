@@ -1,47 +1,28 @@
 import prisma from '#server/libs/prisma'
+import { numericID } from '#server/helper/id'
+import { projectDetailInclude, shapeProject } from '#server/helper/i18n'
 
 /**
  * @route GET /api/project
- * @description Get all projects
+ * @description Get team-visible projects
  * @access Private
  */
 export default defineEventHandler(async (event) => {
-  await requireUserSession(event)
+  const session = await requireUserSession(event)
+  const userId = numericID(session.user.id)
+  const memberships = await prisma.userTeam.findMany({
+    where: { userId },
+    select: { teamId: true },
+  })
+  const teamIds = memberships.map((m) => m.teamId)
   const projects = await prisma.project.findMany({
-    include: {
-      pages: {
-        select: {
-          id: true,
-          name: true,
-          image: true,
-          createdAt: true,
-          updatedAt: true,
-          settings: {
-            omit: {
-              id: true,
-              pageID: true,
-              createdAt: true,
-              updatedAt: true,
-            },
-          },
-        },
-        orderBy: {
-          updatedAt: 'desc',
-        },
-      },
-      users: true,
-      settings: {
-        omit: {
-          id: true,
-          projectID: true,
-          createdAt: true,
-          updatedAt: true,
-        },
-      },
+    where: {
+      teamId: { in: teamIds },
     },
+    include: projectDetailInclude,
     orderBy: {
       updatedAt: 'desc',
     },
   })
-  return projects
+  return projects.map((p) => shapeProject(p))
 })

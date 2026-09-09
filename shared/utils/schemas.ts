@@ -17,6 +17,7 @@ export type ZPassword = z.infer<typeof zPassword>
 export const zProject = z.object({
   name: z.string().min(3),
   description: zNilable.or(z.string()),
+  teamId: z.number().int().positive().optional(),
   settings: z.object({
     ocrLanguage: z.string(),
     ocrEngine: z.number(),
@@ -58,6 +59,7 @@ export const zTag = z.object(
     y: z.number().nonnegative(),
     i18nKey: zNilable.or(z.string()),
     translationID: zNilable.or(z.number().nonnegative()),
+    i18nKeyId: zNilable.or(z.number().nonnegative()),
     settings: zTagSetting.optional(),
   },
   'Tag parameters validate failed'
@@ -142,6 +144,9 @@ export type ZTranslationContent = z.infer<typeof zTranslationContent>
 export const zTranslation = z.looseObject({
   origin: zNilable.or(z.string()).optional(),
   fingerprint: zNilable.or(z.string()).optional(),
+  projectId: z.number().int().positive().optional(),
+  key: zNilable.or(z.string()).optional(),
+  force: z.boolean().optional(),
   vue: zNilable.or(zTranslationContent).optional(),
   react: zNilable.or(zTranslationContent).optional(),
 })

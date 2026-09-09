@@ -1,5 +1,6 @@
 import prisma from '#server/libs/prisma'
 import { numericID } from '#server/helper/id'
+import { requirePageTeamMember } from '#server/helper/access'
 
 /**
  * @route GET /api/page/:id
@@ -7,7 +8,6 @@ import { numericID } from '#server/helper/id'
  * @access Private
  */
 export default defineEventHandler(async (event) => {
-  await requireUserSession(event)
   const id = getRouterParam(event, 'id')
   if (!id) {
     throw createError({
@@ -16,6 +16,7 @@ export default defineEventHandler(async (event) => {
     })
   }
   const nID = numericID(id)
+  await requirePageTeamMember(event, nID)
   const page = await prisma.page.findUnique({
     where: {
       id: nID,

@@ -4,6 +4,26 @@ export enum UserRole {
   GUEST = 'GUEST',
 }
 
+export enum TeamRole {
+  OWNER = 'OWNER',
+  MEMBER = 'MEMBER',
+}
+
+export const DEFAULT_LOCALES = [
+  'en',
+  'zh_cn',
+  'zh_tw',
+  'ja',
+  'ko',
+  'ru',
+  'fr',
+  'de',
+  'es',
+  'pt',
+] as const
+
+export const DEFAULT_LOCALE_FALLBACK = 'en'
+
 export enum OSSEngine {
   LOCAL = 'LOCAL',
   CLOUDFLARE = 'CLOUDFLARE',

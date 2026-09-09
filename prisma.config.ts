@@ -15,11 +15,11 @@ export default defineConfig({
   },
   tables: {
     external: [
-      'Translation_FTS',
-      'Translation_FTS_data',
-      'Translation_FTS_config',
-      'Translation_FTS_docsize',
-      'Translation_FTS_idx'
+      'I18nKey_FTS',
+      'I18nKey_FTS_data',
+      'I18nKey_FTS_config',
+      'I18nKey_FTS_docsize',
+      'I18nKey_FTS_idx',
     ]
   }
 })

@@ -1,5 +1,6 @@
 import prisma from '#server/libs/prisma'
 import { numericID } from '#server/helper/id'
+import { requirePageTeamMember } from '#server/helper/access'
 
 /**
  * @route DELETE /api/page/:id
@@ -17,6 +18,7 @@ export default defineEventHandler(async (event) => {
     })
   }
   const nID = numericID(id)
+  await requirePageTeamMember(event, nID)
   const page = await prisma.page.findUnique({
     where: {
       id: nID,

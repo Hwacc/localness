@@ -4,6 +4,7 @@ import { AlertModal, UAlert, UButton } from '#components'
 export function useTranslationGenerator() {
   const toast = useToast()
   const pageStore = usePageStore()
+  const projectStore = useProjectStore()
   const overlay = useOverlay()
 
   const alertModal = overlay.create(AlertModal, {
@@ -59,7 +60,7 @@ export function useTranslationGenerator() {
     let checkedID: ID | null = null
     if (trans.fingerprint) {
       checkedID = await useApi<ID | null>(
-        `/api/translation/check?fp=${trans.fingerprint}`
+        `/api/translation/check?fp=${trans.fingerprint}&projectId=${projectStore.curProject.id}`
       )
     }
     console.log('checked', trans, checkedID)
@@ -100,10 +101,11 @@ export function useTranslationGenerator() {
             // answer if force create new translation
             try {
               alertModal.patch({ loading: true })
-              const res = await useApi<ITranslation>(`/api/translation`, {
+    const res = await useApi<ITranslation>(`/api/translation`, {
                 method: 'POST',
                 body: {
                   ...cleanTrans,
+                  projectId: projectStore.curProject.id,
                   force: true,
                 },
               })
@@ -124,7 +126,10 @@ export function useTranslationGenerator() {
         // create new Translation
         useApi<ITranslation>(`/api/translation`, {
           method: 'POST',
-          body: cleanTrans,
+          body: {
+            ...cleanTrans,
+            projectId: projectStore.curProject.id,
+          },
         })
           .then((res) => {
             resolve(res)

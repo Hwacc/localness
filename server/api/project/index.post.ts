@@ -1,22 +1,33 @@
 import prisma from '#server/libs/prisma'
 import { readZodBody } from '#server/helper/validate'
+import { requireTeamOwner } from '#server/helper/access'
+import { projectDetailInclude, shapeProject } from '#server/helper/i18n'
+import { DEFAULT_LOCALES, DEFAULT_LOCALE_FALLBACK } from '#shared/constants'
 
 /**
  * @route POST /api/project
- * @description Create a new project
+ * @description Create a project (Team OWNER)
  * @access Private
  */
 export default defineEventHandler(async (event) => {
-  const session = await requireUserSession(event)
-  const { name, description, settings } = await readZodBody(event, zProject.parse)
+  const { name, description, settings, teamId } = await readZodBody(
+    event,
+    zProject.parse
+  )
+  if (!teamId) {
+    throw createError({
+      statusCode: 400,
+      statusMessage: 'Missing teamId',
+    })
+  }
+  await requireTeamOwner(event, teamId)
 
   const createdProject = await prisma.project.create({
     data: {
       name,
       description,
-      ownerID: session.user.id as number,
-      ownerUsername: session.user.username,
-    }
+      teamId,
+    },
   })
 
   await prisma.projectSettings.create({
@@ -24,28 +35,17 @@ export default defineEventHandler(async (event) => {
       projectID: createdProject.id,
       ocrLanguage: settings?.ocrLanguage ?? 'eng',
       ocrEngine: settings?.ocrEngine ?? 1,
-    },
-    omit: {
-      id: true,
-      projectID: true,
+      prompt: settings?.prompt ?? '',
+      locales: [...DEFAULT_LOCALES],
+      localeFallback: DEFAULT_LOCALE_FALLBACK,
     },
   })
 
-  return await prisma.project.findUnique({
+  const project = await prisma.project.findUnique({
     where: {
       id: createdProject.id,
     },
-    include: {
-      users: true,
-      pages: true,
-      settings: {
-        omit: {
-          id: true,
-          projectID: true,
-          createdAt: true,
-          updatedAt: true,
-        }
-      }
-    },
+    include: projectDetailInclude,
   })
+  return project ? shapeProject(project) : null
 })

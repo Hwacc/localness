@@ -1,5 +1,7 @@
 import prisma from '#server/libs/prisma'
 import { numericID } from '#server/helper/id'
+import { requireTeamMember } from '#server/helper/access'
+import { projectDetailInclude, shapeProject } from '#server/helper/i18n'
 
 /**
  * @route GET /api/project/:id
@@ -7,7 +9,6 @@ import { numericID } from '#server/helper/id'
  * @access Private
  */
 export default defineEventHandler(async (event) => {
-  await requireUserSession(event)
   const id = getRouterParam(event, 'id')
   if (!id) {
     throw createError({
@@ -16,26 +17,19 @@ export default defineEventHandler(async (event) => {
     })
   }
   const nID = numericID(id)
+  await requireTeamMember(event, nID)
   const project = await prisma.project.findUnique({
     where: {
       id: nID,
     },
     include: {
+      ...projectDetailInclude,
       pages: {
         orderBy: {
-          updatedAt: 'desc',
+          updatedAt: 'desc' as const,
         },
-      },
-      users: true,
-      settings: {
-        omit: {
-          id: true,
-          projectID: true,
-          createdAt: true,
-          updatedAt: true,
-        }
       },
     },
   })
-  return project
+  return project ? shapeProject(project) : null
 })

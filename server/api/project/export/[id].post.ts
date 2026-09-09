@@ -1,5 +1,7 @@
 import prisma from '#server/libs/prisma'
 import { numericID } from '#server/helper/id'
+import { requireTeamMember } from '#server/helper/access'
+import { shapeTag } from '#server/helper/i18n'
 
 /**
  * @route POST /api/project/export/:id
@@ -7,7 +9,6 @@ import { numericID } from '#server/helper/id'
  * @access Private
  */
 export default defineEventHandler(async (event) => {
-  await requireUserSession(event)
   const id = getRouterParam(event, 'id')
   if (!id) {
     throw createError({
@@ -16,6 +17,7 @@ export default defineEventHandler(async (event) => {
     })
   }
   const nID = numericID(id)
+  await requireTeamMember(event, nID)
 
   const body = await readValidatedBody(event, zExport.parse)
 
@@ -49,22 +51,19 @@ export default defineEventHandler(async (event) => {
                 { updatedAt: { gte: startUpdatedAt } },
                 { updatedAt: { lte: endUpdatedAt } },
                 {
-                  translationID: { not: null },
+                  i18nKeyId: { not: null },
                 },
               ],
             },
             include: {
-              translation: {
+              i18nKeyRecord: {
                 where: {
                   AND: [
                     { origin: { not: undefined } },
                     { origin: { not: '' } },
                   ],
                 },
-                include: {
-                  vue: true,
-                  react: true,
-                },
+                include: { locales: true },
               },
             },
           },
@@ -72,5 +71,12 @@ export default defineEventHandler(async (event) => {
       },
     },
   })
-  return project
+  if (!project) return null
+  return {
+    ...project,
+    pages: project.pages.map((page) => ({
+      ...page,
+      tags: page.tags.map((tag) => shapeTag(tag)),
+    })),
+  }
 })

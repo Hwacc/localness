@@ -1,11 +1,14 @@
 import type { IUser } from './User'
 import type { IPage } from './Page'
 import type { ID } from '.'
+import type { ITeam } from './Team'
 
 export interface IProjectSetting {
   ocrLanguage: string
   ocrEngine: number
   prompt?: string | null
+  locales?: string[]
+  localeFallback?: string
 }
 
 export interface IProject {
@@ -16,9 +19,8 @@ export interface IProject {
   updatedAt?: string
   users: IUser[]
   pages: IPage[]
-  owner?: IUser
-  ownerUsername?: string
-  ownerID?: ID
+  teamId?: ID
+  team?: ITeam
   settings?: IProjectSetting
 }
 
@@ -28,9 +30,8 @@ export class Project implements IProject {
   description: string = ''
   pages: IPage[] = []
   users: IUser[] = []
-  owner?: IUser
-  ownerUsername?: string
-  ownerID?: ID
+  teamId?: ID
+  team?: ITeam
   settings?: IProjectSetting
 
   constructor(name?: string) {

@@ -1,6 +1,8 @@
 import prisma from '#server/libs/prisma'
 import { numericID } from '#server/helper/id'
 import { readZodBody } from '#server/helper/validate'
+import { requireTeamMember } from '#server/helper/access'
+import { PROJECT_SETTINGS_OMIT } from '#server/helper/i18n'
 
 /**
  * @route POST /api/project/:id
@@ -8,8 +10,6 @@ import { readZodBody } from '#server/helper/validate'
  * @access Private
  */
 export default defineEventHandler(async (event) => {
-  const session = await requireUserSession(event)
-
   const id = getRouterParam(event, 'id')
   if (!id) {
     throw createError({
@@ -25,6 +25,8 @@ export default defineEventHandler(async (event) => {
     })
   }
 
+  await requireTeamMember(event, nID)
+
   const { name, description, settings } = await readZodBody(
     event,
     zProject.parse
@@ -35,20 +37,7 @@ export default defineEventHandler(async (event) => {
       statusMessage: 'Missing name',
     })
   }
-  const findProject = await prisma.project.findUnique({
-    where: {
-      id: nID,
-    },
-  })
 
-  if (!findProject || session.user.id !== findProject.ownerID) {
-    throw createError({
-      statusCode: 403,
-      statusMessage: 'Forbidden',
-    })
-  }
-
-  // update setting
   if (settings) {
     await prisma.projectSettings.upsert({
       where: {
@@ -63,8 +52,7 @@ export default defineEventHandler(async (event) => {
       update: settings,
     })
   }
-  
-  // update project
+
   const updatedProject = await prisma.project.update({
     where: {
       id: nID,
@@ -78,13 +66,9 @@ export default defineEventHandler(async (event) => {
       name: true,
       description: true,
       updatedAt: true,
+      teamId: true,
       settings: {
-        omit: {
-          id: true,
-          projectID: true,
-          createdAt: true,
-          updatedAt: true,
-        },
+        omit: PROJECT_SETTINGS_OMIT,
       },
     },
   })

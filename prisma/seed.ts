@@ -7,11 +7,17 @@ const adapter = new PrismaBetterSqlite3({
 const prisma = new PrismaClient({ adapter })
 
 async function main() {
-  // 创建一个 Project
+  const team = await prisma.team.create({
+    data: {
+      name: 'Welcome Team',
+    },
+  })
+
   const project = await prisma.project.create({
     data: {
       name: 'Welcome Project',
       description: 'This is a welcome project',
+      teamId: team.id,
     },
   })
 

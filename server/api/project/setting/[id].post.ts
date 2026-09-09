@@ -1,9 +1,10 @@
 import prisma from '#server/libs/prisma'
 import { numericID } from '#server/helper/id'
 import { readZodBody } from '#server/helper/validate'
+import { requireTeamMember } from '#server/helper/access'
+import { PROJECT_SETTINGS_OMIT } from '#server/helper/i18n'
 
 export default defineEventHandler(async (event) => {
-  const session = await requireUserSession(event)
   const id = getRouterParam(event, 'id')
   if (!id) {
     throw createError({
@@ -12,21 +13,11 @@ export default defineEventHandler(async (event) => {
     })
   }
   const nID = numericID(id)
+  await requireTeamMember(event, nID)
   const { ocrLanguage, ocrEngine } = await readZodBody(
     event,
     zProjectSetting.parse
   )
-  const findProject = await prisma.project.findUnique({
-    where: {
-      id: nID,
-    },
-  })
-  if (!findProject || session.user.id !== findProject.ownerID) {
-    throw createError({
-      statusCode: 403,
-      statusMessage: 'Forbidden',
-    })
-  }
 
   const updatedSetting = await prisma.projectSettings.upsert({
     where: {
@@ -41,10 +32,7 @@ export default defineEventHandler(async (event) => {
       ocrLanguage: ocrLanguage ?? 'eng',
       ocrEngine: ocrEngine ?? 1,
     },
-    omit: {
-      id: true,
-      projectID: true,
-    },
+    omit: PROJECT_SETTINGS_OMIT,
   })
   return updatedSetting
 })

@@ -19,9 +19,8 @@ model User {
   password       String
   role           String           @default("USER")
   avatar         String?
-  ownProjects    Project[]        @relation("ProjectOwner")
+  teams          UserTeam[]
   translationLog TranslationLog[]
-  projects       UserProject[]
   tagLogs        TagLog[]
   pageLogs       PageLog[]
   projectLogs    ProjectLog[]
@@ -29,39 +28,53 @@ model User {
   @@unique([username, id])
 }
 
+model Team {
+  id        Int        @id @default(autoincrement())
+  createdAt DateTime   @default(now()) @map("created_at")
+  updatedAt DateTime   @updatedAt @map("updated_at")
+  name      String
+  members   UserTeam[]
+  projects  Project[]
+}
+
+model UserTeam {
+  userId Int    @map("user_id")
+  teamId Int    @map("team_id")
+  role   String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  team   Team   @relation(fields: [teamId], references: [id], onDelete: Cascade)
+
+  @@id([userId, teamId])
+  @@index([teamId])
+}
+
 model Project {
-  id            Int              @id @default(autoincrement())
-  createdAt     DateTime         @default(now()) @map("created_at")
-  updatedAt     DateTime         @updatedAt @map("updated_at")
-  name          String
-  description   String?
-  ownerUsername String?          @map("owner_username")
-  ownerID       Int?             @map("owner_id")
-  pages         Page[]
-  owner         User?            @relation("ProjectOwner", fields: [ownerUsername, ownerID], references: [username, id])
-  settings      ProjectSettings?
-  users         UserProject[]
-  projectLogs   ProjectLog[]
+  id          Int              @id @default(autoincrement())
+  createdAt   DateTime         @default(now()) @map("created_at")
+  updatedAt   DateTime         @updatedAt @map("updated_at")
+  name        String
+  description String?
+  teamId      Int              @map("team_id")
+  team        Team             @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  pages       Page[]
+  settings    ProjectSettings?
+  projectLogs ProjectLog[]
+  i18nKeys    I18nKey[]
+
+  @@index([teamId])
 }
 
 model ProjectSettings {
-  id          Int      @id @default(autoincrement())
-  createdAt   DateTime @default(now()) @map("created_at")
-  updatedAt   DateTime @updatedAt @map("updated_at")
-  projectID   Int      @unique @map("project_id")
-  ocrLanguage String   @map("ocr_language")
-  ocrEngine   Int      @map("ocr_engine")
-  prompt      String?  @default("")
-  project     Project  @relation(fields: [projectID], references: [id], onDelete: Cascade)
-}
-
-model UserProject {
-  userID    Int     @map("user_id")
-  projectID Int     @map("project_id")
-  project   Project @relation(fields: [projectID], references: [id])
-  user      User    @relation(fields: [userID], references: [id])
-
-  @@id([userID, projectID])
+  id             Int      @id @default(autoincrement())
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+  projectID      Int      @unique @map("project_id")
+  ocrLanguage    String   @map("ocr_language")
+  ocrEngine      Int      @map("ocr_engine")
+  prompt         String?  @default("")
+  locales        Json     @default("[\"en\",\"zh_cn\",\"zh_tw\",\"ja\",\"ko\",\"ru\",\"fr\",\"de\",\"es\",\"pt\"]")
+  localeFallback String   @default("en") @map("locale_fallback")
+  project        Project  @relation(fields: [projectID], references: [id], onDelete: Cascade)
 }
 
 model ProjectLog {
@@ -131,10 +144,10 @@ model Tag {
   height        Float
   className     String       @map("class_name")
   pageID        Int          @map("page_id")
-  translationID Int?         @map("translation_id")
+  i18nKeyId     Int?         @map("i18n_key_id")
   i18nKey       String?      @map("i18n_key")
   page          Page         @relation(fields: [pageID], references: [id], onDelete: Cascade)
-  translation   Translation? @relation(fields: [translationID], references: [id])
+  i18nKeyRecord I18nKey?     @relation(fields: [i18nKeyId], references: [id], onDelete: SetNull)
   settings      TagSettings?
   tagLogs       TagLog[]
 }
@@ -167,69 +180,62 @@ model TagLog {
   @@index([createdAt])
 }
 
-model Translation {
-  id          Int               @id @default(autoincrement())
-  createdAt   DateTime          @default(now()) @map("created_at")
-  updatedAt   DateTime          @updatedAt @map("updated_at")
-  origin      String
-  fingerprint String            @unique
-  tags        Tag[]
-  logs        TranslationLog[]
-  react       TranslationReact?
-  vue         TranslationVue?
+model I18nKey {
+  id           Int            @id @default(autoincrement())
+  createdAt    DateTime       @default(now()) @map("created_at")
+  updatedAt    DateTime       @updatedAt @map("updated_at")
+  projectId    Int            @map("project_id")
+  key          String
+  type         String         @default("STRING")
+  origin       String         @default("")
+  fingerprint  String         @default("")
+  description  String?
+  project      Project        @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  locales      LocaleValue[]
+  tags         Tag[]
+  logs         TranslationLog[]
 
+  @@unique([projectId, key])
   @@index([fingerprint])
 }
 
+model LocaleValue {
+  id             Int      @id @default(autoincrement())
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+  i18nKeyId      Int      @map("i18n_key_id")
+  locale         String
+  draftText      String?  @map("draft_text")
+  publishedText  String?  @map("published_text")
+  i18nKey        I18nKey  @relation(fields: [i18nKeyId], references: [id], onDelete: Cascade)
+
+  @@unique([i18nKeyId, locale])
+}
+
+model I18nMigrateConflict {
+  id        Int      @id @default(autoincrement())
+  createdAt DateTime @default(now()) @map("created_at")
+  projectId Int      @map("project_id")
+  key       String
+  locale    String
+  vueText   String?  @map("vue_text")
+  reactText String?  @map("react_text")
+  tagIds    String   @map("tag_ids")
+}
+
 model TranslationLog {
-  id            Int          @id @default(autoincrement())
+  id            Int      @id @default(autoincrement())
   action        String
   status        String
-  createdAt     DateTime     @default(now()) @map("created_at")
-  userID        Int?         @map("user_id")
-  translationID Int?         @map("translation_id")
+  createdAt     DateTime @default(now()) @map("created_at")
+  userID        Int?     @map("user_id")
+  i18nKeyId     Int?     @map("i18n_key_id")
   fingerprint   String?
-  beforeData    Json?        @map("before_data")
-  afterData     Json?        @map("after_data")
-  translation   Translation? @relation(fields: [translationID], references: [id], onDelete: NoAction)
-  user          User?        @relation(fields: [userID], references: [id], onDelete: SetNull)
+  beforeData    Json?    @map("before_data")
+  afterData     Json?    @map("after_data")
+  i18nKey       I18nKey? @relation(fields: [i18nKeyId], references: [id], onDelete: NoAction)
+  user          User?    @relation(fields: [userID], references: [id], onDelete: SetNull)
 
   @@index([userID])
   @@index([createdAt])
-}
-
-model TranslationVue {
-  id            Int         @id @default(autoincrement())
-  createdAt     DateTime    @default(now()) @map("created_at")
-  updatedAt     DateTime    @updatedAt @map("updated_at")
-  en            String?
-  zh_cn         String?
-  zh_tw         String?
-  ja            String?
-  ko            String?
-  ru            String?
-  fr            String?
-  de            String?
-  es            String?
-  pt            String?
-  translationID Int         @unique @map("translation_id")
-  translation   Translation @relation(fields: [translationID], references: [id], onDelete: Cascade)
-}
-
-model TranslationReact {
-  id            Int         @id @default(autoincrement())
-  createdAt     DateTime    @default(now()) @map("created_at")
-  updatedAt     DateTime    @updatedAt @map("updated_at")
-  en            String?
-  zh_cn         String?
-  zh_tw         String?
-  ja            String?
-  ko            String?
-  ru            String?
-  fr            String?
-  de            String?
-  es            String?
-  pt            String?
-  translationID Int         @unique @map("translation_id")
-  translation   Translation @relation(fields: [translationID], references: [id], onDelete: Cascade)
 }

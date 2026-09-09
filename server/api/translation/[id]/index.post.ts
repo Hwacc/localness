@@ -3,10 +3,12 @@ import prisma from '#server/libs/prisma'
 import { numericID } from '#server/helper/id'
 import { readZodBody } from '#server/helper/validate'
 import { LogAction, LogStatus } from '#shared/constants/log'
+import { requireI18nKeyTeamMember } from '#server/helper/access'
+import { shapeI18nKey, upsertLocaleDrafts } from '#server/helper/i18n'
 
 /**
  * @route POST /api/translation/:id
- * @description Update a translation
+ * @description Update an I18nKey origin
  * @access Private
  */
 export default defineEventHandler(async (event) => {
@@ -19,6 +21,7 @@ export default defineEventHandler(async (event) => {
     })
   }
   const nID = numericID(id)
+  await requireI18nKeyTeamMember(event, nID)
   const body = await readZodBody(event, zTranslation.parse)
   if (!body.origin) {
     throw createError({
@@ -26,10 +29,9 @@ export default defineEventHandler(async (event) => {
       statusMessage: 'Missing origin text',
     })
   }
-  const existing = await prisma.translation.findUnique({
-    where: {
-      id: nID,
-    },
+  const existing = await prisma.i18nKey.findUnique({
+    where: { id: nID },
+    include: { locales: true },
   })
   if (!existing) {
     throw createError({
@@ -37,27 +39,46 @@ export default defineEventHandler(async (event) => {
       statusMessage: 'Translation not found',
     })
   }
-  // generate new fingerprint
   try {
-    const safeData = omit(body, ['id', 'fingerprint', 'vue', 'react'])
-    const updatedTranslation = await prisma.translation.update({
-      where: {
-        id: nID,
+    const safeData = omit(body, [
+      'id',
+      'fingerprint',
+      'vue',
+      'react',
+      'projectId',
+      'key',
+      'force',
+    ])
+    const updated = await prisma.i18nKey.update({
+      where: { id: nID },
+      data: {
+        origin: safeData.origin as string,
       },
-      data: safeData,
+      include: { locales: true },
+    })
+    const content = body.vue || body.react
+    if (content) {
+      await upsertLocaleDrafts(
+        nID,
+        content as Record<string, string | null | undefined>
+      )
+    }
+    const loaded = await prisma.i18nKey.findUnique({
+      where: { id: nID },
+      include: { locales: true },
     })
     await prisma.translationLog.create({
       data: {
         action: LogAction.UPDATE,
         status: LogStatus.SUCCESS,
         beforeData: existing,
-        afterData: updatedTranslation,
-        translationID: updatedTranslation.id,
-        fingerprint: updatedTranslation.fingerprint,
+        afterData: loaded,
+        i18nKeyId: nID,
+        fingerprint: updated.fingerprint,
         userID: numericID(session.user.id),
       },
     })
-    return updatedTranslation
+    return loaded ? shapeI18nKey(loaded) : null
   } catch (error) {
     console.error(error)
     await prisma.translationLog.create({
@@ -65,7 +86,7 @@ export default defineEventHandler(async (event) => {
         action: LogAction.UPDATE,
         status: LogStatus.FAILED,
         beforeData: existing,
-        translationID: existing.id,
+        i18nKeyId: existing.id,
         fingerprint: existing.fingerprint,
         userID: numericID(session.user.id),
       },

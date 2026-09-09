@@ -1,6 +1,7 @@
 import prisma from '#server/libs/prisma'
 import { readZodBody } from '#server/helper/validate'
 import { numericID } from '#server/helper/id'
+import { requireTeamMember } from '#server/helper/access'
 
 /**
  * @route POST /api/page
@@ -8,7 +9,6 @@ import { numericID } from '#server/helper/id'
  * @access Private
  */
 export default defineEventHandler(async (event) => {
-  await requireUserSession(event)
   const { projectID, name, image, settings } = await readZodBody(
     event,
     zPage.extend({
@@ -22,6 +22,7 @@ export default defineEventHandler(async (event) => {
     })
   }
   const nProjectID = numericID(projectID)
+  await requireTeamMember(event, nProjectID)
 
   const belongProject = await prisma.project.findUnique({
     where: {

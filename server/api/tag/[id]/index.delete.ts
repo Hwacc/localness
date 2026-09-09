@@ -1,5 +1,6 @@
 import prisma from '#server/libs/prisma'
 import { numericID } from '#server/helper/id'
+import { requireTagTeamMember } from '#server/helper/access'
 
 /**
  * @route DELETE /api/tag/:id
@@ -7,7 +8,6 @@ import { numericID } from '#server/helper/id'
  * @access Private
  */
 export default defineEventHandler(async (event) => {
-  await requireUserSession(event)
   const id = getRouterParam(event, 'id')
   if (!id) {
     throw createError({
@@ -16,6 +16,7 @@ export default defineEventHandler(async (event) => {
     })
   }
   const nID = numericID(id)
+  await requireTagTeamMember(event, nID)
   const deletedTag = await prisma.tag.delete({
     where: {
       id: nID,

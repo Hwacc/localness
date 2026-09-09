@@ -1,5 +1,6 @@
-import prisma from '#server/libs/prisma'
 import { numericID } from '#server/helper/id'
+import { requireTagTeamMember } from '#server/helper/access'
+import { loadShapedTag } from '#server/helper/i18n'
 
 /**
  * @route GET /api/tag/:id
@@ -7,7 +8,6 @@ import { numericID } from '#server/helper/id'
  * @access Private
  */
 export default defineEventHandler(async (event) => {
-  await requireUserSession(event)
   const id = getRouterParam(event, 'id')
   if (!id) {
     throw createError({
@@ -16,26 +16,6 @@ export default defineEventHandler(async (event) => {
     })
   }
   const nID = numericID(id)
-  const tag = await prisma.tag.findUnique({
-    where: {
-      id: nID,
-    },
-    include: {
-      settings: {
-        omit: {
-          id: true,
-          tagID: true,
-          createdAt: true,
-          updatedAt: true,
-        },
-      },
-      translation: {
-        include: {
-          vue: true,
-          react: true,
-        },
-      },
-    },
-  })
-  return tag
+  await requireTagTeamMember(event, nID)
+  return await loadShapedTag(nID)
 })

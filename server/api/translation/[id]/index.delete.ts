@@ -1,10 +1,12 @@
 import { LogAction, LogStatus } from '#shared/constants/log'
 import prisma from '#server/libs/prisma'
 import { numericID } from '#server/helper/id'
+import { requireI18nKeyTeamMember } from '#server/helper/access'
+import { shapeI18nKey } from '#server/helper/i18n'
 
 /**
  * @route DELETE /api/translation/:id
- * @description Delete a translation
+ * @description Delete an I18nKey
  * @access Private
  */
 export default defineEventHandler(async (event) => {
@@ -17,10 +19,10 @@ export default defineEventHandler(async (event) => {
     })
   }
   const nID = numericID(id)
-  const existing = await prisma.translation.findUnique({
-    where: {
-      id: nID,
-    },
+  await requireI18nKeyTeamMember(event, nID)
+  const existing = await prisma.i18nKey.findUnique({
+    where: { id: nID },
+    include: { locales: true },
   })
   if (!existing) {
     throw createError({
@@ -29,22 +31,19 @@ export default defineEventHandler(async (event) => {
     })
   }
   try {
-    const deletedTranslation = await prisma.translation.delete({
-      where: {
-        id: nID,
-      },
+    const deleted = await prisma.i18nKey.delete({
+      where: { id: nID },
     })
     await prisma.translationLog.create({
       data: {
         action: LogAction.DELETE,
         status: LogStatus.SUCCESS,
         userID: numericID(session.user.id),
-        beforeData: deletedTranslation,
-        translationID: deletedTranslation.id,
-        fingerprint: deletedTranslation.fingerprint,
+        beforeData: existing,
+        fingerprint: deleted.fingerprint,
       },
     })
-    return deletedTranslation
+    return shapeI18nKey(existing)
   } catch (error) {
     console.error(error)
     await prisma.translationLog.create({
@@ -52,7 +51,7 @@ export default defineEventHandler(async (event) => {
         action: LogAction.DELETE,
         status: LogStatus.FAILED,
         beforeData: existing,
-        translationID: existing.id,
+        i18nKeyId: existing.id,
         fingerprint: existing.fingerprint,
         userID: numericID(session.user.id),
       },

@@ -2,9 +2,12 @@ import { numericID } from '#server/helper/id'
 import { readZodBody } from '#server/helper/validate'
 import prisma from '#server/libs/prisma'
 import { LogAction, LogStatus } from '#shared/constants/log'
+import { requireTeamMember } from '#server/helper/access'
+import { shapeI18nKey, upsertLocaleDrafts } from '#server/helper/i18n'
+
 /**
  * @route POST /api/translation
- * @description Create a new translation
+ * @description Create a new I18nKey (compat: translation)
  * @access Private
  */
 export default defineEventHandler(async (event) => {
@@ -16,13 +19,22 @@ export default defineEventHandler(async (event) => {
       statusMessage: 'Missing origin text',
     })
   }
+  if (!body.projectId) {
+    throw createError({
+      statusCode: 400,
+      statusMessage: 'Missing projectId',
+    })
+  }
+  await requireTeamMember(event, body.projectId)
 
-  let fingerprint = fpTranslation(body.origin)
+  let fingerprint = body.fingerprint || fpTranslation(body.origin)
+  const key = (body.key && String(body.key).trim()) || `__draft_${fingerprint}`
 
-  const existing = await prisma.translation.findUnique({
+  const existing = await prisma.i18nKey.findUnique({
     where: {
-      fingerprint,
+      projectId_key: { projectId: body.projectId, key },
     },
+    include: { locales: true },
   })
 
   if (existing && !body.force) {
@@ -31,7 +43,7 @@ export default defineEventHandler(async (event) => {
         action: LogAction.CREATE,
         status: LogStatus.REFUSED,
         beforeData: existing,
-        translationID: existing.id,
+        i18nKeyId: existing.id,
         fingerprint,
         userID: numericID(session.user.id),
       },
@@ -47,38 +59,53 @@ export default defineEventHandler(async (event) => {
   }
 
   try {
-    const translation = await prisma.translation.create({
-      data: {
+    const record = await prisma.i18nKey.upsert({
+      where: {
+        projectId_key: {
+          projectId: body.projectId,
+          key: body.force && existing ? `__draft_${fingerprint}` : key,
+        },
+      },
+      create: {
+        projectId: body.projectId,
+        key: body.force && existing ? `__draft_${fingerprint}` : key,
         origin: body.origin,
         fingerprint,
       },
-      include: {
-        vue: true,
-        react: true,
+      update: {
+        origin: body.origin,
+        fingerprint,
       },
+      include: { locales: true },
+    })
+    const content = body.vue || body.react
+    if (content) {
+      await upsertLocaleDrafts(record.id, content as Record<string, string | null | undefined>)
+    }
+    const loaded = await prisma.i18nKey.findUnique({
+      where: { id: record.id },
+      include: { locales: true },
     })
     await prisma.translationLog.create({
       data: {
         action: body.force ? LogAction.FORCE_CREATE : LogAction.CREATE,
         status: LogStatus.SUCCESS,
         beforeData: existing ?? undefined,
-        afterData: translation,
-        translationID: translation.id,
+        afterData: loaded,
+        i18nKeyId: record.id,
         fingerprint,
         userID: numericID(session.user.id),
       },
     })
-    return translation
+    return loaded ? shapeI18nKey(loaded) : null
   } catch (error) {
     console.error(error)
-    // record error log
-    console.log('existing',  existing)
     await prisma.translationLog.create({
       data: {
         action: body.force ? LogAction.FORCE_CREATE : LogAction.CREATE,
         status: LogStatus.FAILED,
         beforeData: existing ?? undefined,
-        translationID: existing ? existing.id : undefined,
+        i18nKeyId: existing ? existing.id : undefined,
         fingerprint,
         userID: numericID(session.user.id),
       },

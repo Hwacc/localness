@@ -41,6 +41,7 @@ export interface ITag {
   createdAt?: string
   updatedAt?: string
   translationID?: ID
+  i18nKeyId?: ID
   translation?: ITranslation
   pageID: ID
   i18nKey?: string
@@ -52,6 +53,7 @@ export class Tag implements ITag {
   tagID: string = ''
   pageID: ID = 0
   translationID?: ID | undefined
+  i18nKeyId?: ID | undefined
   x: number = 0
   y: number = 0
   width: number = 0

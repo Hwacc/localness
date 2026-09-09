@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import type { FormSubmitEvent } from '@nuxt/ui'
+import { TeamRole } from '#shared/constants'
 
 type Mode = 'edit' | 'create'
 const { mode, project = new Project('') } = defineProps<{
@@ -7,14 +8,27 @@ const { mode, project = new Project('') } = defineProps<{
   project?: IProject
 }>()
 
+const teams = ref<ITeam[]>([])
+const ownedTeams = computed(() =>
+  teams.value
+    .filter((t) => t.role === TeamRole.OWNER)
+    .map((t) => ({ label: t.name, value: t.id }))
+)
+
 const state = reactive<ZProject>({
   name: project.name,
   description: project.description ?? '',
+  teamId: typeof project.teamId === 'number' ? project.teamId : undefined,
   settings: {
     ocrLanguage: project.settings?.ocrLanguage ?? 'eng',
     ocrEngine: project.settings?.ocrEngine ?? 1,
     prompt: project.settings?.prompt ?? '',
   },
+})
+
+onMounted(async () => {
+  if (mode !== 'create') return
+  teams.value = (await useApi<ITeam[]>('/api/teams')) ?? []
 })
 
 watch(
@@ -60,7 +74,7 @@ const tabsItems = computed(() => [
 const emit = defineEmits<{
   close: [boolean]
   save: [
-    Pick<IProject, 'name' | 'description' | 'settings'>,
+    Pick<IProject, 'name' | 'description' | 'settings' | 'teamId'>,
     {
       close: () => void
     }
@@ -68,10 +82,16 @@ const emit = defineEmits<{
 }>()
 
 async function onSubmit(_: FormSubmitEvent<ZProject>) {
-  console.log('submit', state)
-  emit('save', state as Pick<IProject, 'name' | 'description' | 'settings'>, {
-    close: () => emit('close', true),
-  })
+  if (mode === 'create' && !state.teamId) {
+    return
+  }
+  emit(
+    'save',
+    state as Pick<IProject, 'name' | 'description' | 'settings' | 'teamId'>,
+    {
+      close: () => emit('close', true),
+    }
+  )
 }
 </script>
 
@@ -102,6 +122,25 @@ async function onSubmit(_: FormSubmitEvent<ZProject>) {
                   autoresize
                 />
               </UFormField>
+              <UFormField
+                v-if="mode === 'create'"
+                label="Team"
+                name="teamId"
+              >
+                <USelect
+                  v-model="state.teamId"
+                  class="w-full"
+                  placeholder="Select a team you own"
+                  :items="ownedTeams"
+                />
+              </UFormField>
+              <UAlert
+                v-if="mode === 'create' && ownedTeams.length === 0"
+                variant="soft"
+                color="warning"
+                title="No team"
+                description="Only a Team OWNER can create a project. Ask an ADMIN to create a team and invite you as OWNER."
+              />
             </div>
           </template>
           <template #prompt>

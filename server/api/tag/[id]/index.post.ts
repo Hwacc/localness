@@ -1,6 +1,9 @@
+import { omit } from 'lodash-es'
 import prisma from '#server/libs/prisma'
 import { readZodBody } from '#server/helper/validate'
 import { numericID } from '#server/helper/id'
+import { requireTagTeamMember } from '#server/helper/access'
+import { loadShapedTag, resolveTagI18n } from '#server/helper/i18n'
 
 /**
  * @route POST /api/tag/:id
@@ -8,7 +11,6 @@ import { numericID } from '#server/helper/id'
  * @access Private
  */
 export default defineEventHandler(async (event) => {
-  await requireUserSession(event)
   const id = getRouterParam(event, 'id')
   if (!id) {
     throw createError({
@@ -17,7 +19,11 @@ export default defineEventHandler(async (event) => {
     })
   }
   const nID = numericID(id)
-  const { settings, ...body } = await readZodBody(event, zTag.partial().parse)
+  await requireTagTeamMember(event, nID)
+  const { settings, translationID, i18nKeyId, ...body } = await readZodBody(
+    event,
+    zTag.partial().parse
+  )
 
   if (settings) {
     await prisma.tagSettings.upsert({
@@ -32,27 +38,39 @@ export default defineEventHandler(async (event) => {
     })
   }
 
-  const updatedTag = await prisma.tag.update({
+  const existing = await prisma.tag.findUnique({
+    where: { id: nID },
+    select: { pageID: true, i18nKey: true, i18nKeyId: true },
+  })
+  if (!existing) {
+    throw createError({
+      statusCode: 404,
+      statusMessage: 'Tag not found',
+    })
+  }
+
+  const shouldBind =
+    body.i18nKey !== undefined ||
+    translationID !== undefined ||
+    i18nKeyId !== undefined
+  const i18n = shouldBind
+    ? await resolveTagI18n({
+        pageID: existing.pageID,
+        i18nKey: body.i18nKey ?? existing.i18nKey,
+        translationID: translationID ?? i18nKeyId ?? existing.i18nKeyId,
+      })
+    : null
+
+  await prisma.tag.update({
     where: {
       id: nID,
     },
-    data: body,
-    include: {
-      settings: {
-        omit: {
-          id: true,
-          tagID: true,
-          createdAt: true,
-          updatedAt: true,
-        },
-      },
-      translation: {
-        include: {
-          vue: true,
-          react: true,
-        },
-      },
+    data: {
+      ...omit(body, ['i18nKey', 'pageID']),
+      ...(i18n
+        ? { i18nKey: i18n.i18nKey, i18nKeyId: i18n.i18nKeyId }
+        : {}),
     },
   })
-  return updatedTag
+  return await loadShapedTag(nID)
 })

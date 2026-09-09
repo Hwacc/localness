@@ -3,10 +3,12 @@ import prisma from '#server/libs/prisma'
 import { numericID } from '#server/helper/id'
 import { readZodBody } from '#server/helper/validate'
 import { LogAction, LogStatus } from '~~/shared/constants/log'
+import { requireI18nKeyTeamMember } from '#server/helper/access'
+import { localesToContent, upsertLocaleDrafts } from '#server/helper/i18n'
 
 /**
  * @route POST /api/translation/:id/:framework
- * @description Update a translation content
+ * @description Update locale drafts (vue/react write the same LocaleValue set)
  * @access Private
  */
 export default defineEventHandler(async (event) => {
@@ -24,7 +26,7 @@ export default defineEventHandler(async (event) => {
       statusMessage: 'Missing id or framework',
     })
   }
-  if (!framework || (framework !== 'vue' && framework !== 'react')) {
+  if (framework !== 'vue' && framework !== 'react') {
     throw createError({
       statusCode: 400,
       statusMessage: 'Invalid framework',
@@ -32,124 +34,57 @@ export default defineEventHandler(async (event) => {
   }
 
   const nID = numericID(id)
+  await requireI18nKeyTeamMember(event, nID)
   const body = await readZodBody(event, zTranslationContent.parse)
   const safeBody = omit(body, ['id', 'translationID', 'createdAt', 'updatedAt'])
 
-  if (framework === 'vue') {
-    const existing = await prisma.translationVue.findUnique({
-      where: {
-        translationID: nID,
+  const existing = await prisma.i18nKey.findUnique({
+    where: { id: nID },
+    include: { locales: true },
+  })
+  if (!existing) {
+    throw createError({
+      statusCode: 404,
+      statusMessage: 'Translation not found',
+    })
+  }
+
+  const before = localesToContent(existing.locales)
+  try {
+    await upsertLocaleDrafts(
+      nID,
+      safeBody as Record<string, string | null | undefined>
+    )
+    const loaded = await prisma.i18nKey.findUnique({
+      where: { id: nID },
+      include: { locales: true },
+    })
+    const after = localesToContent(loaded?.locales)
+    await prisma.translationLog.create({
+      data: {
+        action: existing.locales.length ? LogAction.UPDATE : LogAction.CREATE,
+        status: LogStatus.SUCCESS,
+        beforeData: before,
+        afterData: after,
+        i18nKeyId: nID,
+        userID: numericID(session.user.id),
       },
     })
-    try {
-      const upserted = await prisma.translationVue.upsert({
-        where: {
-          translationID: nID,
-        },
-        create: {
-          translationID: nID,
-          ...safeBody,
-        },
-        update: {
-          ...safeBody,
-        },
-      })
-      if (existing) {
-        await prisma.translationLog.create({
-          data: {
-            action: LogAction.UPDATE,
-            status: LogStatus.SUCCESS,
-            beforeData: existing,
-            afterData: upserted,
-            translationID: nID,
-            userID: numericID(session.user.id),
-          },
-        })
-      } else {
-        await prisma.translationLog.create({
-          data: {
-            action: LogAction.CREATE,
-            status: LogStatus.SUCCESS,
-            afterData: upserted,
-            translationID: nID,
-            userID: numericID(session.user.id),
-          },
-        })
-      }
-      return upserted
-    } catch (error) {
-      console.log(error)
-      await prisma.translationLog.create({
-        data: {
-          action: existing ? LogAction.UPDATE : LogAction.CREATE,
-          status: LogStatus.FAILED,
-          beforeData: existing ?? undefined,
-          translationID: nID,
-          userID: numericID(session.user.id),
-        },
-      })
-      throw createError({
-        statusCode: 500,
-        message: 'Fail to upsert vue translations',
-      })
-    }
-  } else if (framework === 'react') {
-    const existing = await prisma.translationReact.findUnique({
-      where: {
-        translationID: nID,
+    return after
+  } catch (error) {
+    console.log(error)
+    await prisma.translationLog.create({
+      data: {
+        action: existing.locales.length ? LogAction.UPDATE : LogAction.CREATE,
+        status: LogStatus.FAILED,
+        beforeData: before,
+        i18nKeyId: nID,
+        userID: numericID(session.user.id),
       },
     })
-    try {
-      const upserted = await prisma.translationReact.upsert({
-        where: {
-          translationID: nID,
-        },
-        create: {
-          translationID: nID,
-          ...safeBody,
-        },
-        update: {
-          ...safeBody,
-        },
-      })
-      if (existing) {
-        await prisma.translationLog.create({
-          data: {
-            action: LogAction.UPDATE,
-            status: LogStatus.SUCCESS,
-            beforeData: existing,
-            afterData: upserted,
-            translationID: nID,
-            userID: numericID(session.user.id),
-          },
-        })
-      } else {
-        await prisma.translationLog.create({
-          data: {
-            action: LogAction.CREATE,
-            status: LogStatus.SUCCESS,
-            afterData: upserted,
-            translationID: nID,
-            userID: numericID(session.user.id),
-          },
-        })
-      }
-      return upserted
-    } catch (error) {
-      console.log(error)
-      await prisma.translationLog.create({
-        data: {
-          action: existing ? LogAction.UPDATE : LogAction.CREATE,
-          status: LogStatus.FAILED,
-          beforeData: existing ?? undefined,
-          translationID: nID,
-          userID: numericID(session.user.id),
-        },
-      })
-      throw createError({
-        statusCode: 500,
-        message: 'Fail to upsert react translations',
-      })
-    }
+    throw createError({
+      statusCode: 500,
+      message: 'Fail to upsert translations',
+    })
   }
 })

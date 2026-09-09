@@ -2,53 +2,55 @@ import prisma from '#server/libs/prisma'
 
 export default defineNitroPlugin(async () => {
   const result = await prisma.$queryRawUnsafe<any[]>(`
-    SELECT name FROM sqlite_master WHERE type='table' AND name='Translation_FTS';
+    SELECT name FROM sqlite_master WHERE type='table' AND name='I18nKey_FTS';
   `)
-  
+
   if (result.length === 0) {
-    console.log('[FTS] Translation_FTS Initializing...')
+    console.log('[FTS] I18nKey_FTS Initializing...')
     await prisma.$executeRawUnsafe(`
-      CREATE VIRTUAL TABLE Translation_FTS USING fts5(
-        origin, 
-        content='Translation',
-        content_rowid='id',
+      CREATE VIRTUAL TABLE I18nKey_FTS USING fts5(
+        origin,
+        content='I18nKey',
+        content_rowid='id'
       );
     `)
 
-    // create trigger
     await prisma.$executeRawUnsafe(`
-      CREATE TRIGGER IF NOT EXISTS Translation_FTS_AfterInsert
-      AFTER INSERT ON Translation
+      CREATE TRIGGER IF NOT EXISTS I18nKey_FTS_AfterInsert
+      AFTER INSERT ON I18nKey
       BEGIN
-        INSERT INTO Translation_FTS (rowid, origin)
+        INSERT INTO I18nKey_FTS (rowid, origin)
         VALUES (new.id, new.origin);
       END;
     `)
 
-    // update trigger
     await prisma.$executeRawUnsafe(`
-      CREATE TRIGGER IF NOT EXISTS Translation_FTS_AfterUpdate
-      AFTER UPDATE ON Translation
+      CREATE TRIGGER IF NOT EXISTS I18nKey_FTS_AfterUpdate
+      AFTER UPDATE ON I18nKey
       BEGIN
-        UPDATE Translation_FTS
+        UPDATE I18nKey_FTS
         SET origin = new.origin
         WHERE rowid = new.id;
       END;
     `)
 
-    // delete trigger
     await prisma.$executeRawUnsafe(`
-      CREATE TRIGGER IF NOT EXISTS Translation_FTS_AfterDelete
-      AFTER DELETE ON Translation
+      CREATE TRIGGER IF NOT EXISTS I18nKey_FTS_AfterDelete
+      AFTER DELETE ON I18nKey
       BEGIN
-        DELETE FROM Translation_FTS WHERE rowid = old.id;
+        DELETE FROM I18nKey_FTS WHERE rowid = old.id;
       END;
     `)
-    console.log('[FTS] Translation_FTS Done.')
+    await prisma.$executeRawUnsafe(
+      `INSERT INTO I18nKey_FTS(I18nKey_FTS) VALUES('rebuild');`
+    )
+    console.log('[FTS] I18nKey_FTS Done.')
   } else {
-    console.log('[FTS] Translation_FTS Already initialized.')
-    console.log('[FTS] Translation_FTS Syncing...')
-    await prisma.$executeRawUnsafe(`INSERT INTO Translation_FTS(Translation_FTS) VALUES('rebuild');`)
-    console.log('[FTS] Translation_FTS Synced.')
+    console.log('[FTS] I18nKey_FTS Already initialized.')
+    console.log('[FTS] I18nKey_FTS Syncing...')
+    await prisma.$executeRawUnsafe(
+      `INSERT INTO I18nKey_FTS(I18nKey_FTS) VALUES('rebuild');`
+    )
+    console.log('[FTS] I18nKey_FTS Synced.')
   }
 })
