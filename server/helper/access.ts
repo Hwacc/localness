@@ -36,6 +36,17 @@ export async function requireTeamOwner(event: H3Event, teamId: number) {
   return { session, membership, userId }
 }
 
+export async function requireProjectOwner(event: H3Event, projectId: number) {
+  const access = await requireTeamMember(event, projectId)
+  if (access.membership.role !== TeamRole.OWNER) {
+    throw createError({
+      statusCode: 403,
+      statusMessage: 'Forbidden',
+    })
+  }
+  return access
+}
+
 export async function requireTeamAccess(event: H3Event, teamId: number) {
   const session = await requireUserSession(event)
   const userId = numericID(session.user.id)

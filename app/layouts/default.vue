@@ -31,6 +31,12 @@ const navItems = [
     to: '/translations',
   },
   {
+    icon: 'i-lucide:git-branch',
+    label: 'Git',
+    name: 'git',
+    to: '/git',
+  },
+  {
     icon: 'i-lucide:users',
     label: 'Teams',
     name: 'teams',

@@ -24,6 +24,41 @@ export const DEFAULT_LOCALES = [
 
 export const DEFAULT_LOCALE_FALLBACK = 'en'
 
+export enum GitSyncAdapter {
+  LILT_SWBU = 'lilt-swbu',
+}
+
+export enum GitCredentialKind {
+  REPO_ACCESS_TOKEN = 'repo_access_token',
+  API_TOKEN = 'api_token',
+}
+
+export enum GitSyncConflictStatus {
+  OPEN = 'open',
+  OURS = 'ours',
+  THEIRS = 'theirs',
+  MERGED = 'merged',
+}
+
+export const GIT_HTTPS_SENTINEL: Record<GitCredentialKind, string> = {
+  [GitCredentialKind.REPO_ACCESS_TOKEN]: 'x-token-auth',
+  [GitCredentialKind.API_TOKEN]: 'x-bitbucket-api-token-auth',
+}
+
+/** Localness locale -> Bitbucket BCP-47 filename suffix */
+export const LILT_DEFAULT_LOCALE_MAP: Record<string, string> = {
+  en: 'en-US',
+  zh_cn: 'zh-CN',
+  zh_tw: 'zh-TW',
+  ja: 'ja-JP',
+  ko: 'ko-KR',
+  ru: 'ru-RU',
+  es: 'es-ES',
+  fr: 'fr-FR',
+  de: 'de-DE',
+  pt: 'pt-BR',
+}
+
 export enum OSSEngine {
   LOCAL = 'LOCAL',
   CLOUDFLARE = 'CLOUDFLARE',

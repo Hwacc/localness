@@ -63,6 +63,7 @@ export default defineNuxtConfig({
     '/dashboard': { ssr: false },
     '/editor': { ssr: false },
     '/translations': { ssr: false },
+    '/git': { ssr: false },
     '/teams': { ssr: false },
   },
   auth: {

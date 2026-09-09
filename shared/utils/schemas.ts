@@ -1,5 +1,10 @@
 import { z } from 'zod/v4'
-import { OCR_LANGUAGES } from '#shared/constants'
+import {
+  GitCredentialKind,
+  GitSyncAdapter,
+  GitSyncConflictStatus,
+  OCR_LANGUAGES,
+} from '#shared/constants'
 
 /** Accepts T | null | undefined, including a missing object key (Zod v4). */
 export function zNilable<T extends z.ZodType>(schema: T) {
@@ -194,3 +199,112 @@ export const zGenI18nKey = z.object({
   tagPrompt: zNilable(z.string()),
 })
 export type ZGenI18nKey = z.infer<typeof zGenI18nKey>
+
+export function isHttpsRemoteUrl(value: string): boolean {
+  return normalizeGitHttpsRemote(value) != null
+}
+
+/** Bitbucket/GitHub browse pages are not clone URLs; turn them into https Git remotes. */
+export function normalizeGitHttpsRemote(value: string): {
+  remoteUrl: string
+  branch?: string
+} | null {
+  let url: URL
+  try {
+    url = new URL(value.trim())
+  } catch {
+    return null
+  }
+  if (url.protocol !== 'https:' || !url.hostname) return null
+  const host = url.hostname.toLowerCase()
+  const pathname = url.pathname.replace(/\/+$/, '')
+  const origin = `${url.protocol}//${url.host}`
+
+  const bitbucket = pathname.match(
+    /^\/([^/]+)\/([^/]+?)(?:\.git)?(?:\/(?:src|branch)\/([^/]+))?(?:\/.*)?$/i
+  )
+  if (
+    bitbucket &&
+    (host === 'bitbucket.org' || host.endsWith('.bitbucket.org'))
+  ) {
+    const workspace = bitbucket[1]!
+    const repo = bitbucket[2]!.replace(/\.git$/i, '')
+    if (!workspace || !repo) return null
+    const branch = bitbucket[3]
+      ? decodeURIComponent(bitbucket[3])
+      : undefined
+    return {
+      remoteUrl: `${origin}/${workspace}/${repo}.git`,
+      branch,
+    }
+  }
+
+  const github = pathname.match(
+    /^\/([^/]+)\/([^/]+?)(?:\.git)?(?:\/(?:tree|blob)\/([^/]+))?(?:\/.*)?$/i
+  )
+  if (github && (host === 'github.com' || host === 'www.github.com')) {
+    const owner = github[1]!
+    const repo = github[2]!.replace(/\.git$/i, '')
+    if (!owner || !repo) return null
+    const branch = github[3] ? decodeURIComponent(github[3]) : undefined
+    return {
+      remoteUrl: `${origin}/${owner}/${repo}.git`,
+      branch,
+    }
+  }
+
+  if (pathname.toLowerCase().endsWith('.git')) {
+    return { remoteUrl: `${origin}${pathname}` }
+  }
+
+  const segments = pathname.split('/').filter(Boolean)
+  if (segments.length === 2) {
+    return {
+      remoteUrl: `${origin}/${segments[0]}/${segments[1]}.git`,
+    }
+  }
+  return null
+}
+
+export const zGitSyncBindingPut = z.object({
+  enabled: z.boolean().optional(),
+  adapter: z.enum([GitSyncAdapter.LILT_SWBU]).optional(),
+  remoteUrl: z
+    .string()
+    .trim()
+    .min(1)
+    .refine(isHttpsRemoteUrl, 'Remote URL must be an https Git remote'),
+  branch: z.string().min(1).optional(),
+  product: z.string().min(1),
+  credentialKind: z.enum([
+    GitCredentialKind.REPO_ACCESS_TOKEN,
+    GitCredentialKind.API_TOKEN,
+  ]),
+  token: z.string().optional(),
+})
+export type ZGitSyncBindingPut = z.infer<typeof zGitSyncBindingPut>
+
+export const zGitSyncDiscoverProducts = z.object({
+  remoteUrl: z
+    .string()
+    .trim()
+    .min(1)
+    .refine(isHttpsRemoteUrl, 'Remote URL must be an https Git remote'),
+  branch: z.string().min(1).optional(),
+  credentialKind: z.enum([
+    GitCredentialKind.REPO_ACCESS_TOKEN,
+    GitCredentialKind.API_TOKEN,
+  ]),
+  token: z.string().optional(),
+})
+export type ZGitSyncDiscoverProducts = z.infer<typeof zGitSyncDiscoverProducts>
+
+export const zGitSyncConflictResolve = z.object({
+  action: z.enum([
+    GitSyncConflictStatus.OURS,
+    GitSyncConflictStatus.THEIRS,
+    GitSyncConflictStatus.MERGED,
+  ]),
+  text: z.string().optional(),
+})
+export type ZGitSyncConflictResolve = z.infer<typeof zGitSyncConflictResolve>

@@ -47,6 +47,21 @@ Nuxt 4 · Vue 3 · Prisma · SQLite · @nuxt/ui · Pinia · nuxt-auth-utils · L
 - Auto draft keys: `__draft_<fingerprint>`. Display via `formatI18nKeyDisplay` (`__draft_` + first 5 hash chars). **Always** `import { formatI18nKeyDisplay } from '#shared/utils'` — do not rely on auto-import in templates or TSX.
 - No public signup. A Team invite code is **not** a registration code (see P1).
 
+## Git file sync (`/git`)
+
+LILT-style product folders: `<product>/source/` and `<product>/translated/`, flat `{ "id": "string" }` JSON. One Localness Project maps to one **product**. Unique `(adapter, remoteUrl, product)`. OWNER must set the HTTPS Git clone URL (`…/workspace/repo.git`) on `/git`; Bitbucket browser pages (`/src/<branch>/`) are normalized to that clone URL. There is **no** server default remote. Product options are **listed from that remote** (folders that contain `source/` or `translated/`), not a hardcoded whitelist. Load products also requires a token because it clones the remote.
+
+- **Pull** writes **draft** only (skip `__draft_*`). Multi-batch: later filename date (then later file) wins as the remote view. Source locale files live under `source/`; other locales under `translated/` (do not hand-edit `translated/`).
+- **Push** writes **published** source-locale strings to a new `source/` batch. Open conflicts → **409**.
+- Three-way per `key + locale`: `GitSyncBase` (last successful landing), ours = platform draft, theirs = Git. `publishedText` is reference only.
+- Dual-track credentials on `GitSyncBinding.credentialKind` (OWNER writes; GET never returns the token, only `tokenConfigured`):
+  - `repo_access_token` → Git HTTPS user `x-token-auth`
+  - `api_token` → Git HTTPS user `x-bitbucket-api-token-auth`
+  Token is the password. Those usernames are protocol sentinels, not login names. Do not use Bitbucket App Passwords.
+- Team members start Pull/Push. Unconfigured MEMBER sees “Contact the project owner…”. Conflicts are cards on `/git` (Use Git / Use platform / Edit). Do **not** reuse `I18nMigrateConflict`.
+
+APIs: `GET/PUT /api/projects/:id/git-sync`, `POST .../products` (OWNER; clone remote and list `source/`/`translated/` folders), `POST .../pull|push`, `GET .../conflicts`, `POST .../conflicts/:id/resolve`.
+
 ## Routes
 
 | Path | Notes |
@@ -55,6 +70,7 @@ Nuxt 4 · Vue 3 · Prisma · SQLite · @nuxt/ui · Pinia · nuxt-auth-utils · L
 | `/dashboard` | Post-login home; no workspace bar |
 | `/editor` | **ssr: false** (sider project fetch needs cookies) |
 | `/translations` | Key table |
+| `/git` | Git sync; **ssr: false**; Pull/Push + conflict cards |
 | `/teams` | Teams; invite by existing username |
 
 Switching project must not change the current route.
@@ -81,8 +97,7 @@ Persist lock on `settings.locked` through the tag update API. `FuncLockBtn` uses
 
 ## Roadmap (do not implement unless asked)
 
-**P0 — Bidirectional Git file sync (Bitbucket)**  
-Push files that match **that repo's** path/format rules; pull into Translations. Push **published** only. Conflicts are first-class: three-way merge per `key + locale` (`base` = last successful sync). If both sides changed and the strings differ, queue a conflict. Block Push while conflicts are open. Pull updates **draft** only by default. Do not reuse `I18nMigrateConflict` (one-shot Vue/React migration table).
+**P0 — Bidirectional Git file sync** — shipped: `/git`, dual-track tokens, three-way conflicts. Do not put tokens or internal remotes in docs.
 
 **P1 — Atlassian login + Team invite codes**  
 Invite codes let an **already logged-in user join a Team**. They do not create accounts. Atlassian is how people get accounts. Users with no Team may log in but see no projects.

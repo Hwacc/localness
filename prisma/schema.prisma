@@ -58,8 +58,11 @@ model Project {
   team        Team             @relation(fields: [teamId], references: [id], onDelete: Cascade)
   pages       Page[]
   settings    ProjectSettings?
+  gitSync     GitSyncBinding?
   projectLogs ProjectLog[]
   i18nKeys    I18nKey[]
+  gitSyncBases GitSyncBase[]
+  gitSyncConflicts GitSyncConflict[]
 
   @@index([teamId])
 }
@@ -91,6 +94,59 @@ model ProjectLog {
 
   @@index([userID])
   @@index([createdAt])
+}
+
+model GitSyncBinding {
+  id              Int      @id @default(autoincrement())
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+  projectId       Int      @unique @map("project_id")
+  enabled         Boolean  @default(true)
+  adapter         String   @default("lilt-swbu")
+  remoteUrl       String   @default("") @map("remote_url")
+  branch          String   @default("main")
+  product         String
+  credentialKind  String   @map("credential_kind")
+  token           String   @default("")
+  localeMap       Json?    @map("locale_map")
+  lastPulledAt    DateTime? @map("last_pulled_at")
+  lastPushedAt    DateTime? @map("last_pushed_at")
+  project         Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@unique([adapter, remoteUrl, product])
+}
+
+model GitSyncBase {
+  id        Int      @id @default(autoincrement())
+  updatedAt DateTime @updatedAt @map("updated_at")
+  projectId Int      @map("project_id")
+  key       String
+  locale    String
+  baseText  String   @map("base_text")
+  commitSha String   @default("") @map("commit_sha")
+  project   Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@unique([projectId, key, locale])
+  @@index([projectId])
+}
+
+model GitSyncConflict {
+  id            Int      @id @default(autoincrement())
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @updatedAt @map("updated_at")
+  projectId     Int      @map("project_id")
+  key           String
+  locale        String
+  baseText      String   @default("") @map("base_text")
+  oursText      String   @map("ours_text")
+  theirsText    String   @map("theirs_text")
+  publishedText String?  @map("published_text")
+  mergedText    String?  @map("merged_text")
+  status        String   @default("open")
+  project       Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@unique([projectId, key, locale])
+  @@index([projectId, status])
 }
 
 model Page {
