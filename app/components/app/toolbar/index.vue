@@ -120,6 +120,7 @@ function onLineColorChange(c: string | undefined) {
           :model-value="lineColor"
           @update:model-value="onLineColorChange"
         />
+        <EditorHelpSlideover />
       </div>
     </div>
   </div>
