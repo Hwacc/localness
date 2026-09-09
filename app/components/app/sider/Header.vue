@@ -1,7 +1,6 @@
 <script setup lang="ts">
 import type { DropdownMenuItem } from '@nuxt/ui'
 import { ProjectExportModal, ProjectModal } from '#components'
-import { injectEditorContext } from '~/providers/EditorProvider.vue'
 import {
   injectTaskContext,
   type IFrontendTask,
@@ -10,15 +9,10 @@ import { isEmpty, orderBy } from 'lodash-es'
 import { TaskState } from '~/libs/task-queue/types'
 
 const projectStore = useProjectStore()
-const { createProject, updateProject, setCurrentProject } = projectStore
-
-const { editor, autoSave } = injectEditorContext()
+const { updateProject } = projectStore
 const { taskList } = injectTaskContext()
 
-const toast = useToast()
 const overlay = useOverlay()
-
-const emit = defineEmits<{ openProjectShelf: [] }>()
 
 const projectModal = overlay.create(ProjectModal, {
   props: {
@@ -30,47 +24,6 @@ const projectExportModal = overlay.create(ProjectExportModal, {
   props: {},
 })
 const projectMenuItems = computed<DropdownMenuItem[]>(() => [
-  {
-    label: 'New Project',
-    icon: 'i-lucide:folder-plus',
-    onSelect: () => {
-      projectModal.open({
-        mode: 'create',
-        project: new Project(''),
-        onSave: async (p, { close }) => {
-          const newProject = await createProject(p)
-          if (!newProject) return
-          toast.add({
-            title: 'Success',
-            description: 'Project created successfully',
-            color: 'success',
-            icon: 'i-lucide:circle-check',
-            actions: [
-              {
-                label: 'Open Project',
-                icon: 'i-lucide:folder-open',
-                color: 'success',
-                variant: 'solid',
-                onClick: async () => {
-                  await autoSave.ask()
-                  editor.value?.clear()
-                  setCurrentProject(newProject)
-                },
-              },
-            ],
-          })
-          close()
-        },
-      })
-    },
-  },
-  {
-    label: 'Open Project',
-    icon: 'i-lucide:folder-open',
-    onSelect: () => {
-      emit('openProjectShelf')
-    },
-  },
   {
     label: 'Export Project',
     icon: 'i-tabler:package-export',
@@ -119,8 +72,10 @@ function getTaskStateIcon(state: TaskState) {
       return { icon: 'i-lucide:circle-x', color: 'text-red-500' }
     case TaskState.Timeout:
       return { icon: 'i-mdi:clock-alert-outline', color: 'text-yellow-500' }
-    default:
+    default: {
+      const _exhaustive: never = state
       return { icon: 'i-ri:question-line', color: 'text-muted' }
+    }
   }
 }
 

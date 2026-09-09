@@ -16,6 +16,8 @@ definePageMeta({
 
 const pageStore = usePageStore()
 const { curPage, tagList } = storeToRefs(pageStore)
+const projectStore = useProjectStore()
+const { curProject } = storeToRefs(projectStore)
 const tagStore = useTagStore()
 const ossImage = useOSSImage()
 const autoSave = useAutoSave()
@@ -30,6 +32,7 @@ const mode = ref<EditorMode>('draw')
 const lineWidth = ref<number>(DEFAULT_LINE_WIDTH)
 const lineColor = ref<string>(DEFAULT_LINE_COLOR)
 const toast = useToast()
+const { open: openTagModal } = useTagModal()
 
 useResizeObserver(
   editorContainer,
@@ -64,6 +67,15 @@ watchEffect(() => {
   }
   initImage()
 })
+
+watch(
+  () => curProject.value.id,
+  async (id, prev) => {
+    if (id === prev) return
+    await autoSave.ask()
+    editor.value?.clear()
+  }
+)
 
 onMounted(async () => {
   const imageUrl = await ossImage.get(curPage.value?.image)
@@ -184,7 +196,6 @@ onMounted(async () => {
     autoSave.add(arg.tag)
   )
 
-  const { open: openTagModal } = useTagModal()
   editor.value.connectOn<'connect-tag-info', ITag, ITag | undefined>(
     'connect-tag-info',
     async ({ send, disconnect, payload }) => {

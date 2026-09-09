@@ -18,7 +18,7 @@ onMounted(async () => {
     await getUser()
     await getProjects()
     await sleep(3000)
-    await navigateTo('/editor')
+    await navigateTo('/dashboard')
   } catch (error) {
     console.error('initialization error', error)
     toast.add({
@@ -33,7 +33,7 @@ onMounted(async () => {
 <template>
   <div
     class="flex flex-col items-center mt-[10rem]"
-    @click="() => navigateTo('/editor')"
+    @click="() => navigateTo('/dashboard')"
   >
     <TextLineShadow class="text-3xl font-bold italic" shadow-color="#40D18F">
       Loading...

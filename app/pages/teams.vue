@@ -12,15 +12,26 @@ const userStore = useUserStore()
 const { user } = storeToRefs(userStore)
 const { loggedIn } = useUserSession()
 const toast = useToast()
-
-const teams = ref<ITeam[]>([])
-const selectedId = ref<ID | undefined>()
+const projectStore = useProjectStore()
+const { teams, curTeamId, projects, curProject } = storeToRefs(projectStore)
+const { open: openCreateProject } = useCreateProjectModal()
 const detail = ref<ITeam | null>(null)
 const loading = ref(false)
 const creating = ref(false)
 const inviting = ref(false)
 const newTeamName = ref('')
 const inviteUsername = ref('')
+
+const selectedId = computed({
+  get: () => curTeamId.value,
+  set: (id: ID | undefined) => {
+    projectStore.setCurrentTeam(id)
+  },
+})
+
+const teamProjects = computed(() =>
+  projects.value.filter((p) => String(p.teamId) === String(selectedId.value))
+)
 
 const isAdmin = computed(() => user.value.role === UserRole.ADMIN)
 const myRole = computed(() => detail.value?.role)
@@ -89,8 +100,7 @@ const memberColumns = computed<TableColumn<ITeamMember>[]>(() => {
 })
 
 async function loadTeams() {
-  const list = await useApi<ITeam[]>('/api/teams')
-  teams.value = list ?? []
+  await projectStore.getProjects()
   if (
     teams.value.length > 0 &&
     !teams.value.some((t) => String(t.id) === String(selectedId.value))
@@ -282,6 +292,55 @@ onMounted(async () => {
                 :disabled="!inviteUsername.trim()"
               />
             </form>
+          </div>
+
+          <div
+            class="shrink-0 rounded-xl border border-default bg-default overflow-hidden"
+          >
+            <div
+              class="px-5 py-3 border-b border-default flex items-center gap-2"
+            >
+              <h3 class="text-sm font-semibold">Projects</h3>
+              <span class="ml-auto" />
+              <UButton
+                v-if="isOwner"
+                size="xs"
+                color="neutral"
+                variant="outline"
+                icon="i-lucide:plus"
+                label="New Project"
+                @click="openCreateProject(detail.id)"
+              />
+            </div>
+            <div v-if="teamProjects.length === 0" class="px-5 py-6 text-sm text-muted">
+              No projects in this team.
+              <span v-if="!isOwner"> Ask a Team OWNER to create one.</span>
+            </div>
+            <ul v-else class="divide-y divide-default">
+              <li
+                v-for="project in teamProjects"
+                :key="project.id"
+                class="flex items-center gap-3 px-5 py-3"
+              >
+                <div class="min-w-0 flex-1">
+                  <p class="font-medium truncate">{{ project.name }}</p>
+                  <p class="text-xs text-muted">
+                    {{ project.pages?.length ?? 0 }} pages
+                  </p>
+                </div>
+                <UButton
+                  size="xs"
+                  color="neutral"
+                  variant="ghost"
+                  :label="
+                    String(project.id) === String(curProject.id)
+                      ? 'Current'
+                      : 'Open'
+                  "
+                  @click="projectStore.setCurrentProject(project)"
+                />
+              </li>
+            </ul>
           </div>
 
           <div

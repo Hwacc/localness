@@ -3,7 +3,7 @@ import { isEmpty } from 'lodash-es'
 export const usePageStore = defineStore('page', () => {
   const toast = useToast()
   const projectStore = useProjectStore()
-  const curPage = ref<IPage>(new Page())
+  const curPage = ref<IPage>(emptyPage())
 
   const tagList = ref<ITag[]>([])
 
@@ -89,7 +89,7 @@ export const usePageStore = defineStore('page', () => {
       )
       if (curPage.value.id === id) {
         curPage.value = isEmpty(projectStore.curProject.pages)
-          ? new Page()
+          ? emptyPage()
           : projectStore.curProject.pages[0]!
       }
       if (import.meta.client) {
@@ -108,6 +108,7 @@ export const usePageStore = defineStore('page', () => {
       if (validID(page.id)) await loadTags(page.id)
     } finally {
       curPage.value = page
+      writePageForProject(projectStore.curProject.id, page.id)
     }
   }
 

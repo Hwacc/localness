@@ -60,7 +60,7 @@ export default defineNuxtConfig({
   routeRules: {
     '/': { prerender: false, ssr: true },
     '/transfer': { ssr: false },
-    '/editor': { ssr: false },
+    '/dashboard': { ssr: false },
     '/translations': { ssr: false },
     '/teams': { ssr: false },
   },

@@ -14,7 +14,7 @@ definePageMeta({
 })
 
 const projectStore = useProjectStore()
-const { projects, curProject } = storeToRefs(projectStore)
+const { curProject } = storeToRefs(projectStore)
 const { loggedIn } = useUserSession()
 const toast = useToast()
 const table = useTemplateRef('table')
@@ -29,21 +29,7 @@ const publishing = ref(false)
 const drafts = ref<Record<string, string>>({})
 const rowSelection = ref<Record<string, boolean>>({})
 
-const projectItems = computed(() =>
-  projects.value.map((p) => ({
-    label: p.name,
-    value: p.id,
-  }))
-)
-
-const selectedProjectId = computed({
-  get: () => curProject.value.id || undefined,
-  set: (id: ID | undefined) => {
-    if (id == null) return
-    const found = projects.value.find((p) => String(p.id) === String(id))
-    if (found) projectStore.setCurrentProject(found)
-  },
-})
+const dirtyCount = computed(() => rows.value.filter((r) => r.dirty).length)
 
 function parseLocales(raw: unknown): string[] {
   if (Array.isArray(raw) && raw.every((v) => typeof v === 'string')) {
@@ -90,8 +76,6 @@ const selectedKeyIds = computed(() =>
     .map(([id]) => Number(id))
     .filter((id) => Number.isInteger(id) && id > 0)
 )
-
-const dirtyCount = computed(() => rows.value.filter((r) => r.dirty).length)
 
 const columnPinning = ref({
   left: ['select', 'key'],
@@ -367,7 +351,7 @@ async function publishKeys(keyIds?: number[]) {
 }
 
 onMounted(async () => {
-  if (loggedIn.value && projects.value.length === 0) {
+  if (loggedIn.value && projectStore.projects.length === 0) {
     await projectStore.getProjects()
   }
   await loadKeys()
@@ -382,7 +366,11 @@ onMounted(async () => {
       <div class="min-w-0">
         <h1 class="text-xl font-semibold tracking-tight">Translations</h1>
         <p class="mt-1 text-sm text-muted">
-          Edit drafts in the table, then publish to the JSON API.
+          {{
+            validID(curProject.id)
+              ? `Project: ${curProject.name}`
+              : 'Select a project from the sidebar workspace switcher.'
+          }}
         </p>
       </div>
       <div class="flex items-center gap-2 shrink-0">
@@ -410,12 +398,13 @@ onMounted(async () => {
       <div
         class="shrink-0 flex flex-wrap items-center gap-3 rounded-xl border border-default bg-default px-4 py-3"
       >
-        <USelect
-          v-model="selectedProjectId"
-          class="w-56"
-          placeholder="Select project"
-          :items="projectItems"
-        />
+        <UBadge
+          v-if="validID(curProject.id)"
+          color="neutral"
+          variant="subtle"
+        >
+          {{ curProject.name }}
+        </UBadge>
         <UInput
           v-model="q"
           class="w-72"

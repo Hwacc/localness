@@ -3,20 +3,124 @@ import { isEmpty, merge } from 'lodash-es'
 export const useProjectStore = defineStore('project', () => {
   const toast = useToast()
   const projects = ref<IProject[]>([])
-  const curProject = ref<IProject>(new Project())
+  const teams = ref<ITeam[]>([])
+  const curProject = ref<IProject>(emptyProject())
+  const curTeamId = ref<ID | undefined>()
   const pageStore = usePageStore()
 
-  const pageList = computed(() => {
-    return curProject.value.pages ?? []
-  })
+  const pageList = computed(() => curProject.value.pages ?? [])
+
+  const curTeam = computed(
+    () => teams.value.find((t) => String(t.id) === String(curTeamId.value)) ?? null
+  )
+
+  const projectsByTeam = computed(() =>
+    teams.value.map((team) => ({
+      team,
+      projects: projects.value.filter(
+        (p) => String(p.teamId) === String(team.id)
+      ),
+    }))
+  )
+
+  async function getTeams() {
+    teams.value = (await useApi<ITeam[]>('/api/teams')) ?? []
+    return teams.value
+  }
+
+  function persistWorkspace() {
+    writeWorkspaceIds(curTeamId.value, curProject.value.id)
+  }
+
+  function applyPageForProject(project: IProject) {
+    const pages = project.pages ?? []
+    if (isEmpty(pages)) {
+      pageStore.setCurrentPage(emptyPage())
+      return
+    }
+    const remembered = readPageByProject()[String(project.id)]
+    const match = pages.find((p) => String(p.id) === String(remembered))
+    pageStore.setCurrentPage(match ?? pages[0]!)
+  }
+
+  function setCurrentProject(proj: IProject | ID) {
+    if (typeof proj === 'object' && proj) {
+      curProject.value = proj
+    } else {
+      curProject.value =
+        projects.value.find((p) => String(p.id) === String(proj)) ??
+        emptyProject()
+    }
+    if (validID(curProject.value.teamId)) {
+      curTeamId.value = curProject.value.teamId
+    }
+    persistWorkspace()
+    applyPageForProject(curProject.value)
+  }
+
+  function setCurrentTeam(teamId: ID | undefined) {
+    curTeamId.value = teamId
+    persistWorkspace()
+    if (!validID(teamId)) return
+    if (String(curProject.value.teamId) === String(teamId)) return
+    const inTeam = projects.value.filter(
+      (p) => String(p.teamId) === String(teamId)
+    )
+    if (inTeam[0]) setCurrentProject(inTeam[0])
+  }
+
+  function restoreWorkspace() {
+    const stored = readWorkspaceIds()
+    if (validID(stored.projectId)) {
+      const found = projects.value.find(
+        (p) => String(p.id) === String(stored.projectId)
+      )
+      if (found) {
+        setCurrentProject(found)
+        return
+      }
+    }
+    if (validID(stored.teamId)) {
+      const teamExists = teams.value.some(
+        (t) => String(t.id) === String(stored.teamId)
+      )
+      if (teamExists) {
+        setCurrentTeam(stored.teamId)
+        return
+      }
+    }
+    if (projects.value[0]) {
+      setCurrentProject(projects.value[0])
+      return
+    }
+    if (teams.value[0]) {
+      curTeamId.value = teams.value[0].id
+      persistWorkspace()
+    }
+  }
 
   async function getProjects() {
-    const projs = await useApi<IProject[]>('/api/project')
-    console.log('projs', projs)
+    const [projs] = await Promise.all([
+      useApi<IProject[]>('/api/project'),
+      getTeams(),
+    ])
     projects.value = projs ?? []
-    if (projs.length > 0 && !curProject.value.id) {
-      setCurrentProject(projects.value[0]!)
+    if (validID(curProject.value.id)) {
+      const fresh = projects.value.find(
+        (p) => String(p.id) === String(curProject.value.id)
+      )
+      if (fresh) {
+        curProject.value = fresh
+        if (validID(fresh.teamId)) curTeamId.value = fresh.teamId
+        persistWorkspace()
+        const pageStillThere = (fresh.pages ?? []).some(
+          (p) => String(p.id) === String(pageStore.curPage.id)
+        )
+        if (!pageStillThere) applyPageForProject(fresh)
+        return projects.value
+      }
     }
+    restoreWorkspace()
     return projects.value
   }
 
@@ -36,7 +140,7 @@ export const useProjectStore = defineStore('project', () => {
     pid: ID,
     project: Omit<IProject, 'id' | 'pages' | 'users'>
   ) {
-    if(!validID(pid)) return
+    if (!validID(pid)) return
     const updatedProject = await useApi<{
       id: ID
       name: string
@@ -46,7 +150,6 @@ export const useProjectStore = defineStore('project', () => {
       method: 'POST',
       body: project,
     })
-    console.log('updatedProject', updatedProject)
     if (updatedProject) {
       if (updatedProject.id === curProject.value.id) {
         curProject.value = merge(curProject.value, updatedProject)
@@ -65,28 +168,20 @@ export const useProjectStore = defineStore('project', () => {
     return false
   }
 
-  function setCurrentProject(proj: IProject | ID) {
-    if (proj instanceof Project || typeof proj === 'object') {
-      curProject.value = proj
-    } else {
-      curProject.value =
-        projects.value.find((p) => p.id === (proj as ID)) ?? new Project()
-    }
-    if (!isEmpty(curProject.value.pages)) {
-      pageStore.setCurrentPage(curProject.value.pages[0]!)
-    } else {
-      pageStore.setCurrentPage(new Page())
-    }
-  }
-
   return {
     projects,
+    teams,
     curProject,
+    curTeamId,
+    curTeam,
     pageList,
+    projectsByTeam,
     getProjects,
+    getTeams,
     createProject,
     updateProject,
     setCurrentProject,
+    setCurrentTeam,
   }
 })
 

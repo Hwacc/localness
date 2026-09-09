@@ -4,6 +4,14 @@ import TaskProvider from '~/providers/TaskProvider.vue'
 
 const route = useRoute()
 const colorMode = useColorMode()
+const { loggedIn } = useUserSession()
+const projectStore = useProjectStore()
+
+onMounted(async () => {
+  if (loggedIn.value) {
+    await projectStore.getProjects()
+  }
+})
 
 const navItems = [
   {
@@ -86,6 +94,9 @@ const themeMenuItems = computed<DropdownMenuItem[]>(() =>
             </UTooltip>
           </div>
           <div class="flex flex-col items-center gap-3">
+            <ClientOnly>
+              <AppWorkspaceSwitcher />
+            </ClientOnly>
             <UDropdownMenu
               :items="themeMenuItems"
               :content="{ side: 'right', align: 'end' }"
