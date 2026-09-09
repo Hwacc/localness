@@ -1,4 +1,5 @@
 import type { ID } from '.'
+import type { ITagSetting } from './Tag'
 
 export interface ILocaleValue {
   locale: string
@@ -6,13 +7,23 @@ export interface ILocaleValue {
   publishedText: string | null
 }
 
-export interface II18nKeyRow {
+export interface II18nKeyRefTag {
   id: ID
+  x: number
+  y: number
+  width: number
+  height: number
+  settings?: ITagSetting | null
+}
+
+export interface II18nKeyRefPage {
+  id: ID
+  name: string
+  image: string | null
+  tags: II18nKeyRefTag[]
+}
+
+export interface II18nKeyRefs {
   key: string
-  origin: string
-  description?: string | null
-  updatedAt?: string | Date
-  tagCount: number
-  dirty: boolean
-  locales: ILocaleValue[]
+  pages: II18nKeyRefPage[]
 }

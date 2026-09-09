@@ -34,6 +34,27 @@ const lineColor = ref<string>(DEFAULT_LINE_COLOR)
 const toast = useToast()
 const { open: openTagModal } = useTagModal()
 
+const route = useRoute()
+const router = useRouter()
+const pendingTagId = ref<ID | undefined>()
+
+async function applyEditorDeepLink() {
+  const pageIdRaw = route.query.pageId
+  const tagIdRaw = route.query.tagId
+  const pageId = Number(Array.isArray(pageIdRaw) ? pageIdRaw[0] : pageIdRaw)
+  const tagId = Number(Array.isArray(tagIdRaw) ? tagIdRaw[0] : tagIdRaw)
+  if (validID(pageId)) {
+    const page = projectStore.pageList.find(
+      (p) => String(p.id) === String(pageId)
+    )
+    if (page) await pageStore.setCurrentPage(page)
+  }
+  pendingTagId.value = validID(tagId) ? tagId : undefined
+  if (pageIdRaw != null || tagIdRaw != null) {
+    await router.replace({ path: '/editor', query: {} })
+  }
+}
+
 useResizeObserver(
   editorContainer,
   useDebounceFn(() => {
@@ -78,6 +99,7 @@ watch(
 )
 
 onMounted(async () => {
+  await applyEditorDeepLink()
   const imageUrl = await ossImage.get(curPage.value?.image)
   // @ts-expect-error support dynamic import
   const { Editor } = await import('~/core/Editor')
@@ -98,6 +120,10 @@ onMounted(async () => {
   editor.value.on('image-loaded', () => {
     const _setTags = () => {
       editor.value?.setTags(tagList.value)
+      if (validID(pendingTagId.value)) {
+        editor.value?.selectTagById(pendingTagId.value)
+        pendingTagId.value = undefined
+      }
       isImageLoading.value = false
     }
     if (!editor.value?.ready) {

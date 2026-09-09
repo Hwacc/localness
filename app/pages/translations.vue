@@ -82,6 +82,15 @@ const columnPinning = ref({
   right: ['actions'],
 })
 
+const refsOpen = ref(false)
+const refsKeyId = ref<ID | undefined>()
+
+function openTagRefs(row: II18nKeyRow) {
+  if (row.tagCount <= 0) return
+  refsKeyId.value = row.id
+  refsOpen.value = true
+}
+
 function pinHeader(
   column: Column<II18nKeyRow, unknown>,
   label: string,
@@ -158,7 +167,12 @@ const columns = computed<TableColumn<II18nKeyRow>[]>(() => [
     header: 'Tags',
     size: 80,
     cell: ({ row }: { row: TableRow<II18nKeyRow> }) => (
-      <UBadge variant="subtle" color="neutral">
+      <UBadge
+        variant="subtle"
+        color="neutral"
+        class={row.original.tagCount > 0 ? 'cursor-pointer' : 'opacity-50'}
+        onClick={() => openTagRefs(row.original)}
+      >
         {String(row.original.tagCount)}
       </UBadge>
     ),
@@ -497,5 +511,10 @@ onMounted(async () => {
         </div>
       </div>
     </div>
+    <TagRefsSlideover
+      v-model:open="refsOpen"
+      :project-id="curProject.id"
+      :key-id="refsKeyId"
+    />
   </div>
 </template>

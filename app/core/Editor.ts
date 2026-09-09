@@ -428,6 +428,14 @@ class Editor extends EditorInteraction {
     this.renderTags(tags)
   }
 
+  public selectTagById(id: ID) {
+    const found = this.groupTag.children.find(
+      (child) => String((child as EditorTag).remoteTag.id) === String(id)
+    )
+    if (!found) return
+    this.app.editor.target = found
+  }
+
   public waitReady(callback: () => void) {
     this.app.tree.waitReady(callback)
   }
