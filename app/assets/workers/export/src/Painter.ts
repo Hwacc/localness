@@ -46,7 +46,7 @@ class PainterTag extends Frame {
 
     // add text node
     const options = {
-      text: this.remoteTag.i18nKey,
+      text: formatI18nKeyDisplay(this.remoteTag.i18nKey),
       fill: labelStyle?.fill ?? DEFAULT_LABEL_FILL,
       fontSize: labelStyle?.fontSize ?? DEFAULT_LABEL_FONT_SIZE,
       fontWeight: labelStyle?.fontWeight ?? DEFAULT_LABEL_FONT_WEIGHT,

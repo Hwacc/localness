@@ -76,7 +76,14 @@ export default defineEventHandler(async (event) => {
     ...project,
     pages: project.pages.map((page) => ({
       ...page,
-      tags: page.tags.map((tag) => shapeTag(tag)),
+      tags: page.tags.flatMap((tag) => {
+        const locales = tag.i18nKeyRecord?.locales ?? []
+        const hasPublished = locales.some(
+          (locale) => (locale.publishedText ?? '') !== ''
+        )
+        if (!hasPublished) return []
+        return [shapeTag(tag, 'published')]
+      }),
     })),
   }
 })

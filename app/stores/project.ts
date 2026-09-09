@@ -100,11 +100,16 @@ export const useProjectStore = defineStore('project', () => {
   }
 
   async function getProjects() {
-    const [projs] = await Promise.all([
-      useApi<IProject[]>('/api/project'),
-      getTeams(),
-    ])
-    projects.value = projs ?? []
+    try {
+      const [projs] = await Promise.all([
+        useApi<IProject[]>('/api/project'),
+        getTeams(),
+      ])
+      projects.value = projs ?? []
+    } catch (error) {
+      console.error('getProjects failed', error)
+      return projects.value
+    }
     if (validID(curProject.value.id)) {
       const fresh = projects.value.find(
         (p) => String(p.id) === String(curProject.value.id)

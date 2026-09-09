@@ -1,10 +1,12 @@
 <script setup lang="ts">
 const { loggedIn } = useUserSession()
-const { getProjects } = useProjectStore()
+const projectStore = useProjectStore()
 
-if (loggedIn.value) {
-  await getProjects()
-}
+onMounted(async () => {
+  if (loggedIn.value && projectStore.projects.length === 0) {
+    await projectStore.getProjects()
+  }
+})
 </script>
 
 <template>

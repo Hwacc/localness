@@ -61,6 +61,7 @@ export default defineNuxtConfig({
     '/': { prerender: false, ssr: true },
     '/transfer': { ssr: false },
     '/dashboard': { ssr: false },
+    '/editor': { ssr: false },
     '/translations': { ssr: false },
     '/teams': { ssr: false },
   },

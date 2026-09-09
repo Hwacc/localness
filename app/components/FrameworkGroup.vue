@@ -10,9 +10,12 @@ const frameworks = [
     value: 'react',
     icon: 'i-logos:react',
   },
-]
+] as const
 
-const { modelValue } = defineProps<{ modelValue: 'vue' | 'react' }>()
+const { modelValue, size = 'md' } = defineProps<{
+  modelValue: 'vue' | 'react'
+  size?: 'xs' | 'sm' | 'md'
+}>()
 const emit = defineEmits<{ 'update:modelValue': ['vue' | 'react'] }>()
 </script>
 
@@ -22,9 +25,10 @@ const emit = defineEmits<{ 'update:modelValue': ['vue' | 'react'] }>()
       v-for="framework in frameworks"
       :key="framework.value"
       :icon="framework.icon"
-      :variant="modelValue === framework.value ? 'solid' : 'outline'"
-      color="neutral"
-      @click="() => emit('update:modelValue', framework.value as 'vue' | 'react')"
+      :size="size"
+      :variant="modelValue === framework.value ? 'subtle' : 'ghost'"
+      :color="modelValue === framework.value ? 'primary' : 'neutral'"
+      @click="() => emit('update:modelValue', framework.value)"
     >
       {{ framework.name }}
     </UButton>

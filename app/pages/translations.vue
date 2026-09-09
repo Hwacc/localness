@@ -5,7 +5,7 @@ import {
   DEFAULT_LOCALES,
   TRANSLATION_LANGUAGES,
 } from '#shared/constants'
-import { UBadge, UButton, UCheckbox, UIcon, UInput } from '#components'
+import { UBadge, UButton, UCheckbox, UIcon, UInput, UTooltip, AlertModal, I18nKeyModal } from '#components'
 import { useDebounceFn } from '@vueuse/core'
 
 definePageMeta({
@@ -14,6 +14,7 @@ definePageMeta({
 })
 
 const projectStore = useProjectStore()
+const pageStore = usePageStore()
 const { curProject } = storeToRefs(projectStore)
 const { loggedIn } = useUserSession()
 const toast = useToast()
@@ -82,6 +83,75 @@ const columnPinning = ref({
   right: ['actions'],
 })
 
+const overlay = useOverlay()
+const editModal = overlay.create(I18nKeyModal)
+const deleteModal = overlay.create(AlertModal)
+const unpublishModal = overlay.create(AlertModal)
+
+function openEdit(row: II18nKeyRow) {
+  if (!validID(curProject.value.id)) return
+  editModal.open({
+    row,
+    locales: localeCodes.value,
+    projectId: curProject.value.id,
+    readonly: !row.dirty,
+    onSaved: () => loadKeys(),
+  })
+}
+
+function openUnpublish(row: II18nKeyRow) {
+  if (row.dirty || !validID(curProject.value.id)) return
+  unpublishModal.open({
+    mode: 'warning',
+    title: 'Revert to draft',
+    message: `Revert “${row.key}” to draft? It will drop out of published export until you publish again.`,
+    okText: 'Revert',
+    onOk: async (_mode, { close }) => {
+      unpublishModal.patch({ loading: true })
+      try {
+        await unpublishKeys([Number(row.id)])
+        close()
+      } finally {
+        unpublishModal.patch({ loading: false })
+      }
+    },
+  })
+}
+
+function openDelete(row: II18nKeyRow) {
+  if (!row.dirty) return
+  const tagHint =
+    row.tagCount > 0
+      ? ` This will also delete ${row.tagCount} bound tag(s).`
+      : ''
+  deleteModal.open({
+    mode: 'delete',
+    title: 'Delete translation',
+    message: `Delete draft key “${row.key}”?${tagHint}`,
+    onOk: async (_mode, { close }) => {
+      deleteModal.patch({ loading: true })
+      try {
+        await useApi(`/api/translation/${row.id}`, { method: 'DELETE' })
+        pageStore.setTags(
+          pageStore.tagList.filter((tag) => {
+            const boundId = tag.translationID ?? tag.i18nKeyId
+            return String(boundId) !== String(row.id)
+          })
+        )
+        toast.add({
+          title: 'Deleted',
+          color: 'success',
+          icon: 'i-lucide:check',
+        })
+        close()
+        await loadKeys()
+      } finally {
+        deleteModal.patch({ loading: false })
+      }
+    },
+  })
+}
+
 const refsOpen = ref(false)
 const refsKeyId = ref<ID | undefined>()
 
@@ -143,7 +213,7 @@ const columns = computed<TableColumn<II18nKeyRow>[]>(() => [
     enableHiding: false,
     size: 200,
     cell: ({ row }: { row: TableRow<II18nKeyRow> }) => (
-      <code class="text-xs font-mono break-all">{row.original.key}</code>
+      <code class="text-xs font-mono break-all">{formatI18nKeyDisplay(row.original.key)}</code>
     ),
   },
   {
@@ -215,15 +285,21 @@ const columns = computed<TableColumn<II18nKeyRow>[]>(() => [
       size: 200,
       cell: ({ row }: { row: TableRow<II18nKeyRow> }) => {
         const original = row.original
+        const published = !original.dirty
         return (
           <UInput
             modelValue={cellDraft(original, code)}
             size="sm"
             class="min-w-44"
-            onUpdate:modelValue={(v: string) =>
+            disabled={published}
+            onUpdate:modelValue={(v: string) => {
+              if (published) return
               setCellDraft(original, code, v ?? '')
-            }
-            onBlur={() => saveDraft(original, code, cellDraft(original, code))}
+            }}
+            onBlur={() => {
+              if (published) return
+              saveDraft(original, code, cellDraft(original, code))
+            }}
           />
         )
       },
@@ -233,17 +309,62 @@ const columns = computed<TableColumn<II18nKeyRow>[]>(() => [
     id: 'actions',
     header: ({ column }) => pinHeader(column, '', 'right'),
     enableHiding: false,
-    size: 110,
-    cell: ({ row }: { row: TableRow<II18nKeyRow> }) => (
-      <UButton
-        size="xs"
-        variant="outline"
-        color="neutral"
-        label="Publish"
-        disabled={!row.original.dirty || publishing.value}
-        onClick={() => publishKeys([Number(row.original.id)])}
-      />
-    ),
+    size: 148,
+    cell: ({ row }: { row: TableRow<II18nKeyRow> }) => {
+      const original = row.original
+      const isDraft = original.dirty
+      return (
+        <div class="flex items-center gap-0.5">
+          <UTooltip text={isDraft ? 'Edit' : 'View'}>
+            <UButton
+              size="xs"
+              variant="ghost"
+              color="neutral"
+              square
+              icon={isDraft ? 'i-lucide:pencil' : 'i-lucide:eye'}
+              onClick={() => openEdit(original)}
+            />
+          </UTooltip>
+          {isDraft ? (
+            <UTooltip text="Publish">
+              <UButton
+                size="xs"
+                variant="ghost"
+                color="neutral"
+                square
+                icon="i-lucide:upload"
+                disabled={publishing.value}
+                onClick={() => publishKeys([Number(original.id)])}
+              />
+            </UTooltip>
+          ) : (
+            <UTooltip text="Revert to draft">
+              <UButton
+                size="xs"
+                variant="ghost"
+                color="neutral"
+                square
+                icon="i-lucide:undo-2"
+                disabled={publishing.value}
+                onClick={() => openUnpublish(original)}
+              />
+            </UTooltip>
+          )}
+          {isDraft ? (
+            <UTooltip text="Delete">
+              <UButton
+                size="xs"
+                variant="ghost"
+                color="error"
+                square
+                icon="i-lucide:trash-2"
+                onClick={() => openDelete(original)}
+              />
+            </UTooltip>
+          ) : null}
+        </div>
+      )
+    },
   },
 ])
 
@@ -320,6 +441,7 @@ watch(
 )
 
 async function saveDraft(row: II18nKeyRow, locale: string, value: string) {
+  if (!row.dirty) return
   const previous = draftOf(row, locale)
   if (previous === value) return
   await useApi(`/api/translation/${row.id}/vue`, {
@@ -336,9 +458,7 @@ async function saveDraft(row: II18nKeyRow, locale: string, value: string) {
       publishedText: null,
     })
   }
-  row.dirty = row.locales.some(
-    (l) => (l.draftText ?? '') !== (l.publishedText ?? '')
-  )
+  row.dirty = isI18nKeyDraft(row.locales)
 }
 
 async function publishKeys(keyIds?: number[]) {
@@ -357,6 +477,29 @@ async function publishKeys(keyIds?: number[]) {
       description: `${res?.updated ?? 0} locale row(s) published`,
       color: 'success',
       icon: 'i-lucide:check',
+    })
+    await loadKeys()
+  } finally {
+    publishing.value = false
+  }
+}
+
+async function unpublishKeys(keyIds: number[]) {
+  if (!validID(curProject.value.id) || keyIds.length === 0) return
+  publishing.value = true
+  try {
+    const res = await useApi<{ updated: number }>(
+      `/api/projects/${curProject.value.id}/unpublish`,
+      {
+        method: 'POST',
+        body: { keyIds },
+      }
+    )
+    toast.add({
+      title: 'Reverted to draft',
+      description: `${res?.updated ?? 0} locale row(s) unpublished`,
+      color: 'success',
+      icon: 'i-lucide:undo-2',
     })
     await loadKeys()
   } finally {

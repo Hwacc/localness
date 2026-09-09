@@ -4,7 +4,8 @@ import { numericID } from '#server/helper/id'
 import { readZodBody } from '#server/helper/validate'
 import { LogAction, LogStatus } from '#shared/constants/log'
 import { requireI18nKeyTeamMember } from '#server/helper/access'
-import { shapeI18nKey, upsertLocaleDrafts } from '#server/helper/i18n'
+import { shapeI18nKey, upsertLocaleDrafts, assertI18nKeyWritable } from '#server/helper/i18n'
+import { fpTranslation } from '#shared/utils'
 
 /**
  * @route POST /api/translation/:id
@@ -39,6 +40,7 @@ export default defineEventHandler(async (event) => {
       statusMessage: 'Translation not found',
     })
   }
+  assertI18nKeyWritable(existing.locales)
   try {
     const safeData = omit(body, [
       'id',
@@ -49,10 +51,12 @@ export default defineEventHandler(async (event) => {
       'key',
       'force',
     ])
+    const origin = safeData.origin as string
     const updated = await prisma.i18nKey.update({
       where: { id: nID },
       data: {
-        origin: safeData.origin as string,
+        origin,
+        fingerprint: fpTranslation(origin),
       },
       include: { locales: true },
     })

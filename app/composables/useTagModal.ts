@@ -102,6 +102,7 @@ export function useTagModal() {
             if (trans && trans.id) {
               const updatedTag = await tagStore.updateTag(opt.tag.id, {
                 translationID: trans.id,
+                i18nKey: typeof trans.key === 'string' ? trans.key : undefined,
               })
               tagModal.patch({ tag: updatedTag })
               toast.add({
@@ -127,8 +128,9 @@ export function useTagModal() {
           } else if (type === 'link') {
             // link -> link a existing translation -> update tag
             transLinkModal.open({
-              onSave: async (trans) => {
+              onSave: async (trans, { close }) => {
                 await handleUpdateTag(trans)
+                close()
               },
               onClose: (isOK: boolean) => {
                 !isOK && handleUpdateTag(undefined)

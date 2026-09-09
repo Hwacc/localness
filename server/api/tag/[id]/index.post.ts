@@ -3,7 +3,11 @@ import prisma from '#server/libs/prisma'
 import { readZodBody } from '#server/helper/validate'
 import { numericID } from '#server/helper/id'
 import { requireTagTeamMember } from '#server/helper/access'
-import { loadShapedTag, resolveTagI18n } from '#server/helper/i18n'
+import {
+  deleteUnusedDraftI18nKey,
+  loadShapedTag,
+  resolveTagI18n,
+} from '#server/helper/i18n'
 
 /**
  * @route POST /api/tag/:id
@@ -49,15 +53,25 @@ export default defineEventHandler(async (event) => {
     })
   }
 
+  const explicitId =
+    translationID !== undefined
+      ? translationID
+      : i18nKeyId !== undefined
+        ? i18nKeyId
+        : undefined
   const shouldBind =
-    body.i18nKey !== undefined ||
-    translationID !== undefined ||
-    i18nKeyId !== undefined
+    body.i18nKey !== undefined || explicitId !== undefined
   const i18n = shouldBind
     ? await resolveTagI18n({
         pageID: existing.pageID,
-        i18nKey: body.i18nKey ?? existing.i18nKey,
-        translationID: translationID ?? i18nKeyId ?? existing.i18nKeyId,
+        i18nKey:
+          body.i18nKey !== undefined
+            ? body.i18nKey
+            : explicitId != null
+              ? undefined
+              : existing.i18nKey,
+        translationID:
+          explicitId !== undefined ? explicitId : existing.i18nKeyId,
       })
     : null
 
@@ -72,5 +86,14 @@ export default defineEventHandler(async (event) => {
         : {}),
     },
   })
+
+  if (
+    existing.i18nKeyId &&
+    i18n?.i18nKeyId &&
+    existing.i18nKeyId !== i18n.i18nKeyId
+  ) {
+    await deleteUnusedDraftI18nKey(existing.i18nKeyId)
+  }
+
   return await loadShapedTag(nID)
 })

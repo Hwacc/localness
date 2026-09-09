@@ -45,7 +45,7 @@ const props = withDefaults(defineProps<GradientButtonProps>(), {
   borderWidth: 2,
   borderRadius: 8,
   blur: 4,
-  bgColor: '#000',
+  bgColor: 'var(--ui-bg)',
 })
 
 const durationInMilliseconds = computed(() => `${props.duration}ms`)

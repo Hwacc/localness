@@ -7,6 +7,17 @@ export interface ILocaleValue {
   publishedText: string | null
 }
 
+export interface II18nKeyRow {
+  id: ID
+  key: string
+  origin: string
+  description: string | null
+  updatedAt: Date | string
+  tagCount: number
+  dirty: boolean
+  locales: ILocaleValue[]
+}
+
 export interface II18nKeyRefTag {
   id: ID
   x: number

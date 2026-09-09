@@ -12,6 +12,7 @@ import { TranslationLinkModal } from '#components'
 
 definePageMeta({
   middleware: ['protected'],
+  ssr: false,
 })
 
 const pageStore = usePageStore()
@@ -89,6 +90,12 @@ watchEffect(() => {
   initImage()
 })
 
+watch(tagList, (tags) => {
+  if (editor.value?.ready) {
+    editor.value.setTags(tags)
+  }
+})
+
 watch(
   () => curProject.value.id,
   async (id, prev) => {
@@ -100,6 +107,9 @@ watch(
 
 onMounted(async () => {
   await applyEditorDeepLink()
+  if (validID(curPage.value.id)) {
+    await pageStore.loadTags(curPage.value.id)
+  }
   const imageUrl = await ossImage.get(curPage.value?.image)
   // @ts-expect-error support dynamic import
   const { Editor } = await import('~/core/Editor')
@@ -288,6 +298,10 @@ onMounted(async () => {
             if (translation) {
               const updatedTag = await tagStore.updateTag(payload.id, {
                 translationID: translation.id,
+                i18nKey:
+                  typeof translation.key === 'string'
+                    ? translation.key
+                    : undefined,
               })
               success(updatedTag)
               toast.add({

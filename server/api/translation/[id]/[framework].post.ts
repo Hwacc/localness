@@ -4,7 +4,7 @@ import { numericID } from '#server/helper/id'
 import { readZodBody } from '#server/helper/validate'
 import { LogAction, LogStatus } from '~~/shared/constants/log'
 import { requireI18nKeyTeamMember } from '#server/helper/access'
-import { localesToContent, upsertLocaleDrafts } from '#server/helper/i18n'
+import { localesToContent, upsertLocaleDrafts, assertI18nKeyWritable } from '#server/helper/i18n'
 
 /**
  * @route POST /api/translation/:id/:framework
@@ -48,6 +48,7 @@ export default defineEventHandler(async (event) => {
       statusMessage: 'Translation not found',
     })
   }
+  assertI18nKeyWritable(existing.locales)
 
   const before = localesToContent(existing.locales)
   try {

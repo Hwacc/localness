@@ -1,6 +1,7 @@
 import prisma from '#server/libs/prisma'
 import { numericID } from '#server/helper/id'
 import { requireTeamMember } from '#server/helper/access'
+import { shapeI18nKeyRow } from '#server/helper/i18n'
 
 /**
  * @route GET /api/projects/:id/i18n-keys
@@ -49,26 +50,7 @@ export default defineEventHandler(async (event) => {
     }),
   ])
 
-  const data = rows.map((row) => {
-    const locales = row.locales.map((locale) => ({
-      locale: locale.locale,
-      draftText: locale.draftText,
-      publishedText: locale.publishedText,
-    }))
-    const dirty = locales.some(
-      (locale) => (locale.draftText ?? '') !== (locale.publishedText ?? '')
-    )
-    return {
-      id: row.id,
-      key: row.key,
-      origin: row.origin,
-      description: row.description,
-      updatedAt: row.updatedAt,
-      tagCount: row._count.tags,
-      dirty,
-      locales,
-    }
-  })
+  const data = rows.map((row) => shapeI18nKeyRow(row))
 
   return new Pagination(page, limit, total, data)
 })

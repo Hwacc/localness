@@ -1,5 +1,5 @@
 <script setup lang="tsx">
-import { UIcon } from '#components'
+import { UCheckbox, UIcon } from '#components'
 import type { DropdownMenuItem, TableColumn, TableRow } from '@nuxt/ui'
 import { omit } from 'lodash-es'
 import { TRANSLATION_LANGUAGES } from '#shared/constants'
@@ -9,12 +9,50 @@ const emit = defineEmits<{
   close: [boolean]
 }>()
 
+const projectStore = useProjectStore()
+const { curProject } = storeToRefs(projectStore)
+
 const search = ref('')
 const table = useTemplateRef('table')
 const data = ref<ITranslation[]>([])
+const loading = ref(false)
+const rowSelection = ref<Record<string, boolean>>({})
 
 const framework = ref<'vue' | 'react'>('vue')
+
+function rowToTranslation(row: II18nKeyRow): ITranslation {
+  const content: TranslationContent = {}
+  for (const locale of row.locales) {
+    const text = locale.draftText || locale.publishedText || ''
+    if (text) content[locale.locale] = text
+  }
+  return {
+    id: row.id,
+    origin: row.origin,
+    fingerprint: '',
+    vue: content,
+    react: { ...content },
+    key: row.key,
+  }
+}
+
 const columns = computed<TableColumn<ITranslation>[]>(() => [
+  {
+    id: 'select',
+    header: '',
+    enableHiding: false,
+    enableSorting: false,
+    size: 48,
+    cell: ({ row }) => (
+      <UCheckbox
+        modelValue={row.getIsSelected()}
+        onUpdate:modelValue={(value: boolean | 'indeterminate') => {
+          const id = String(row.original.id)
+          rowSelection.value = value ? { [id]: true } : {}
+        }}
+      />
+    ),
+  },
   {
     id: 'id',
     accessorKey: 'id',
@@ -23,23 +61,34 @@ const columns = computed<TableColumn<ITranslation>[]>(() => [
     cell: ({ row }) => `#${row.getValue('id')}`,
   },
   {
+    id: 'key',
+    accessorKey: 'key',
+    header: 'Key',
+    enableHiding: false,
+    cell: ({ row }) => (
+      <code class="text-xs font-mono break-all">
+        {formatI18nKeyDisplay(String(row.getValue('key') || '')) || '—'}
+      </code>
+    ),
+  },
+  {
     id: 'origin',
     accessorKey: 'origin',
-    header: 'Text',
+    header: 'Origin',
     enableHiding: false,
     cell: ({ row }) => (
       <div
         class="w-max max-w-[20rem] whitespace-normal line-clamp-2"
         title={row.getValue('origin')}
       >
-        {row.getValue('origin') || 'N/A'}
+        {row.getValue('origin') || '—'}
       </div>
     ),
   },
   ...TRANSLATION_LANGUAGES.map((lang) => {
     return {
       id: lang.value,
-      assessorKey: lang,
+      accessorKey: lang.value,
       enableHiding: true,
       header: () => (
         <div class="flex items-center gap-1">
@@ -54,7 +103,7 @@ const columns = computed<TableColumn<ITranslation>[]>(() => [
             class="w-max max-w-[15rem] whitespace-normal line-clamp-2"
             title={value || ''}
           >
-            {value || 'N/A'}
+            {value || '—'}
           </div>
         )
       },
@@ -76,7 +125,6 @@ const columnsDropdownItems = computed<DropdownMenuItem[]>(() => {
         icon: trans?.icon,
         checked: col.getIsVisible(),
         onUpdateChecked(checked: boolean) {
-          console.log('checked', checked)
           table.value?.tableApi.getColumn(col.id)?.toggleVisibility(!!checked)
         },
         onSelect(e: Event) {
@@ -98,26 +146,49 @@ const pagi = ref<{
   totalPages: 0,
 })
 
-async function onSearch() {
-  if (!search.value) return
-  const trimed = search.value.trim()
-  if (!trimed) return
-  const res = await useApi<IPagination<ITranslation[]>>(
-    `/api/translation/search?keyword=${trimed}&page=${pagi.value.page}&limit=${pagi.value.limit}`
-  )
-  if (!res) return
-  pagi.value = omit(res, 'data')
-  data.value = res.data
+async function loadRows() {
+  if (!validID(curProject.value.id)) {
+    data.value = []
+    pagi.value.total = 0
+    return
+  }
+  loading.value = true
+  try {
+    const params = new URLSearchParams({
+      page: String(pagi.value.page),
+      limit: String(pagi.value.limit),
+    })
+    const q = search.value.trim()
+    if (q) params.set('q', q)
+    const res = await useApi<IPagination<II18nKeyRow[]>>(
+      `/api/projects/${curProject.value.id}/i18n-keys?${params.toString()}`
+    )
+    if (!res) return
+    pagi.value = omit(res, 'data')
+    data.value = (res.data ?? []).map(rowToTranslation)
+    rowSelection.value = {}
+  } finally {
+    loading.value = false
+  }
+}
+
+function onSearch() {
+  pagi.value.page = 1
+  loadRows()
 }
 
 function onSave() {
-  const row = table.value?.tableApi.getSelectedRowModel()
-  let translation = null
-  if (row?.flatRows?.length) {
-    translation = row.flatRows[0]?.original ?? null
-  }
+  const selectedId = Object.keys(rowSelection.value).find(
+    (id) => rowSelection.value[id]
+  )
+  const translation =
+    data.value.find((row) => String(row.id) === selectedId) ?? null
   emit('save', translation, { close: () => emit('close', true) })
 }
+
+onMounted(() => {
+  loadRows()
+})
 </script>
 
 <template>
@@ -132,7 +203,7 @@ function onSave() {
           <UInput
             v-model="search"
             class="w-75"
-            placeholder="Search translation"
+            placeholder="Search key or origin"
             @keydown.enter="onSearch"
           >
             <template #trailing>
@@ -142,7 +213,12 @@ function onSave() {
                 variant="link"
                 size="sm"
                 icon="i-lucide-circle-x"
-                @click="search = ''"
+                @click="
+                  () => {
+                    search = ''
+                    onSearch()
+                  }
+                "
               />
             </template>
           </UInput>
@@ -178,20 +254,27 @@ function onSave() {
         <div class="w-full space-y-2">
           <UTable
             ref="table"
+            v-model:row-selection="rowSelection"
             :columns="columns"
             :data="data"
+            :loading="loading"
+            :get-row-id="(row: ITranslation) => String(row.id)"
             :ui="{
               th: 'p-2.5',
               td: 'p-2.5',
               tr: 'data-[selected=true]:bg-primary/30 data-[selected=true]:hover:!bg-primary/30',
             }"
-            @select="
-              (row) => {
-                (table?.tableApi as any)?.toggleAllRowsSelected?.(false)
-                (row as any)?.toggleSelected()
-              }
-            "
-          ></UTable>
+          >
+            <template #empty>
+              <div class="py-8 text-center text-sm text-muted">
+                {{
+                  validID(curProject.id)
+                    ? 'No translations in this project yet.'
+                    : 'Select a project first.'
+                }}
+              </div>
+            </template>
+          </UTable>
           <div class="flex justify-center border-t border-default pt-4">
             <UPagination
               :default-page="pagi.page"
@@ -200,7 +283,7 @@ function onSave() {
               @update:page="
                 (p) => {
                   pagi.page = p
-                  onSearch()
+                  loadRows()
                 }
               "
             />

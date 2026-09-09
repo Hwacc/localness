@@ -83,6 +83,15 @@ const selectedItem = computed(() => {
 const selectedFramework = ref<'vue' | 'react'>('vue')
 const { state } = useEditTagState(tag)
 
+const i18nKeyDisplay = computed({
+  get: () => formatI18nKeyDisplay(state.i18nKey),
+  set: (value: string) => {
+    const next = value.trim()
+    if (next === formatI18nKeyDisplay(state.i18nKey)) return
+    state.i18nKey = next
+  },
+})
+
 const editableTranslationContent = computed<string>({
   get(): string {
     return (
@@ -481,7 +490,7 @@ const previewLabelStyle = computed(() => {
             <div v-else class="flex flex-col gap-2.5">
               <UFormField label="I18n Key">
                 <div class="w-full flex items-center gap-2.5">
-                  <UInput v-model="state.i18nKey" class="w-full" />
+                  <UInput v-model="i18nKeyDisplay" class="w-full font-mono" />
                   <AIButton @click="onCreateI18nKey" />
                 </div>
               </UFormField>

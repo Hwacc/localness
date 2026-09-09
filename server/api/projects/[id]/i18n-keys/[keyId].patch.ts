@@ -2,6 +2,7 @@ import prisma from '#server/libs/prisma'
 import { numericID } from '#server/helper/id'
 import { requireTeamMember } from '#server/helper/access'
 import { readZodBody } from '#server/helper/validate'
+import { shapeI18nKeyRow, assertI18nKeyWritable } from '#server/helper/i18n'
 
 /**
  * @route PATCH /api/projects/:id/i18n-keys/:keyId
@@ -23,6 +24,7 @@ export default defineEventHandler(async (event) => {
 
   const existing = await prisma.i18nKey.findFirst({
     where: { id: nKeyId, projectId: nID },
+    include: { locales: true },
   })
   if (!existing) {
     throw createError({
@@ -30,6 +32,7 @@ export default defineEventHandler(async (event) => {
       statusMessage: 'Key not found',
     })
   }
+  assertI18nKeyWritable(existing.locales)
 
   const nextKey = body.key?.trim()
   if (nextKey && nextKey !== existing.key) {
@@ -65,21 +68,5 @@ export default defineEventHandler(async (event) => {
     })
   }
 
-  const locales = updated.locales.map((locale) => ({
-    locale: locale.locale,
-    draftText: locale.draftText,
-    publishedText: locale.publishedText,
-  }))
-  return {
-    id: updated.id,
-    key: updated.key,
-    origin: updated.origin,
-    description: updated.description,
-    updatedAt: updated.updatedAt,
-    tagCount: updated._count.tags,
-    dirty: locales.some(
-      (locale) => (locale.draftText ?? '') !== (locale.publishedText ?? '')
-    ),
-    locales,
-  }
+  return shapeI18nKeyRow(updated)
 })
