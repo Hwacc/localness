@@ -189,9 +189,9 @@ onMounted(async () => {
 </script>
 
 <template>
-  <div class="h-full flex flex-col bg-gray-50">
+  <div class="h-full flex flex-col bg-muted">
     <header
-      class="shrink-0 px-6 py-5 bg-white border-b border-default flex items-start justify-between gap-6"
+      class="shrink-0 px-6 py-5 bg-default border-b border-default flex items-start justify-between gap-6"
     >
       <div class="min-w-0">
         <h1 class="text-xl font-semibold tracking-tight">Teams</h1>
@@ -220,7 +220,7 @@ onMounted(async () => {
     </header>
 
     <div class="flex-1 min-h-0 grid grid-cols-[18rem_minmax(0,1fr)]">
-      <aside class="border-r border-default bg-white overflow-auto p-3">
+      <aside class="border-r border-default bg-default overflow-auto p-3">
         <p class="px-2 py-1.5 text-xs font-medium text-muted uppercase tracking-wide">
           Your teams
         </p>
@@ -235,7 +235,7 @@ onMounted(async () => {
           :class="
             isSelected(team.id)
               ? 'bg-primary/10 text-highlighted'
-              : 'hover:bg-gray-50'
+              : 'hover:bg-elevated'
           "
           @click="selectedId = team.id"
         >
@@ -256,7 +256,7 @@ onMounted(async () => {
         </div>
         <template v-else>
           <div
-            class="shrink-0 rounded-xl border border-default bg-white px-5 py-4 flex flex-wrap items-center gap-4"
+            class="shrink-0 rounded-xl border border-default bg-default px-5 py-4 flex flex-wrap items-center gap-4"
           >
             <div class="min-w-0 mr-auto">
               <h2 class="text-lg font-semibold truncate">{{ detail.name }}</h2>
@@ -285,7 +285,7 @@ onMounted(async () => {
           </div>
 
           <div
-            class="flex-1 min-h-0 rounded-xl border border-default bg-white overflow-hidden flex flex-col"
+            class="flex-1 min-h-0 rounded-xl border border-default bg-default overflow-hidden flex flex-col"
           >
             <div class="flex-1 min-h-0 overflow-auto">
               <UTable

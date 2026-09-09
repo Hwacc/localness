@@ -17,7 +17,7 @@ const onOpenProjectSlideover = () => {
 </script>
 
 <template>
-  <div class="relative w-[18.75rem] shrink-0 bg-gray-50 shadow">
+  <div class="relative w-[18.75rem] shrink-0 bg-muted shadow">
     <div class="h-full flex flex-col">
       <AppSiderHeader @open-project-shelf="onOpenProjectSlideover" />
       <AppSiderBody />

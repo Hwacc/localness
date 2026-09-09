@@ -97,7 +97,7 @@ async function onAuthSubmit() {
             </UFormField>
             <UFormField label="Avatar" name="avatar">
               <template #hint>
-                <div class="flex items-center gap-2 text-sm text-gray-500">
+                <div class="flex items-center gap-2 text-sm text-muted">
                   <span>Link</span>
                   <USwitch v-model="switch2Link" />
                 </div>
@@ -109,7 +109,7 @@ async function onAuthSubmit() {
                   :limit-size="1024 * 1024"
                   :url="profileState.avatar"
                 />
-                <p class="text-xs text-gray-500 text-center">Max 1MB</p>
+                <p class="text-xs text-muted text-center">Max 1MB</p>
               </div>
               <UInput
                 v-if="switch2Link"

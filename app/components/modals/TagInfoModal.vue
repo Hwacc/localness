@@ -315,7 +315,7 @@ const previewLabelStyle = computed(() => {
                   disabled
                   :model-value="Math.floor(tag.width)"
                 />
-                <span class="text-gray-500">x</span>
+                <span class="text-muted">x</span>
                 <UInput
                   class="grow"
                   disabled
@@ -332,7 +332,7 @@ const previewLabelStyle = computed(() => {
                   disabled
                   :model-value="Math.floor(tag.x)"
                 />
-                <span class="text-gray-500">,</span>
+                <span class="text-muted">,</span>
                 <UInput
                   class="grow"
                   disabled
@@ -446,7 +446,7 @@ const previewLabelStyle = computed(() => {
               class="flex flex-col items-center justify-center min-h-50 gap-4"
             >
               <UIcon name="mingcute:empty-box-line" size="4rem" />
-              <p class="text-gray-500">Not have translation yet</p>
+              <p class="text-muted">Not have translation yet</p>
               <UButton
                 color="neutral"
                 variant="soft"
@@ -513,7 +513,7 @@ const previewLabelStyle = computed(() => {
                       variant="outline"
                       @click="onViewTranslationHistory"
                     />
-                    <span class="mr-0 ml-auto text-xs text-gray-500">
+                    <span class="mr-0 ml-auto text-xs text-muted">
                       Finger: {{ tag.translation?.fingerprint }}
                     </span>
                   </div>

@@ -54,7 +54,7 @@ const userMenuItems: DropdownMenuItem[] = [
     <UDropdownMenu :items="userMenuItems" :content="{ side: 'top' }">
       <template #default>
         <div
-          class="px-1 h-full flex items-center justify-center cursor-pointer text-gray-500 hover:text-black"
+          class="px-1 h-full flex items-center justify-center cursor-pointer text-muted hover:text-highlighted"
         >
           <UIcon name="i-lucide:settings" size="20" />
         </div>

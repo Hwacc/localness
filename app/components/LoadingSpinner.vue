@@ -76,8 +76,8 @@ onBeforeUnmount(() => {
   <div
     v-if="loading"
     ref="spinnerRef"
-    class="absolute inset-0 flex items-center justify-center bg-white/70 z-50"
-    :class="{ 'fixed inset-0 w-screen h-screen bg-white/90': fullscreen }"
+    class="absolute inset-0 flex items-center justify-center bg-default/70 z-50"
+    :class="{ 'fixed inset-0 w-screen h-screen bg-default/90': fullscreen }"
   >
     <VueSpinnerRing color="#40D18F" />
   </div>

@@ -101,13 +101,13 @@ function showDeleteAlertModal() {
 
 <template>
   <div ref="imageDropZoneRef" class="flex-1 w-full overflow-hidden relative">
-    <div v-if="isOverDropZone" class="absolute inset-0 bg-gray-50/80 z-10" />
+    <div v-if="isOverDropZone" class="absolute inset-0 bg-muted/80 z-10" />
     <div
       v-if="pageList.length === 0"
       class="size-full flex items-center justify-center"
     >
       <div
-        class="w-[80%] aspect-square border-2 border-dashed border-gray-200 p-4 flex flex-col gap-2 items-center justify-center text-center"
+        class="w-[80%] aspect-square border-2 border-dashed border-muted p-4 flex flex-col gap-2 items-center justify-center text-center"
         @click="showCreatePageModal"
       >
         <UIcon name="i-lucide:image-plus" size="32" />
@@ -117,7 +117,7 @@ function showDeleteAlertModal() {
 
     <div v-else class="flex flex-col size-full overflow-hidden">
       <div
-        class="flex items-center justify-center gap-2 p-2 cursor-pointer border-2 border-dashed border-gray-200 hover:bg-gray-100 rounded-md mt-2 mb-1 mx-2"
+        class="flex items-center justify-center gap-2 p-2 cursor-pointer border-2 border-dashed border-muted hover:bg-elevated rounded-md mt-2 mb-1 mx-2"
         @click="showCreatePageModal"
       >
         <UIcon name="i-lucide:file-plus" size="24" />
@@ -141,7 +141,7 @@ function showDeleteAlertModal() {
             <li
               :class="[
                 'relative',
-                'flex items-center p-2 cursor-pointer hover:bg-gray-100 rounded-md mb-3 overflow-hidden',
+                'flex items-center p-2 cursor-pointer hover:bg-elevated rounded-md mb-3 overflow-hidden',
                 page.id !== pageStore.curPage.id &&
                   'hover:border-green-400 hover:text-green-600',
               ]"
@@ -177,8 +177,8 @@ function showDeleteAlertModal() {
                 <template #default="{ open }">
                   <div
                     :class="[
-                      'flex items-center justify-center p-1 text-gray-500 hover:text-black',
-                      open && 'text-black',
+                      'flex items-center justify-center p-1 text-muted hover:text-highlighted',
+                      open && 'text-highlighted',
                     ]"
                     @click.stop="() => (editPage = page)"
                   >

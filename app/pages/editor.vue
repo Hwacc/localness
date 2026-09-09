@@ -299,7 +299,7 @@ provideEditorContext({
       <AppSider class="relative z-10" />
       <div class="relative flex-1 overflow-hidden flex flex-col">
         <AppToolbar />
-        <div class="relative flex-1 p-2 bg-gray-100">
+        <div class="relative flex-1 p-2 bg-elevated">
           <div
             v-if="showCanvasErrorMask"
             class="absolute inset-0 flex flex-col items-center justify-center gap-6 bg-black/50 z-10"

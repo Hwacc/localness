@@ -39,9 +39,9 @@ function onLineColorChange(c: string | undefined) {
 </script>
 
 <template>
-  <div class="flex flex-col bg-gray-50">
+  <div class="flex flex-col bg-muted">
     <!-- Top Navigation -->
-    <div class="flex items-center justify-center py-4 px-2 bg-white shadow">
+    <div class="flex items-center justify-center py-4 px-2 bg-default shadow">
       <div class="flex items-center gap-4">
         <div class="flex items-center gap-2">
           <UTooltip text="Zoom Out">

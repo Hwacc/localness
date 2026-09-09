@@ -63,7 +63,7 @@ async function onSubmit() {
             :color="['#A07CFE', '#FE8FB5', '#FFBE7B']"
           />
           <UForm
-            class="flex flex-col gap-6 bg-gray-50 rounded-[4px] p-6"
+            class="flex flex-col gap-6 bg-muted rounded-[4px] p-6"
             :schema="zLogin"
             :state="state"
             @submit="onSubmit"

@@ -110,7 +110,7 @@ const sortedTaskList = computed<IFrontendTask[]>(() => {
 function getTaskStateIcon(state: TaskState) {
   switch (state) {
     case TaskState.Pending:
-      return { icon: 'i-svg-spinners:3-dots-scale', color: 'text-gray-500' }
+      return { icon: 'i-svg-spinners:3-dots-scale', color: 'text-muted' }
     case TaskState.Running:
       return { icon: 'i-svg-spinners:6-dots-rotate', color: 'text-primary' }
     case TaskState.Success:
@@ -120,7 +120,7 @@ function getTaskStateIcon(state: TaskState) {
     case TaskState.Timeout:
       return { icon: 'i-mdi:clock-alert-outline', color: 'text-yellow-500' }
     default:
-      return { icon: 'i-ri:question-line', color: 'text-gray-500' }
+      return { icon: 'i-ri:question-line', color: 'text-muted' }
   }
 }
 
@@ -141,7 +141,7 @@ onUnmounted(() => {
       <div
         :class="
           $cn(
-            'px-1 h-full flex items-center justify-center cursor-pointer text-gray-500 hover:text-black'
+            'px-1 h-full flex items-center justify-center cursor-pointer text-muted hover:text-highlighted'
           )
         "
       >
@@ -149,7 +149,7 @@ onUnmounted(() => {
       </div>
       <template #content>
         <div
-          class="flex items-center justify-between p-2.5 border-b-1 border-gray-200"
+          class="flex items-center justify-between p-2.5 border-b-1 border-default"
         >
           <p class="text-base font-bold">Task List</p>
           <div class="flex gap-2">
@@ -167,7 +167,7 @@ onUnmounted(() => {
           <li
             v-for="(task, index) in sortedTaskList"
             :key="task.id"
-            class="flex items-center gap-2.5 p-2.5 border-b-1 border-gray-200 last:border-b-0 hover:bg-gray-100"
+            class="flex items-center gap-2.5 p-2.5 border-b-1 border-default last:border-b-0 hover:bg-elevated"
             @mouseenter="enterTaskIndex = index"
             @mouseleave="enterTaskIndex = null"
           >
@@ -202,7 +202,7 @@ onUnmounted(() => {
               "
               :size="20"
               name="i-ic:round-refresh"
-              class="text-gray-500 hover:text-black"
+              class="text-muted hover:text-highlighted"
             ></UIcon>
             <UIcon
               v-else
@@ -228,8 +228,8 @@ onUnmounted(() => {
         <div
           :class="
             $cn(
-              'px-1 h-full flex items-center justify-center cursor-pointer text-gray-500 hover:text-black',
-              open && 'text-black'
+              'px-1 h-full flex items-center justify-center cursor-pointer text-muted hover:text-highlighted',
+              open && 'text-highlighted'
             )
           "
         >

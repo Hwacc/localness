@@ -64,13 +64,13 @@ async function onSelectProject(p: IProject) {
           class="flex-1 flex flex-col gap-4 items-center justify-center"
         >
           <UIcon name="i-mingcute:empty-box-line" size="40" />
-          <p class="text-gray-500">No projects found</p>
+          <p class="text-muted">No projects found</p>
         </div>
         <ul v-else class="h-full flex-1 overflow-y-auto overflow-x-hidden">
           <li
             v-for="project in filteredProjects"
             :key="project.id"
-            class="flex flex-col gap-1 p-2 cursor-pointer hover:bg-gray-100 hover:text-green-600"
+            class="flex flex-col gap-1 p-2 cursor-pointer hover:bg-elevated hover:text-green-600"
             @click="onSelectProject(project)"
           >
             <p class="font-bold">

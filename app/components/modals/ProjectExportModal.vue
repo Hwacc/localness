@@ -209,7 +209,7 @@ const showNextButton = computed(() => {
     <template #body>
       <UStepper ref="stepper" v-model="curStep" :items="steps" disabled>
         <template #step1>
-          <div class="flex items-center gap-2 p-3.5 bg-gray-50 mb-2 rounded">
+          <div class="flex items-center gap-2 p-3.5 bg-muted mb-2 rounded">
             <UCheckbox v-model="selectAllPages" label="Select All" />
           </div>
           <div class="overflow-auto" style="max-height: 31.25rem">
@@ -294,7 +294,7 @@ const showNextButton = computed(() => {
               v-for="item in fileItems"
               :key="item.value"
               :class="[
-                'border border-gray-200 rounded p-3.5 hover:border-green-300 cursor-pointer',
+                'border border-default rounded p-3.5 hover:border-green-300 cursor-pointer',
                 state.fileFormat.includes(item.value)
                   ? 'border-green-400'
                   : 'grayscale',

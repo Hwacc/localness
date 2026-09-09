@@ -34,7 +34,7 @@
 @layer base {
   html,
   body {
-    @apply m-0 p-0 size-full;
+    @apply m-0 p-0 size-full bg-default text-default;
   }
 
   @keyframes vue-spinner-right {

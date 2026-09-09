@@ -1,5 +1,5 @@
 <template>
-  <div class="min-h-screen flex items-center justify-center bg-gray-50 p-4">
+  <div class="min-h-screen flex items-center justify-center bg-muted p-4">
     <UCard class="w-full max-w-md">
       <div class="text-center space-y-6">
         <!-- Error Icon -->
@@ -11,12 +11,12 @@
         </div>
         
         <!-- Error Title -->
-        <h1 class="text-2xl font-bold text-gray-900">
+        <h1 class="text-2xl font-bold text-highlighted">
           {{ statusCode === 404 ? 'Page Not Found' : 'Something Went Wrong' }}
         </h1>
         
         <!-- Error Message -->
-        <p class="text-gray-600">
+        <p class="text-muted">
           {{ errorMessage }}
         </p>
         
@@ -39,7 +39,7 @@
         </div>
         
         <!-- Error Details -->
-        <div class="pt-4 border-t border-gray-200">
+        <div class="pt-4 border-t border-default">
           <UButton 
             color="gray"
             variant="ghost"
@@ -59,7 +59,7 @@
             leave-from-class="opacity-100 translate-y-0"
             leave-to-class="transform opacity-0 -translate-y-2"
           >
-            <div v-if="showDetails" class="mt-2 p-3 bg-gray-50 rounded-md text-sm text-gray-600 space-y-1">
+            <div v-if="showDetails" class="mt-2 p-3 bg-muted rounded-md text-sm text-muted space-y-1">
               <p><span class="font-medium">Error:</span> {{ error.message || 'Unknown error' }}</p>
               <p><span class="font-medium">Status Code:</span> {{ statusCode || 'N/A' }}</p>
               <p><span class="font-medium">Path:</span> {{ $route.path }}</p>

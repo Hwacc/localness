@@ -130,7 +130,7 @@ defineExpose({
     v-else
     :class="
       $cn([
-        'w-full aspect-square bg-gray-50/50 flex items-center justify-center border-1 border-dashed border-gray-200 rounded-md hover:border-black group',
+        'w-full aspect-square bg-muted/50 flex items-center justify-center border-1 border-dashed border-muted rounded-md hover:border-highlighted group',
         propsClass,
       ])
     "
@@ -138,7 +138,7 @@ defineExpose({
   >
     <UIcon
       v-if="!disabled"
-      class="text-gray-200 group-hover:text-black"
+      class="text-muted group-hover:text-highlighted"
       name="i-lucide:image-plus"
       size="32"
     />

@@ -58,7 +58,7 @@ function onDelete(e: MouseEvent) {
       alt="Preview Image"
     />
     <div
-      class="absolute z-1 inset-0 bg-gray-50/50 invisible flex gap-4 rounded-md items-center justify-center group-hover:visible"
+      class="absolute z-1 inset-0 bg-muted/50 invisible flex gap-4 rounded-md items-center justify-center group-hover:visible"
     >
       <UTooltip :delay-duration="0" text="View Image">
         <UIcon

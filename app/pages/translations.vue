@@ -375,9 +375,9 @@ onMounted(async () => {
 </script>
 
 <template>
-  <div class="h-full min-w-0 overflow-hidden flex flex-col bg-gray-50">
+  <div class="h-full min-w-0 overflow-hidden flex flex-col bg-muted">
     <header
-      class="shrink-0 px-6 py-5 bg-white border-b border-default flex items-start justify-between gap-6"
+      class="shrink-0 px-6 py-5 bg-default border-b border-default flex items-start justify-between gap-6"
     >
       <div class="min-w-0">
         <h1 class="text-xl font-semibold tracking-tight">Translations</h1>
@@ -408,7 +408,7 @@ onMounted(async () => {
 
     <div class="flex-1 min-h-0 min-w-0 p-6 flex flex-col gap-4 overflow-hidden">
       <div
-        class="shrink-0 flex flex-wrap items-center gap-3 rounded-xl border border-default bg-white px-4 py-3"
+        class="shrink-0 flex flex-wrap items-center gap-3 rounded-xl border border-default bg-default px-4 py-3"
       >
         <USelect
           v-model="selectedProjectId"
@@ -456,7 +456,7 @@ onMounted(async () => {
       </div>
 
       <div
-        class="flex-1 min-h-0 min-w-0 rounded-xl border border-default bg-white overflow-hidden flex flex-col"
+        class="flex-1 min-h-0 min-w-0 rounded-xl border border-default bg-default overflow-hidden flex flex-col"
       >
         <div class="flex-1 min-h-0 min-w-0 overflow-hidden">
           <UTable
@@ -472,8 +472,8 @@ onMounted(async () => {
             :ui="{
               root: 'h-full overflow-auto',
               base: 'min-w-max',
-              th: 'bg-white',
-              td: 'align-top bg-white',
+              th: 'bg-default',
+              td: 'align-top bg-default',
             }"
           >
             <template #empty>

@@ -25,6 +25,11 @@ export default defineNuxtConfig({
     },
   },
   css: ['~/assets/css/index.css'],
+  colorMode: {
+    preference: 'dark',
+    fallback: 'dark',
+    classSuffix: '',
+  },
   icon: {
     serverBundle: {
       collections: ['lucide'],
