@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { TRANSLATION_LANGUAGES } from '#shared/constants'
+import { formatI18nKeyDisplay } from '#shared/utils'
 import { isEmpty, omit } from 'lodash-es'
 import type { ZTagState } from '~/composables/useEditTagState'
 import { zTagState } from '~/composables/useEditTagState'

@@ -3,6 +3,7 @@ import {
   DEFAULT_LOCALES,
   TRANSLATION_LANGUAGES,
 } from '#shared/constants'
+import { formatI18nKeyDisplay } from '#shared/utils'
 
 const props = defineProps<{
   row: II18nKeyRow
@@ -50,6 +51,15 @@ watch(
 function localeMeta(code: string) {
   return TRANSLATION_LANGUAGES.find((lang) => lang.value === code)
 }
+
+const keyDisplay = computed({
+  get: () => formatI18nKeyDisplay(state.key),
+  set: (value: string) => {
+    const next = value.trim()
+    if (next === formatI18nKeyDisplay(state.key)) return
+    state.key = next
+  },
+})
 
 async function onSave() {
   if (props.readonly) return
@@ -111,7 +121,7 @@ async function onSave() {
       <div class="flex flex-col gap-4">
         <UFormField label="Key">
           <UInput
-            v-model="state.key"
+            v-model="keyDisplay"
             class="w-full font-mono"
             :disabled="readonly"
           />

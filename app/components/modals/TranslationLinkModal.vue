@@ -3,6 +3,7 @@ import { UCheckbox, UIcon } from '#components'
 import type { DropdownMenuItem, TableColumn, TableRow } from '@nuxt/ui'
 import { omit } from 'lodash-es'
 import { TRANSLATION_LANGUAGES } from '#shared/constants'
+import { formatI18nKeyDisplay } from '#shared/utils'
 
 const emit = defineEmits<{
   save: [ITranslation | null, { close: () => void }]

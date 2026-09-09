@@ -121,8 +121,10 @@ export default function FuncBtn(type: FuncBtnType) {
             break
         }
         super(assign({}, baseProps, { children }, props))
-        if(type === FuncBtnType.LOCK) {
-          this.children[0]?.set({ url: this.locked ? lockNormalSVG : lockOpenSVG })
+        if (type === FuncBtnType.LOCK) {
+          this.children[0]?.set({
+            url: (this as any).tagLocked ? lockNormalSVG : lockOpenSVG,
+          })
         }
         this.on(PointerEvent.ENTER, () => {
           switch (type) {
@@ -136,7 +138,9 @@ export default function FuncBtn(type: FuncBtnType) {
               this.children[0]?.set({ url: ocrActiveSVG })
               break
             case FuncBtnType.LOCK:
-              this.children[0]?.set({ url: this.locked ? lockActiveSVG : lockOpenActiveSVG })
+              this.children[0]?.set({
+                url: (this as any).tagLocked ? lockActiveSVG : lockOpenActiveSVG,
+              })
               break
             case FuncBtnType.LINK:
               this.children[0]?.set({ url: linkActiveSVG })
@@ -155,7 +159,9 @@ export default function FuncBtn(type: FuncBtnType) {
               this.children[0]?.set({ url: ocrNormalSVG })
               break
             case FuncBtnType.LOCK:
-              this.children[0]?.set({ url: this.locked ? lockNormalSVG : lockOpenSVG })
+              this.children[0]?.set({
+                url: (this as any).tagLocked ? lockNormalSVG : lockOpenSVG,
+              })
               break
             case FuncBtnType.LINK:
               this.children[0]?.set({ url: linkNormalSVG })

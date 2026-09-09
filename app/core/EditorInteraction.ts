@@ -82,15 +82,42 @@ abstract class EditorInteraction extends EditorBase {
 
   public setMode(mode: EditorMode) {
     const onModeChange = () => {
-      if (mode === 'drag') {
-        this.app.editor.visible = false
-        this.app.editor.hittable = false
-        this.app.editor.cancel()
-      } else {
-        this.app.editor.visible = true
-        this.app.editor.hittable = true
+      switch (mode) {
+        case 'drag':
+          this.app.editor.visible = false
+          this.app.editor.hittable = false
+          this.app.editor.cancel()
+          this.setExistingTagsHittable(false)
+          this.groupTree.set({ draggable: true })
+          break
+        case 'draw':
+          // 点击仍可选中；编辑框矩形穿透，拖拽才能落到图/锁定 tag 上画新框
+          this.app.editor.visible = true
+          this.app.editor.hittable = true
+          this.app.editor.config.select = 'tap'
+          this.app.editor.config.rectThrough = true
+          this.app.editor.config.moveable = false
+          this.app.editor.config.resizeable = false
+          this.setExistingTagsHittable(true)
+          this.groupTree.set({ draggable: false })
+          if (this.app.editor.editing) this.app.editor.updateEditTool()
+          break
+        case 'edit':
+          this.app.editor.visible = true
+          this.app.editor.hittable = true
+          this.app.editor.config.select = 'press'
+          this.app.editor.config.rectThrough = false
+          this.app.editor.config.moveable = true
+          this.app.editor.config.resizeable = true
+          this.setExistingTagsHittable(true)
+          this.groupTree.set({ draggable: false })
+          if (this.app.editor.editing) this.app.editor.updateEditTool()
+          break
+        default: {
+          const _exhaustive: never = mode
+          return _exhaustive
+        }
       }
-      this.groupTree.set({ draggable: mode === 'drag' })
       this.mode = mode
       this.emit('mode-change', mode)
     }
@@ -99,6 +126,12 @@ abstract class EditorInteraction extends EditorBase {
       return
     }
     onModeChange()
+  }
+
+  protected setExistingTagsHittable(hittable: boolean) {
+    this.groupTag.children.forEach((child) => {
+      child.set({ hittable })
+    })
   }
 
   public findOneTagByTagID(tagID: string) {

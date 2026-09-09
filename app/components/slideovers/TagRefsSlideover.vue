@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import { formatI18nKeyDisplay } from '#shared/utils'
+
 const props = defineProps<{
   projectId: ID
   keyId?: ID
@@ -58,7 +60,7 @@ function editSelected() {
 <template>
   <USlideover
     v-model:open="open"
-    :title="refs?.key ? `Tags · ${refs.key}` : 'Tag preview'"
+    :title="refs?.key ? `Tags · ${formatI18nKeyDisplay(refs.key)}` : 'Tag preview'"
     description="Read-only screenshot with boxes. Edit opens the Editor."
     side="right"
     :close="{ icon: 'i-lucide:x' }"

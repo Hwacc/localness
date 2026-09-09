@@ -147,9 +147,8 @@ class Editor extends EditorInteraction {
   }
 
   override onGroupDragStart() {
-    if (this.mode !== 'draw' || !isEmpty(this.app.editor.list)) return
-    this.app.editor.visible = false
-    this.app.editor.hittable = false
+    if (this.mode !== 'draw') return
+    this.app.editor.cancel()
     this.tempTag = new EditorTag(
       {
         tagID: `Tag_${Date.now()}`,
@@ -164,7 +163,7 @@ class Editor extends EditorInteraction {
         labelStyle: {},
       }
     )
-    this.tempTag.set({ editable: false })
+    this.tempTag.set({ editable: false, hittable: false })
     this.registerTagEvents(this.tempTag)
     this.groupTag.add(this.tempTag)
   }
@@ -203,19 +202,18 @@ class Editor extends EditorInteraction {
   override async onGroupDragEnd() {
     if (this.mode !== 'draw') return
     if (this.tempTag) {
-      this.app.editor.visible = true
-      this.app.editor.hittable = true
       const { width = 0, height = 0 } = this.tempTag
       if (width <= 10 || height <= 10) {
         this.tempTag.destroy()
       } else {
-        this.tempTag.set({ editable: true })
+        this.tempTag.set({ editable: true, hittable: true })
         try {
           const remoteTag = await this.asyncEmit<'async-tag-add', ITag>(
             'async-tag-add',
             this.tempTag.toTagJSON()
           )
           this.tempTag.update(remoteTag)
+          this.tempTag.set({ hittable: this.mode !== 'drag' })
         } catch (error) {
           console.error('tag add error', error)
           this.tempTag.destroy()
@@ -313,9 +311,15 @@ class Editor extends EditorInteraction {
     if (isEmpty(this.app.editor.list)) return
     const selectedOne = this.app.editor.list[0] as EditorTag
     try {
+      const current = selectedOne.toTagJSON()
       await this.asyncEmit('async-tag-update', {
         id: selectedOne.remoteTag.id,
-        update: { locked },
+        update: {
+          settings: {
+            ...current.settings,
+            locked,
+          },
+        },
       })
       selectedOne.lock(locked)
     } catch (error) {
@@ -362,6 +366,7 @@ class Editor extends EditorInteraction {
     if (isEmpty(tags)) return
     tags.forEach((tag) => {
       const graphicTag = new EditorTag(tag, tag.settings)
+      graphicTag.set({ hittable: this.mode !== 'drag' })
       this.groupTag.add(graphicTag)
       this.registerTagEvents(graphicTag)
     })

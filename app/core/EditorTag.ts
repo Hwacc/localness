@@ -16,6 +16,7 @@ import {
   DEFAULT_LABEL_WRAP,
   DEFAULT_LABEL_ALIGN,
 } from '#shared/constants'
+import { formatI18nKeyDisplay } from '#shared/utils'
 import { Editor } from './Editor'
 
 Text.addAttr('align', 'top-right', dataType)
@@ -93,6 +94,8 @@ class EditorTag extends Frame {
 
   public lock(_lock: boolean) {
     this.isLocked = _lock
+    this.remoteTag.settings = this.remoteTag.settings ?? ({} as ITagSetting)
+    this.remoteTag.settings.locked = _lock
     this.set({
       editConfig: {
         moveable: !_lock,

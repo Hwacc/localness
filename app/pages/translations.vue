@@ -5,6 +5,7 @@ import {
   DEFAULT_LOCALES,
   TRANSLATION_LANGUAGES,
 } from '#shared/constants'
+import { formatI18nKeyDisplay } from '#shared/utils'
 import { UBadge, UButton, UCheckbox, UIcon, UInput, UTooltip, AlertModal, I18nKeyModal } from '#components'
 import { useDebounceFn } from '@vueuse/core'
 
@@ -104,7 +105,7 @@ function openUnpublish(row: II18nKeyRow) {
   unpublishModal.open({
     mode: 'warning',
     title: 'Revert to draft',
-    message: `Revert “${row.key}” to draft? It will drop out of published export until you publish again.`,
+    message: `Revert “${formatI18nKeyDisplay(row.key)}” to draft? It will drop out of published export until you publish again.`,
     okText: 'Revert',
     onOk: async (_mode, { close }) => {
       unpublishModal.patch({ loading: true })
@@ -127,7 +128,7 @@ function openDelete(row: II18nKeyRow) {
   deleteModal.open({
     mode: 'delete',
     title: 'Delete translation',
-    message: `Delete draft key “${row.key}”?${tagHint}`,
+    message: `Delete draft key “${formatI18nKeyDisplay(row.key)}”?${tagHint}`,
     onOk: async (_mode, { close }) => {
       deleteModal.patch({ loading: true })
       try {
@@ -213,7 +214,12 @@ const columns = computed<TableColumn<II18nKeyRow>[]>(() => [
     enableHiding: false,
     size: 200,
     cell: ({ row }: { row: TableRow<II18nKeyRow> }) => (
-      <code class="text-xs font-mono break-all">{formatI18nKeyDisplay(row.original.key)}</code>
+      <code
+        class="text-xs font-mono break-all"
+        title={row.original.key}
+      >
+        {formatI18nKeyDisplay(row.original.key)}
+      </code>
     ),
   },
   {

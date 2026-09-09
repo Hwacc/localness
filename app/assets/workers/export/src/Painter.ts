@@ -19,6 +19,7 @@ import {
   DEFAULT_LINE_COLOR,
   DEFAULT_LINE_WIDTH,
 } from '#shared/constants'
+import { formatI18nKeyDisplay } from '#shared/utils'
 
 class PainterTag extends Frame {
   private remoteTag: ITag
