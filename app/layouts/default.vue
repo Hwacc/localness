@@ -1,9 +1,7 @@
 <script setup lang="ts">
-import type { DropdownMenuItem } from '@nuxt/ui'
 import TaskProvider from '~/providers/TaskProvider.vue'
 
 const route = useRoute()
-const colorMode = useColorMode()
 const { loggedIn } = useUserSession()
 const projectStore = useProjectStore()
 
@@ -39,30 +37,6 @@ const navItems = [
     to: '/teams',
   },
 ]
-
-const themeOptions = [
-  { value: 'light', label: 'Light', icon: 'i-lucide:sun' },
-  { value: 'dark', label: 'Dark', icon: 'i-lucide:moon' },
-  { value: 'system', label: 'System', icon: 'i-lucide:monitor' },
-] as const
-
-const themeTriggerIcon = computed(() => {
-  const current = themeOptions.find((o) => o.value === colorMode.preference)
-  return current?.icon ?? 'i-lucide:moon'
-})
-
-const themeMenuItems = computed<DropdownMenuItem[]>(() =>
-  themeOptions.map((option) => ({
-    label: option.label,
-    icon: option.icon,
-    type: 'checkbox',
-    checked: colorMode.preference === option.value,
-    onSelect: (e: Event) => {
-      e.preventDefault()
-      colorMode.preference = option.value
-    },
-  }))
-)
 </script>
 
 <template>
@@ -95,28 +69,16 @@ const themeMenuItems = computed<DropdownMenuItem[]>(() =>
           </div>
           <div class="flex flex-col items-center gap-3">
             <ClientOnly>
-              <AppWorkspaceSwitcher />
-            </ClientOnly>
-            <UDropdownMenu
-              :items="themeMenuItems"
-              :content="{ side: 'right', align: 'end' }"
-            >
-              <UTooltip text="Theme" :content="{ side: 'right' }">
-                <UButton
-                  :icon="themeTriggerIcon"
-                  size="md"
-                  color="neutral"
-                  variant="ghost"
-                />
-              </UTooltip>
-            </UDropdownMenu>
-            <ClientOnly>
               <AppUserAccount />
             </ClientOnly>
+            <AppSettingsDrawer />
           </div>
         </div>
-        <div class="h-full min-w-0 overflow-hidden bg-default">
-          <slot />
+        <div class="h-full min-w-0 overflow-hidden bg-default flex flex-col">
+          <AppWorkspaceBar v-if="route.name !== 'dashboard'" />
+          <div class="flex-1 min-h-0 min-w-0 overflow-hidden">
+            <slot />
+          </div>
         </div>
       </div>
     </TaskProvider>

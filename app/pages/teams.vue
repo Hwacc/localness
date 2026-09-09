@@ -15,6 +15,7 @@ const toast = useToast()
 const projectStore = useProjectStore()
 const { teams, curTeamId, projects, curProject } = storeToRefs(projectStore)
 const { open: openCreateProject } = useCreateProjectModal()
+const { openSettings, openExport } = useProjectActions()
 const detail = ref<ITeam | null>(null)
 const loading = ref(false)
 const creating = ref(false)
@@ -328,6 +329,20 @@ onMounted(async () => {
                     {{ project.pages?.length ?? 0 }} pages
                   </p>
                 </div>
+                <UButton
+                  size="xs"
+                  color="neutral"
+                  variant="ghost"
+                  icon="i-tabler:package-export"
+                  @click="openExport(project)"
+                />
+                <UButton
+                  size="xs"
+                  color="neutral"
+                  variant="ghost"
+                  icon="i-lucide:settings-2"
+                  @click="openSettings(project)"
+                />
                 <UButton
                   size="xs"
                   color="neutral"

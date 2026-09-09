@@ -27,6 +27,16 @@ const displayName = computed(
   () => store.user?.nickname || store.user?.username || 'Account'
 )
 
+const displayMeta = computed(() => {
+  const email = store.user?.email?.trim()
+  if (email) return email
+  const username = store.user?.username?.trim()
+  if (username && store.user?.nickname && username !== store.user.nickname) {
+    return username
+  }
+  return store.user?.role || ''
+})
+
 const userModal = overlay.create(UserModal, {
   props: {},
 })
@@ -65,8 +75,8 @@ onMounted(async () => {
           <UAvatar :src="avatarUrl || undefined" :alt="displayName" size="lg" />
           <div class="min-w-0">
             <p class="font-medium truncate">{{ displayName }}</p>
-            <p class="text-xs text-muted truncate">
-              {{ store.user?.email || '—' }}
+            <p v-if="displayMeta" class="text-xs text-muted truncate">
+              {{ displayMeta }}
             </p>
           </div>
         </div>

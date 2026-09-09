@@ -1,6 +1,4 @@
 <script setup lang="ts">
-import type { DropdownMenuItem } from '@nuxt/ui'
-import { ProjectExportModal, ProjectModal } from '#components'
 import {
   injectTaskContext,
   type IFrontendTask,
@@ -8,44 +6,7 @@ import {
 import { isEmpty, orderBy } from 'lodash-es'
 import { TaskState } from '~/libs/task-queue/types'
 
-const projectStore = useProjectStore()
-const { updateProject } = projectStore
 const { taskList } = injectTaskContext()
-
-const overlay = useOverlay()
-
-const projectModal = overlay.create(ProjectModal, {
-  props: {
-    mode: 'create',
-    onSave: () => {},
-  },
-})
-const projectExportModal = overlay.create(ProjectExportModal, {
-  props: {},
-})
-const projectMenuItems = computed<DropdownMenuItem[]>(() => [
-  {
-    label: 'Export Project',
-    icon: 'i-tabler:package-export',
-    onSelect: () => {
-      projectExportModal.open()
-    },
-  },
-  {
-    label: 'Project Settings',
-    icon: 'i-lucide:settings',
-    onSelect: () => {
-      projectModal.open({
-        mode: 'edit',
-        project: projectStore.curProject,
-        onSave: async (p, { close }) => {
-          await updateProject(projectStore.curProject.id, p)
-          close()
-        },
-      })
-    },
-  },
-])
 
 const enterTaskIndex = ref<number | null>(null)
 const clearTag = ref<number>(new Date().getTime())
@@ -78,17 +39,11 @@ function getTaskStateIcon(state: TaskState) {
     }
   }
 }
-
-onUnmounted(() => {
-  console.log('onUnmounted')
-})
 </script>
 
 <template>
   <div class="flex items-center justify-between py-4 px-2 gap-2 shadow">
-    <div class="flex-1 text-base font-bold overflow-hidden">
-      {{ projectStore.curProject.name }}
-    </div>
+    <div class="flex-1 text-base font-bold overflow-hidden">Pages</div>
     <UPopover
       v-if="sortedTaskList.length > 0"
       :content="{ side: 'bottom', align: 'start' }"
@@ -169,28 +124,5 @@ onUnmounted(() => {
         </ul>
       </template>
     </UPopover>
-    <UDropdownMenu
-      :items="projectMenuItems"
-      :content="{
-        align: 'start',
-        side: 'bottom',
-      }"
-      :ui="{
-        content: 'w-48',
-      }"
-    >
-      <template #default="{ open }">
-        <div
-          :class="
-            $cn(
-              'px-1 h-full flex items-center justify-center cursor-pointer text-muted hover:text-highlighted',
-              open && 'text-highlighted'
-            )
-          "
-        >
-          <UIcon :size="20" name="i-lucide:ellipsis-vertical"></UIcon>
-        </div>
-      </template>
-    </UDropdownMenu>
   </div>
 </template>

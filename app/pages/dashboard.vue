@@ -12,6 +12,7 @@ const projectStore = useProjectStore()
 const { teams, projects, projectsByTeam, curProject } =
   storeToRefs(projectStore)
 const { open: openCreateProject } = useCreateProjectModal()
+const { openSettings, openExport } = useProjectActions()
 
 const loading = ref(false)
 
@@ -47,7 +48,7 @@ onMounted(async () => {
     >
       <h1 class="text-xl font-semibold tracking-tight">Dashboard</h1>
       <p class="mt-1 text-sm text-muted">
-        Your teams and projects. Switch here or from the sidebar.
+        Your teams and projects. Open Editor or Translations from a card.
       </p>
     </header>
 
@@ -156,7 +157,7 @@ onMounted(async () => {
                 · {{ $dayjs(project.updatedAt).format('YYYY-MM-DD HH:mm') }}
               </span>
             </p>
-            <div class="mt-3 flex gap-2" @click.stop>
+            <div class="mt-3 flex flex-wrap gap-2" @click.stop>
               <UButton
                 size="xs"
                 color="neutral"
@@ -180,6 +181,20 @@ onMounted(async () => {
                     navigateTo('/translations')
                   }
                 "
+              />
+              <UButton
+                size="xs"
+                color="neutral"
+                variant="ghost"
+                icon="i-tabler:package-export"
+                @click="openExport(project)"
+              />
+              <UButton
+                size="xs"
+                color="neutral"
+                variant="ghost"
+                icon="i-lucide:settings-2"
+                @click="openSettings(project)"
               />
             </div>
           </button>
