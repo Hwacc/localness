@@ -6,6 +6,7 @@ import {
 } from '#shared/utils'
 import {
   GIT_SYNC_PREVIEW_TTL_MS,
+  GIT_SYNC_PUSH_CLONE_DEPTH,
   GitSyncPreviewKind,
   GitSyncPreviewStatus,
   GitSyncPushReason,
@@ -13,7 +14,12 @@ import {
 import { decideThreeWay, type ThreeWayDecision } from './three-way'
 import { classifyPush, isPushEligible, isPullProposed } from './filters'
 import { localeToRemote } from './credentials'
-import { withClonedRepo, commitAndPush, remoteHeadSha } from './git-remote'
+import {
+  withClonedRepo,
+  commitAndPush,
+  remoteHeadSha,
+  findCommitByTrailer,
+} from './git-remote'
 import {
   isLiltProduct,
   listLiltProducts,
@@ -687,13 +693,51 @@ export async function applyPush(params: {
       statusMessage: 'Nothing selected to push',
     })
   }
+  // Deliberately *not* mirroring pull's strict sha check. A push candidate set
+  // is computed entirely from the database and lands as a new batch file, so an
+  // unrelated commit arriving after the preview does not invalidate it —
+  // requiring an unchanged head would only manufacture false conflicts on an
+  // active repo. The race that does matter, a non-fast-forward at push time, is
+  // caught by `commitAndPush` and surfaced as a 409.
+  //
+  // Stamped into the commit body so a retry can recognise a batch that landed
+  // on the remote but whose bookkeeping never committed.
+  const trailer = `Localness-Preview: ${preview.id}`
   return withClonedRepo({
     remoteUrl,
     branch: binding.branch,
     credentialKind: binding.credentialKind,
     token: binding.token,
     sparsePath: binding.product,
-    run: async (repoDir, commitSha) => {
+    // Enough history to spot our own orphaned batch from a previous attempt.
+    depth: GIT_SYNC_PUSH_CLONE_DEPTH,
+    run: async (repoDir) => {
+      const orphan = await findCommitByTrailer(repoDir, trailer)
+      if (orphan) {
+        // Push succeeded last time; only the database side is missing. Record
+        // the bookkeeping against the commit that actually landed and stop —
+        // re-writing the batch would duplicate it on the remote.
+        const result = {
+          filename: '',
+          count: Object.keys(entries).length,
+          pushed: true,
+          reconciled: true,
+          skipped,
+        }
+        await recordPushLanding({
+          binding,
+          projectId,
+          previewId: preview.id,
+          sourceLocal,
+          entries,
+          commitSha: orphan,
+          // The filename is not recoverable from the trailer alone; the file is
+          // already on the remote and the next pull classifies it normally.
+          batchPath: null,
+          result,
+        })
+        return result
+      }
       const filename = await writeSourceBatch({
         repoRoot: repoDir,
         product: binding.product,
@@ -702,46 +746,84 @@ export async function applyPush(params: {
       })
       const pushed = await commitAndPush({
         repoDir,
-        message: `localness: source batch ${filename} (by ${params.triggeredBy})`,
+        message: `localness: source batch ${filename} (by ${params.triggeredBy})\n\n${trailer}`,
         authorName: 'Localness Git Sync',
       })
       const result = {
         filename,
         count: Object.keys(entries).length,
-        pushed,
+        pushed: pushed.pushed,
+        reconciled: false,
         skipped,
       }
-      if (pushed) {
-        await prisma.$transaction(async (tx) => {
-          const seen = seenFileMap(binding.seenFiles)
-          // Our own batch: recorded with an empty sha so a later rewrite of
-          // this file by someone else still shows up as changed.
-          seen.set(`${binding.product}/source/${filename}`, '')
-          await tx.gitSyncBinding.update({
-            where: { id: binding.id },
-            data: {
-              lastPushedAt: new Date(),
-              seenFiles: [...seen].map(([path, sha]) => ({ path, sha })),
-            },
-          })
-          for (const [key, text] of Object.entries(entries)) {
-            await setBase(
-              { projectId, key, locale: sourceLocal, text, commitSha },
-              tx
-            )
-          }
-          await tx.gitSyncPreview.update({
-            where: { id: preview.id },
-            data: {
-              status: GitSyncPreviewStatus.APPLIED,
-              commitSha,
-              result: result as object,
-            },
-          })
+      if (pushed.pushed) {
+        await recordPushLanding({
+          binding,
+          projectId,
+          previewId: preview.id,
+          sourceLocal,
+          entries,
+          // The sha of the commit we just created, not the pre-push HEAD, so
+          // the audit column points at the change it describes.
+          commitSha: pushed.commitSha,
+          batchPath: `${binding.product}/source/${filename}`,
+          result,
         })
       }
       return result
     },
+  })
+}
+
+/**
+ * Bookkeeping for a batch that is already on the remote: mark the files seen,
+ * move the three-way base up to what we published, and close out the preview.
+ */
+async function recordPushLanding(params: {
+  binding: { id: number; seenFiles: unknown }
+  projectId: number
+  previewId: number
+  sourceLocal: string
+  entries: Record<string, string>
+  commitSha: string
+  batchPath: string | null
+  result: object
+}) {
+  await prisma.$transaction(async (tx) => {
+    const data: { lastPushedAt: Date; seenFiles?: object } = {
+      lastPushedAt: new Date(),
+    }
+    if (params.batchPath) {
+      const seen = seenFileMap(params.binding.seenFiles)
+      // Our own batch: recorded with an empty sha so a later rewrite of this
+      // file by someone else still shows up as changed.
+      seen.set(params.batchPath, '')
+      data.seenFiles = [...seen].map(([path, sha]) => ({ path, sha }))
+    }
+    await tx.gitSyncBinding.update({
+      where: { id: params.binding.id },
+      data,
+    })
+    for (const [key, text] of Object.entries(params.entries)) {
+      await setBase(
+        {
+          projectId: params.projectId,
+          key,
+          locale: params.sourceLocal,
+          text,
+          commitSha: params.commitSha,
+        },
+        tx
+      )
+    }
+    await tx.gitSyncPreview.update({
+      where: { id: params.previewId },
+      data: {
+        status: GitSyncPreviewStatus.APPLIED,
+        commitSha: params.commitSha,
+        result: params.result,
+      },
+    })
   })
 }
 

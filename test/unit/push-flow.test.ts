@@ -13,28 +13,91 @@ const db = vi.hoisted(() => ({
   bases: [] as Record<string, unknown>[],
   previews: [] as Record<string, unknown>[],
   created: [] as Record<string, unknown>[],
+  basesWritten: [] as Record<string, unknown>[],
+  bindingUpdates: [] as Record<string, unknown>[],
+  previewUpdates: [] as Record<string, unknown>[],
 }))
 
-vi.mock('#server/libs/prisma', () => ({
-  default: {
-    gitSyncConflict: { count: async () => db.conflicts },
-    gitSyncBinding: { findUnique: async () => db.binding },
-    project: { findUnique: async () => db.project },
-    i18nKey: { findMany: async () => db.keys },
-    gitSyncBase: { findMany: async () => db.bases },
-    gitSyncPreview: {
-      updateMany: async () => ({ count: 0 }),
-      findFirst: async ({ where }: { where: { id: number } }) =>
-        db.previews.find((p) => p.id === where.id) ?? null,
-      update: async () => ({}),
-      create: async ({ data }: { data: Record<string, unknown> }) => {
-        const row = { id: db.created.length + 1, ...data }
-        db.created.push(row)
-        return row
-      },
-    },
+/** Records what the fake remote was asked to do. */
+const remote = vi.hoisted(() => ({
+  /** Sha returned by `findCommitByTrailer`; null means "no prior batch". */
+  orphanSha: null as string | null,
+  written: [] as string[],
+  commits: [] as string[],
+  cloneDepth: undefined as number | undefined,
+}))
+
+vi.mock('#server/libs/git-sync/git-remote', () => ({
+  remoteHeadSha: async () => 'sha-head',
+  withClonedRepo: async (params: {
+    depth?: number
+    run: (dir: string, sha: string) => Promise<unknown>
+  }) => {
+    remote.cloneDepth = params.depth
+    return params.run('/tmp/fake-repo', 'sha-clone')
+  },
+  findCommitByTrailer: async () => remote.orphanSha,
+  commitAndPush: async (params: { message: string }) => {
+    remote.commits.push(params.message)
+    return { pushed: true, commitSha: 'sha-new-commit' }
   },
 }))
+
+vi.mock('#server/libs/git-sync/lilt-swbu', async (importOriginal) => {
+  const actual =
+    await importOriginal<typeof import('#server/libs/git-sync/lilt-swbu')>()
+  return {
+    ...actual,
+    writeSourceBatch: async (params: { entries: Record<string, string> }) => {
+      remote.written.push(Object.keys(params.entries).join(','))
+      return 'en_2026-09-10.json'
+    },
+  }
+})
+
+vi.mock('#server/libs/prisma', () => {
+  const tx = {
+    gitSyncBinding: {
+      update: async ({ data }: { data: Record<string, unknown> }) => {
+        db.bindingUpdates.push(data)
+        return {}
+      },
+    },
+    gitSyncBase: {
+      upsert: async ({ create }: { create: Record<string, unknown> }) => {
+        db.basesWritten.push(create)
+        return {}
+      },
+    },
+    gitSyncPreview: {
+      update: async ({ data }: { data: Record<string, unknown> }) => {
+        db.previewUpdates.push(data)
+        return {}
+      },
+    },
+  }
+  return {
+    default: {
+      gitSyncConflict: { count: async () => db.conflicts },
+      gitSyncBinding: { findUnique: async () => db.binding },
+      project: { findUnique: async () => db.project },
+      i18nKey: { findMany: async () => db.keys },
+      gitSyncBase: { findMany: async () => db.bases },
+      $transaction: async (fn: (c: unknown) => Promise<void>) => fn(tx),
+      gitSyncPreview: {
+        updateMany: async () => ({ count: 0 }),
+        findFirst: async ({ where }: { where: { id: number } }) =>
+          db.previews.find((p) => p.id === where.id) ?? null,
+        update: async () => ({}),
+        create: async ({ data }: { data: Record<string, unknown> }) => {
+          const row = { id: db.created.length + 1, ...data }
+          db.created.push(row)
+          return row
+        },
+      },
+    },
+  }
+})
 
 const { previewPush, applyPush } = await import(
   '#server/libs/git-sync/sync'
@@ -65,6 +128,13 @@ beforeEach(() => {
   db.bases = []
   db.previews = []
   db.created = []
+  db.basesWritten = []
+  db.bindingUpdates = []
+  db.previewUpdates = []
+  remote.orphanSha = null
+  remote.written = []
+  remote.commits = []
+  remote.cloneDepth = undefined
 })
 
 describe('previewPush', () => {
@@ -198,5 +268,69 @@ describe('applyPush', () => {
         triggeredBy: 't',
       })
     ).rejects.toMatchObject({ statusCode: 400 })
+  })
+
+  it('records the sha of the commit it created, not the pre-push head', async () => {
+    db.previews = [pending]
+    db.keys = [key('a', 'text')]
+    const result = await applyPush({
+      projectId: 2,
+      previewId: 1,
+      selectedKeys: ['a'],
+      triggeredBy: 't',
+    })
+    expect(result.pushed).toBe(true)
+    expect(result.reconciled).toBe(false)
+    // 'sha-clone' is the head we cloned; the base must point at the new commit.
+    expect(db.basesWritten).toHaveLength(1)
+    expect(db.basesWritten[0]!.commitSha).toBe('sha-new-commit')
+    expect(db.previewUpdates[0]!.commitSha).toBe('sha-new-commit')
+  })
+
+  it('stamps the preview id into the commit body', async () => {
+    db.previews = [pending]
+    db.keys = [key('a', 'text')]
+    await applyPush({
+      projectId: 2,
+      previewId: 1,
+      selectedKeys: ['a'],
+      triggeredBy: 't',
+    })
+    expect(remote.commits[0]).toContain('Localness-Preview: 1')
+  })
+
+  it('reconciles instead of pushing a batch that already landed', async () => {
+    // The previous attempt pushed successfully but died before its bookkeeping
+    // transaction committed. Re-running must not write the batch a second time.
+    db.previews = [pending]
+    db.keys = [key('a', 'text')]
+    remote.orphanSha = 'sha-orphan'
+    const result = await applyPush({
+      projectId: 2,
+      previewId: 1,
+      selectedKeys: ['a'],
+      triggeredBy: 't',
+    })
+    expect(result.reconciled).toBe(true)
+    expect(result.pushed).toBe(true)
+    expect(remote.written).toHaveLength(0)
+    expect(remote.commits).toHaveLength(0)
+    // Bookkeeping still runs, against the commit that actually landed.
+    expect(db.basesWritten[0]!.commitSha).toBe('sha-orphan')
+    // The file is already on the remote and no longer under a known name, so
+    // seenFiles must be left untouched rather than guessed at.
+    expect(db.bindingUpdates[0]!.seenFiles).toBeUndefined()
+  })
+
+  it('clones deep enough to find a prior orphaned batch', async () => {
+    db.previews = [pending]
+    db.keys = [key('a', 'text')]
+    await applyPush({
+      projectId: 2,
+      previewId: 1,
+      selectedKeys: ['a'],
+      triggeredBy: 't',
+    })
+    expect(remote.cloneDepth).toBeGreaterThan(1)
   })
 })

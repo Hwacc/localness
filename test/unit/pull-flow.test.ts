@@ -42,7 +42,8 @@ vi.mock('#server/libs/git-sync/git-remote', () => ({
   withClonedRepo: async () => {
     throw new Error('apply must not clone when the head is unchanged')
   },
-  commitAndPush: async () => true,
+  commitAndPush: async () => ({ pushed: true, commitSha: 'sha-pushed' }),
+  findCommitByTrailer: async () => null,
 }))
 
 const { applyPull } = await import('#server/libs/git-sync/sync')

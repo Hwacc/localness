@@ -69,6 +69,12 @@ export enum GitSyncPushReason {
 /** A preview snapshot is only trusted for this long. */
 export const GIT_SYNC_PREVIEW_TTL_MS = 15 * 60 * 1000
 
+/**
+ * History depth fetched when pushing. Deep enough to find a batch this project
+ * pushed but failed to record, shallow enough to stay a cheap clone.
+ */
+export const GIT_SYNC_PUSH_CLONE_DEPTH = 50
+
 export const GIT_HTTPS_SENTINEL: Record<GitCredentialKind, string> = {
   [GitCredentialKind.REPO_ACCESS_TOKEN]: 'x-token-auth',
   [GitCredentialKind.API_TOKEN]: 'x-bitbucket-api-token-auth',

@@ -628,6 +628,7 @@ async function confirmPush() {
       count: number
       pushed: boolean
       skipped: { key: string; reason: string }[]
+      reconciled?: boolean
     }>(`/api/projects/${projectId.value}/git-sync/push/apply`, {
       method: 'POST',
       body: {
@@ -637,10 +638,16 @@ async function confirmPush() {
     })
     const skipped = result?.skipped?.length ?? 0
     toast.add({
-      title: result?.pushed ? 'Push finished' : 'Nothing to push',
-      description: result?.filename
-        ? `${result.count} keys → ${result.filename}${skipped ? ` · ${skipped} skipped` : ''}`
-        : undefined,
+      title: result?.reconciled
+        ? 'Already on Git — records updated'
+        : result?.pushed
+          ? 'Push finished'
+          : 'Nothing to push',
+      description: result?.reconciled
+        ? `${result.count} keys had already landed; platform records are now in sync`
+        : result?.filename
+          ? `${result.count} keys → ${result.filename}${skipped ? ` · ${skipped} skipped` : ''}`
+          : undefined,
       color: 'success',
     })
     pushPreview.value = null
