@@ -12,7 +12,9 @@ export default defineEventHandler(async (event) => {
   const language = lang ?? 'auto'
   const result = await ocr(image, { language })
   if (!result) return null
-  const text = result.ParsedResults[0].ParsedText.replace(
+  const parsed = result.ParsedResults[0]
+  if (!parsed) return null
+  const text = parsed.ParsedText.replace(
     /([^a-zA-Z0-9\u4e00-\u9fa5])\r\n/g,
     ''
   )

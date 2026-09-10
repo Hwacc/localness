@@ -114,6 +114,14 @@ const editableTranslationContent = computed<string>({
   },
 })
 
+const originText = computed({
+  get: () => state.translation?.origin ?? '',
+  set: (value: string) => {
+    if (!state.translation) state.translation = {}
+    state.translation.origin = value
+  },
+})
+
 const isTransOriginChanged = ref<boolean>(false)
 watch(
   () => state.translation?.origin,
@@ -309,7 +317,7 @@ const previewLabelStyle = computed(() => {
               </UFormField>
               <div class="w-full flex items-center gap-2.5">
                 <UFormField class="flex-1" label="ID">
-                  <UInput class="w-full" disabled :model-value="tag.id" />
+                  <UInput class="w-full" disabled :model-value="String(tag.id)" />
                 </UFormField>
                 <UFormField class="flex-1" label="TagID">
                   <UInput class="w-full" disabled :model-value="tag.tagID" />
@@ -530,7 +538,7 @@ const previewLabelStyle = computed(() => {
                 </template>
                 <template #default>
                   <UTextarea
-                    v-model="state.translation.origin"
+                    v-model="originText"
                     class="w-full"
                     :maxrows="4"
                     autoresize

@@ -19,7 +19,7 @@ const state = reactive({
     start: undefined,
     end: undefined,
   },
-  fileFormat: ['xlsx'],
+  fileFormat: ['xlsx'] as ('xlsx' | 'json')[],
 })
 
 const curStep = ref(0)
@@ -104,9 +104,9 @@ const fileItems = [
     value: 'json',
     icon: 'i-vscode-icons:file-type-json',
   },
-]
+] as const
 
-function onFileFormatClick(val: string) {
+function onFileFormatClick(val: 'xlsx' | 'json') {
   if (val === 'json') {
     // TODO: not supported export json yet
     return

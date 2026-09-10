@@ -15,7 +15,7 @@ const ownedTeams = computed(() =>
     .map((t) => ({ label: t.name, value: t.id }))
 )
 
-const state = reactive<ZProject>({
+const state = reactive({
   name: project.name,
   description: project.description ?? '',
   teamId: typeof project.teamId === 'number' ? project.teamId : undefined,

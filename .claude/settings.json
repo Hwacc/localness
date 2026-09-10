@@ -1,0 +1,17 @@
+{
+  "permissions": {
+    "allow": [
+      "Read(//c/my-workspace/coze-i18n/**)",
+      "Bash(node -e ' *)",
+      "Bash(node fix-nul.cjs)",
+      "Bash(rm fix-nul.cjs)",
+      "Bash(cd \"/c/my-workspace/coze-i18n\" && pnpm exec eslint . 2>&1 | tail -40)",
+      "Bash(cd \"/c/my-workspace/coze-i18n\" && pnpm typecheck 2>&1 | tail -8 && echo === && pnpm test 2>&1 | tail -8)",
+      "Bash(cd \"/c/my-workspace/coze-i18n\" && pnpm test 2>&1 | tail -10)",
+      "Skill(update-config)",
+      "Skill(update-config:*)",
+      "Bash(cd \"/c/my-workspace/coze-i18n\" && ls -la .claude 2>&1; echo ---; cat .claude/settings.local.json 2>&1; echo ---; cat .claude/settings.json 2>&1; echo ---; grep -n \"\\\\.claude\" .gitignore 2>&1)",
+      "Bash(node -e \"JSON.parse\\(require\\('fs'\\).readFileSync\\('.claude/settings.local.json','utf8'\\)\\); console.log\\('valid JSON'\\)\")"
+    ]
+  }
+}

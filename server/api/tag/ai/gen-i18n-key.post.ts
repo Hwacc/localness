@@ -2,6 +2,7 @@ import type { CozeAgentI18nKeyResult } from '#shared/types'
 import AgentManager from '#server/libs/agent'
 import { readZodBody } from '#server/helper/validate'
 import { requireTagTeamMember } from '#server/helper/access'
+import { numericID } from '#server/helper/id'
 
 /**
  * @route POST /api/ai/gen-i18n-key

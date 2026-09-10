@@ -92,7 +92,7 @@ export function useOSSUpload() {
           icon: 'i-lucide:circle-x',
           color: 'error',
         })
-        throw new Error('Failed to upload image')
+        throw new Error('Failed to upload image', { cause: error })
       }
     }
     return Promise.reject(new Error('Unsupported OSS engine'))

@@ -220,7 +220,7 @@ class Editor extends EditorInteraction {
             this.tempTag.toTagJSON()
           )
           this.tempTag.update(remoteTag)
-          this.tempTag.set({ hittable: this.mode !== 'drag' })
+          this.tempTag.set({ hittable: (this.mode as EditorMode) !== 'drag' })
         } catch (error) {
           console.error('tag add error', error)
           this.tempTag.destroy()
@@ -280,7 +280,7 @@ class Editor extends EditorInteraction {
     let current = node as { parent?: unknown } | null | undefined
     while (current) {
       if (current instanceof EditorTag) return current
-      current = current.parent
+      current = current.parent as { parent?: unknown } | null | undefined
     }
     return null
   }

@@ -32,17 +32,17 @@ class PainterTag extends Frame {
       overflow: 'show',
       width: tag.width,
       height: tag.height,
-      fill: tag.style?.fill ?? 'transparent',
-      cornerRadius: tag.style?.cornerRadius ?? DEFAULT_CORNER_RADIUS,
-      stroke: tag.style?.stroke ?? DEFAULT_LINE_COLOR,
-      strokeWidth: tag.style?.strokeWidth ?? DEFAULT_LINE_WIDTH,
+      fill: tag.settings?.style?.fill ?? 'transparent',
+      cornerRadius: tag.settings?.style?.cornerRadius ?? DEFAULT_CORNER_RADIUS,
+      stroke: tag.settings?.style?.stroke ?? DEFAULT_LINE_COLOR,
+      strokeWidth: tag.settings?.style?.strokeWidth ?? DEFAULT_LINE_WIDTH,
       editable: false,
     })
     this.remoteTag = tag
-    this.drawI18nKey(tag.labelStyle)
+    this.drawI18nKey(tag.settings?.labelStyle)
   }
 
-  private drawI18nKey(labelStyle?: ITag['labelStyle']) {
+  private drawI18nKey(labelStyle?: ITagSetting['labelStyle']) {
     if (!this.remoteTag.i18nKey) return
 
     // add text node

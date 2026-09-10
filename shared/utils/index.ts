@@ -14,7 +14,7 @@ export async function sleep(ms: number) {
   })
 }
 
-export function validID(id: ID): boolean {
+export function validID(id: ID | null | undefined): id is ID {
   return zID.safeParse(id).success
 }
 
