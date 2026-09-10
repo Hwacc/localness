@@ -1,7 +1,8 @@
 import { createError } from 'h3'
-import { randomBytes } from 'node:crypto'
+import { createHash, randomBytes } from 'node:crypto'
 import { readdir, readFile, writeFile, mkdir, stat } from 'node:fs/promises'
 import { relative, sep, join } from 'node:path'
+import { GitSyncPullReason } from '#shared/constants'
 import { remoteToLocale } from './credentials'
 
 export const LILT_FILENAME =
@@ -50,13 +51,47 @@ export function toRepoRelPath(repoRoot: string, absPath: string): string {
   return relative(repoRoot, absPath).split(sep).join('/')
 }
 
-export function parseSeenFiles(raw: unknown): string[] {
+export type SeenFile = { path: string; sha: string }
+
+/**
+ * Accepts both the legacy `string[]` shape and the current
+ * `{ path, sha }[]` shape. Legacy rows get an empty sha, which reads as
+ * "seen, content unknown" — see `classifyFile`.
+ */
+export function parseSeenFiles(raw: unknown): SeenFile[] {
   if (!Array.isArray(raw)) return []
-  return [
-    ...new Set(
-      raw.filter((item): item is string => typeof item === 'string' && item.length > 0)
-    ),
-  ]
+  const byPath = new Map<string, SeenFile>()
+  for (const item of raw) {
+    if (typeof item === 'string') {
+      if (item) byPath.set(item, { path: item, sha: '' })
+      continue
+    }
+    if (!item || typeof item !== 'object') continue
+    const path = (item as { path?: unknown }).path
+    const sha = (item as { sha?: unknown }).sha
+    if (typeof path !== 'string' || !path) continue
+    byPath.set(path, {
+      path,
+      sha: typeof sha === 'string' ? sha : '',
+    })
+  }
+  return [...byPath.values()]
+}
+
+export function seenFileMap(raw: unknown): Map<string, string> {
+  return new Map(parseSeenFiles(raw).map((f) => [f.path, f.sha]))
+}
+
+/**
+ * Git's blob id for the file's exact bytes. Same value git itself stores,
+ * so a rewritten file gets a different sha even if the path is unchanged.
+ */
+export async function blobSha(path: string): Promise<string> {
+  const data = await readFile(path)
+  const header = Buffer.from(`blob ${data.length}\0`, 'utf8')
+  return createHash('sha1')
+    .update(Buffer.concat([header, data]))
+    .digest('hex')
 }
 
 export function parseLiltFilename(name: string): {
@@ -152,13 +187,41 @@ function fileSortKey(path: string): FileHit | null {
   }
 }
 
-export async function readRemoteLocaleMaps(
+export type RemoteFileInfo = {
+  relPath: string
+  sha: string
+  locale: string | null
+  remoteLocale: string
+  date: string
+  reason: GitSyncPullReason
+}
+
+function classifyFile(
+  relPath: string,
+  sha: string,
+  seen: Map<string, string>
+): GitSyncPullReason {
+  if (!seen.has(relPath)) return GitSyncPullReason.NEW_FILE
+  const knownSha = seen.get(relPath) ?? ''
+  // Legacy rows carry no sha; treat them as seen rather than churning
+  // every historical file back into the candidate list.
+  if (!knownSha) return GitSyncPullReason.SEEN_FILE
+  return knownSha === sha
+    ? GitSyncPullReason.SEEN_FILE
+    : GitSyncPullReason.CHANGED_FILE
+}
+
+/**
+ * Lists every LILT batch file for the product, in merge order, tagged with
+ * why it is (or is not) a pull candidate. Does not read file contents beyond
+ * hashing — parsing happens in `readSelectedLocaleMaps`.
+ */
+export async function listRemoteFiles(
   repoRoot: string,
   product: string,
   localeOverride?: Record<string, string> | null,
-  skipRelPaths?: Set<string>
-): Promise<{ maps: RemoteLocaleMap; allRelPaths: string[]; newRelPaths: string[] }> {
-  const result: RemoteLocaleMap = new Map()
+  seen?: Map<string, string>
+): Promise<RemoteFileInfo[]> {
   const dirs = [
     join(repoRoot, product, 'translated'),
     join(repoRoot, product, 'source'),
@@ -172,18 +235,36 @@ export async function readRemoteLocaleMaps(
     }
   }
   files.sort((a, b) => a.sortKey.localeCompare(b.sortKey))
-  const allRelPaths: string[] = []
-  const newRelPaths: string[] = []
+  const out: RemoteFileInfo[] = []
   for (const file of files) {
-    const rel = toRepoRelPath(repoRoot, file.path)
-    allRelPaths.push(rel)
-    if (skipRelPaths?.has(rel)) continue
-    newRelPaths.push(rel)
-    const local = remoteToLocale(file.remoteLocale, localeOverride)
-    if (!local) continue
+    const relPath = toRepoRelPath(repoRoot, file.path)
+    const sha = await blobSha(file.path)
+    out.push({
+      relPath,
+      sha,
+      locale: remoteToLocale(file.remoteLocale, localeOverride),
+      remoteLocale: file.remoteLocale,
+      date: file.date,
+      reason: classifyFile(relPath, sha, seen ?? new Map()),
+    })
+  }
+  return out
+}
+
+/**
+ * Merges the selected files into per-locale maps. Files are applied in the
+ * order given, so later entries win — callers must pass merge order.
+ */
+export async function readSelectedLocaleMaps(
+  repoRoot: string,
+  files: RemoteFileInfo[]
+): Promise<RemoteLocaleMap> {
+  const result: RemoteLocaleMap = new Map()
+  for (const file of files) {
+    if (!file.locale) continue
     let parsed: unknown
     try {
-      parsed = JSON.parse(await readFile(file.path, 'utf8'))
+      parsed = JSON.parse(await readFile(join(repoRoot, file.relPath), 'utf8'))
     } catch {
       continue
     }
@@ -193,16 +274,16 @@ export async function readRemoteLocaleMaps(
     } catch {
       continue
     }
-    let localeMap = result.get(local)
+    let localeMap = result.get(file.locale)
     if (!localeMap) {
       localeMap = new Map()
-      result.set(local, localeMap)
+      result.set(file.locale, localeMap)
     }
     for (const [key, text] of Object.entries(map)) {
       localeMap.set(key, text)
     }
   }
-  return { maps: result, allRelPaths, newRelPaths }
+  return result
 }
 
 export async function writeSourceBatch(params: {

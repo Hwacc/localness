@@ -51,16 +51,21 @@ Nuxt 4 · Vue 3 · Prisma · SQLite · @nuxt/ui · Pinia · nuxt-auth-utils · L
 
 LILT-style product folders: `<product>/source/` and `<product>/translated/`, flat `{ "id": "string" }` JSON. One Localness Project maps to one **product**. Unique `(adapter, remoteUrl, product)`. OWNER must set the HTTPS Git clone URL (`…/workspace/repo.git`) on `/git`; Bitbucket browser pages (`/src/<branch>/`) are normalized to that clone URL. There is **no** server default remote. Product options are **listed from that remote** (folders that contain `source/` or `translated/`), not a hardcoded whitelist. Load products also requires a token because it clones the remote.
 
-- **Pull** writes **draft** only (skip `__draft_*`). Only **new batch files** since last pull are parsed (paths stored on the binding, never returned to the client). Clone uses sparse checkout of the product folder. Within those files, later filename date (then later file) wins. Source locale files live under `source/`; other locales under `translated/` (do not hand-edit `translated/`).
-- **Push** writes a new `source/` batch with **only published source strings that are new or changed** since the last successful landing (`GitSyncBase`). Unchanged keys are omitted. Open conflicts → **409**. Empty delta → 400.
+Both Pull and Push are **three-step: machine filter → human confirmation → execute**. The automatic filter only ever produces a *default proposal*; the user may uncheck it or check things it filtered out. Nothing is written or committed by a `preview` call.
+
+- **Pull** writes **draft** only (skip `__draft_*`). `preview` clones once (sparse checkout of the product folder), classifies every batch file as `new-file` / `changed-file` / `seen-file`, and stores a snapshot as `GitSyncPreview` (15 min TTL). New and changed files are proposed by default; seen files are hidden behind a toggle but can be selected. Within the selected files, later filename date (then later file) wins. Source locale files live under `source/`; other locales under `translated/` (do not hand-edit `translated/`).
+- **Pull apply** re-checks the remote head with `git ls-remote` (a handshake, no clone). Same sha → reuse the snapshot filtered by the user's selection. Different sha → **409**, run a new preview. Writes run in one transaction. Only files the user **accepted** are recorded as seen, so a skipped file stays a candidate next time.
+- **Push** proposes **published source strings that are new or changed** since the last successful landing (`GitSyncBase`). `preview` is pure database work — **no clone**. It returns *every* source key with the reason it is or is not proposed (`new-key` / `changed` / `unchanged` / `not-published` / `draft-key`), so an empty delta is explainable rather than a bare error. Open conflicts → **409**.
+- **Push apply** re-reads `publishedText` from the database instead of trusting the snapshot; a key edited or unpublished since the preview is reported in `skipped`, never written back stale. Empty selection → 400.
 - Three-way per `key + locale`: `GitSyncBase` (last successful landing), ours = platform draft, theirs = Git. `publishedText` is reference only.
+- `GitSyncBinding.seenFiles` stores `{ path, sha }` (git blob sha), so a rewritten file is detected as changed rather than silently skipped. Legacy `string[]` rows are still read and count as seen. Paths are never returned to the client outside a preview.
 - Dual-track credentials on `GitSyncBinding.credentialKind` (OWNER writes; GET never returns the token, only `tokenConfigured`):
   - `repo_access_token` → Git HTTPS user `x-token-auth`
   - `api_token` → Git HTTPS user `x-bitbucket-api-token-auth`
   Token is the password. Those usernames are protocol sentinels, not login names. Do not use Bitbucket App Passwords.
 - Team members start Pull/Push. Unconfigured MEMBER sees “Contact the project owner…”. Conflicts are cards on `/git` (Use Git / Use platform / Edit). Do **not** reuse `I18nMigrateConflict`.
 
-APIs: `GET/PUT /api/projects/:id/git-sync`, `POST .../products` (OWNER; clone remote and list `source/`/`translated/` folders), `POST .../pull|push`, `GET .../conflicts`, `POST .../conflicts/:id/resolve`.
+APIs: `GET/PUT /api/projects/:id/git-sync`, `POST .../products` (OWNER; clone remote and list `source/`/`translated/` folders), `POST .../pull/preview`, `POST .../pull/apply`, `POST .../push/preview`, `POST .../push/apply`, `GET .../conflicts`, `POST .../conflicts/:id/resolve`. There is no one-shot pull/push endpoint — apply always takes a `previewId` plus the confirmed selection.
 
 ## Routes
 
@@ -70,7 +75,7 @@ APIs: `GET/PUT /api/projects/:id/git-sync`, `POST .../products` (OWNER; clone re
 | `/dashboard` | Post-login home; no workspace bar |
 | `/editor` | **ssr: false** (sider project fetch needs cookies) |
 | `/translations` | Key table; can create keys with no tag |
-| `/git` | Git sync; **ssr: false**; Pull/Push + conflict cards |
+| `/git` | Git sync; **ssr: false**; Pull/Push review panels + conflict cards |
 | `/teams` | Teams; invite by existing username |
 
 Switching project must not change the current route.
@@ -97,7 +102,7 @@ Persist lock on `settings.locked` through the tag update API. `FuncLockBtn` uses
 
 ## Roadmap (do not implement unless asked)
 
-**P0 — Bidirectional Git file sync** — shipped: `/git`, dual-track tokens, three-way conflicts. Do not put tokens or internal remotes in docs.
+**P0 — Bidirectional Git file sync** — shipped: `/git`, dual-track tokens, three-way conflicts, preview/confirm/apply for both directions. Do not put tokens or internal remotes in docs.
 
 **P1 — Atlassian login + Team invite codes**  
 Invite codes let an **already logged-in user join a Team**. They do not create accounts. Atlassian is how people get accounts. Users with no Team may log in but see no projects.

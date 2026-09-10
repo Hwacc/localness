@@ -40,6 +40,35 @@ export enum GitSyncConflictStatus {
   MERGED = 'merged',
 }
 
+export enum GitSyncPreviewKind {
+  PULL = 'pull',
+  PUSH = 'push',
+}
+
+export enum GitSyncPreviewStatus {
+  PENDING = 'pending',
+  APPLIED = 'applied',
+  CANCELLED = 'cancelled',
+}
+
+/** Why a candidate is proposed, or why it was filtered out. */
+export enum GitSyncPullReason {
+  NEW_FILE = 'new-file',
+  CHANGED_FILE = 'changed-file',
+  SEEN_FILE = 'seen-file',
+}
+
+export enum GitSyncPushReason {
+  NEW_KEY = 'new-key',
+  CHANGED = 'changed',
+  UNCHANGED = 'unchanged',
+  NOT_PUBLISHED = 'not-published',
+  DRAFT_KEY = 'draft-key',
+}
+
+/** A preview snapshot is only trusted for this long. */
+export const GIT_SYNC_PREVIEW_TTL_MS = 15 * 60 * 1000
+
 export const GIT_HTTPS_SENTINEL: Record<GitCredentialKind, string> = {
   [GitCredentialKind.REPO_ACCESS_TOKEN]: 'x-token-auth',
   [GitCredentialKind.API_TOKEN]: 'x-bitbucket-api-token-auth',
