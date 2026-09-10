@@ -3,6 +3,7 @@ import { createHash, randomBytes } from 'node:crypto'
 import { readdir, readFile, writeFile, mkdir, stat } from 'node:fs/promises'
 import { relative, sep, join } from 'node:path'
 import { GitSyncPullReason } from '#shared/constants'
+import { classifyFile } from './filters'
 import { remoteToLocale } from './credentials'
 
 export const LILT_FILENAME =
@@ -194,21 +195,6 @@ export type RemoteFileInfo = {
   remoteLocale: string
   date: string
   reason: GitSyncPullReason
-}
-
-function classifyFile(
-  relPath: string,
-  sha: string,
-  seen: Map<string, string>
-): GitSyncPullReason {
-  if (!seen.has(relPath)) return GitSyncPullReason.NEW_FILE
-  const knownSha = seen.get(relPath) ?? ''
-  // Legacy rows carry no sha; treat them as seen rather than churning
-  // every historical file back into the candidate list.
-  if (!knownSha) return GitSyncPullReason.SEEN_FILE
-  return knownSha === sha
-    ? GitSyncPullReason.SEEN_FILE
-    : GitSyncPullReason.CHANGED_FILE
 }
 
 /**
