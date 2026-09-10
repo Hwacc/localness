@@ -21,7 +21,16 @@
       "Bash(xxd .tabbit-payload2.json)",
       "Bash(cmd.exe /c \"\\\\\"%LOCALAPPDATA%\\\\Tabbit\\\\LocalAgent\\\\bin\\\\tabbit-cli.exe\\\\\" nodejs --task vue-warn-repro3 < .tabbit-payload2.json\")",
       "Bash(cmd.exe /c run-tabbit.bat)",
-      "Bash(cmd //c \"C:\\\\\\\\my-workspace\\\\\\\\coze-i18n\\\\\\\\run-tabbit.bat\")"
+      "Bash(cmd //c \"C:\\\\\\\\my-workspace\\\\\\\\coze-i18n\\\\\\\\run-tabbit.bat\")",
+      "Bash(grep -n 'commitAndPush\\\\|withClonedRepo\\\\|remoteHeadSha\\\\|$transaction\\\\|GitSyncBase\\\\|upsert' server/libs/git-sync/sync.ts)",
+      "Read(//c/Users/chuancheng.hua/Documents/Obsidian Vault/项目/Localness/**)",
+      "Read(//c/Users/chuancheng.hua/Documents/Obsidian Vault/项目/**)",
+      "Read(//c/Users/chuancheng.hua/Documents/Obsidian Vault/**)"
+    ],
+    "additionalDirectories": [
+      "C:\\Users\\chuancheng.hua\\Documents\\Obsidian Vault\\项目\\Localness",
+      "C:\\Users\\chuancheng.hua\\Documents\\Obsidian Vault\\项目",
+      "C:\\Users\\chuancheng.hua\\Documents\\Obsidian Vault"
     ]
   }
 }
