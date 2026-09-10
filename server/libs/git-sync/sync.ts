@@ -12,6 +12,7 @@ import {
   GitSyncPushReason,
 } from '#shared/constants'
 import { decideThreeWay, type ThreeWayDecision } from './three-way'
+import { classifyPush, isPushEligible, isPullProposed } from './filters'
 import { localeToRemote } from './credentials'
 import { withClonedRepo, commitAndPush, remoteHeadSha } from './git-remote'
 import {
@@ -283,11 +284,7 @@ export async function previewPull(
       )
       // Default proposal: files git has not shown us before, or whose bytes
       // changed since we last read them. The user may add seen files back.
-      const proposed = files.filter(
-        (f) =>
-          f.reason === GitSyncPullReason.NEW_FILE ||
-          f.reason === GitSyncPullReason.CHANGED_FILE
-      )
+      const proposed = files.filter((f) => isPullProposed(f.reason))
       const candidates = await buildPullCandidates(
         projectId,
         repoDir,
@@ -589,9 +586,7 @@ export async function previewPush(
       baseText,
       text,
       reason,
-      eligible:
-        reason === GitSyncPushReason.NEW_KEY ||
-        reason === GitSyncPushReason.CHANGED,
+      eligible: isPushEligible(reason),
     })
   }
   candidates.sort((a, b) => a.key.localeCompare(b.key))
@@ -630,19 +625,6 @@ export async function previewPush(
     candidates,
     counts,
   }
-}
-
-function classifyPush(
-  key: string,
-  text: string,
-  lastPushed: Map<string, string>
-): GitSyncPushReason {
-  if (key.startsWith(DRAFT_KEY_PREFIX)) return GitSyncPushReason.DRAFT_KEY
-  if (!text) return GitSyncPushReason.NOT_PUBLISHED
-  if (!lastPushed.has(key)) return GitSyncPushReason.NEW_KEY
-  return lastPushed.get(key) === text
-    ? GitSyncPushReason.UNCHANGED
-    : GitSyncPushReason.CHANGED
 }
 
 /**
