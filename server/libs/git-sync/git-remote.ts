@@ -26,6 +26,45 @@ async function git(cwd: string, args: string[]) {
   return stdout.trim()
 }
 
+/**
+ * Remote branch head without transferring any objects — a bare protocol
+ * handshake. Used to check whether a preview snapshot is still current.
+ */
+export async function remoteHeadSha(params: {
+  remoteUrl: string
+  branch: string
+  credentialKind: string
+  token: string
+}): Promise<string> {
+  const authUrl = authenticatedRemoteUrl(
+    params.remoteUrl,
+    params.credentialKind,
+    params.token
+  )
+  try {
+    const { stdout } = await execFileAsync(
+      'git',
+      ['ls-remote', authUrl, `refs/heads/${params.branch}`],
+      {
+        env: { ...process.env, GIT_TERMINAL_PROMPT: '0' },
+        timeout: 60_000,
+        maxBuffer: 1024 * 1024,
+      }
+    )
+    const sha = stdout.trim().split(/\s+/)[0] ?? ''
+    if (!sha) {
+      throw new Error(`Branch ${params.branch} not found on remote`)
+    }
+    return sha
+  } catch (error: unknown) {
+    const raw = error instanceof Error ? error.message : 'Git ls-remote failed'
+    throw createError({
+      statusCode: 502,
+      statusMessage: redactGitError(raw, params.token, authUrl),
+    })
+  }
+}
+
 export async function withClonedRepo<T>(params: {
   remoteUrl: string
   branch: string
@@ -83,7 +122,17 @@ async function cloneRepo(
       )
       await git(dir, ['sparse-checkout', 'set', sparsePath])
       return
-    } catch {
+    } catch (error: unknown) {
+      // Falling back to a full depth-1 clone is much more expensive than the
+      // sparse path, so make the reason visible instead of swallowing it.
+      console.warn(
+        '[git-sync] sparse checkout failed, falling back to full clone:',
+        redactGitError(
+          error instanceof Error ? error.message : String(error),
+          '',
+          authUrl
+        )
+      )
       await rm(dir, { recursive: true, force: true })
       await mkdir(dir, { recursive: true })
     }

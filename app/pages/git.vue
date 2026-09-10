@@ -2,6 +2,8 @@
 import {
   GitCredentialKind,
   GitSyncConflictStatus,
+  GitSyncPullReason,
+  GitSyncPushReason,
   TeamRole,
 } from '#shared/constants'
 import { validID } from '#shared/utils'
@@ -42,6 +44,52 @@ type GitSyncConflictRow = {
   publishedText: string | null
 }
 
+type ThreeWayDecision = 'apply-theirs' | 'keep-ours' | 'align' | 'conflict'
+
+type PullFile = {
+  relPath: string
+  sha: string
+  locale: string | null
+  remoteLocale: string
+  date: string
+  reason: string
+}
+
+type PullCandidate = {
+  key: string
+  locale: string
+  baseText: string
+  oursText: string
+  theirsText: string
+  publishedText: string | null
+  decision: ThreeWayDecision
+}
+
+type PullPreview = {
+  previewId: number
+  commitSha: string
+  expiresAt: string
+  files: PullFile[]
+  candidates: PullCandidate[]
+  counts: Record<ThreeWayDecision, number>
+}
+
+type PushCandidate = {
+  key: string
+  baseText: string
+  text: string
+  reason: string
+  eligible: boolean
+}
+
+type PushPreview = {
+  previewId: number
+  sourceLocale: string
+  expiresAt: string
+  candidates: PushCandidate[]
+  counts: Record<string, number>
+}
+
 const { $dayjs } = useNuxtApp()
 const toast = useToast()
 const projectStore = useProjectStore()
@@ -60,6 +108,15 @@ const editText = ref('')
 const status = ref<GitSyncStatus | null>(null)
 const conflicts = ref<GitSyncConflictRow[]>([])
 const productItems = ref<{ value: string; label: string }[]>([])
+
+const pullPreview = ref<PullPreview | null>(null)
+const pushPreview = ref<PushPreview | null>(null)
+const pullFileSel = ref<string[]>([])
+const pullKeySel = ref<string[]>([])
+const pushKeySel = ref<string[]>([])
+const applying = ref(false)
+const showSeenFiles = ref(false)
+const showFilteredKeys = ref(false)
 
 const form = reactive({
   enabled: true,
@@ -261,52 +318,193 @@ async function saveBinding() {
   }
 }
 
-async function pull() {
+function candidateId(c: PullCandidate) {
+  return `${c.key} ${c.locale}`
+}
+
+/** Decisions that write something. `keep-ours` is a no-op, so it is shown but unchecked. */
+function isPullActionable(c: PullCandidate) {
+  return c.decision !== 'keep-ours'
+}
+
+const pullVisibleFiles = computed(() =>
+  (pullPreview.value?.files ?? []).filter(
+    (f) => showSeenFiles.value || f.reason !== GitSyncPullReason.SEEN_FILE
+  )
+)
+
+const pushVisibleCandidates = computed(() =>
+  (pushPreview.value?.candidates ?? []).filter(
+    (c) => showFilteredKeys.value || c.eligible
+  )
+)
+
+const pushReasonLabel: Record<string, string> = {
+  [GitSyncPushReason.NEW_KEY]: 'New key',
+  [GitSyncPushReason.CHANGED]: 'Changed',
+  [GitSyncPushReason.UNCHANGED]: 'Unchanged since last push',
+  [GitSyncPushReason.NOT_PUBLISHED]: 'No published source text',
+  [GitSyncPushReason.DRAFT_KEY]: 'Auto draft key',
+}
+
+const pullReasonLabel: Record<string, string> = {
+  [GitSyncPullReason.NEW_FILE]: 'New file',
+  [GitSyncPullReason.CHANGED_FILE]: 'Content changed',
+  [GitSyncPullReason.SEEN_FILE]: 'Already pulled',
+}
+
+const decisionLabel: Record<ThreeWayDecision, string> = {
+  'apply-theirs': 'Apply Git text',
+  'keep-ours': 'Keep platform draft',
+  align: 'Align base only',
+  conflict: 'Conflict',
+}
+
+type SelectionName = 'pullFile' | 'pullKey' | 'pushKey'
+
+const selectionRefs: Record<SelectionName, Ref<string[]>> = {
+  pullFile: pullFileSel,
+  pullKey: pullKeySel,
+  pushKey: pushKeySel,
+}
+
+/**
+ * Templates unwrap refs, so the list is addressed by name rather than passed
+ * in. Nuxt UI checkboxes emit `boolean | 'indeterminate'`.
+ */
+function isSelected(name: SelectionName, id: string) {
+  return selectionRefs[name].value.includes(id)
+}
+
+function setSelected(
+  name: SelectionName,
+  id: string,
+  on: boolean | 'indeterminate'
+) {
+  const list = selectionRefs[name]
+  const has = list.value.includes(id)
+  if (on === true && !has) list.value = [...list.value, id]
+  else if (on !== true && has)
+    list.value = list.value.filter((item) => item !== id)
+}
+
+async function startPull() {
   if (!validID(projectId.value)) return
   pulling.value = true
+  try {
+    const preview = await useApi<PullPreview>(
+      `/api/projects/${projectId.value}/git-sync/pull/preview`,
+      { method: 'POST' }
+    )
+    if (!preview) return
+    pullPreview.value = preview
+    pushPreview.value = null
+    // Default proposal: every new/changed file, every decision that writes.
+    pullFileSel.value = preview.files
+      .filter((f) => f.reason !== GitSyncPullReason.SEEN_FILE)
+      .map((f) => f.relPath)
+    pullKeySel.value = preview.candidates
+      .filter(isPullActionable)
+      .map(candidateId)
+    showSeenFiles.value = false
+    if (!preview.candidates.length) {
+      toast.add({
+        title: 'Nothing new to pull',
+        description: 'No new or changed batch files on the remote.',
+        color: 'neutral',
+      })
+    }
+  } finally {
+    pulling.value = false
+  }
+}
+
+async function confirmPull() {
+  if (!validID(projectId.value) || !pullPreview.value) return
+  applying.value = true
   try {
     const result = await useApi<{
       applied: number
       aligned: number
       kept: number
       conflicts: number
-      newFiles: number
-    }>(`/api/projects/${projectId.value}/git-sync/pull`, {
+      files: number
+    }>(`/api/projects/${projectId.value}/git-sync/pull/apply`, {
       method: 'POST',
+      body: {
+        previewId: pullPreview.value.previewId,
+        selectedFiles: pullFileSel.value,
+        selectedKeys: pullKeySel.value,
+      },
     })
     toast.add({
       title: 'Pull finished',
-      description: `Applied ${result?.applied ?? 0}, kept ${result?.kept ?? 0}, conflicts ${result?.conflicts ?? 0}, new files ${result?.newFiles ?? 0}`,
+      description: `Applied ${result?.applied ?? 0}, kept ${result?.kept ?? 0}, conflicts ${result?.conflicts ?? 0}, files ${result?.files ?? 0}`,
       color: 'success',
     })
+    pullPreview.value = null
     await loadAll()
   } finally {
-    pulling.value = false
+    applying.value = false
   }
 }
 
-async function push() {
+async function startPush() {
   if (!validID(projectId.value)) return
   pushing.value = true
+  try {
+    const preview = await useApi<PushPreview>(
+      `/api/projects/${projectId.value}/git-sync/push/preview`,
+      { method: 'POST' }
+    )
+    if (!preview) return
+    pushPreview.value = preview
+    pullPreview.value = null
+    pushKeySel.value = preview.candidates
+      .filter((c) => c.eligible)
+      .map((c) => c.key)
+    // Nothing eligible: open the full list so the reason is visible instead
+    // of showing an empty panel.
+    showFilteredKeys.value = pushKeySel.value.length === 0
+  } finally {
+    pushing.value = false
+  }
+}
+
+async function confirmPush() {
+  if (!validID(projectId.value) || !pushPreview.value) return
+  applying.value = true
   try {
     const result = await useApi<{
       filename: string
       count: number
       pushed: boolean
-    }>(`/api/projects/${projectId.value}/git-sync/push`, {
+      skipped: { key: string; reason: string }[]
+    }>(`/api/projects/${projectId.value}/git-sync/push/apply`, {
       method: 'POST',
+      body: {
+        previewId: pushPreview.value.previewId,
+        selectedKeys: pushKeySel.value,
+      },
     })
+    const skipped = result?.skipped?.length ?? 0
     toast.add({
       title: result?.pushed ? 'Push finished' : 'Nothing to push',
       description: result?.filename
-        ? `${result.count} keys → ${result.filename}`
+        ? `${result.count} keys → ${result.filename}${skipped ? ` · ${skipped} skipped` : ''}`
         : undefined,
       color: 'success',
     })
+    pushPreview.value = null
     await loadAll()
   } finally {
-    pushing.value = false
+    applying.value = false
   }
+}
+
+function cancelPreview() {
+  pullPreview.value = null
+  pushPreview.value = null
 }
 
 async function resolve(
@@ -487,18 +685,18 @@ function startEdit(conflict: GitSyncConflictRow) {
                 :loading="pulling"
                 color="primary"
                 icon="i-lucide:arrow-down-to-line"
-                @click="pull"
+                @click="startPull"
               >
-                Pull
+                Pull…
               </UButton>
               <UButton
                 :loading="pushing"
                 :disabled="openCount > 0"
                 color="neutral"
                 icon="i-lucide:arrow-up-to-line"
-                @click="push"
+                @click="startPush"
               >
-                Push
+                Push…
               </UButton>
               <UButton
                 v-if="isOwner"
@@ -568,6 +766,193 @@ function startEdit(conflict: GitSyncConflictRow) {
               <UButton :loading="saving" @click="saveBinding">
                 Save settings
               </UButton>
+            </div>
+          </div>
+        </div>
+
+        <div
+          v-if="pullPreview"
+          class="rounded-xl border border-primary/40 bg-default p-5 flex flex-col gap-4"
+        >
+          <div class="flex flex-wrap items-start justify-between gap-3">
+            <div>
+              <h2 class="font-semibold">Review pull</h2>
+              <p class="mt-1 text-sm text-muted">
+                {{ pullFileSel.length }} of
+                {{ pullPreview.files.length }} file(s)
+                · {{ pullKeySel.length }} of
+                {{ pullPreview.candidates.length }} change(s) selected.
+                Nothing is written until you confirm.
+              </p>
+              <p class="mt-1 text-xs text-muted">
+                Remote {{ pullPreview.commitSha.slice(0, 8) }} · expires
+                {{ formatTime(pullPreview.expiresAt) }}
+              </p>
+            </div>
+            <div class="flex items-center gap-2">
+              <UButton
+                color="neutral"
+                variant="ghost"
+                :disabled="applying"
+                @click="cancelPreview"
+              >
+                Cancel
+              </UButton>
+              <UButton
+                color="primary"
+                :loading="applying"
+                :disabled="!pullKeySel.length"
+                @click="confirmPull"
+              >
+                Apply pull
+              </UButton>
+            </div>
+          </div>
+
+          <div class="flex flex-col gap-2">
+            <div class="flex items-center justify-between gap-2">
+              <h3 class="text-sm font-medium">Batch files</h3>
+              <UCheckbox
+                v-model="showSeenFiles"
+                label="Show already pulled"
+              />
+            </div>
+            <p v-if="!pullVisibleFiles.length" class="text-sm text-muted">
+              No files to show.
+            </p>
+            <div
+              v-for="file in pullVisibleFiles"
+              :key="file.relPath"
+              class="flex items-center gap-3 rounded-lg bg-muted px-3 py-2"
+            >
+              <UCheckbox
+                :model-value="isSelected('pullFile', file.relPath)"
+                @update:model-value="
+                  setSelected('pullFile', file.relPath, $event)
+                "
+              />
+              <div class="min-w-0 flex-1">
+                <p class="truncate text-sm">{{ file.relPath }}</p>
+                <p class="text-xs text-muted">
+                  {{ pullReasonLabel[file.reason] ?? file.reason }} ·
+                  {{ file.locale ?? `unmapped (${file.remoteLocale})` }}
+                </p>
+              </div>
+            </div>
+          </div>
+
+          <div class="flex flex-col gap-2">
+            <h3 class="text-sm font-medium">Changes</h3>
+            <p v-if="!pullPreview.candidates.length" class="text-sm text-muted">
+              No key changes in the selected files.
+            </p>
+            <div
+              v-for="c in pullPreview.candidates"
+              :key="candidateId(c)"
+              class="flex items-start gap-3 rounded-lg bg-muted px-3 py-2"
+            >
+              <UCheckbox
+                class="mt-1"
+                :model-value="isSelected('pullKey', candidateId(c))"
+                @update:model-value="
+                  setSelected('pullKey', candidateId(c), $event)
+                "
+              />
+              <div class="min-w-0 flex-1">
+                <div class="flex items-baseline justify-between gap-2">
+                  <p class="truncate text-sm font-medium">{{ c.key }}</p>
+                  <p class="shrink-0 text-xs text-muted">{{ c.locale }}</p>
+                </div>
+                <p class="text-xs text-muted">
+                  {{ decisionLabel[c.decision] }}
+                </p>
+                <p class="mt-1 text-sm whitespace-pre-wrap break-words">
+                  {{ c.theirsText }}
+                </p>
+                <p
+                  v-if="c.oursText && c.oursText !== c.theirsText"
+                  class="text-xs text-muted whitespace-pre-wrap break-words"
+                >
+                  Platform draft: {{ c.oursText }}
+                </p>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div
+          v-if="pushPreview"
+          class="rounded-xl border border-primary/40 bg-default p-5 flex flex-col gap-4"
+        >
+          <div class="flex flex-wrap items-start justify-between gap-3">
+            <div>
+              <h2 class="font-semibold">Review push</h2>
+              <p class="mt-1 text-sm text-muted">
+                {{ pushKeySel.length }} of
+                {{ pushPreview.candidates.length }} source key(s) selected
+                ({{ pushPreview.sourceLocale }}). Nothing is committed until
+                you confirm.
+              </p>
+              <p class="mt-1 text-xs text-muted">
+                Expires {{ formatTime(pushPreview.expiresAt) }}
+              </p>
+            </div>
+            <div class="flex items-center gap-2">
+              <UButton
+                color="neutral"
+                variant="ghost"
+                :disabled="applying"
+                @click="cancelPreview"
+              >
+                Cancel
+              </UButton>
+              <UButton
+                color="primary"
+                :loading="applying"
+                :disabled="!pushKeySel.length"
+                @click="confirmPush"
+              >
+                Commit push
+              </UButton>
+            </div>
+          </div>
+
+          <div class="flex items-center justify-between gap-2">
+            <h3 class="text-sm font-medium">Keys</h3>
+            <UCheckbox
+              v-model="showFilteredKeys"
+              label="Show filtered out"
+            />
+          </div>
+          <p v-if="!pushVisibleCandidates.length" class="text-sm text-muted">
+            No keys to show.
+          </p>
+          <div
+            v-for="c in pushVisibleCandidates"
+            :key="c.key"
+            class="flex items-start gap-3 rounded-lg bg-muted px-3 py-2"
+          >
+            <UCheckbox
+              class="mt-1"
+              :model-value="isSelected('pushKey', c.key)"
+              @update:model-value="setSelected('pushKey', c.key, $event)"
+            />
+            <div class="min-w-0 flex-1">
+              <div class="flex items-baseline justify-between gap-2">
+                <p class="truncate text-sm font-medium">{{ c.key }}</p>
+                <p class="shrink-0 text-xs text-muted">
+                  {{ pushReasonLabel[c.reason] ?? c.reason }}
+                </p>
+              </div>
+              <p class="mt-1 text-sm whitespace-pre-wrap break-words">
+                {{ c.text || '—' }}
+              </p>
+              <p
+                v-if="c.baseText && c.baseText !== c.text"
+                class="text-xs text-muted whitespace-pre-wrap break-words"
+              >
+                Last pushed: {{ c.baseText }}
+              </p>
             </div>
           </div>
         </div>
