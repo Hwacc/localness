@@ -11,7 +11,17 @@
       "Skill(update-config)",
       "Skill(update-config:*)",
       "Bash(cd \"/c/my-workspace/coze-i18n\" && ls -la .claude 2>&1; echo ---; cat .claude/settings.local.json 2>&1; echo ---; cat .claude/settings.json 2>&1; echo ---; grep -n \"\\\\.claude\" .gitignore 2>&1)",
-      "Bash(node -e \"JSON.parse\\(require\\('fs'\\).readFileSync\\('.claude/settings.local.json','utf8'\\)\\); console.log\\('valid JSON'\\)\")"
+      "Bash(node -e \"JSON.parse\\(require\\('fs'\\).readFileSync\\('.claude/settings.local.json','utf8'\\)\\); console.log\\('valid JSON'\\)\")",
+      "Bash(cd \"/c/my-workspace/coze-i18n\" && find app/layouts -type f 2>&1)",
+      "Bash(netstat -ano)",
+      "Bash(taskkill //F //PID 33992)",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\\\\n\" http://localhost:3000/dashboard)",
+      "Bash(curl -s http://localhost:3000/dashboard)",
+      "Read(//c/Users/chuancheng.hua/.claude/skills/tabbit/references/**)",
+      "Bash(xxd .tabbit-payload2.json)",
+      "Bash(cmd.exe /c \"\\\\\"%LOCALAPPDATA%\\\\Tabbit\\\\LocalAgent\\\\bin\\\\tabbit-cli.exe\\\\\" nodejs --task vue-warn-repro3 < .tabbit-payload2.json\")",
+      "Bash(cmd.exe /c run-tabbit.bat)",
+      "Bash(cmd //c \"C:\\\\\\\\my-workspace\\\\\\\\coze-i18n\\\\\\\\run-tabbit.bat\")"
     ]
   }
 }

@@ -83,6 +83,12 @@ export default defineNuxtConfig({
       format: 'es',
     },
     plugins: [tailwindcss()],
+    // qiniu-js expects spark-md5's CJS interop (`export { require as t }`).
+    // If spark-md5 is optimized first as a standalone ESM default, later
+    // qiniu-js chunks fail: "does not provide an export named 't'".
+    optimizeDeps: {
+      include: ['spark-md5', 'qiniu-js'],
+    },
   },
   nitro: {
     externals: {

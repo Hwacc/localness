@@ -18,12 +18,20 @@ Package manager: **pnpm**.
 ```bash
 pnpm install
 pnpm dev                 # http://localhost:3000
-pnpm build
+pnpm typecheck           # verification (preferred over build)
+pnpm test                # unit tests
 pnpm exec prisma generate
 pnpm exec prisma migrate dev
+pnpm build               # ship / production only — not a verification step
 ```
 
 There is no public register API. Create users with `scripts/register.ts` (prod: `register:prod`).
+
+## Verify
+
+After code changes, run **typecheck + unit tests**. Do **not** run `pnpm test:api` (paused — boots a full Nuxt server, too slow). Do **not** use `pnpm build` to check work (slow, not the signal we want).
+
+Do **not** drive the browser (Playwright, CDP, Cursor browser tools) for UI checks — too slow. Leave UI to humans. After a UI change, the reply must list **short manual test points** (route, what to click, expected). A screenshot or a long checklist is not required.
 
 ## Stack
 
@@ -98,7 +106,7 @@ Persist lock on `settings.locked` through the tag update API. `FuncLockBtn` uses
 - Switches over unions/enums need a `default` `never` exhaustive check.
 - Touch only files the task needs. Do not commit or push unless the user asks.
 - Never write secrets, `.env` values, or internal URLs into the repo or vault.
-- After UI behavior changes, verify in the browser on the affected flows — a screenshot is not enough.
+- After UI behavior changes, list short manual test points; do not automate the browser.
 
 ## Roadmap (do not implement unless asked)
 
