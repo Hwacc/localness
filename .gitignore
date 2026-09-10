@@ -17,6 +17,8 @@ logs
 .DS_Store
 .fleet
 .idea
+.tabbit*
+run-tabbit.bat
 
 # Local env files
 .env

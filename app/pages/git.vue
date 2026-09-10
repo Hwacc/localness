@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import type { TableColumn } from '@nuxt/ui'
 import {
   GitCredentialKind,
   GitSyncConflictStatus,
@@ -6,7 +7,7 @@ import {
   GitSyncPushReason,
   TeamRole,
 } from '#shared/constants'
-import { validID } from '#shared/utils'
+import { formatI18nKeyDisplay, validID } from '#shared/utils'
 import { isHttpsRemoteUrl, normalizeGitHttpsRemote } from '#shared/utils/schemas'
 
 definePageMeta({
@@ -58,6 +59,7 @@ type PullFile = {
 type PullCandidate = {
   key: string
   locale: string
+  relPath?: string
   baseText: string
   oursText: string
   theirsText: string
@@ -117,6 +119,11 @@ const pushKeySel = ref<string[]>([])
 const applying = ref(false)
 const showSeenFiles = ref(false)
 const showFilteredKeys = ref(false)
+const pullQuery = ref('')
+const pushQuery = ref('')
+const pullDecisionFilter = ref<ThreeWayDecision | 'all'>('all')
+const pullExpanded = ref<Record<string, boolean>>({})
+const pushExpanded = ref<Record<string, boolean>>({})
 
 const form = reactive({
   enabled: true,
@@ -333,11 +340,62 @@ const pullVisibleFiles = computed(() =>
   )
 )
 
-const pushVisibleCandidates = computed(() =>
-  (pushPreview.value?.candidates ?? []).filter(
-    (c) => showFilteredKeys.value || c.eligible
-  )
-)
+const pullTableRows = computed(() => {
+  const q = pullQuery.value.trim().toLowerCase()
+  return (pullPreview.value?.candidates ?? []).filter((c) => {
+    if (c.relPath && !pullFileSel.value.includes(c.relPath)) return false
+    if (
+      pullDecisionFilter.value !== 'all' &&
+      c.decision !== pullDecisionFilter.value
+    ) {
+      return false
+    }
+    if (!q) return true
+    return (
+      c.key.toLowerCase().includes(q) ||
+      c.theirsText.toLowerCase().includes(q) ||
+      c.oursText.toLowerCase().includes(q)
+    )
+  })
+})
+
+const pushTableRows = computed(() => {
+  const q = pushQuery.value.trim().toLowerCase()
+  return (pushPreview.value?.candidates ?? []).filter((c) => {
+    if (!showFilteredKeys.value && !c.eligible) return false
+    if (!q) return true
+    return (
+      c.key.toLowerCase().includes(q) ||
+      c.text.toLowerCase().includes(q) ||
+      c.baseText.toLowerCase().includes(q)
+    )
+  })
+})
+
+const pullDecisionItems = [
+  { label: 'All decisions', value: 'all' },
+  { label: 'Apply Git text', value: 'apply-theirs' },
+  { label: 'Keep platform draft', value: 'keep-ours' },
+  { label: 'Align base only', value: 'align' },
+  { label: 'Conflict', value: 'conflict' },
+]
+
+const pullColumns: TableColumn<PullCandidate>[] = [
+  { id: 'select', header: '', enableSorting: false },
+  { id: 'key', accessorKey: 'key', header: 'Key' },
+  { id: 'locale', accessorKey: 'locale', header: 'Locale' },
+  { id: 'decision', accessorKey: 'decision', header: 'Reason' },
+  { id: 'text', header: 'Text' },
+  { id: 'expand', header: '', enableSorting: false },
+]
+
+const pushColumns: TableColumn<PushCandidate>[] = [
+  { id: 'select', header: '', enableSorting: false },
+  { id: 'key', accessorKey: 'key', header: 'Key' },
+  { id: 'reason', accessorKey: 'reason', header: 'Reason' },
+  { id: 'text', header: 'Text' },
+  { id: 'expand', header: '', enableSorting: false },
+]
 
 const pushReasonLabel: Record<string, string> = {
   [GitSyncPushReason.NEW_KEY]: 'New key',
@@ -388,6 +446,91 @@ function setSelected(
     list.value = list.value.filter((item) => item !== id)
 }
 
+function setPullFileSelected(relPath: string, on: boolean | 'indeterminate') {
+  setSelected('pullFile', relPath, on)
+  const fromFile = (pullPreview.value?.candidates ?? []).filter(
+    (c) => c.relPath === relPath
+  )
+  if (on === true) {
+    const add = fromFile.filter(isPullActionable).map(candidateId)
+    pullKeySel.value = [...new Set([...pullKeySel.value, ...add])]
+    return
+  }
+  const drop = new Set(fromFile.map(candidateId))
+  pullKeySel.value = pullKeySel.value.filter((id) => !drop.has(id))
+}
+
+function selectVisiblePull(on: boolean) {
+  const ids = pullTableRows.value.filter(isPullActionable).map(candidateId)
+  if (on) {
+    pullKeySel.value = [...new Set([...pullKeySel.value, ...ids])]
+    return
+  }
+  const drop = new Set(ids)
+  pullKeySel.value = pullKeySel.value.filter((id) => !drop.has(id))
+}
+
+function selectVisiblePush(on: boolean) {
+  const ids = pushTableRows.value.filter((c) => c.eligible).map((c) => c.key)
+  if (on) {
+    pushKeySel.value = [...new Set([...pushKeySel.value, ...ids])]
+    return
+  }
+  const drop = new Set(ids)
+  pushKeySel.value = pushKeySel.value.filter((id) => !drop.has(id))
+}
+
+function pullHeaderChecked(): boolean | 'indeterminate' {
+  const ids = pullTableRows.value.filter(isPullActionable).map(candidateId)
+  if (!ids.length) return false
+  const n = ids.filter((id) => pullKeySel.value.includes(id)).length
+  if (n === 0) return false
+  if (n === ids.length) return true
+  return 'indeterminate'
+}
+
+function pushHeaderChecked(): boolean | 'indeterminate' {
+  const ids = pushTableRows.value.filter((c) => c.eligible).map((c) => c.key)
+  if (!ids.length) return false
+  const n = ids.filter((id) => pushKeySel.value.includes(id)).length
+  if (n === 0) return false
+  if (n === ids.length) return true
+  return 'indeterminate'
+}
+
+function decisionColor(
+  decision: ThreeWayDecision
+): 'primary' | 'neutral' | 'warning' {
+  switch (decision) {
+    case 'apply-theirs':
+      return 'primary'
+    case 'keep-ours':
+      return 'neutral'
+    case 'align':
+      return 'neutral'
+    case 'conflict':
+      return 'warning'
+    default: {
+      const _exhaustive: never = decision
+      return _exhaustive
+    }
+  }
+}
+
+function pushReasonColor(reason: string): 'primary' | 'neutral' {
+  switch (reason) {
+    case GitSyncPushReason.NEW_KEY:
+    case GitSyncPushReason.CHANGED:
+      return 'primary'
+    case GitSyncPushReason.UNCHANGED:
+    case GitSyncPushReason.NOT_PUBLISHED:
+    case GitSyncPushReason.DRAFT_KEY:
+      return 'neutral'
+    default:
+      return 'neutral'
+  }
+}
+
 async function startPull() {
   if (!validID(projectId.value)) return
   pulling.value = true
@@ -407,6 +550,9 @@ async function startPull() {
       .filter(isPullActionable)
       .map(candidateId)
     showSeenFiles.value = false
+    pullQuery.value = ''
+    pullDecisionFilter.value = 'all'
+    pullExpanded.value = {}
     if (!preview.candidates.length) {
       toast.add({
         title: 'Nothing new to pull',
@@ -466,6 +612,8 @@ async function startPush() {
     // Nothing eligible: open the full list so the reason is visible instead
     // of showing an empty panel.
     showFilteredKeys.value = pushKeySel.value.length === 0
+    pushQuery.value = ''
+    pushExpanded.value = {}
   } finally {
     pushing.value = false
   }
@@ -682,22 +830,24 @@ function startEdit(conflict: GitSyncConflictRow) {
             </div>
             <div class="flex flex-wrap items-center gap-2">
               <UButton
+                class="shrink-0"
+                :ui="{ label: 'whitespace-nowrap' }"
                 :loading="pulling"
                 color="primary"
                 icon="i-lucide:arrow-down-to-line"
+                label="Pull"
                 @click="startPull"
-              >
-                Pull…
-              </UButton>
+              />
               <UButton
+                class="shrink-0"
+                :ui="{ label: 'whitespace-nowrap' }"
                 :loading="pushing"
                 :disabled="openCount > 0"
                 color="neutral"
                 icon="i-lucide:arrow-up-to-line"
+                label="Push"
                 @click="startPush"
-              >
-                Push…
-              </UButton>
+              />
               <UButton
                 v-if="isOwner"
                 color="neutral"
@@ -823,12 +973,12 @@ function startEdit(conflict: GitSyncConflictRow) {
             <div
               v-for="file in pullVisibleFiles"
               :key="file.relPath"
-              class="flex items-center gap-3 rounded-lg bg-muted px-3 py-2"
+              class="flex items-center gap-3 rounded-lg bg-muted px-3 py-1.5"
             >
               <UCheckbox
                 :model-value="isSelected('pullFile', file.relPath)"
                 @update:model-value="
-                  setSelected('pullFile', file.relPath, $event)
+                  setPullFileSelected(file.relPath, $event)
                 "
               />
               <div class="min-w-0 flex-1">
@@ -842,40 +992,139 @@ function startEdit(conflict: GitSyncConflictRow) {
           </div>
 
           <div class="flex flex-col gap-2">
-            <h3 class="text-sm font-medium">Changes</h3>
-            <p v-if="!pullPreview.candidates.length" class="text-sm text-muted">
-              No key changes in the selected files.
-            </p>
             <div
-              v-for="c in pullPreview.candidates"
-              :key="candidateId(c)"
-              class="flex items-start gap-3 rounded-lg bg-muted px-3 py-2"
+              class="flex flex-wrap items-center justify-between gap-2"
             >
-              <UCheckbox
-                class="mt-1"
-                :model-value="isSelected('pullKey', candidateId(c))"
-                @update:model-value="
-                  setSelected('pullKey', candidateId(c), $event)
-                "
-              />
-              <div class="min-w-0 flex-1">
-                <div class="flex items-baseline justify-between gap-2">
-                  <p class="truncate text-sm font-medium">{{ c.key }}</p>
-                  <p class="shrink-0 text-xs text-muted">{{ c.locale }}</p>
-                </div>
-                <p class="text-xs text-muted">
-                  {{ decisionLabel[c.decision] }}
-                </p>
-                <p class="mt-1 text-sm whitespace-pre-wrap break-words">
-                  {{ c.theirsText }}
-                </p>
-                <p
-                  v-if="c.oursText && c.oursText !== c.theirsText"
-                  class="text-xs text-muted whitespace-pre-wrap break-words"
-                >
-                  Platform draft: {{ c.oursText }}
-                </p>
+              <h3 class="text-sm font-medium">Changes</h3>
+              <div class="flex flex-wrap items-center gap-2">
+                <UInput
+                  v-model="pullQuery"
+                  class="w-48"
+                  size="sm"
+                  icon="i-lucide:search"
+                  placeholder="Search keys"
+                />
+                <USelect
+                  v-model="pullDecisionFilter"
+                  class="w-48"
+                  size="sm"
+                  :items="pullDecisionItems"
+                />
+                <UButton
+                  size="xs"
+                  color="neutral"
+                  variant="ghost"
+                  label="Select visible"
+                  @click="selectVisiblePull(true)"
+                />
+                <UButton
+                  size="xs"
+                  color="neutral"
+                  variant="ghost"
+                  label="Clear visible"
+                  @click="selectVisiblePull(false)"
+                />
               </div>
+            </div>
+            <div
+              class="max-h-[60vh] overflow-auto rounded-lg border border-default"
+            >
+              <UTable
+                v-model:expanded="pullExpanded"
+                sticky="header"
+                class="w-full"
+                :data="pullTableRows"
+                :columns="pullColumns"
+                :get-row-id="(row: PullCandidate) => candidateId(row)"
+                :expanded-options="{ getRowCanExpand: () => true }"
+                :ui="{ th: 'bg-default', td: 'align-middle bg-default' }"
+              >
+                <template #select-header>
+                  <UCheckbox
+                    :model-value="pullHeaderChecked()"
+                    @update:model-value="selectVisiblePull($event === true)"
+                  />
+                </template>
+                <template #select-cell="{ row }">
+                  <UCheckbox
+                    :disabled="!isPullActionable(row.original)"
+                    :model-value="
+                      isSelected('pullKey', candidateId(row.original))
+                    "
+                    @update:model-value="
+                      setSelected(
+                        'pullKey',
+                        candidateId(row.original),
+                        $event
+                      )
+                    "
+                  />
+                </template>
+                <template #key-cell="{ row }">
+                  <code
+                    class="text-xs font-mono break-all"
+                    :title="row.original.key"
+                  >
+                    {{ formatI18nKeyDisplay(row.original.key) }}
+                  </code>
+                </template>
+                <template #decision-cell="{ row }">
+                  <UBadge
+                    variant="subtle"
+                    :color="decisionColor(row.original.decision)"
+                  >
+                    {{
+                      decisionLabel[row.original.decision] ??
+                      row.original.decision
+                    }}
+                  </UBadge>
+                </template>
+                <template #text-cell="{ row }">
+                  <p
+                    class="max-w-xs truncate text-sm text-muted"
+                    :title="row.original.theirsText"
+                  >
+                    {{ row.original.theirsText || '—' }}
+                  </p>
+                </template>
+                <template #expand-cell="{ row }">
+                  <UButton
+                    size="xs"
+                    color="neutral"
+                    variant="ghost"
+                    square
+                    :icon="
+                      row.getIsExpanded()
+                        ? 'i-lucide:chevron-up'
+                        : 'i-lucide:chevron-down'
+                    "
+                    @click="row.toggleExpanded()"
+                  />
+                </template>
+                <template #expanded="{ row }">
+                  <div class="grid grid-cols-1 md:grid-cols-2 gap-3 py-1">
+                    <div>
+                      <p class="text-xs font-medium mb-1">Git</p>
+                      <p class="text-sm whitespace-pre-wrap break-words">
+                        {{ row.original.theirsText || '—' }}
+                      </p>
+                    </div>
+                    <div v-if="row.original.oursText !== row.original.theirsText">
+                      <p class="text-xs font-medium mb-1">Platform draft</p>
+                      <p
+                        class="text-sm text-muted whitespace-pre-wrap break-words"
+                      >
+                        {{ row.original.oursText || '—' }}
+                      </p>
+                    </div>
+                  </div>
+                </template>
+                <template #empty>
+                  <div class="py-8 text-center text-sm text-muted">
+                    No key changes in the selected files.
+                  </div>
+                </template>
+              </UTable>
             </div>
           </div>
         </div>
@@ -917,42 +1166,138 @@ function startEdit(conflict: GitSyncConflictRow) {
             </div>
           </div>
 
-          <div class="flex items-center justify-between gap-2">
-            <h3 class="text-sm font-medium">Keys</h3>
-            <UCheckbox
-              v-model="showFilteredKeys"
-              label="Show filtered out"
-            />
-          </div>
-          <p v-if="!pushVisibleCandidates.length" class="text-sm text-muted">
-            No keys to show.
-          </p>
-          <div
-            v-for="c in pushVisibleCandidates"
-            :key="c.key"
-            class="flex items-start gap-3 rounded-lg bg-muted px-3 py-2"
-          >
-            <UCheckbox
-              class="mt-1"
-              :model-value="isSelected('pushKey', c.key)"
-              @update:model-value="setSelected('pushKey', c.key, $event)"
-            />
-            <div class="min-w-0 flex-1">
-              <div class="flex items-baseline justify-between gap-2">
-                <p class="truncate text-sm font-medium">{{ c.key }}</p>
-                <p class="shrink-0 text-xs text-muted">
-                  {{ pushReasonLabel[c.reason] ?? c.reason }}
-                </p>
+          <div class="flex flex-col gap-2">
+            <div
+              class="flex flex-wrap items-center justify-between gap-2"
+            >
+              <h3 class="text-sm font-medium">Keys</h3>
+              <div class="flex flex-wrap items-center gap-2">
+                <UInput
+                  v-model="pushQuery"
+                  class="w-48"
+                  size="sm"
+                  icon="i-lucide:search"
+                  placeholder="Search keys"
+                />
+                <UCheckbox
+                  v-model="showFilteredKeys"
+                  label="Show filtered out"
+                />
+                <UButton
+                  size="xs"
+                  color="neutral"
+                  variant="ghost"
+                  label="Select visible"
+                  @click="selectVisiblePush(true)"
+                />
+                <UButton
+                  size="xs"
+                  color="neutral"
+                  variant="ghost"
+                  label="Clear visible"
+                  @click="selectVisiblePush(false)"
+                />
               </div>
-              <p class="mt-1 text-sm whitespace-pre-wrap break-words">
-                {{ c.text || '—' }}
-              </p>
-              <p
-                v-if="c.baseText && c.baseText !== c.text"
-                class="text-xs text-muted whitespace-pre-wrap break-words"
+            </div>
+            <div
+              class="max-h-[60vh] overflow-auto rounded-lg border border-default"
+            >
+              <UTable
+                v-model:expanded="pushExpanded"
+                sticky="header"
+                class="w-full"
+                :data="pushTableRows"
+                :columns="pushColumns"
+                :get-row-id="(row: PushCandidate) => row.key"
+                :expanded-options="{ getRowCanExpand: () => true }"
+                :ui="{ th: 'bg-default', td: 'align-middle bg-default' }"
               >
-                Last pushed: {{ c.baseText }}
-              </p>
+                <template #select-header>
+                  <UCheckbox
+                    :model-value="pushHeaderChecked()"
+                    @update:model-value="selectVisiblePush($event === true)"
+                  />
+                </template>
+                <template #select-cell="{ row }">
+                  <UCheckbox
+                    :disabled="!row.original.eligible"
+                    :model-value="isSelected('pushKey', row.original.key)"
+                    @update:model-value="
+                      setSelected('pushKey', row.original.key, $event)
+                    "
+                  />
+                </template>
+                <template #key-cell="{ row }">
+                  <code
+                    class="text-xs font-mono break-all"
+                    :class="{ 'text-muted': !row.original.eligible }"
+                    :title="row.original.key"
+                  >
+                    {{ formatI18nKeyDisplay(row.original.key) }}
+                  </code>
+                </template>
+                <template #reason-cell="{ row }">
+                  <UBadge
+                    variant="subtle"
+                    :color="pushReasonColor(row.original.reason)"
+                  >
+                    {{
+                      pushReasonLabel[row.original.reason] ??
+                      row.original.reason
+                    }}
+                  </UBadge>
+                </template>
+                <template #text-cell="{ row }">
+                  <p
+                    class="max-w-xs truncate text-sm text-muted"
+                    :title="row.original.text"
+                  >
+                    {{ row.original.text || '—' }}
+                  </p>
+                </template>
+                <template #expand-cell="{ row }">
+                  <UButton
+                    size="xs"
+                    color="neutral"
+                    variant="ghost"
+                    square
+                    :icon="
+                      row.getIsExpanded()
+                        ? 'i-lucide:chevron-up'
+                        : 'i-lucide:chevron-down'
+                    "
+                    @click="row.toggleExpanded()"
+                  />
+                </template>
+                <template #expanded="{ row }">
+                  <div class="grid grid-cols-1 md:grid-cols-2 gap-3 py-1">
+                    <div>
+                      <p class="text-xs font-medium mb-1">Published source</p>
+                      <p class="text-sm whitespace-pre-wrap break-words">
+                        {{ row.original.text || '—' }}
+                      </p>
+                    </div>
+                    <div
+                      v-if="
+                        row.original.baseText &&
+                        row.original.baseText !== row.original.text
+                      "
+                    >
+                      <p class="text-xs font-medium mb-1">Last pushed</p>
+                      <p
+                        class="text-sm text-muted whitespace-pre-wrap break-words"
+                      >
+                        {{ row.original.baseText }}
+                      </p>
+                    </div>
+                  </div>
+                </template>
+                <template #empty>
+                  <div class="py-8 text-center text-sm text-muted">
+                    No keys to show.
+                  </div>
+                </template>
+              </UTable>
             </div>
           </div>
         </div>

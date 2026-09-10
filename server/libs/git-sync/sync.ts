@@ -240,6 +240,7 @@ async function requireBinding(projectId: number) {
 export type PullCandidate = {
   key: string
   locale: string
+  relPath: string
   baseText: string
   oursText: string
   theirsText: string
@@ -340,7 +341,7 @@ async function buildPullCandidates(
   repoDir: string,
   files: RemoteFileInfo[]
 ): Promise<PullCandidate[]> {
-  const remote = await readSelectedLocaleMaps(repoDir, files)
+  const { maps: remote, origin } = await readSelectedLocaleMaps(repoDir, files)
   const keys = await prisma.i18nKey.findMany({
     where: { projectId },
     include: { locales: true },
@@ -361,6 +362,7 @@ async function buildPullCandidates(
       out.push({
         key,
         locale,
+        relPath: origin.get(`${locale}\0${key}`) ?? '',
         baseText: base ?? '',
         oursText: ours ?? '',
         theirsText: theirs,

@@ -244,8 +244,12 @@ export async function listRemoteFiles(
 export async function readSelectedLocaleMaps(
   repoRoot: string,
   files: RemoteFileInfo[]
-): Promise<RemoteLocaleMap> {
-  const result: RemoteLocaleMap = new Map()
+): Promise<{
+  maps: RemoteLocaleMap
+  origin: Map<string, string>
+}> {
+  const maps: RemoteLocaleMap = new Map()
+  const origin = new Map<string, string>()
   for (const file of files) {
     if (!file.locale) continue
     let parsed: unknown
@@ -260,16 +264,17 @@ export async function readSelectedLocaleMaps(
     } catch {
       continue
     }
-    let localeMap = result.get(file.locale)
+    let localeMap = maps.get(file.locale)
     if (!localeMap) {
       localeMap = new Map()
-      result.set(file.locale, localeMap)
+      maps.set(file.locale, localeMap)
     }
     for (const [key, text] of Object.entries(map)) {
       localeMap.set(key, text)
+      origin.set(`${file.locale}\0${key}`, file.relPath)
     }
   }
-  return result
+  return { maps, origin }
 }
 
 export async function writeSourceBatch(params: {
