@@ -91,7 +91,7 @@ export default defineEventHandler(async (event) => {
         action: body.force ? LogAction.FORCE_CREATE : LogAction.CREATE,
         status: LogStatus.SUCCESS,
         beforeData: existing ?? undefined,
-        afterData: loaded,
+        afterData: loaded ?? undefined,
         i18nKeyId: record.id,
         fingerprint,
         userID: numericID(session.user.id),

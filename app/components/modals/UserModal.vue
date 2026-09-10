@@ -28,11 +28,10 @@ const zProfile = z.object({
   email: z.email().nullable().optional(),
   avatar: z.string().nullable().optional(),
 })
-type ZProfile = z.infer<typeof zProfile>
-const profileState = reactive<ZProfile>({
-  nickname: userStore.user.nickname,
-  email: userStore.user.email,
-  avatar: userStore.user.avatar,
+const profileState = reactive({
+  nickname: userStore.user.nickname ?? undefined,
+  email: userStore.user.email ?? undefined,
+  avatar: userStore.user.avatar ?? undefined,
 })
 const avatarUploader =
   useTemplateRef<InstanceType<typeof ImageUploader>>('avatarUploader')

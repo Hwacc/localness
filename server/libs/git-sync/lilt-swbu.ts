@@ -2,7 +2,7 @@ import { createError } from 'h3'
 import { createHash, randomBytes } from 'node:crypto'
 import { readdir, readFile, writeFile, mkdir, stat } from 'node:fs/promises'
 import { relative, sep, join } from 'node:path'
-import { GitSyncPullReason } from '#shared/constants'
+import type { GitSyncPullReason } from '#shared/constants'
 import { classifyFile } from './filters'
 import { remoteToLocale } from './credentials'
 
@@ -27,7 +27,7 @@ async function isDirectory(path: string): Promise<boolean> {
 export async function listLiltProducts(
   repoRoot: string
 ): Promise<{ value: string; label: string }[]> {
-  let names: string[] = []
+  let names: string[]
   try {
     names = await readdir(repoRoot)
   } catch {
@@ -150,7 +150,7 @@ type FileHit = {
 }
 
 async function listJsonFiles(dir: string): Promise<string[]> {
-  let entries: string[] = []
+  let entries: string[]
   try {
     entries = await readdir(dir)
   } catch {

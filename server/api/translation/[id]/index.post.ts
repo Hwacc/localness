@@ -76,7 +76,7 @@ export default defineEventHandler(async (event) => {
         action: LogAction.UPDATE,
         status: LogStatus.SUCCESS,
         beforeData: existing,
-        afterData: loaded,
+        afterData: loaded ?? undefined,
         i18nKeyId: nID,
         fingerprint: updated.fingerprint,
         userID: numericID(session.user.id),

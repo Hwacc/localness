@@ -319,7 +319,7 @@ async function saveBinding() {
 }
 
 function candidateId(c: PullCandidate) {
-  return `${c.key} ${c.locale}`
+  return `${c.key}\0${c.locale}`
 }
 
 /** Decisions that write something. `keep-ours` is a no-op, so it is shown but unchecked. */

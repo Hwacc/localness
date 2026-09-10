@@ -8,7 +8,6 @@ import {
   GIT_SYNC_PREVIEW_TTL_MS,
   GitSyncPreviewKind,
   GitSyncPreviewStatus,
-  GitSyncPullReason,
   GitSyncPushReason,
 } from '#shared/constants'
 import { decideThreeWay, type ThreeWayDecision } from './three-way'

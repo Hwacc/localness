@@ -252,14 +252,14 @@ const columns = computed<TableColumn<II18nKeyRow>[]>(() => [
     header: 'Tags',
     size: 80,
     cell: ({ row }: { row: TableRow<II18nKeyRow> }) => (
-      <UBadge
-        variant="subtle"
-        color="neutral"
+      <div
         class={row.original.tagCount > 0 ? 'cursor-pointer' : 'opacity-50'}
         onClick={() => openTagRefs(row.original)}
       >
-        {String(row.original.tagCount)}
-      </UBadge>
+        <UBadge variant="subtle" color="neutral">
+          {String(row.original.tagCount)}
+        </UBadge>
+      </div>
     ),
   },
   {

@@ -111,7 +111,6 @@ onMounted(async () => {
     await pageStore.loadTags(curPage.value.id)
   }
   const imageUrl = await ossImage.get(curPage.value?.image)
-  // @ts-expect-error support dynamic import
   const { Editor } = await import('~/core/Editor')
 
   if (!editorContainer.value) return

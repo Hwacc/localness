@@ -97,8 +97,8 @@ export default defineNuxtConfig({
       compiled: async () => {
         if (process.env.NODE_ENV !== 'production') return
         const chunksDir = resolve(process.cwd(), '.output/server/chunks')
-        let nirtroFileUrl = ''
-        let content = ''
+        let nirtroFileUrl: string
+        let content: string
         try {
           // Search for nitro.mjs in all subdirectories
           const files = await fs.readdir(chunksDir, {

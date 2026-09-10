@@ -20,7 +20,7 @@ export default defineEventHandler(async (event) => {
   const body = await readZodBody(event, zPublish.parse)
   const keyIds = body.keyIds?.filter((n) => Number.isInteger(n) && n > 0)
 
-  let updated = 0
+  let updated: number
   if (keyIds && keyIds.length > 0) {
     const owned = await prisma.i18nKey.findMany({
       where: { projectId: nID, id: { in: keyIds } },
