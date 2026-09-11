@@ -162,7 +162,7 @@ onMounted(() => {
 
 <template>
   <UModal
-    title="Sync history"
+    title="LILT Git sync history"
     description="What Pull, Push and conflict resolution actually did."
     class="max-w-4xl"
     @update:open="(isOpen) => !isOpen && emit('close', false)"

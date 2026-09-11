@@ -312,7 +312,7 @@ async function saveBinding() {
   if (!configured.value && !form.token.trim()) {
     toast.add({
       title: 'Token required',
-      description: 'Paste a token to enable Git sync.',
+      description: 'Paste a token to enable LILT Git sync.',
       color: 'warning',
     })
     return
@@ -331,7 +331,7 @@ async function saveBinding() {
       },
     })
     toast.add({
-      title: 'Git sync saved',
+      title: 'LILT Git sync saved',
       color: 'success',
     })
     await loadAll()
@@ -875,10 +875,11 @@ function startEdit(conflict: GitSyncConflictRow) {
 <template>
   <div class="h-full min-w-0 overflow-auto bg-muted">
     <header class="shrink-0 px-6 py-5 bg-default border-b border-default">
-      <h1 class="text-xl font-semibold tracking-tight">Git sync</h1>
+      <h1 class="text-xl font-semibold tracking-tight">LILT Git sync</h1>
       <p class="mt-1 text-sm text-muted">
-        Pull confirmed Git text onto the platform (published). Push published
-        source strings. Resolve conflicts here — not on Translations.
+        Sync this project against a LILT product folder in Git. Pull confirmed
+        Git text onto the platform (published). Push published source strings.
+        Resolve conflicts here — not on Translations.
       </p>
     </header>
 
@@ -888,7 +889,7 @@ function startEdit(conflict: GitSyncConflictRow) {
         color="neutral"
         variant="subtle"
         title="Select a project"
-        description="Pick a project in the workspace bar to configure Git sync."
+        description="Pick a project in the workspace bar to configure LILT Git sync."
       />
 
       <div
@@ -903,8 +904,8 @@ function startEdit(conflict: GitSyncConflictRow) {
           v-if="!isOwner"
           color="warning"
           variant="subtle"
-          title="Git sync is not configured"
-          description="Contact the project owner to configure Git sync."
+          title="LILT Git sync is not configured"
+          description="Contact the project owner to configure LILT Git sync."
         />
 
         <div
@@ -913,7 +914,7 @@ function startEdit(conflict: GitSyncConflictRow) {
         >
           <!-- The page runs full width for the review tables; form fields are
                capped so inputs do not stretch across the whole screen. -->
-          <h2 class="font-semibold">Set up Git sync</h2>
+          <h2 class="font-semibold">Set up LILT Git sync</h2>
           <p class="max-w-3xl text-sm text-muted">
             Fill the remote URL and token, then load products from that
             repository. Git HTTPS usernames are filled by the server

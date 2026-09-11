@@ -32,7 +32,7 @@ const navItems = [
   },
   {
     icon: 'i-lucide:git-branch',
-    label: 'Git',
+    label: 'LILT Git',
     name: 'git',
     to: '/git',
   },
