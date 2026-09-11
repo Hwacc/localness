@@ -9,8 +9,11 @@ export function createOSSStorage() {
   const engineType: OSSEngine =
     (process.env.NUXT_PUBLIC_OSS_ENGINE as OSSEngine) || OSSEngine.LOCAL
 
+  // Absolute path in a container, where the upload dir is a mounted volume.
   let driver: Driver = fsDriver({
-    base: resolve(process.cwd(), 'runtime/uploads'),
+    base:
+      process.env.NUXT_LOCAL_OSS_DIR ||
+      resolve(process.cwd(), 'runtime/uploads'),
   })
 
   switch (engineType) {

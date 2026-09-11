@@ -102,7 +102,7 @@ function onLineColorChange(c: string | undefined) {
         <UTooltip text="Edit Tags">
           <UButton
             :class="[mode === 'edit' && 'bg-green-400 text-white']"
-            icon="i-lucide:square-pen"
+            icon="i-lucide:mouse-pointer-2"
             size="md"
             color="neutral"
             variant="outline"

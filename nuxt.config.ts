@@ -8,6 +8,15 @@ export default defineNuxtConfig({
     '#server': resolve(process.cwd(), 'server'),
   },
   compatibilityDate: '2026-08-05',
+  app: {
+    head: {
+      title: 'Localness',
+      link: [
+        { rel: 'icon', type: 'image/png', href: '/logo.png' },
+        { rel: 'apple-touch-icon', href: '/logo.png' },
+      ],
+    },
+  },
   devtools: { enabled: process.env.NODE_ENV !== 'production' },
   sourcemap: process.env.NODE_ENV === 'development',
   modules: [

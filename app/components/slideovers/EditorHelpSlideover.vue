@@ -26,7 +26,7 @@ const sections = [
         hint: 'Default. Click a tag to select it. Drag to draw a new box — including over a locked tag.',
       },
       {
-        icon: 'i-lucide:square-pen',
+        icon: 'i-lucide:mouse-pointer-2',
         label: 'Edit Tags',
         hint: 'Move or resize unlocked boxes. Locked boxes stay in place.',
       },
