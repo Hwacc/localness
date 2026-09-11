@@ -20,6 +20,11 @@ logs
 .tabbit*
 run-tabbit.bat
 
+# AI agent config. Machine-local: accumulates absolute paths, usernames and
+# one-off allowed commands, none of it useful to another checkout. Project
+# instructions live in CLAUDE.md at the repo root, which stays tracked.
+.claude/
+
 # Local env files
 .env
 .env.*
