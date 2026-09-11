@@ -18,7 +18,9 @@ const doImage = async (el: HTMLElement, binding: any) => {
   let url = value
 
   if (ossEngine === OSSEngine.LOCAL) {
-    if (!hasProtocol(value) && !value.startsWith(ossBaseUrl)) {
+    // Empty ossBaseUrl is a prefix of every string — do not skip resolve.
+    const hasLocalPrefix = Boolean(ossBaseUrl) && value.startsWith(ossBaseUrl)
+    if (!hasProtocol(value) && !hasLocalPrefix) {
       url = await ossImage.get(value)
     }
   } else {

@@ -17,11 +17,28 @@ export default defineEventHandler(async (event) => {
     })
   }
   const ossStorage = event.context.ossStorage
+  const engine =
+    (process.env.NUXT_PUBLIC_OSS_ENGINE as OSSEngine) || OSSEngine.LOCAL
   let file: any = ''
-  if (process.env.NUXT_PUBLIC_OSS_ENGINE === OSSEngine.QINIU) {
-    file = await ossStorage.getItem(filename, { deadline: Number(deadline) })
-  } else if (process.env.NUXT_PUBLIC_OSS_ENGINE === OSSEngine.LOCAL) {
-    file = await ossStorage.getItemRaw(getFileKey(filename))
+  switch (engine) {
+    case OSSEngine.QINIU:
+      file = await ossStorage.getItem(filename, { deadline: Number(deadline) })
+      break
+    case OSSEngine.LOCAL:
+      file = await ossStorage.getItemRaw(getFileKey(filename))
+      break
+    case OSSEngine.CLOUDFLARE:
+      throw createError({
+        statusCode: 501,
+        statusMessage: 'CLOUDFLARE storage is not implemented',
+      })
+    default: {
+      const _exhaustive: never = engine
+      throw createError({
+        statusCode: 500,
+        statusMessage: `Unsupported OSS engine: ${_exhaustive}`,
+      })
+    }
   }
   if (!file) {
     throw createError({
