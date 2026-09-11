@@ -118,11 +118,10 @@ const pullFileSel = ref<string[]>([])
 const pullKeySel = ref<string[]>([])
 const pushKeySel = ref<string[]>([])
 const applying = ref(false)
-const showSeenFiles = ref(false)
-const showFilteredKeys = ref(false)
 const pullQuery = ref('')
 const pushQuery = ref('')
 const pullDecisionFilter = ref<ThreeWayDecision | 'all'>('all')
+const pushReasonFilter = ref<GitSyncPushReason | 'all'>('all')
 const pullExpanded = ref<Record<string, boolean>>({})
 const pushExpanded = ref<Record<string, boolean>>({})
 
@@ -355,9 +354,28 @@ function isPushRowSelectable(c: PushCandidate) {
   )
 }
 
+/** Files that still hold a row needing a decision. */
+const pullFilesNeedingWork = computed(
+  () =>
+    new Set(
+      (pullPreview.value?.candidates ?? [])
+        .filter(
+          (c) => c.decision === 'apply-theirs' || c.decision === 'conflict'
+        )
+        .map((c) => c.relPath)
+        .filter(Boolean)
+    )
+)
+
+/**
+ * Already-pulled files are hidden unless they are still Git-ahead, so the list
+ * only shows work that is left.
+ */
 const pullVisibleFiles = computed(() =>
   (pullPreview.value?.files ?? []).filter(
-    (f) => showSeenFiles.value || f.reason !== GitSyncPullReason.SEEN_FILE
+    (f) =>
+      f.reason !== GitSyncPullReason.SEEN_FILE ||
+      pullFilesNeedingWork.value.has(f.relPath)
   )
 )
 
@@ -382,14 +400,18 @@ const pullTableRows = computed(() => {
 
 const pushTableRows = computed(() => {
   const q = pushQuery.value.trim().toLowerCase()
+  const reason = pushReasonFilter.value
   return (pushPreview.value?.candidates ?? []).filter((c) => {
-    if (!showFilteredKeys.value && !c.eligible) {
-      if (
-        c.reason !== GitSyncPushReason.REMOTE_CHANGED &&
-        c.reason !== GitSyncPushReason.CONFLICT
-      ) {
-        return false
-      }
+    // Default view is the proposal plus rows that still need a decision.
+    // Filtered-out reasons are only reachable by picking that reason.
+    if (reason !== 'all') {
+      if (c.reason !== reason) return false
+    } else if (
+      !c.eligible &&
+      c.reason !== GitSyncPushReason.REMOTE_CHANGED &&
+      c.reason !== GitSyncPushReason.CONFLICT
+    ) {
+      return false
     }
     if (!q) return true
     return (
@@ -407,6 +429,17 @@ const pullDecisionItems = [
   { label: 'Keep platform draft', value: 'keep-ours' },
   { label: 'Align base only', value: 'align' },
   { label: 'Conflict', value: 'conflict' },
+]
+
+const pushReasonItems = [
+  { label: 'All reasons', value: 'all' },
+  { label: 'New key', value: GitSyncPushReason.NEW_KEY },
+  { label: 'Changed', value: GitSyncPushReason.CHANGED },
+  { label: 'Unchanged', value: GitSyncPushReason.UNCHANGED },
+  { label: 'No published text', value: GitSyncPushReason.NOT_PUBLISHED },
+  { label: 'Auto draft key', value: GitSyncPushReason.DRAFT_KEY },
+  { label: 'Git is ahead', value: GitSyncPushReason.REMOTE_CHANGED },
+  { label: 'Conflict', value: GitSyncPushReason.CONFLICT },
 ]
 
 const pullColumns: TableColumn<PullCandidate>[] = [
@@ -593,10 +626,6 @@ async function startPull() {
     pullKeySel.value = preview.candidates
       .filter(isPullActionable)
       .map(candidateId)
-    showSeenFiles.value = preview.files.some(
-      (f) =>
-        f.reason === GitSyncPullReason.SEEN_FILE && needsSeen.has(f.relPath)
-    )
     pullQuery.value = ''
     pullDecisionFilter.value = 'all'
     pullExpanded.value = {}
@@ -663,9 +692,7 @@ async function startPush() {
     pushKeySel.value = preview.candidates
       .filter((c) => c.eligible)
       .map((c) => c.key)
-    // Nothing eligible: open the full list so the reason is visible instead
-    // of showing an empty panel.
-    showFilteredKeys.value = pushKeySel.value.length === 0
+    pushReasonFilter.value = 'all'
     pushQuery.value = ''
     pushExpanded.value = {}
     if ((preview.counts?.conflict ?? 0) > 0) {
@@ -1125,13 +1152,7 @@ function startEdit(conflict: GitSyncConflictRow) {
           </div>
 
           <div class="flex flex-col gap-2">
-            <div class="flex items-center justify-between gap-2">
-              <h3 class="text-sm font-medium">Batch files</h3>
-              <UCheckbox
-                v-model="showSeenFiles"
-                label="Show already pulled"
-              />
-            </div>
+            <h3 class="text-sm font-medium">Batch files</h3>
             <p v-if="!pullVisibleFiles.length" class="text-sm text-muted">
               No files to show.
             </p>
@@ -1174,20 +1195,6 @@ function startEdit(conflict: GitSyncConflictRow) {
                   class="w-48"
                   size="sm"
                   :items="pullDecisionItems"
-                />
-                <UButton
-                  size="xs"
-                  color="neutral"
-                  variant="ghost"
-                  label="Select visible"
-                  @click="selectVisiblePull(true)"
-                />
-                <UButton
-                  size="xs"
-                  color="neutral"
-                  variant="ghost"
-                  label="Clear visible"
-                  @click="selectVisiblePull(false)"
                 />
               </div>
             </div>
@@ -1348,23 +1355,11 @@ function startEdit(conflict: GitSyncConflictRow) {
                   icon="i-lucide:search"
                   placeholder="Search keys"
                 />
-                <UCheckbox
-                  v-model="showFilteredKeys"
-                  label="Show filtered out"
-                />
-                <UButton
-                  size="xs"
-                  color="neutral"
-                  variant="ghost"
-                  label="Select visible"
-                  @click="selectVisiblePush(true)"
-                />
-                <UButton
-                  size="xs"
-                  color="neutral"
-                  variant="ghost"
-                  label="Clear visible"
-                  @click="selectVisiblePush(false)"
+                <USelect
+                  v-model="pushReasonFilter"
+                  class="w-48"
+                  size="sm"
+                  :items="pushReasonItems"
                 />
               </div>
             </div>
@@ -1471,7 +1466,11 @@ function startEdit(conflict: GitSyncConflictRow) {
                 </template>
                 <template #empty>
                   <div class="py-8 text-center text-sm text-muted">
-                    No keys to show.
+                    {{
+                      pushReasonFilter === 'all'
+                        ? 'Nothing to push. Pick a reason to see the keys that were filtered out.'
+                        : 'No keys with this reason.'
+                    }}
                   </div>
                 </template>
               </UTable>
