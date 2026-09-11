@@ -185,7 +185,10 @@ export function useTagModal() {
             opt.onCreateI18nKey?.(undefined)
           }
         } catch (error) {
-          console.error('tag info error', error)
+          console.error('gen i18n key error', error)
+          // useApi already toasted the reason; tell the caller the run is over
+          // so it does not stay stuck waiting for a key.
+          opt.onCreateI18nKey?.(undefined)
         } finally {
           tagModal.patch({ loading: false })
         }

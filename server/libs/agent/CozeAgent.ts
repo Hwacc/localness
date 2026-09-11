@@ -1,5 +1,5 @@
 import type { JWTResult } from './AbstractAgent'
-import { AbstractAgent } from './AbstractAgent'
+import { AbstractAgent, AgentError } from './AbstractAgent'
 import type {
   JWTToken,
   WorkflowEventError,
@@ -20,6 +20,18 @@ type CozeSecret = {
   public_key_id: string
 }
 
+/**
+ * Coze reports billing/credit refusals only as free text on the workflow ERROR
+ * event, so the kind has to be sniffed from the message.
+ */
+const QUOTA_MESSAGE = /insufficient|credit|balance|quota|rate limit/i
+
+function toAgentError(error: unknown, fallback: string): AgentError {
+  if (error instanceof AgentError) return error
+  const message = error instanceof Error ? error.message : String(error)
+  return new AgentError('upstream', message || fallback, { cause: error })
+}
+
 export class CozeAgent extends AbstractAgent {
   private sceret!: CozeSecret
   private jwt!: JWTToken
@@ -29,17 +41,13 @@ export class CozeAgent extends AbstractAgent {
     super()
     this.sceret =
       this.secretAssistant.getSecret<CozeSecret>('coze_oauth_config')
-    this.initClient()
+    // No eager initClient() here: it is async, so a failure in the constructor
+    // would be an unhandled rejection at import time. generateI18nKey awaits it.
   }
 
   private async initClient() {
-    if (!this.isExpired() && !this.apiClient) return
-    try {
-      await this.getJwt()
-    } catch (error) {
-      console.error('Failed to get JWT OAuth token:', error)
-      throw error
-    }
+    if (!this.isExpired() && this.apiClient) return
+    await this.getJwt()
     this.apiClient = new CozeAPI({
       baseURL: this.sceret.coze_api_base,
       token: this.jwt.access_token,
@@ -75,7 +83,11 @@ export class CozeAgent extends AbstractAgent {
       }
     } catch (error) {
       console.error('Failed to get JWT OAuth token:', error)
-      throw error
+      throw new AgentError(
+        'config',
+        'Could not authenticate with the AI service',
+        { cause: error }
+      )
     }
   }
 
@@ -83,70 +95,52 @@ export class CozeAgent extends AbstractAgent {
     parmas?: ZGenI18nKey
   ): Promise<T | null> {
     try {
-      if (!parmas)
-        throw new Error('Failed to generate i18n key: Missing parameters')
+      if (!parmas) throw new AgentError('bad-params', 'Missing parameters')
       await this.initClient()
-      console.log(
-        'parmas',
-        transform(
-          parmas,
-          (result, val, key) => {
-            if (key === 'tagI18nKey') {
-              result['tag_i18n_key'] = val
-              return
-            }
-            result[snakeCase(key)] = val
-          },
-          {} as Record<string, any>
-        )
+      const parameters = transform(
+        parmas,
+        (result, val, key) => {
+          if (key === 'tagI18nKey') {
+            result['tag_i18n_key'] = val
+            return
+          }
+          result[snakeCase(key)] = val
+        },
+        {} as Record<string, any>
       )
+      console.log('parmas', parameters)
       const response = this.apiClient?.workflows.runs.stream({
         workflow_id: '7514668272895213594',
-        parameters:
-          transform(
-            parmas,
-            (result, val, key) => {
-              if (key === 'tagI18nKey') {
-                result['tag_i18n_key'] = val
-                return
-              }
-              result[snakeCase(key)] = val
-            },
-            {} as Record<string, any>
-          ) || {},
+        parameters,
       })
       if (!response)
-        throw new Error(
-          'Failed to generate i18n key: apiClient response is undefined'
-        )
-      // eslint-disable-next-line no-async-promise-executor
-      return new Promise(async (resolve, reject) => {
-        let result: T | null = null
-        for await (const evt of response) {
-          if (evt.event === WorkflowEventType.ERROR) {
-            const data = evt.data as WorkflowEventError
-            reject(
-              new Error(`Failed to generate i18n key: ${data.error_message}`)
-            )
-          }
-          if (evt.event === WorkflowEventType.MESSAGE) {
-            const message = evt.data as WorkflowEventMessage
-            if (message.node_is_finish && message.content) {
-              try {
-                result = JSON.parse(message.content)
-              } catch (error) {
-                console.error('Failed to parse message content:', error)
-              }
+        throw new AgentError('config', 'AI service client is not initialized')
+      let result: T | null = null
+      for await (const evt of response) {
+        if (evt.event === WorkflowEventType.ERROR) {
+          const data = evt.data as WorkflowEventError
+          const message = data.error_message || 'AI workflow run failed'
+          throw new AgentError(
+            QUOTA_MESSAGE.test(message) ? 'quota' : 'upstream',
+            message
+          )
+        }
+        if (evt.event === WorkflowEventType.MESSAGE) {
+          const message = evt.data as WorkflowEventMessage
+          if (message.node_is_finish && message.content) {
+            try {
+              result = JSON.parse(message.content)
+            } catch (error) {
+              console.error('Failed to parse message content:', error)
             }
           }
-          if (evt.event === WorkflowEventType.DONE) {
-            resolve(result)
-          }
         }
-      })
+        if (evt.event === WorkflowEventType.DONE) break
+      }
+      return result
     } catch (error) {
       console.error('Failed to generate i18n key:', error)
-      throw error
+      throw toAgentError(error, 'AI workflow run failed')
     }
   }
 }

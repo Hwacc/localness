@@ -22,6 +22,26 @@ class SecretAssistant {
   }
 }
 
+/**
+ * Why the agent call failed, so the API layer can pick an HTTP status instead of
+ * letting every upstream hiccup surface as an opaque 500.
+ * - `quota`: the AI provider refused on billing/credits/rate grounds
+ * - `upstream`: the provider is reachable but the run failed
+ * - `config`: our own credentials / client setup is broken
+ * - `bad-params`: the agent was called without usable parameters
+ */
+export type AgentErrorKind = 'quota' | 'upstream' | 'config' | 'bad-params'
+
+export class AgentError extends Error {
+  readonly kind: AgentErrorKind
+
+  constructor(kind: AgentErrorKind, message: string, options?: ErrorOptions) {
+    super(message, options)
+    this.name = 'AgentError'
+    this.kind = kind
+  }
+}
+
 export type JWTResult = {
   token_type: string
   access_token: string
