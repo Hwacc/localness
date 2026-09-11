@@ -10,7 +10,7 @@ services:
     container_name: localness
     restart: unless-stopped
     ports:
-      - '${LOCALNESS_PORT:-3000}:3000'
+      - '${LOCALNESS_PORT:-13000}:3000'
     env_file:
       - .env.docker
     volumes:

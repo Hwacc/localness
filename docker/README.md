@@ -19,7 +19,7 @@ Then create the first account — there is no public signup:
 docker compose exec localness tsx scripts/register.ts
 ```
 
-Health check: `curl localhost:3000/api/health` → `{"ok":true,"db":true,...}`.
+Health check: `curl localhost:13000/api/health` → `{"ok":true,"db":true,...}`.
 It returns 503 when the database is unreachable, so an orchestrator can tell a
 booted-but-broken container from a healthy one.
 
