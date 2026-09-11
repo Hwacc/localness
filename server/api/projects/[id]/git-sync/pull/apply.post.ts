@@ -19,12 +19,13 @@ export default defineEventHandler(async (event) => {
     throw createError({ statusCode: 400, statusMessage: 'Missing project id' })
   }
   const projectId = numericID(id)
-  await requireTeamMember(event, projectId)
+  const { userId } = await requireTeamMember(event, projectId)
   const body = await readValidatedBody(event, bodySchema.parse)
   return applyPull({
     projectId,
     previewId: body.previewId,
     selectedFiles: body.selectedFiles,
     selectedKeys: body.selectedKeys,
+    userId,
   })
 })

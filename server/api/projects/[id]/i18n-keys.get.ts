@@ -23,9 +23,18 @@ const DRAFT_PREDICATE = `
   )
 `
 
+/** ISO instant from the client, or null. Bad input is ignored, not an error. */
+function isoBound(raw: unknown): Date | null {
+  if (typeof raw !== 'string' || !raw.trim()) return null
+  const date = new Date(raw)
+  return Number.isNaN(date.getTime()) ? null : date
+}
+
 /**
  * @route GET /api/projects/:id/i18n-keys
- * @query q, status, page, limit
+ * @query q, status, from, to, page, limit
+ * `from`/`to` are ISO instants bounding `updatedAt`; the client sends the
+ * local day boundaries so the range means what the user picked on screen.
  */
 export default defineEventHandler(async (event) => {
   const id = getRouterParam(event, 'id')
@@ -45,6 +54,8 @@ export default defineEventHandler(async (event) => {
     query.status === I18nKeyStatusFilter.PUBLISHED
       ? query.status
       : I18nKeyStatusFilter.ALL
+  const from = isoBound(query.from)
+  const to = isoBound(query.to)
   const page = Math.max(1, Number(query.page ?? 1) || 1)
   const limit = Math.min(100, Math.max(1, Number(query.limit ?? 20) || 20))
   const skip = (page - 1) * limit
@@ -68,6 +79,14 @@ export default defineEventHandler(async (event) => {
   const where = {
     projectId: nID,
     ...(statusIds ? { id: { in: statusIds } } : {}),
+    ...(from || to
+      ? {
+          updatedAt: {
+            ...(from ? { gte: from } : {}),
+            ...(to ? { lte: to } : {}),
+          },
+        }
+      : {}),
     ...(q
       ? {
           OR: [

@@ -9,6 +9,7 @@ import {
 } from '#shared/constants'
 import { formatI18nKeyDisplay, validID } from '#shared/utils'
 import { isHttpsRemoteUrl, normalizeGitHttpsRemote } from '#shared/utils/schemas'
+import { GitSyncHistoryModal } from '#components'
 
 definePageMeta({
   middleware: ['protected'],
@@ -857,6 +858,14 @@ async function resolve(
   }
 }
 
+const overlay = useOverlay()
+const historyModal = overlay.create(GitSyncHistoryModal)
+
+function openHistory() {
+  if (!validID(projectId.value)) return
+  historyModal.open({ projectId: projectId.value })
+}
+
 function startEdit(conflict: GitSyncConflictRow) {
   editingId.value = conflict.id
   editText.value = conflict.oursText
@@ -1028,6 +1037,13 @@ function startEdit(conflict: GitSyncConflictRow) {
                 icon="i-lucide:arrow-up-to-line"
                 label="Push"
                 @click="startPush"
+              />
+              <UButton
+                color="neutral"
+                variant="ghost"
+                icon="i-lucide:history"
+                label="History"
+                @click="openHistory"
               />
               <UButton
                 v-if="isOwner"

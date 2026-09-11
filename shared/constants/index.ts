@@ -58,6 +58,25 @@ export enum GitSyncPreviewStatus {
   CANCELLED = 'cancelled',
 }
 
+/** A sync run that actually touched something. Previews are not logged. */
+export enum GitSyncLogAction {
+  PULL_APPLY = 'pull-apply',
+  PUSH_APPLY = 'push-apply',
+  CONFLICT_RESOLVE = 'conflict-resolve',
+}
+
+export enum GitSyncLogStatus {
+  SUCCESS = 'success',
+  /** Landed, but some rows were skipped. */
+  PARTIAL = 'partial',
+  /** Blocked on open conflicts — nothing landed. */
+  REFUSED = 'refused',
+  FAILED = 'failed',
+}
+
+/** Page size of the `/git` history dialog. */
+export const GIT_SYNC_LOG_PAGE_SIZE = 20
+
 /** Why a candidate is proposed, or why it was filtered out. */
 export enum GitSyncPullReason {
   NEW_FILE = 'new-file',

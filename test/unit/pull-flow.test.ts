@@ -8,6 +8,7 @@ const db = vi.hoisted(() => ({
   basesWritten: [] as Record<string, unknown>[],
   conflictRow: null as { status: string } | null,
   openConflict: null as Record<string, unknown> | null,
+  logs: [] as Record<string, unknown>[],
 }))
 
 const remote = vi.hoisted(() => ({ headSha: 'sha-preview' }))
@@ -55,6 +56,12 @@ vi.mock('#server/libs/prisma', () => {
     },
     gitSyncBinding: { update: async () => ({}) },
     gitSyncPreview: { update: async () => ({}) },
+    gitSyncLog: {
+      create: async ({ data }: { data: Record<string, unknown> }) => {
+        db.logs.push(data)
+        return {}
+      },
+    },
   }
   return {
     default: {
@@ -143,6 +150,7 @@ beforeEach(() => {
   db.basesWritten = []
   db.conflictRow = { status: 'theirs' }
   db.openConflict = null
+  db.logs = []
   remote.headSha = 'sha-preview'
 })
 
@@ -250,6 +258,38 @@ describe('applyPull', () => {
     ).rejects.toMatchObject({ statusCode: 409 })
   })
 
+  it('logs the landing with the acting user and commit', async () => {
+    await applyPull({
+      projectId: 2,
+      previewId: 1,
+      selectedFiles: ['cortex/source/a.json'],
+      selectedKeys: ['a\0en'],
+      userId: 7,
+    })
+    expect(db.logs).toHaveLength(1)
+    expect(db.logs[0]).toMatchObject({
+      action: 'pull-apply',
+      status: 'success',
+      previewId: 1,
+      commitSha: 'sha-preview',
+      userID: 7,
+      detail: { applied: 1, aligned: 0, kept: 0, files: 1 },
+    })
+  })
+
+  it('does not log a refused apply', async () => {
+    db.conflictRow = { status: 'open' }
+    await expect(
+      applyPull({
+        projectId: 2,
+        previewId: 1,
+        selectedFiles: ['cortex/source/a.json'],
+        selectedKeys: ['a\0en'],
+      })
+    ).rejects.toMatchObject({ statusCode: 409 })
+    expect(db.logs).toHaveLength(0)
+  })
+
   it('counts only files the user accepted as seen', async () => {
     // Selecting no files but keeping a key means the file stays a candidate.
     const result = await applyPull({
@@ -288,6 +328,22 @@ describe('resolveConflict', () => {
       publishedText: 'platform',
     })
     expect(db.basesWritten[0]!.update).toMatchObject({ baseText: 'git' })
+  })
+
+  it('logs which side the user picked', async () => {
+    await resolveConflict({
+      projectId: 2,
+      conflictId: 9,
+      action: 'ours',
+      userId: 7,
+    })
+    expect(db.logs).toHaveLength(1)
+    expect(db.logs[0]).toMatchObject({
+      action: 'conflict-resolve',
+      status: 'success',
+      userID: 7,
+      detail: { key: 'cortex_mobile_desc', locale: 'en-US', action: 'ours' },
+    })
   })
 
   it('writes Git text and Git base when using Git', async () => {

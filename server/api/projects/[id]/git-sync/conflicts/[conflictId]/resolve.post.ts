@@ -17,12 +17,13 @@ export default defineEventHandler(async (event) => {
     })
   }
   const projectId = numericID(id)
-  await requireTeamMember(event, projectId)
+  const { userId } = await requireTeamMember(event, projectId)
   const body = await readZodBody(event, zGitSyncConflictResolve.parse)
   return resolveConflict({
     projectId,
     conflictId: numericID(conflictId),
     action: body.action,
     text: body.text,
+    userId,
   })
 })
