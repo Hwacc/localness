@@ -3,6 +3,7 @@ import type { DropdownMenuItem, TableColumn, TableRow } from '@nuxt/ui'
 import type { Column } from '@tanstack/vue-table'
 import {
   DEFAULT_LOCALES,
+  I18nKeyStatusFilter,
   TRANSLATION_LANGUAGES,
 } from '#shared/constants'
 import { formatI18nKeyDisplay } from '#shared/utils'
@@ -22,6 +23,7 @@ const toast = useToast()
 const table = useTemplateRef('table')
 
 const q = ref('')
+const statusFilter = ref<I18nKeyStatusFilter>(I18nKeyStatusFilter.ALL)
 const page = ref(1)
 const limit = 20
 const total = ref(0)
@@ -31,7 +33,22 @@ const publishing = ref(false)
 const drafts = ref<Record<string, string>>({})
 const rowSelection = ref<Record<string, boolean>>({})
 
-const dirtyCount = computed(() => rows.value.filter((r) => r.dirty).length)
+const statusItems = [
+  { label: 'All statuses', value: I18nKeyStatusFilter.ALL },
+  { label: 'Draft', value: I18nKeyStatusFilter.DRAFT },
+  { label: 'Published', value: I18nKeyStatusFilter.PUBLISHED },
+]
+
+/** Selected rows split by status — bulk actions only apply to one side each. */
+const selectedRows = computed(() =>
+  rows.value.filter((r) => rowSelection.value[String(r.id)])
+)
+const selectedDraftIds = computed(() =>
+  selectedRows.value.filter((r) => r.dirty).map((r) => Number(r.id))
+)
+const selectedPublishedIds = computed(() =>
+  selectedRows.value.filter((r) => !r.dirty).map((r) => Number(r.id))
+)
 
 function parseLocales(raw: unknown): string[] {
   if (Array.isArray(raw) && raw.every((v) => typeof v === 'string')) {
@@ -72,12 +89,6 @@ function setCellDraft(row: II18nKeyRow, locale: string, value: string) {
   drafts.value = { ...drafts.value, [cellKey(row.id, locale)]: value }
 }
 
-const selectedKeyIds = computed(() =>
-  Object.entries(rowSelection.value)
-    .filter(([, selected]) => selected)
-    .map(([id]) => Number(id))
-    .filter((id) => Number.isInteger(id) && id > 0)
-)
 
 const columnPinning = ref({
   left: ['select', 'key'],
@@ -120,6 +131,73 @@ function openUnpublish(row: II18nKeyRow) {
       unpublishModal.patch({ loading: true })
       try {
         await unpublishKeys([Number(row.id)])
+        close()
+      } finally {
+        unpublishModal.patch({ loading: false })
+      }
+    },
+  })
+}
+
+function openBulkDelete() {
+  const targets = selectedRows.value.filter((r) => r.dirty)
+  if (!targets.length) return
+  const tagTotal = targets.reduce((sum, r) => sum + (r.tagCount ?? 0), 0)
+  const tagHint = tagTotal > 0 ? ` This will also delete ${tagTotal} bound tag(s).` : ''
+  deleteModal.open({
+    mode: 'delete',
+    title: 'Delete translations',
+    message: `Delete ${targets.length} draft key(s)?${tagHint} Published keys in your selection are skipped.`,
+    onOk: async (_mode, { close }) => {
+      deleteModal.patch({ loading: true })
+      try {
+        // No bulk delete endpoint; a partial failure must still report what
+        // did land rather than silently rolling the toast into a success.
+        const results = await Promise.allSettled(
+          targets.map((row) =>
+            useApi(`/api/translation/${row.id}`, { method: 'DELETE' })
+          )
+        )
+        const failed = results.filter((r) => r.status === 'rejected').length
+        const deletedIds = new Set(
+          targets
+            .filter((_, i) => results[i]!.status === 'fulfilled')
+            .map((r) => String(r.id))
+        )
+        pageStore.setTags(
+          pageStore.tagList.filter((tag) => {
+            const boundId = tag.translationID ?? tag.i18nKeyId
+            return !deletedIds.has(String(boundId))
+          })
+        )
+        toast.add({
+          title: failed ? 'Partially deleted' : 'Deleted',
+          description: `${deletedIds.size} deleted${failed ? `, ${failed} failed` : ''}`,
+          color: failed ? 'warning' : 'success',
+          icon: failed ? 'i-lucide:triangle-alert' : 'i-lucide:check',
+        })
+        close()
+        rowSelection.value = {}
+        await loadKeys()
+      } finally {
+        deleteModal.patch({ loading: false })
+      }
+    },
+  })
+}
+
+function openBulkUnpublish() {
+  const ids = selectedPublishedIds.value
+  if (!ids.length) return
+  unpublishModal.open({
+    mode: 'delete',
+    title: 'Revert to draft',
+    message: `Revert ${ids.length} published key(s) to draft? They will drop out of the published export until published again.`,
+    onOk: async (_mode, { close }) => {
+      unpublishModal.patch({ loading: true })
+      try {
+        await unpublishKeys(ids)
+        rowSelection.value = {}
         close()
       } finally {
         unpublishModal.patch({ loading: false })
@@ -215,6 +293,12 @@ const columns = computed<TableColumn<II18nKeyRow>[]>(() => [
     enableHiding: false,
     enableSorting: false,
     size: 48,
+    meta: {
+      class: {
+        th: 'w-[48px] min-w-[48px] max-w-[48px] px-3',
+        td: 'w-[48px] min-w-[48px] max-w-[48px] px-3',
+      },
+    },
   },
   {
     id: 'key',
@@ -222,6 +306,13 @@ const columns = computed<TableColumn<II18nKeyRow>[]>(() => [
     header: ({ column }) => pinHeader(column, 'Key'),
     enableHiding: false,
     size: 200,
+    // Pinned: width must match `size` exactly (see the select column).
+    meta: {
+      class: {
+        th: 'w-[200px] min-w-[200px] max-w-[200px]',
+        td: 'w-[200px] min-w-[200px] max-w-[200px]',
+      },
+    },
     cell: ({ row }: { row: TableRow<II18nKeyRow> }) => (
       <code
         class="text-xs font-mono break-all"
@@ -325,6 +416,14 @@ const columns = computed<TableColumn<II18nKeyRow>[]>(() => [
     header: ({ column }) => pinHeader(column, '', 'right'),
     enableHiding: false,
     size: 148,
+    // Pinned right: `getAfter('right')` uses `size`, so the rendered width has
+    // to match it (see the select column).
+    meta: {
+      class: {
+        th: 'w-[148px] min-w-[148px] max-w-[148px]',
+        td: 'w-[148px] min-w-[148px] max-w-[148px]',
+      },
+    },
     cell: ({ row }: { row: TableRow<II18nKeyRow> }) => {
       const original = row.original
       const isDraft = original.dirty
@@ -419,6 +518,9 @@ async function loadKeys() {
       limit: String(limit),
     })
     if (q.value.trim()) params.set('q', q.value.trim())
+    if (statusFilter.value !== I18nKeyStatusFilter.ALL) {
+      params.set('status', statusFilter.value)
+    }
     const res = await useApi<IPagination<II18nKeyRow[]>>(
       `/api/projects/${curProject.value.id}/i18n-keys?${params.toString()}`
     )
@@ -445,6 +547,12 @@ const searchDebounced = useDebounceFn(() => {
 
 watch(q, () => {
   searchDebounced()
+})
+
+// Status is a discrete choice, not typing — apply it immediately.
+watch(statusFilter, () => {
+  page.value = 1
+  loadKeys()
 })
 
 watch(
@@ -476,15 +584,17 @@ async function saveDraft(row: II18nKeyRow, locale: string, value: string) {
   row.dirty = isI18nKeyDraft(row.locales)
 }
 
-async function publishKeys(keyIds?: number[]) {
-  if (!validID(curProject.value.id)) return
+// Always scoped to explicit keys. The endpoint also accepts an empty body to
+// publish the whole project, but no UI offers that — bulk actions cover it.
+async function publishKeys(keyIds: number[]) {
+  if (!validID(curProject.value.id) || keyIds.length === 0) return
   publishing.value = true
   try {
     const res = await useApi<{ updated: number }>(
       `/api/projects/${curProject.value.id}/publish`,
       {
         method: 'POST',
-        body: keyIds?.length ? { keyIds } : {},
+        body: { keyIds },
       }
     )
     toast.add({
@@ -533,74 +643,44 @@ onMounted(async () => {
 <template>
   <div class="h-full min-w-0 overflow-hidden flex flex-col bg-muted">
     <header
-      class="shrink-0 px-6 py-5 bg-default border-b border-default flex items-start justify-between gap-6"
+      class="shrink-0 px-6 py-4 bg-default border-b border-default flex items-center justify-between gap-4"
     >
-      <div class="min-w-0">
-        <h1 class="text-xl font-semibold tracking-tight">Translations</h1>
-        <p class="mt-1 text-sm text-muted">
-          {{
-            validID(curProject.id)
-              ? `Project: ${curProject.name}`
-              : 'Select a project from the sidebar workspace switcher.'
-          }}
-        </p>
+      <div class="min-w-0 flex items-baseline gap-2">
+        <h1 class="text-lg font-semibold tracking-tight">Translations</h1>
+        <!-- The empty-project hint lives in the table's empty slot instead. -->
+        <span v-if="validID(curProject.id)" class="truncate text-sm text-muted">
+          {{ curProject.name }}
+        </span>
       </div>
-      <div class="flex items-center gap-2 shrink-0">
-        <UButton
-          color="neutral"
-          variant="outline"
-          label="New translation"
-          icon="i-lucide:plus"
-          :disabled="!validID(curProject.id)"
-          @click="openCreate"
-        />
-        <UButton
-          color="neutral"
-          variant="outline"
-          label="Publish selected"
-          icon="i-lucide:check-check"
-          :loading="publishing"
-          :disabled="selectedKeyIds.length === 0"
-          @click="publishKeys(selectedKeyIds)"
-        />
-        <UButton
-          color="primary"
-          label="Publish all"
-          icon="i-lucide:upload"
-          :loading="publishing"
-          :disabled="!validID(curProject.id) || rows.length === 0"
-          @click="publishKeys()"
-        />
-      </div>
+      <UButton
+        class="shrink-0"
+        size="sm"
+        color="neutral"
+        variant="outline"
+        label="New translation"
+        icon="i-lucide:plus"
+        :disabled="!validID(curProject.id)"
+        @click="openCreate"
+      />
     </header>
 
     <div class="flex-1 min-h-0 min-w-0 p-6 flex flex-col gap-4 overflow-hidden">
       <div
         class="shrink-0 flex flex-wrap items-center gap-3 rounded-xl border border-default bg-default px-4 py-3"
       >
-        <UBadge
-          v-if="validID(curProject.id)"
-          color="neutral"
-          variant="subtle"
-        >
-          {{ curProject.name }}
-        </UBadge>
         <UInput
           v-model="q"
           class="w-72"
           icon="i-lucide:search"
           placeholder="Search key or origin"
         />
-        <UBadge
-          v-if="validID(curProject.id)"
-          color="neutral"
-          variant="subtle"
-        >
-          {{ total }} keys
-        </UBadge>
-        <UBadge v-if="dirtyCount" color="warning" variant="subtle">
-          {{ dirtyCount }} unpublished
-        </UBadge>
+        <USelectMenu
+          v-model="statusFilter"
+          :items="statusItems"
+          value-key="value"
+          class="w-44"
+          :search-input="false"
+        />
         <div class="ml-auto flex items-center gap-2">
           <UDropdownMenu
             :items="columnsDropdownItems"
@@ -620,6 +700,59 @@ onMounted(async () => {
             icon="i-lucide:refresh-cw"
             :loading="loading"
             @click="loadKeys"
+          />
+        </div>
+      </div>
+
+      <div
+        v-if="selectedRows.length"
+        class="shrink-0 flex flex-wrap items-center gap-3 rounded-xl border border-primary/40 bg-default px-4 py-3"
+      >
+        <span class="text-sm font-medium">
+          {{ selectedRows.length }} selected
+        </span>
+        <span
+          v-if="selectedDraftIds.length && selectedPublishedIds.length"
+          class="text-xs text-muted"
+        >
+          {{ selectedDraftIds.length }} draft ·
+          {{ selectedPublishedIds.length }} published
+        </span>
+        <div class="ml-auto flex flex-wrap items-center gap-2">
+          <UButton
+            color="neutral"
+            variant="outline"
+            icon="i-lucide:check-check"
+            :loading="publishing"
+            :disabled="selectedDraftIds.length === 0"
+            @click="publishKeys(selectedDraftIds)"
+          >
+            Publish {{ selectedDraftIds.length || '' }}
+          </UButton>
+          <UButton
+            color="neutral"
+            variant="outline"
+            icon="i-lucide:undo-2"
+            :loading="publishing"
+            :disabled="selectedPublishedIds.length === 0"
+            @click="openBulkUnpublish"
+          >
+            Revert {{ selectedPublishedIds.length || '' }}
+          </UButton>
+          <UButton
+            color="error"
+            variant="outline"
+            icon="i-lucide:trash-2"
+            :disabled="selectedDraftIds.length === 0"
+            @click="openBulkDelete"
+          >
+            Delete {{ selectedDraftIds.length || '' }}
+          </UButton>
+          <UButton
+            color="neutral"
+            variant="ghost"
+            label="Clear"
+            @click="rowSelection = {}"
           />
         </div>
       </div>

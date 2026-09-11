@@ -12,7 +12,11 @@ import {
   GitSyncPushReason,
 } from '#shared/constants'
 import { decideThreeWay, type ThreeWayDecision } from './three-way'
-import { classifyPush, isPushEligible, isPullProposed } from './filters'
+import {
+  classifyPush,
+  emptyPushCounts,
+  isPushEligible,
+} from './filters'
 import { localeToRemote } from './credentials'
 import {
   withClonedRepo,
@@ -24,6 +28,7 @@ import {
   isLiltProduct,
   listLiltProducts,
   listRemoteFiles,
+  readMergedSourceLocale,
   readSelectedLocaleMaps,
   seenFileMap,
   writeSourceBatch,
@@ -73,6 +78,7 @@ type PrismaLike = Pick<
   'i18nKey' | 'localeValue' | 'gitSyncBase' | 'gitSyncConflict'
 >
 
+/** Write Git (or a conflict resolution) as the platform copy: draft + published. */
 async function upsertDraft(
   params: {
     projectId: number
@@ -110,26 +116,9 @@ async function upsertDraft(
       i18nKeyId: record.id,
       locale: params.locale,
       draftText: params.text,
-      publishedText: null,
+      publishedText: params.text,
     },
-    update: { draftText: params.text },
-  })
-  await db.gitSyncBase.upsert({
-    where: {
-      projectId_key_locale: {
-        projectId: params.projectId,
-        key: params.key,
-        locale: params.locale,
-      },
-    },
-    create: {
-      projectId: params.projectId,
-      key: params.key,
-      locale: params.locale,
-      baseText: params.text,
-      commitSha: params.commitSha,
-    },
-    update: { baseText: params.text, commitSha: params.commitSha },
+    update: { draftText: params.text, publishedText: params.text },
   })
 }
 
@@ -288,13 +277,16 @@ export async function previewPull(
         override,
         seen
       )
-      // Default proposal: files git has not shown us before, or whose bytes
-      // changed since we last read them. The user may add seen files back.
-      const proposed = files.filter((f) => isPullProposed(f.reason))
-      const candidates = await buildPullCandidates(
+      // Merge every batch so a seen file that still disagrees with the last
+      // landing (Git ahead, platform unchanged) shows up as apply-theirs —
+      // otherwise it is skipped on Push and invisible on Pull.
+      const allCandidates = await buildPullCandidates(
         projectId,
         repoDir,
-        proposed
+        files
+      )
+      const candidates = allCandidates.filter(
+        (c) => c.decision === 'apply-theirs' || c.decision === 'conflict'
       )
       const counts = countDecisions(candidates)
       const expiresAt = new Date(Date.now() + GIT_SYNC_PREVIEW_TTL_MS)
@@ -317,6 +309,18 @@ export async function previewPull(
           candidates: { files, candidates } as object,
         },
       })
+      for (const c of candidates) {
+        if (c.decision !== 'conflict') continue
+        await upsertConflict({
+          projectId,
+          key: c.key,
+          locale: c.locale,
+          baseText: c.baseText,
+          oursText: c.oursText,
+          theirsText: c.theirsText,
+          publishedText: c.publishedText,
+        })
+      }
       return {
         previewId: preview.id,
         commitSha,
@@ -460,6 +464,20 @@ export async function applyPull(params: {
       statusMessage: 'Nothing selected to pull',
     })
   }
+  let openConflicts = 0
+  for (const c of snapshot.candidates) {
+    if (c.decision !== 'conflict') continue
+    const existing = await prisma.gitSyncConflict.findFirst({
+      where: { projectId, key: c.key, locale: c.locale },
+    })
+    if (!existing || existing.status === 'open') openConflicts += 1
+  }
+  if (openConflicts > 0) {
+    throw createError({
+      statusCode: 409,
+      statusMessage: `Resolve ${openConflicts} conflict(s) before applying pull`,
+    })
+  }
   const commitSha = preview.commitSha
   let applied = 0
   let aligned = 0
@@ -469,7 +487,13 @@ export async function applyPull(params: {
     for (const c of chosen) {
       switch (c.decision) {
         case 'apply-theirs':
+          // Preview already confirmed Git. Land it as the platform copy
+          // (draft + published) so Apply is not a third staging area.
           await upsertDraft(
+            { projectId, key: c.key, locale: c.locale, text: c.theirsText, commitSha },
+            tx
+          )
+          await setBase(
             { projectId, key: c.key, locale: c.locale, text: c.theirsText, commitSha },
             tx
           )
@@ -486,19 +510,7 @@ export async function applyPull(params: {
           aligned += 1
           break
         case 'conflict':
-          await upsertConflict(
-            {
-              projectId,
-              key: c.key,
-              locale: c.locale,
-              baseText: c.baseText,
-              oursText: c.oursText,
-              theirsText: c.theirsText,
-              publishedText: c.publishedText,
-            },
-            tx
-          )
-          conflicts += 1
+          // Cards are written at preview and must be resolved before Apply.
           break
         default: {
           const _exhaustive: never = c.decision
@@ -538,6 +550,7 @@ export type PushCandidate = {
   key: string
   baseText: string
   text: string
+  theirsText: string
   reason: GitSyncPushReason
   eligible: boolean
 }
@@ -551,9 +564,9 @@ export type PushPreview = {
 }
 
 /**
- * Step 1 of push. Pure database work — no clone. Returns every source key
- * with the reason it is or is not proposed, so an empty delta is explainable
- * instead of a bare 400.
+ * Step 1 of push. Clones `source/` so the proposal can three-way against the
+ * live remote, then returns every source key with the reason it is or is not
+ * proposed. An empty delta is explainable instead of a bare 400.
  */
 export async function previewPush(
   projectId: number,
@@ -568,7 +581,7 @@ export async function previewPush(
       statusMessage: `Resolve ${openCount} open conflict(s) before push`,
     })
   }
-  await requireBinding(projectId)
+  const { binding, remoteUrl } = await requireBinding(projectId)
   const project = await prisma.project.findUnique({
     where: { id: projectId },
     include: { settings: true },
@@ -582,56 +595,80 @@ export async function previewPush(
     where: { projectId, locale: sourceLocal },
   })
   const lastPushed = new Map(bases.map((row) => [row.key, row.baseText]))
-  const candidates: PushCandidate[] = []
-  for (const key of keys) {
-    const loc = key.locales.find((l) => l.locale === sourceLocal)
-    const text = loc?.publishedText?.trim() ?? ''
-    const baseText = lastPushed.get(key.key) ?? ''
-    const reason = classifyPush(key.key, text, lastPushed)
-    candidates.push({
-      key: key.key,
-      baseText,
-      text,
-      reason,
-      eligible: isPushEligible(reason),
-    })
-  }
-  candidates.sort((a, b) => a.key.localeCompare(b.key))
-  const counts: Record<GitSyncPushReason, number> = {
-    [GitSyncPushReason.NEW_KEY]: 0,
-    [GitSyncPushReason.CHANGED]: 0,
-    [GitSyncPushReason.UNCHANGED]: 0,
-    [GitSyncPushReason.NOT_PUBLISHED]: 0,
-    [GitSyncPushReason.DRAFT_KEY]: 0,
-  }
-  for (const c of candidates) counts[c.reason] += 1
-  const expiresAt = new Date(Date.now() + GIT_SYNC_PREVIEW_TTL_MS)
-  await prisma.gitSyncPreview.updateMany({
-    where: {
-      projectId,
-      kind: GitSyncPreviewKind.PUSH,
-      status: GitSyncPreviewStatus.PENDING,
+  const override = localeOverride(binding.localeMap)
+  return withClonedRepo({
+    remoteUrl,
+    branch: binding.branch,
+    credentialKind: binding.credentialKind,
+    token: binding.token,
+    sparsePath: binding.product,
+    run: async (repoDir, commitSha) => {
+      const remote = await readMergedSourceLocale(
+        repoDir,
+        binding.product,
+        sourceLocal,
+        override
+      )
+      const candidates: PushCandidate[] = []
+      for (const key of keys) {
+        const loc = key.locales.find((l) => l.locale === sourceLocal)
+        const text = loc?.publishedText?.trim() ?? ''
+        const baseText = lastPushed.get(key.key) ?? ''
+        const theirsText = remote.get(key.key) ?? ''
+        const reason = classifyPush(key.key, text, lastPushed, remote)
+        candidates.push({
+          key: key.key,
+          baseText,
+          text,
+          theirsText,
+          reason,
+          eligible: isPushEligible(reason),
+        })
+      }
+      candidates.sort((a, b) => a.key.localeCompare(b.key))
+      const counts = emptyPushCounts()
+      for (const c of candidates) counts[c.reason] += 1
+      const expiresAt = new Date(Date.now() + GIT_SYNC_PREVIEW_TTL_MS)
+      await prisma.gitSyncPreview.updateMany({
+        where: {
+          projectId,
+          kind: GitSyncPreviewKind.PUSH,
+          status: GitSyncPreviewStatus.PENDING,
+        },
+        data: { status: GitSyncPreviewStatus.CANCELLED },
+      })
+      const preview = await prisma.gitSyncPreview.create({
+        data: {
+          projectId,
+          kind: GitSyncPreviewKind.PUSH,
+          status: GitSyncPreviewStatus.PENDING,
+          commitSha,
+          createdBy,
+          expiresAt,
+          candidates: { sourceLocale: sourceLocal, candidates } as object,
+        },
+      })
+      for (const c of candidates) {
+        if (c.reason !== GitSyncPushReason.CONFLICT) continue
+        await upsertConflict({
+          projectId,
+          key: c.key,
+          locale: sourceLocal,
+          baseText: c.baseText,
+          oursText: c.text,
+          theirsText: c.theirsText,
+          publishedText: c.text || null,
+        })
+      }
+      return {
+        previewId: preview.id,
+        sourceLocale: sourceLocal,
+        expiresAt,
+        candidates,
+        counts,
+      }
     },
-    data: { status: GitSyncPreviewStatus.CANCELLED },
   })
-  const preview = await prisma.gitSyncPreview.create({
-    data: {
-      projectId,
-      kind: GitSyncPreviewKind.PUSH,
-      status: GitSyncPreviewStatus.PENDING,
-      commitSha: '',
-      createdBy,
-      expiresAt,
-      candidates: { sourceLocale: sourceLocal, candidates } as object,
-    },
-  })
-  return {
-    previewId: preview.id,
-    sourceLocale: sourceLocal,
-    expiresAt,
-    candidates,
-    counts,
-  }
 }
 
 /**
@@ -670,38 +707,17 @@ export async function applyPush(params: {
   const sourceRemote = localeToRemote(sourceLocal, override)
   const selected = new Set(params.selectedKeys)
   const rows = await prisma.i18nKey.findMany({
-    where: { projectId, key: { in: [...selected] } },
+    where: { projectId },
     include: { locales: { where: { locale: sourceLocal } } },
   })
-  const entries: Record<string, string> = {}
-  const skipped: { key: string; reason: GitSyncPushReason }[] = []
-  for (const row of rows) {
-    const text = row.locales[0]?.publishedText?.trim() ?? ''
-    if (row.key.startsWith(DRAFT_KEY_PREFIX)) {
-      skipped.push({ key: row.key, reason: GitSyncPushReason.DRAFT_KEY })
-      continue
-    }
-    if (!text) {
-      skipped.push({ key: row.key, reason: GitSyncPushReason.NOT_PUBLISHED })
-      continue
-    }
-    entries[row.key] = text
-  }
-  if (!Object.keys(entries).length) {
-    throw createError({
-      statusCode: 400,
-      statusMessage: 'Nothing selected to push',
-    })
-  }
-  // Deliberately *not* mirroring pull's strict sha check. A push candidate set
-  // is computed entirely from the database and lands as a new batch file, so an
-  // unrelated commit arriving after the preview does not invalidate it —
-  // requiring an unchanged head would only manufacture false conflicts on an
-  // active repo. The race that does matter, a non-fast-forward at push time, is
-  // caught by `commitAndPush` and surfaced as a 409.
-  //
-  // Stamped into the commit body so a retry can recognise a batch that landed
-  // on the remote but whose bookkeeping never committed.
+  const bases = await prisma.gitSyncBase.findMany({
+    where: { projectId, locale: sourceLocal },
+  })
+  const lastPushed = new Map(bases.map((row) => [row.key, row.baseText]))
+  // Deliberately *not* mirroring pull's strict sha check. An unrelated commit
+  // after preview does not invalidate the selection — we re-read live source/
+  // and three-way again. The race that does matter, a non-fast-forward at
+  // push time, is caught by `commitAndPush` and surfaced as a 409.
   const trailer = `Localness-Preview: ${preview.id}`
   return withClonedRepo({
     remoteUrl,
@@ -709,40 +725,114 @@ export async function applyPush(params: {
     credentialKind: binding.credentialKind,
     token: binding.token,
     sparsePath: binding.product,
-    // Enough history to spot our own orphaned batch from a previous attempt.
     depth: GIT_SYNC_PUSH_CLONE_DEPTH,
     run: async (repoDir) => {
       const orphan = await findCommitByTrailer(repoDir, trailer)
       if (orphan) {
-        // Push succeeded last time; only the database side is missing. Record
-        // the bookkeeping against the commit that actually landed and stop —
-        // re-writing the batch would duplicate it on the remote.
+        const overlay: Record<string, string> = {}
+        for (const row of rows) {
+          if (!selected.has(row.key)) continue
+          const text = row.locales[0]?.publishedText?.trim() ?? ''
+          if (text && !row.key.startsWith(DRAFT_KEY_PREFIX)) {
+            overlay[row.key] = text
+          }
+        }
         const result = {
           filename: '',
-          count: Object.keys(entries).length,
+          count: Object.keys(overlay).length,
           pushed: true,
           reconciled: true,
-          skipped,
+          skipped: [] as { key: string; reason: GitSyncPushReason }[],
+          conflicts: 0,
         }
         await recordPushLanding({
           binding,
           projectId,
           previewId: preview.id,
           sourceLocal,
-          entries,
+          overlay,
           commitSha: orphan,
-          // The filename is not recoverable from the trailer alone; the file is
-          // already on the remote and the next pull classifies it normally.
           batchPath: null,
           result,
         })
         return result
       }
+      const remote = await readMergedSourceLocale(
+        repoDir,
+        binding.product,
+        sourceLocal,
+        override
+      )
+      const overlay: Record<string, string> = {}
+      const skipped: { key: string; reason: GitSyncPushReason }[] = []
+      const conflictRows: {
+        key: string
+        baseText: string
+        oursText: string
+        theirsText: string
+        publishedText: string | null
+      }[] = []
+      for (const row of rows) {
+        const text = row.locales[0]?.publishedText?.trim() ?? ''
+        const reason = classifyPush(row.key, text, lastPushed, remote)
+        const picked = selected.has(row.key)
+        switch (reason) {
+          case GitSyncPushReason.NEW_KEY:
+          case GitSyncPushReason.CHANGED:
+            if (picked) overlay[row.key] = text
+            break
+          case GitSyncPushReason.CONFLICT:
+            skipped.push({ key: row.key, reason })
+            conflictRows.push({
+              key: row.key,
+              baseText: lastPushed.get(row.key) ?? '',
+              oursText: text,
+              theirsText: remote.get(row.key) ?? '',
+              publishedText: text || null,
+            })
+            break
+          case GitSyncPushReason.REMOTE_CHANGED:
+            if (picked) overlay[row.key] = text
+            break
+          case GitSyncPushReason.UNCHANGED:
+          case GitSyncPushReason.NOT_PUBLISHED:
+          case GitSyncPushReason.DRAFT_KEY:
+            if (picked) skipped.push({ key: row.key, reason })
+            break
+          default: {
+            const _exhaustive: never = reason
+            return _exhaustive
+          }
+        }
+      }
+      if (!Object.keys(overlay).length) {
+        await prisma.$transaction(async (tx) => {
+          for (const row of conflictRows) {
+            await upsertConflict(
+              { projectId, locale: sourceLocal, ...row },
+              tx
+            )
+          }
+          await tx.gitSyncPreview.update({
+            where: { id: preview.id },
+            data: {
+              status: GitSyncPreviewStatus.CANCELLED,
+              result: { skipped, conflicts: conflictRows.length } as object,
+            },
+          })
+        })
+        throw createError({
+          statusCode: conflictRows.length ? 409 : 400,
+          statusMessage: conflictRows.length
+            ? 'Remote source diverged — resolve conflicts on /git'
+            : 'Nothing selected to push',
+        })
+      }
       const filename = await writeSourceBatch({
         repoRoot: repoDir,
         product: binding.product,
         sourceRemoteLocale: sourceRemote,
-        entries,
+        entries: overlay,
       })
       const pushed = await commitAndPush({
         repoDir,
@@ -751,10 +841,11 @@ export async function applyPush(params: {
       })
       const result = {
         filename,
-        count: Object.keys(entries).length,
+        count: Object.keys(overlay).length,
         pushed: pushed.pushed,
         reconciled: false,
         skipped,
+        conflicts: conflictRows.length,
       }
       if (pushed.pushed) {
         await recordPushLanding({
@@ -762,12 +853,11 @@ export async function applyPush(params: {
           projectId,
           previewId: preview.id,
           sourceLocal,
-          entries,
-          // The sha of the commit we just created, not the pre-push HEAD, so
-          // the audit column points at the change it describes.
+          overlay,
           commitSha: pushed.commitSha,
           batchPath: `${binding.product}/source/${filename}`,
           result,
+          conflictRows,
         })
       }
       return result
@@ -784,10 +874,17 @@ async function recordPushLanding(params: {
   projectId: number
   previewId: number
   sourceLocal: string
-  entries: Record<string, string>
+  overlay: Record<string, string>
   commitSha: string
   batchPath: string | null
   result: object
+  conflictRows?: {
+    key: string
+    baseText: string
+    oursText: string
+    theirsText: string
+    publishedText: string | null
+  }[]
 }) {
   await prisma.$transaction(async (tx) => {
     const data: { lastPushedAt: Date; seenFiles?: object } = {
@@ -804,7 +901,7 @@ async function recordPushLanding(params: {
       where: { id: params.binding.id },
       data,
     })
-    for (const [key, text] of Object.entries(params.entries)) {
+    for (const [key, text] of Object.entries(params.overlay)) {
       await setBase(
         {
           projectId: params.projectId,
@@ -812,6 +909,16 @@ async function recordPushLanding(params: {
           locale: params.sourceLocal,
           text,
           commitSha: params.commitSha,
+        },
+        tx
+      )
+    }
+    for (const row of params.conflictRows ?? []) {
+      await upsertConflict(
+        {
+          projectId: params.projectId,
+          locale: params.sourceLocal,
+          ...row,
         },
         tx
       )
@@ -876,6 +983,15 @@ export async function resolveConflict(params: {
     key: conflict.key,
     locale: conflict.locale,
     text: chosen,
+    commitSha: params.commitSha ?? '',
+  })
+  // Last seen Git stays the remote side. Use platform must not move base
+  // onto ours, or the next Pull classifies the same key as apply-theirs.
+  await setBase({
+    projectId: params.projectId,
+    key: conflict.key,
+    locale: conflict.locale,
+    text: conflict.theirsText,
     commitSha: params.commitSha ?? '',
   })
   return prisma.gitSyncConflict.update({

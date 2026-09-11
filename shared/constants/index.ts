@@ -9,6 +9,13 @@ export enum TeamRole {
   MEMBER = 'MEMBER',
 }
 
+/** Status filter on the translations table. Not stored — a query option only. */
+export enum I18nKeyStatusFilter {
+  ALL = 'all',
+  DRAFT = 'draft',
+  PUBLISHED = 'published',
+}
+
 export const DEFAULT_LOCALES = [
   'en',
   'zh_cn',
@@ -64,6 +71,10 @@ export enum GitSyncPushReason {
   UNCHANGED = 'unchanged',
   NOT_PUBLISHED = 'not-published',
   DRAFT_KEY = 'draft-key',
+  /** Remote source moved; platform published still matches the last landing. */
+  REMOTE_CHANGED = 'remote-changed',
+  /** Platform and remote source both moved, and they disagree. */
+  CONFLICT = 'conflict',
 }
 
 /** A preview snapshot is only trusted for this long. */

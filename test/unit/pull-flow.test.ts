@@ -4,6 +4,10 @@ const db = vi.hoisted(() => ({
   binding: null as Record<string, unknown> | null,
   previews: [] as Record<string, unknown>[],
   transactions: 0,
+  localeWrites: [] as Record<string, unknown>[],
+  basesWritten: [] as Record<string, unknown>[],
+  conflictRow: null as { status: string } | null,
+  openConflict: null as Record<string, unknown> | null,
 }))
 
 const remote = vi.hoisted(() => ({ headSha: 'sha-preview' }))
@@ -11,9 +15,44 @@ const remote = vi.hoisted(() => ({ headSha: 'sha-preview' }))
 vi.mock('#server/libs/prisma', () => {
   const tx = {
     i18nKey: { upsert: async () => ({ id: 1 }) },
-    localeValue: { upsert: async () => ({}) },
-    gitSyncBase: { upsert: async () => ({}), findMany: async () => [] },
-    gitSyncConflict: { upsert: async () => ({}), count: async () => 0 },
+    localeValue: {
+      upsert: async ({
+        create,
+        update,
+      }: {
+        create: Record<string, unknown>
+        update: Record<string, unknown>
+      }) => {
+        db.localeWrites.push({ create, update })
+        return {}
+      },
+    },
+    gitSyncBase: {
+      upsert: async ({
+        create,
+        update,
+      }: {
+        create: Record<string, unknown>
+        update: Record<string, unknown>
+      }) => {
+        db.basesWritten.push({ create, update })
+        return {}
+      },
+      findMany: async () => [],
+    },
+    gitSyncConflict: {
+      upsert: async () => ({}),
+      count: async () => 0,
+      findFirst: async ({
+        where,
+      }: {
+        where: Record<string, unknown>
+      }) => {
+        if ('id' in where) return db.openConflict
+        return db.conflictRow
+      },
+      update: async ({ data }: { data: Record<string, unknown> }) => data,
+    },
     gitSyncBinding: { update: async () => ({}) },
     gitSyncPreview: { update: async () => ({}) },
   }
@@ -46,7 +85,9 @@ vi.mock('#server/libs/git-sync/git-remote', () => ({
   findCommitByTrailer: async () => null,
 }))
 
-const { applyPull } = await import('#server/libs/git-sync/sync')
+const { applyPull, resolveConflict } = await import(
+  '#server/libs/git-sync/sync'
+)
 
 const snapshot = {
   files: [{ relPath: 'cortex/source/a.json', sha: 'blob1' }],
@@ -98,6 +139,10 @@ beforeEach(() => {
   }
   db.previews = [pending()]
   db.transactions = 0
+  db.localeWrites = []
+  db.basesWritten = []
+  db.conflictRow = { status: 'theirs' }
+  db.openConflict = null
   remote.headSha = 'sha-preview'
 })
 
@@ -127,7 +172,6 @@ describe('applyPull', () => {
   })
 
   it('applies only the selected keys', async () => {
-    // 'b' is a conflict but was not selected, so it must not be recorded.
     const result = await applyPull({
       projectId: 2,
       previewId: 1,
@@ -138,15 +182,49 @@ describe('applyPull', () => {
     expect(result.conflicts).toBe(0)
   })
 
-  it('records a conflict when the user keeps it selected', async () => {
+  it('refuses apply while a preview conflict card is still open', async () => {
+    db.conflictRow = { status: 'open' }
+    await expect(
+      applyPull({
+        projectId: 2,
+        previewId: 1,
+        selectedFiles: ['cortex/source/a.json'],
+        selectedKeys: ['a\0en'],
+      })
+    ).rejects.toMatchObject({ statusCode: 409 })
+    expect(db.transactions).toBe(0)
+  })
+
+  it('applies Git-ahead rows after the conflict card is resolved', async () => {
+    db.conflictRow = { status: 'theirs' }
     const result = await applyPull({
       projectId: 2,
       previewId: 1,
       selectedFiles: ['cortex/source/a.json'],
-      selectedKeys: ['a\0en', 'b\0en'],
+      selectedKeys: ['a\0en'],
     })
     expect(result.applied).toBe(1)
-    expect(result.conflicts).toBe(1)
+    expect(result.conflicts).toBe(0)
+  })
+
+  it('publishes apply-theirs rows instead of leaving them as draft', async () => {
+    const result = await applyPull({
+      projectId: 2,
+      previewId: 1,
+      selectedFiles: ['cortex/source/a.json'],
+      selectedKeys: ['a\0en'],
+    })
+    expect(result.applied).toBe(1)
+    expect(result.conflicts).toBe(0)
+    expect(db.localeWrites).toHaveLength(1)
+    expect(db.localeWrites[0]!.create).toMatchObject({
+      draftText: 'Git text',
+      publishedText: 'Git text',
+    })
+    expect(db.localeWrites[0]!.update).toMatchObject({
+      draftText: 'Git text',
+      publishedText: 'Git text',
+    })
   })
 
   it('rejects an empty selection', async () => {
@@ -181,5 +259,47 @@ describe('applyPull', () => {
       selectedKeys: ['a\0en'],
     })
     expect(result.files).toBe(0)
+  })
+})
+
+describe('resolveConflict', () => {
+  beforeEach(() => {
+    db.openConflict = {
+      id: 9,
+      projectId: 2,
+      key: 'cortex_mobile_desc',
+      locale: 'en-US',
+      status: 'open',
+      baseText: 'base',
+      oursText: 'platform',
+      theirsText: 'git',
+      publishedText: 'platform',
+    }
+  })
+
+  it('keeps Git as the last-seen base when using platform text', async () => {
+    await resolveConflict({
+      projectId: 2,
+      conflictId: 9,
+      action: 'ours',
+    })
+    expect(db.localeWrites[0]!.update).toMatchObject({
+      draftText: 'platform',
+      publishedText: 'platform',
+    })
+    expect(db.basesWritten[0]!.update).toMatchObject({ baseText: 'git' })
+  })
+
+  it('writes Git text and Git base when using Git', async () => {
+    await resolveConflict({
+      projectId: 2,
+      conflictId: 9,
+      action: 'theirs',
+    })
+    expect(db.localeWrites[0]!.update).toMatchObject({
+      draftText: 'git',
+      publishedText: 'git',
+    })
+    expect(db.basesWritten[0]!.update).toMatchObject({ baseText: 'git' })
   })
 })

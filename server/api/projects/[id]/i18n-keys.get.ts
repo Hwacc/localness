@@ -2,10 +2,30 @@ import prisma from '#server/libs/prisma'
 import { numericID } from '#server/helper/id'
 import { requireTeamMember } from '#server/helper/access'
 import { shapeI18nKeyRow } from '#server/helper/i18n'
+import { I18nKeyStatusFilter } from '#shared/constants'
+
+/**
+ * Mirrors `isI18nKeyDraft` in SQL. A key is draft when it has no locale rows,
+ * when nothing is published yet, or when any locale's draft differs from what
+ * is published. The comparison spans two columns, so Prisma's `where` cannot
+ * express it and filtering client-side would break pagination.
+ */
+const DRAFT_PREDICATE = `
+  NOT EXISTS (
+    SELECT 1 FROM "LocaleValue" lv
+    WHERE lv."i18n_key_id" = k."id"
+      AND COALESCE(lv."published_text", '') != ''
+  )
+  OR EXISTS (
+    SELECT 1 FROM "LocaleValue" lv
+    WHERE lv."i18n_key_id" = k."id"
+      AND COALESCE(lv."draft_text", '') != COALESCE(lv."published_text", '')
+  )
+`
 
 /**
  * @route GET /api/projects/:id/i18n-keys
- * @query q, page, limit
+ * @query q, status, page, limit
  */
 export default defineEventHandler(async (event) => {
   const id = getRouterParam(event, 'id')
@@ -20,12 +40,34 @@ export default defineEventHandler(async (event) => {
 
   const query = getQuery(event)
   const q = typeof query.q === 'string' ? query.q.trim() : ''
+  const status =
+    query.status === I18nKeyStatusFilter.DRAFT ||
+    query.status === I18nKeyStatusFilter.PUBLISHED
+      ? query.status
+      : I18nKeyStatusFilter.ALL
   const page = Math.max(1, Number(query.page ?? 1) || 1)
   const limit = Math.min(100, Math.max(1, Number(query.limit ?? 20) || 20))
   const skip = (page - 1) * limit
 
+  let statusIds: number[] | null = null
+  if (status !== I18nKeyStatusFilter.ALL) {
+    const rows = await prisma.$queryRawUnsafe<{ id: number }[]>(
+      `SELECT k."id" FROM "I18nKey" k WHERE k."project_id" = ? AND (${
+        status === I18nKeyStatusFilter.DRAFT
+          ? DRAFT_PREDICATE
+          : `NOT (${DRAFT_PREDICATE})`
+      })`,
+      nID
+    )
+    statusIds = rows.map((r) => Number(r.id))
+    if (!statusIds.length) {
+      return new Pagination(page, limit, 0, [])
+    }
+  }
+
   const where = {
     projectId: nID,
+    ...(statusIds ? { id: { in: statusIds } } : {}),
     ...(q
       ? {
           OR: [

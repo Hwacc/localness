@@ -15,6 +15,13 @@ describe('decideThreeWay', () => {
     expect(decideThreeWay('a', 'b', 'a')).toBe('keep-ours')
   })
 
+  it('does not treat Use-platform as apply-theirs when base stays on Git', () => {
+    // After resolving with platform text, base must remain Git. Moving base
+    // onto ours makes the next Pull look like Git-ahead.
+    expect(decideThreeWay('ours', 'ours', 'git')).toBe('apply-theirs')
+    expect(decideThreeWay('git', 'ours', 'git')).toBe('keep-ours')
+  })
+
   it('conflicts when both sides moved apart', () => {
     expect(decideThreeWay('a', 'b', 'c')).toBe('conflict')
   })

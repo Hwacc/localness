@@ -22,9 +22,11 @@ const db = vi.hoisted(() => ({
 const remote = vi.hoisted(() => ({
   /** Sha returned by `findCommitByTrailer`; null means "no prior batch". */
   orphanSha: null as string | null,
-  written: [] as string[],
+  written: [] as Record<string, string>[],
   commits: [] as string[],
   cloneDepth: undefined as number | undefined,
+  source: new Map<string, string>(),
+  conflictsWritten: [] as Record<string, unknown>[],
 }))
 
 vi.mock('#server/libs/git-sync/git-remote', () => ({
@@ -49,9 +51,10 @@ vi.mock('#server/libs/git-sync/lilt-swbu', async (importOriginal) => {
   return {
     ...actual,
     writeSourceBatch: async (params: { entries: Record<string, string> }) => {
-      remote.written.push(Object.keys(params.entries).join(','))
+      remote.written.push(params.entries)
       return 'en_2026-09-10.json'
     },
+    readMergedSourceLocale: async () => remote.source,
   }
 })
 
@@ -75,10 +78,22 @@ vi.mock('#server/libs/prisma', () => {
         return {}
       },
     },
+    gitSyncConflict: {
+      upsert: async ({ create }: { create: Record<string, unknown> }) => {
+        remote.conflictsWritten.push(create)
+        return {}
+      },
+    },
   }
   return {
     default: {
-      gitSyncConflict: { count: async () => db.conflicts },
+      gitSyncConflict: {
+        count: async () => db.conflicts,
+        upsert: async ({ create }: { create: Record<string, unknown> }) => {
+          remote.conflictsWritten.push(create)
+          return {}
+        },
+      },
       gitSyncBinding: { findUnique: async () => db.binding },
       project: { findUnique: async () => db.project },
       i18nKey: { findMany: async () => db.keys },
@@ -135,6 +150,8 @@ beforeEach(() => {
   remote.written = []
   remote.commits = []
   remote.cloneDepth = undefined
+  remote.source = new Map()
+  remote.conflictsWritten = []
 })
 
 describe('previewPush', () => {
@@ -146,12 +163,15 @@ describe('previewPush', () => {
   })
 
   it('explains an empty delta instead of failing', async () => {
-    // Every key unchanged: the old behaviour was a bare 400.
     db.keys = [key('a', 'text'), key('b', 'other')]
     db.bases = [
       { key: 'a', baseText: 'text' },
       { key: 'b', baseText: 'other' },
     ]
+    remote.source = new Map([
+      ['a', 'text'],
+      ['b', 'other'],
+    ])
     const preview = await previewPush(2, 'tester')
     expect(preview.candidates).toHaveLength(2)
     expect(preview.candidates.every((c) => !c.eligible)).toBe(true)
@@ -170,13 +190,37 @@ describe('previewPush', () => {
       { key: 'moved', baseText: 'old' },
       { key: 'same', baseText: 'text' },
     ]
+    remote.source = new Map([
+      ['moved', 'old'],
+      ['same', 'text'],
+    ])
     const preview = await previewPush(2, 'tester')
     const eligible = preview.candidates
       .filter((c) => c.eligible)
       .map((c) => c.key)
     expect(eligible).toEqual(['fresh', 'moved'])
-    // Filtered keys are still returned so the UI can explain them.
     expect(preview.candidates).toHaveLength(5)
+  })
+
+  it('does not propose a key when only remote source moved', async () => {
+    db.keys = [key('a', 'ours')]
+    db.bases = [{ key: 'a', baseText: 'ours' }]
+    remote.source = new Map([['a', 'theirs']])
+    const preview = await previewPush(2, 'tester')
+    expect(preview.candidates[0]!.reason).toBe('remote-changed')
+    expect(preview.candidates[0]!.eligible).toBe(false)
+    expect(preview.candidates[0]!.theirsText).toBe('theirs')
+  })
+
+  it('marks a conflict when platform and remote source both moved', async () => {
+    db.keys = [key('a', 'ours')]
+    db.bases = [{ key: 'a', baseText: 'base' }]
+    remote.source = new Map([['a', 'theirs']])
+    const preview = await previewPush(2, 'tester')
+    expect(preview.candidates[0]!.reason).toBe('conflict')
+    expect(preview.candidates[0]!.eligible).toBe(false)
+    expect(remote.conflictsWritten).toHaveLength(1)
+    expect(remote.conflictsWritten[0]!.key).toBe('a')
   })
 
   it('refuses to preview while conflicts are open', async () => {
@@ -317,9 +361,88 @@ describe('applyPush', () => {
     expect(remote.commits).toHaveLength(0)
     // Bookkeeping still runs, against the commit that actually landed.
     expect(db.basesWritten[0]!.commitSha).toBe('sha-orphan')
-    // The file is already on the remote and no longer under a known name, so
-    // seenFiles must be left untouched rather than guessed at.
     expect(db.bindingUpdates[0]!.seenFiles).toBeUndefined()
+  })
+
+  it('writes only the overlay keys as an incremental batch', async () => {
+    db.previews = [pending]
+    db.keys = [key('a', 'platform')]
+    db.bases = [{ key: 'a', baseText: 'base' }]
+    remote.source = new Map([
+      ['a', 'base'],
+      ['only-on-git', 'keep-me'],
+    ])
+    await applyPush({
+      projectId: 2,
+      previewId: 1,
+      selectedKeys: ['a'],
+      triggeredBy: 't',
+    })
+    expect(remote.written[0]).toEqual({ a: 'platform' })
+    expect(db.basesWritten.map((row) => row.key)).toEqual(['a'])
+  })
+
+  it('overwrites Git when a remote-ahead key is explicitly selected', async () => {
+    db.previews = [pending]
+    db.keys = [key('a', 'ours')]
+    db.bases = [{ key: 'a', baseText: 'ours' }]
+    remote.source = new Map([['a', 'theirs']])
+    await applyPush({
+      projectId: 2,
+      previewId: 1,
+      selectedKeys: ['a'],
+      triggeredBy: 't',
+    })
+    expect(remote.written[0]).toEqual({ a: 'ours' })
+    expect(db.basesWritten.map((row) => row.key)).toEqual(['a'])
+  })
+
+  it('pushes safe keys and records a conflict for diverged source', async () => {
+    db.previews = [
+      {
+        ...pending,
+        candidates: {
+          sourceLocale: 'en',
+          candidates: [
+            { key: 'a', baseText: '', text: 'text' },
+            { key: 'b', baseText: 'base', text: 'ours' },
+          ],
+        },
+      },
+    ]
+    db.keys = [key('a', 'text'), key('b', 'ours')]
+    db.bases = [{ key: 'b', baseText: 'base' }]
+    remote.source = new Map([['b', 'theirs']])
+    const result = await applyPush({
+      projectId: 2,
+      previewId: 1,
+      selectedKeys: ['a', 'b'],
+      triggeredBy: 't',
+    })
+    expect(result.pushed).toBe(true)
+    expect(result.conflicts).toBe(1)
+    expect(remote.written[0]).toEqual({ a: 'text' })
+    expect(remote.conflictsWritten).toHaveLength(1)
+    expect(remote.conflictsWritten[0]!.key).toBe('b')
+    expect(db.basesWritten.map((row) => row.key)).toEqual(['a'])
+  })
+
+  it('records conflicts even when no overlay keys are selected', async () => {
+    db.previews = [pending]
+    db.keys = [key('b', 'ours')]
+    db.bases = [{ key: 'b', baseText: 'base' }]
+    remote.source = new Map([['b', 'theirs']])
+    await expect(
+      applyPush({
+        projectId: 2,
+        previewId: 1,
+        selectedKeys: [],
+        triggeredBy: 't',
+      })
+    ).rejects.toMatchObject({ statusCode: 409 })
+    expect(remote.written).toHaveLength(0)
+    expect(remote.conflictsWritten).toHaveLength(1)
+    expect(remote.conflictsWritten[0]!.key).toBe('b')
   })
 
   it('clones deep enough to find a prior orphaned batch', async () => {

@@ -5,7 +5,7 @@ import { applyPush } from '#server/libs/git-sync/sync'
 
 const bodySchema = z.object({
   previewId: z.number().int().positive(),
-  selectedKeys: z.array(z.string().min(1)).min(1),
+  selectedKeys: z.array(z.string().min(1)),
 })
 
 /**
