@@ -486,7 +486,7 @@ export async function applyPull(params: {
   let applied = 0
   let aligned = 0
   let kept = 0
-  let conflicts = 0
+  const conflicts = 0
   await prisma.$transaction(async (tx) => {
     for (const c of chosen) {
       switch (c.decision) {

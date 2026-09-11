@@ -37,6 +37,12 @@ const navItems = [
     to: '/git',
   },
   {
+    icon: 'i-lucide:bot',
+    label: 'Agent',
+    name: 'agent',
+    to: '/agent',
+  },
+  {
     icon: 'i-lucide:users',
     label: 'Teams',
     name: 'teams',

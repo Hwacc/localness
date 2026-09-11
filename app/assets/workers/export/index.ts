@@ -51,7 +51,7 @@ self.addEventListener('message', (evt: MessageEvent) => {
       })
       break
     case ExportWorkerBells.GENERATE_XLSX:
-      lister.setTags(payload.tags)
+      lister.setRows(payload.rows, payload.localeColumns)
       lister.generateXlsx().then((res) => {
         sendMessage(ExportWorkerBells.GENERATE_XLSX, {
           status: 'ok',
