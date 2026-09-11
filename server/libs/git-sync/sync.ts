@@ -7,10 +7,13 @@ import {
 import {
   GIT_SYNC_PREVIEW_TTL_MS,
   GIT_SYNC_PUSH_CLONE_DEPTH,
+  GitSyncLogAction,
+  GitSyncLogStatus,
   GitSyncPreviewKind,
   GitSyncPreviewStatus,
   GitSyncPushReason,
 } from '#shared/constants'
+import { countSkipReasons, writeGitSyncLog } from './log'
 import { decideThreeWay, type ThreeWayDecision } from './three-way'
 import {
   classifyPush,
@@ -424,6 +427,7 @@ export async function applyPull(params: {
   previewId: number
   selectedFiles: string[]
   selectedKeys: string[]
+  userId?: number | null
 }) {
   const { projectId, previewId } = params
   const { binding, remoteUrl } = await requireBinding(projectId)
@@ -536,6 +540,20 @@ export async function applyPull(params: {
         result: { applied, aligned, kept, conflicts } as object,
       },
     })
+    await writeGitSyncLog(
+      {
+        projectId,
+        action: GitSyncLogAction.PULL_APPLY,
+        status: kept
+          ? GitSyncLogStatus.PARTIAL
+          : GitSyncLogStatus.SUCCESS,
+        previewId: preview.id,
+        commitSha,
+        detail: { applied, aligned, kept, files: chosenFiles.length },
+        userId: params.userId,
+      },
+      tx
+    )
   })
   return {
     applied,
@@ -553,6 +571,15 @@ export type PushCandidate = {
   theirsText: string
   reason: GitSyncPushReason
   eligible: boolean
+}
+
+export type PushApplyResult = {
+  filename: string
+  count: number
+  pushed: boolean
+  reconciled: boolean
+  skipped: { key: string; reason: GitSyncPushReason }[]
+  conflicts: number
 }
 
 export type PushPreview = {
@@ -681,6 +708,7 @@ export async function applyPush(params: {
   previewId: number
   selectedKeys: string[]
   triggeredBy: string
+  userId?: number | null
 }) {
   const { projectId, previewId } = params
   const openCount = await prisma.gitSyncConflict.count({
@@ -737,12 +765,12 @@ export async function applyPush(params: {
             overlay[row.key] = text
           }
         }
-        const result = {
+        const result: PushApplyResult = {
           filename: '',
           count: Object.keys(overlay).length,
           pushed: true,
           reconciled: true,
-          skipped: [] as { key: string; reason: GitSyncPushReason }[],
+          skipped: [],
           conflicts: 0,
         }
         await recordPushLanding({
@@ -754,6 +782,7 @@ export async function applyPush(params: {
           commitSha: orphan,
           batchPath: null,
           result,
+          userId: params.userId,
         })
         return result
       }
@@ -820,6 +849,26 @@ export async function applyPush(params: {
               result: { skipped, conflicts: conflictRows.length } as object,
             },
           })
+          await writeGitSyncLog(
+            {
+              projectId,
+              action: GitSyncLogAction.PUSH_APPLY,
+              status: conflictRows.length
+                ? GitSyncLogStatus.REFUSED
+                : GitSyncLogStatus.FAILED,
+              previewId: preview.id,
+              detail: {
+                filename: '',
+                count: 0,
+                keys: [],
+                reconciled: false,
+                skipped: countSkipReasons(skipped),
+                conflicts: conflictRows.length,
+              },
+              userId: params.userId,
+            },
+            tx
+          )
         })
         throw createError({
           statusCode: conflictRows.length ? 409 : 400,
@@ -839,7 +888,7 @@ export async function applyPush(params: {
         message: `localness: source batch ${filename} (by ${params.triggeredBy})\n\n${trailer}`,
         authorName: 'Localness Git Sync',
       })
-      const result = {
+      const result: PushApplyResult = {
         filename,
         count: Object.keys(overlay).length,
         pushed: pushed.pushed,
@@ -858,6 +907,7 @@ export async function applyPush(params: {
           batchPath: `${binding.product}/source/${filename}`,
           result,
           conflictRows,
+          userId: params.userId,
         })
       }
       return result
@@ -877,7 +927,7 @@ async function recordPushLanding(params: {
   overlay: Record<string, string>
   commitSha: string
   batchPath: string | null
-  result: object
+  result: PushApplyResult
   conflictRows?: {
     key: string
     baseText: string
@@ -885,6 +935,7 @@ async function recordPushLanding(params: {
     theirsText: string
     publishedText: string | null
   }[]
+  userId?: number | null
 }) {
   await prisma.$transaction(async (tx) => {
     const data: { lastPushedAt: Date; seenFiles?: object } = {
@@ -928,9 +979,32 @@ async function recordPushLanding(params: {
       data: {
         status: GitSyncPreviewStatus.APPLIED,
         commitSha: params.commitSha,
-        result: params.result,
+        result: params.result as object,
       },
     })
+    const { result } = params
+    await writeGitSyncLog(
+      {
+        projectId: params.projectId,
+        action: GitSyncLogAction.PUSH_APPLY,
+        status:
+          result.skipped.length || result.conflicts
+            ? GitSyncLogStatus.PARTIAL
+            : GitSyncLogStatus.SUCCESS,
+        previewId: params.previewId,
+        commitSha: params.commitSha,
+        detail: {
+          filename: result.filename,
+          count: result.count,
+          keys: Object.keys(params.overlay),
+          reconciled: result.reconciled,
+          skipped: countSkipReasons(result.skipped),
+          conflicts: result.conflicts,
+        },
+        userId: params.userId,
+      },
+      tx
+    )
   })
 }
 
@@ -940,6 +1014,7 @@ export async function resolveConflict(params: {
   action: 'ours' | 'theirs' | 'merged'
   text?: string
   commitSha?: string
+  userId?: number | null
 }) {
   const conflict = await prisma.gitSyncConflict.findFirst({
     where: { id: params.conflictId, projectId: params.projectId },
@@ -993,6 +1068,18 @@ export async function resolveConflict(params: {
     locale: conflict.locale,
     text: conflict.theirsText,
     commitSha: params.commitSha ?? '',
+  })
+  await writeGitSyncLog({
+    projectId: params.projectId,
+    action: GitSyncLogAction.CONFLICT_RESOLVE,
+    status: GitSyncLogStatus.SUCCESS,
+    commitSha: params.commitSha ?? '',
+    detail: {
+      key: conflict.key,
+      locale: conflict.locale,
+      action: params.action,
+    },
+    userId: params.userId,
   })
   return prisma.gitSyncConflict.update({
     where: { id: conflict.id },

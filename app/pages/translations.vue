@@ -9,12 +9,18 @@ import {
 import { formatI18nKeyDisplay } from '#shared/utils'
 import { UBadge, UButton, UCheckbox, UIcon, UInput, UTooltip, AlertModal, I18nKeyModal } from '#components'
 import { useDebounceFn } from '@vueuse/core'
+import {
+  getLocalTimeZone,
+  today,
+  type DateValue,
+} from '@internationalized/date'
 
 definePageMeta({
   middleware: ['protected'],
   ssr: false,
 })
 
+const { $dayjs } = useNuxtApp()
 const projectStore = useProjectStore()
 const pageStore = usePageStore()
 const { curProject } = storeToRefs(projectStore)
@@ -32,6 +38,40 @@ const loading = ref(false)
 const publishing = ref(false)
 const drafts = ref<Record<string, string>>({})
 const rowSelection = ref<Record<string, boolean>>({})
+
+/**
+ * Filters `updatedAt`, the column the table is already sorted by. A `ref`, not
+ * `reactive`: the range calendar replaces the whole object on every click, so
+ * `v-model` needs something it can assign to. Left untyped because @nuxt/ui
+ * bundles its own copy of @internationalized/date and annotating the value as
+ * `DateValue` makes `v-model` a type error.
+ */
+const dateRange = ref({ start: undefined, end: undefined })
+
+/** The calendar writes its own `DateValue` into the untyped range above. */
+function asDate(value: unknown) {
+  return (value ?? undefined) as DateValue | undefined
+}
+
+const hasDateRange = computed(() =>
+  Boolean(dateRange.value.start || dateRange.value.end)
+)
+
+function formatRangeDay(value: DateValue) {
+  return $dayjs(value.toDate(getLocalTimeZone())).format('YYYY-MM-DD')
+}
+
+const dateRangeLabel = computed(() => {
+  const start = asDate(dateRange.value.start)
+  const end = asDate(dateRange.value.end)
+  if (!start) return 'Updated: any time'
+  if (!end) return formatRangeDay(start)
+  return `${formatRangeDay(start)} / ${formatRangeDay(end)}`
+})
+
+function clearDateRange() {
+  dateRange.value = { start: undefined, end: undefined }
+}
 
 const statusItems = [
   { label: 'All statuses', value: I18nKeyStatusFilter.ALL },
@@ -521,6 +561,23 @@ async function loadKeys() {
     if (statusFilter.value !== I18nKeyStatusFilter.ALL) {
       params.set('status', statusFilter.value)
     }
+    // Whole local days, so a single picked day covers that day end to end.
+    const start = asDate(dateRange.value.start)
+    const end = asDate(dateRange.value.end)
+    if (start) {
+      params.set(
+        'from',
+        $dayjs(start.toDate(getLocalTimeZone())).startOf('day').toISOString()
+      )
+    }
+    if (end || start) {
+      params.set(
+        'to',
+        $dayjs((end ?? start)!.toDate(getLocalTimeZone()))
+          .endOf('day')
+          .toISOString()
+      )
+    }
     const res = await useApi<IPagination<II18nKeyRow[]>>(
       `/api/projects/${curProject.value.id}/i18n-keys?${params.toString()}`
     )
@@ -554,6 +611,16 @@ watch(statusFilter, () => {
   page.value = 1
   loadKeys()
 })
+
+// Range calendars emit twice (start, then end). Reload on both so a single
+// picked day filters right away instead of waiting for the second click.
+watch(
+  () => [dateRange.value.start, dateRange.value.end],
+  () => {
+    page.value = 1
+    loadKeys()
+  }
+)
 
 watch(
   () => curProject.value.id,
@@ -681,6 +748,36 @@ onMounted(async () => {
           class="w-44"
           :search-input="false"
         />
+        <UPopover>
+          <UButton
+            color="neutral"
+            variant="outline"
+            icon="i-lucide:calendar"
+            :label="dateRangeLabel"
+          />
+          <template #content>
+            <div class="p-2 flex flex-col gap-2">
+              <UCalendar
+                v-model="dateRange"
+                range
+                :number-of-months="2"
+                :is-date-unavailable="
+                  (date: DateValue) =>
+                    date.compare(today(getLocalTimeZone())) > 0
+                "
+              />
+              <UButton
+                block
+                size="xs"
+                color="neutral"
+                variant="ghost"
+                label="Clear"
+                :disabled="!hasDateRange"
+                @click="clearDateRange"
+              />
+            </div>
+          </template>
+        </UPopover>
         <div class="ml-auto flex items-center gap-2">
           <UDropdownMenu
             :items="columnsDropdownItems"

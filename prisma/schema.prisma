@@ -24,6 +24,7 @@ model User {
   tagLogs        TagLog[]
   pageLogs       PageLog[]
   projectLogs    ProjectLog[]
+  gitSyncLogs    GitSyncLog[]
 
   @@unique([username, id])
 }
@@ -64,6 +65,7 @@ model Project {
   gitSyncBases GitSyncBase[]
   gitSyncConflicts GitSyncConflict[]
   gitSyncPreviews  GitSyncPreview[]
+  gitSyncLogs      GitSyncLog[]
 
   @@index([teamId])
 }
@@ -148,6 +150,25 @@ model GitSyncPreview {
   project    Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
 
   @@index([projectId, kind, status])
+}
+
+/// Append-only record of what a sync run actually did. Summaries only —
+/// translation text stays in the translation tables.
+model GitSyncLog {
+  id        Int      @id @default(autoincrement())
+  createdAt DateTime @default(now()) @map("created_at")
+  projectId Int      @map("project_id")
+  action    String
+  status    String
+  previewId Int?     @map("preview_id")
+  commitSha String   @default("") @map("commit_sha")
+  detail    Json?
+  userID    Int?     @map("user_id")
+  project   Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  user      User?    @relation(fields: [userID], references: [id], onDelete: SetNull)
+
+  @@index([projectId, createdAt])
+  @@index([userID])
 }
 
 model GitSyncConflict {

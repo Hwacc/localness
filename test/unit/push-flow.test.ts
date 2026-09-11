@@ -16,6 +16,7 @@ const db = vi.hoisted(() => ({
   basesWritten: [] as Record<string, unknown>[],
   bindingUpdates: [] as Record<string, unknown>[],
   previewUpdates: [] as Record<string, unknown>[],
+  logs: [] as Record<string, unknown>[],
 }))
 
 /** Records what the fake remote was asked to do. */
@@ -84,6 +85,12 @@ vi.mock('#server/libs/prisma', () => {
         return {}
       },
     },
+    gitSyncLog: {
+      create: async ({ data }: { data: Record<string, unknown> }) => {
+        db.logs.push(data)
+        return {}
+      },
+    },
   }
   return {
     default: {
@@ -146,6 +153,7 @@ beforeEach(() => {
   db.basesWritten = []
   db.bindingUpdates = []
   db.previewUpdates = []
+  db.logs = []
   remote.orphanSha = null
   remote.written = []
   remote.commits = []
@@ -443,6 +451,98 @@ describe('applyPush', () => {
     expect(remote.written).toHaveLength(0)
     expect(remote.conflictsWritten).toHaveLength(1)
     expect(remote.conflictsWritten[0]!.key).toBe('b')
+  })
+
+  it('logs the batch it committed', async () => {
+    db.previews = [pending]
+    db.keys = [key('a', 'text')]
+    await applyPush({
+      projectId: 2,
+      previewId: 1,
+      selectedKeys: ['a'],
+      triggeredBy: 't',
+      userId: 7,
+    })
+    expect(db.logs).toHaveLength(1)
+    expect(db.logs[0]).toMatchObject({
+      action: 'push-apply',
+      status: 'success',
+      previewId: 1,
+      commitSha: 'sha-new-commit',
+      userID: 7,
+      detail: {
+        filename: 'en_2026-09-10.json',
+        count: 1,
+        keys: ['a'],
+        reconciled: false,
+        conflicts: 0,
+      },
+    })
+  })
+
+  it('logs a partial push with skip reasons collapsed to counts', async () => {
+    db.previews = [pending]
+    db.keys = [key('a', 'text'), key('same', 'kept')]
+    db.bases = [{ key: 'same', baseText: 'kept' }]
+    remote.source = new Map([['same', 'kept']])
+    await applyPush({
+      projectId: 2,
+      previewId: 1,
+      selectedKeys: ['a', 'same'],
+      triggeredBy: 't',
+      userId: 7,
+    })
+    expect(db.logs[0]).toMatchObject({
+      status: 'partial',
+      detail: { keys: ['a'], skipped: { unchanged: 1 } },
+    })
+  })
+
+  it('logs a refused apply when only conflicts are left', async () => {
+    db.previews = [pending]
+    db.keys = [key('b', 'ours')]
+    db.bases = [{ key: 'b', baseText: 'base' }]
+    remote.source = new Map([['b', 'theirs']])
+    await expect(
+      applyPush({
+        projectId: 2,
+        previewId: 1,
+        selectedKeys: [],
+        triggeredBy: 't',
+        userId: 7,
+      })
+    ).rejects.toMatchObject({ statusCode: 409 })
+    expect(db.logs).toHaveLength(1)
+    expect(db.logs[0]).toMatchObject({
+      action: 'push-apply',
+      status: 'refused',
+      detail: { count: 0, keys: [], conflicts: 1 },
+    })
+  })
+
+  it('logs a reconciled batch as a push landing', async () => {
+    db.previews = [pending]
+    db.keys = [key('a', 'text')]
+    remote.orphanSha = 'sha-orphan'
+    await applyPush({
+      projectId: 2,
+      previewId: 1,
+      selectedKeys: ['a'],
+      triggeredBy: 't',
+      userId: 7,
+    })
+    expect(db.logs[0]).toMatchObject({
+      action: 'push-apply',
+      status: 'success',
+      commitSha: 'sha-orphan',
+      detail: { reconciled: true, keys: ['a'] },
+    })
+  })
+
+  it('does not log a preview', async () => {
+    db.keys = [key('a', 'text')]
+    await previewPush(2, 'tester')
+    expect(db.logs).toHaveLength(0)
   })
 
   it('clones deep enough to find a prior orphaned batch', async () => {

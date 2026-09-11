@@ -13,8 +13,12 @@ export function useOSSUpload() {
   const toast = useToast()
   const { ossEngine } = useRuntimeConfig().public
 
-  async function upload(file: File, token: string): Promise<UploadResult> {
+  async function upload(file: File): Promise<UploadResult> {
     if (ossEngine === OSSEngine.QINIU) {
+      const token = await useApi<string>('/upload/token')
+      if (!token) {
+        throw new Error('Failed to get upload token')
+      }
       /**
        * key: null use file hash
        * region.z2: 华南

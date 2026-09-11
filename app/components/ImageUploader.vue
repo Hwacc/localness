@@ -105,10 +105,7 @@ async function handleUpload() {
     })
     return null
   }
-  const uploadToken = await useApi<string>('/api/common/upload-token')
-  if (!uploadToken) return null
-  const res = await ossUploader.upload(innerFile.value, uploadToken)
-  return res
+  return await ossUploader.upload(innerFile.value)
 }
 
 defineExpose({

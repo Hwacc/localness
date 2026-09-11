@@ -18,7 +18,7 @@ export default defineEventHandler(async (event) => {
     throw createError({ statusCode: 400, statusMessage: 'Missing project id' })
   }
   const projectId = numericID(id)
-  const { session } = await requireTeamMember(event, projectId)
+  const { session, userId } = await requireTeamMember(event, projectId)
   const username =
     typeof session.user.username === 'string'
       ? session.user.username
@@ -29,5 +29,6 @@ export default defineEventHandler(async (event) => {
     previewId: body.previewId,
     selectedKeys: body.selectedKeys,
     triggeredBy: username,
+    userId,
   })
 })
