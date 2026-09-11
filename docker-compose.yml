@@ -1,0 +1,33 @@
+services:
+  localness:
+    build:
+      context: .
+      args:
+        # Must match the value the running instance was built with — password
+        # hashes depend on it.
+        NUXT_SALT_SIZE: ${NUXT_SALT_SIZE:-10}
+    image: localness:latest
+    container_name: localness
+    restart: unless-stopped
+    ports:
+      - '${LOCALNESS_PORT:-3000}:3000'
+    env_file:
+      - .env.docker
+    volumes:
+      # SQLite database and local uploads. Losing this volume loses the data.
+      - localness-runtime:/app/runtime
+    healthcheck:
+      test:
+        - CMD
+        - node
+        - -e
+        - >-
+          fetch('http://127.0.0.1:3000/api/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))
+      interval: 30s
+      timeout: 5s
+      # Migrations run before the server starts, so the first probe waits.
+      start_period: 40s
+      retries: 3
+
+volumes:
+  localness-runtime:

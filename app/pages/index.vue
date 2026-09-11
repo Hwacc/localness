@@ -34,7 +34,7 @@ async function onSubmit() {
 
 <template>
   <ClientOnly>
-    <div class="flex flex-col items-center mt-[10rem]">
+    <div class="flex flex-col items-center mt-20">
       <AnimatePresence mode="wait">
         <motion.div
           v-if="!startFlag"

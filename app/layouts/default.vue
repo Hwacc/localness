@@ -58,6 +58,15 @@ const navItems = [
         <div
           class="flex flex-col items-center h-full px-1 py-2 border-r border-default bg-default"
         >
+          <UTooltip text="Localness" :content="{ side: 'right' }">
+            <img
+              class="size-7 mb-4 shrink-0 select-none"
+              src="/logo.png"
+              alt="Localness"
+              width="28"
+              height="28"
+            >
+          </UTooltip>
           <div class="flex flex-1 flex-col gap-4 items-center">
             <UTooltip
               v-for="item in navItems"

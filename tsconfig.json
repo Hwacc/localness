@@ -18,7 +18,9 @@
     "emitDecoratorMetadata": true,
     "baseUrl": ".",
     "paths": {
-      "#server/*": ["./server/*"]
+      "#server/*": ["./server/*"],
+      "#shared": ["./shared"],
+      "#shared/*": ["./shared/*"]
     }
   }
 }
