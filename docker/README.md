@@ -8,7 +8,7 @@ database and, with the `LOCAL` storage engine, the uploaded screenshots —
 
 ```bash
 cp .env.docker.example .env.docker
-# fill in NUXT_SESSION_PASSWORD (32+ chars) and the OSS/OCR values you use
+# fill in NUXT_SESSION_PASSWORD (32+ chars); keep OSS_BASE_URL=/upload/ for LOCAL
 docker compose up -d --build
 docker compose logs -f localness      # migrations run before the server starts
 ```
@@ -37,6 +37,8 @@ Two variables are special:
 - **`NUXT_SESSION_PASSWORD`** is mandatory. The entrypoint refuses to start
   without it rather than serving an app whose logins silently fail. Changing it
   invalidates every session.
+- **`NUXT_PUBLIC_OSS_BASE_URL`** for `LOCAL` must be `/upload/` (the route that
+  reads the volume). Leave it empty and the editor requests `/{uuid}.png`.
 
 `DATABASE_CLIENT` from the old `.env` files is dead — no code reads it.
 

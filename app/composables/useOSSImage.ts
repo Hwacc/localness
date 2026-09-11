@@ -1,5 +1,6 @@
 import { parseURL, parseQuery } from 'ufo'
 import { OSSEngine } from '#shared/constants'
+import { localOssPublicPath } from '#shared/utils/file'
 
 export function useOSSImage() {
   const { $imageCache, $dayjs } = useNuxtApp()
@@ -30,9 +31,8 @@ export function useOSSImage() {
       return url
     }
 
-    // if ossEngine is LOCAL, return ossBaseUrl + key
     if (ossEngine === OSSEngine.LOCAL) {
-      return ossBaseUrl + key
+      return localOssPublicPath(key, ossBaseUrl)
     }
     return ''
   }

@@ -29,8 +29,8 @@ export default defineNuxtConfig({
   ],
   runtimeConfig: {
     public: {
-      ossEngine: process.env.NUXT_PUBLIC_OSS_ENGINE,
-      ossBaseUrl: process.env.NUXT_PUBLIC_OSS_BASE_URL,
+      ossEngine: process.env.NUXT_PUBLIC_OSS_ENGINE || 'LOCAL',
+      ossBaseUrl: process.env.NUXT_PUBLIC_OSS_BASE_URL || '/upload/',
     },
   },
   css: ['~/assets/css/index.css'],
