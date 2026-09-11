@@ -25,12 +25,28 @@
       "Bash(grep -n 'commitAndPush\\\\|withClonedRepo\\\\|remoteHeadSha\\\\|$transaction\\\\|GitSyncBase\\\\|upsert' server/libs/git-sync/sync.ts)",
       "Read(//c/Users/chuancheng.hua/Documents/Obsidian Vault/项目/Localness/**)",
       "Read(//c/Users/chuancheng.hua/Documents/Obsidian Vault/项目/**)",
-      "Read(//c/Users/chuancheng.hua/Documents/Obsidian Vault/**)"
+      "Read(//c/Users/chuancheng.hua/Documents/Obsidian Vault/**)",
+      "WebFetch(domain:support.lilt.com)",
+      "WebSearch",
+      "WebFetch(domain:api.lilt.com)",
+      "WebFetch(domain:web.tabbit.com)",
+      "Bash(\"/c/Users/chuancheng.hua/AppData/Local/Tabbit/LocalAgent/bin/tabbit-cli.exe\" persistent *)",
+      "Read(//c/Users/chuancheng.hua/AppData/Local/Temp/claude/c--my-workspace-coze-i18n/4e24eb2c-d868-40d0-97bd-09002345d5df/tasks/**)",
+      "Bash(sleep 90; wc -c \"C:\\\\Users\\\\chuancheng.hua\\\\AppData\\\\Local\\\\Temp\\\\claude\\\\c--my-workspace-coze-i18n\\\\4e24eb2c-d868-40d0-97bd-09002345d5df\\\\tasks\\\\b04aama35.output\")",
+      "Bash(\"/c/Users/chuancheng.hua/AppData/Local/Tabbit/LocalAgent/bin/tabbit-cli.exe\" receipt *)",
+      "Bash(python -c ' *)",
+      "Bash(GIT_TERMINAL_PROMPT=0 timeout 30 git ls-remote https://bitbucket.org/razersw/cpt-lilt-ai-swbu.git refs/heads/main)",
+      "Bash(echo \"exit=$?\")",
+      "Bash(pnpm vitest *)",
+      "Bash(cd /tmp/lilt-fork/synapse-rnd002 && echo \"=== source/maryann ===\" && ls source/maryann && echo \"=== translated/maryann \\(first 8\\) ===\" && ls translated/maryann | head -8 && echo \"  count: $\\(ls translated/maryann | wc -l\\)\")",
+      "Read(//tmp/lilt-fork/**)",
+      "Bash(rm -rf /tmp/lilt-fork && git status --short && echo \"--- untracked check done ---\")"
     ],
     "additionalDirectories": [
       "C:\\Users\\chuancheng.hua\\Documents\\Obsidian Vault\\项目\\Localness",
       "C:\\Users\\chuancheng.hua\\Documents\\Obsidian Vault\\项目",
-      "C:\\Users\\chuancheng.hua\\Documents\\Obsidian Vault"
+      "C:\\Users\\chuancheng.hua\\Documents\\Obsidian Vault",
+      "\\tmp"
     ]
   }
 }

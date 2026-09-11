@@ -3,6 +3,7 @@ import {
   GitSyncPushReason,
 } from '#shared/constants'
 import { DRAFT_KEY_PREFIX } from '#shared/utils'
+import { decideThreeWay } from './three-way'
 
 /**
  * Pure filter rules shared by pull and push. Kept free of Prisma and fs so
@@ -28,18 +29,52 @@ export function classifyFile(
     : GitSyncPullReason.CHANGED_FILE
 }
 
-/** Why a source key is (or is not) proposed for push. */
+/**
+ * Why a source key is (or is not) proposed for push.
+ * `remote` is the merged `source/` map (later filename wins). Missing keys
+ * are treated as empty so three-way matches Pull.
+ */
 export function classifyPush(
   key: string,
   text: string,
-  lastPushed: Map<string, string>
+  lastPushed: Map<string, string>,
+  remote: Map<string, string>
 ): GitSyncPushReason {
   if (key.startsWith(DRAFT_KEY_PREFIX)) return GitSyncPushReason.DRAFT_KEY
   if (!text) return GitSyncPushReason.NOT_PUBLISHED
-  if (!lastPushed.has(key)) return GitSyncPushReason.NEW_KEY
-  return lastPushed.get(key) === text
-    ? GitSyncPushReason.UNCHANGED
-    : GitSyncPushReason.CHANGED
+  const decision = decideThreeWay(
+    lastPushed.get(key) ?? '',
+    text,
+    remote.get(key) ?? ''
+  )
+  switch (decision) {
+    case 'align':
+      return GitSyncPushReason.UNCHANGED
+    case 'apply-theirs':
+      return GitSyncPushReason.REMOTE_CHANGED
+    case 'keep-ours':
+      return lastPushed.has(key)
+        ? GitSyncPushReason.CHANGED
+        : GitSyncPushReason.NEW_KEY
+    case 'conflict':
+      return GitSyncPushReason.CONFLICT
+    default: {
+      const _exhaustive: never = decision
+      return _exhaustive
+    }
+  }
+}
+
+export function emptyPushCounts(): Record<GitSyncPushReason, number> {
+  return {
+    [GitSyncPushReason.NEW_KEY]: 0,
+    [GitSyncPushReason.CHANGED]: 0,
+    [GitSyncPushReason.UNCHANGED]: 0,
+    [GitSyncPushReason.NOT_PUBLISHED]: 0,
+    [GitSyncPushReason.DRAFT_KEY]: 0,
+    [GitSyncPushReason.REMOTE_CHANGED]: 0,
+    [GitSyncPushReason.CONFLICT]: 0,
+  }
 }
 
 /** Reasons that make a push candidate selected by default. */
@@ -48,6 +83,14 @@ export function isPushEligible(reason: GitSyncPushReason): boolean {
     reason === GitSyncPushReason.NEW_KEY ||
     reason === GitSyncPushReason.CHANGED
   )
+}
+
+/**
+ * Remote-ahead keys are not proposed, but the user may check them to
+ * overwrite Git with platform published.
+ */
+export function isPushSelectable(reason: GitSyncPushReason): boolean {
+  return isPushEligible(reason) || reason === GitSyncPushReason.REMOTE_CHANGED
 }
 
 /** Reasons that make a pull file selected by default. */

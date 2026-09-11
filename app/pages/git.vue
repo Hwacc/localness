@@ -80,6 +80,7 @@ type PushCandidate = {
   key: string
   baseText: string
   text: string
+  theirsText: string
   reason: string
   eligible: boolean
 }
@@ -140,6 +141,20 @@ const configured = computed(() => Boolean(status.value?.configured))
 const openCount = computed(
   () => status.value?.openConflicts ?? conflicts.value.length
 )
+const pullOpenConflicts = computed(
+  () =>
+    pullPreview.value?.candidates.filter((c) => c.decision === 'conflict')
+      .length ?? 0
+)
+const pullCanConfirm = computed(() => {
+  if (!pullPreview.value || pullOpenConflicts.value > 0) return false
+  return pullKeySel.value.length > 0
+})
+
+const pushCanConfirm = computed(() => {
+  if (!pushPreview.value || !pushKeySel.value.length) return false
+  return (pushPreview.value.counts.conflict ?? 0) === 0
+})
 
 const credentialItems = [
   {
@@ -329,9 +344,15 @@ function candidateId(c: PullCandidate) {
   return `${c.key}\0${c.locale}`
 }
 
-/** Decisions that write something. `keep-ours` is a no-op, so it is shown but unchecked. */
+/** Only Git-ahead rows are applied. Conflicts are cards, not checkboxes. */
 function isPullActionable(c: PullCandidate) {
-  return c.decision !== 'keep-ours'
+  return c.decision === 'apply-theirs'
+}
+
+function isPushRowSelectable(c: PushCandidate) {
+  return (
+    c.eligible || c.reason === GitSyncPushReason.REMOTE_CHANGED
+  )
 }
 
 const pullVisibleFiles = computed(() =>
@@ -362,12 +383,20 @@ const pullTableRows = computed(() => {
 const pushTableRows = computed(() => {
   const q = pushQuery.value.trim().toLowerCase()
   return (pushPreview.value?.candidates ?? []).filter((c) => {
-    if (!showFilteredKeys.value && !c.eligible) return false
+    if (!showFilteredKeys.value && !c.eligible) {
+      if (
+        c.reason !== GitSyncPushReason.REMOTE_CHANGED &&
+        c.reason !== GitSyncPushReason.CONFLICT
+      ) {
+        return false
+      }
+    }
     if (!q) return true
     return (
       c.key.toLowerCase().includes(q) ||
       c.text.toLowerCase().includes(q) ||
-      c.baseText.toLowerCase().includes(q)
+      c.baseText.toLowerCase().includes(q) ||
+      (c.theirsText ?? '').toLowerCase().includes(q)
     )
   })
 })
@@ -403,6 +432,8 @@ const pushReasonLabel: Record<string, string> = {
   [GitSyncPushReason.UNCHANGED]: 'Unchanged since last push',
   [GitSyncPushReason.NOT_PUBLISHED]: 'No published source text',
   [GitSyncPushReason.DRAFT_KEY]: 'Auto draft key',
+  [GitSyncPushReason.REMOTE_CHANGED]: 'Git is ahead — check to overwrite',
+  [GitSyncPushReason.CONFLICT]: 'Conflict with Git source',
 }
 
 const pullReasonLabel: Record<string, string> = {
@@ -517,11 +548,16 @@ function decisionColor(
   }
 }
 
-function pushReasonColor(reason: string): 'primary' | 'neutral' {
+function pushReasonColor(
+  reason: string
+): 'primary' | 'neutral' | 'warning' {
   switch (reason) {
     case GitSyncPushReason.NEW_KEY:
     case GitSyncPushReason.CHANGED:
       return 'primary'
+    case GitSyncPushReason.REMOTE_CHANGED:
+    case GitSyncPushReason.CONFLICT:
+      return 'warning'
     case GitSyncPushReason.UNCHANGED:
     case GitSyncPushReason.NOT_PUBLISHED:
     case GitSyncPushReason.DRAFT_KEY:
@@ -542,18 +578,36 @@ async function startPull() {
     if (!preview) return
     pullPreview.value = preview
     pushPreview.value = null
-    // Default proposal: every new/changed file, every decision that writes.
+    const needsSeen = new Set(
+      preview.candidates
+        .filter((c) => c.decision === 'apply-theirs' || c.decision === 'conflict')
+        .map((c) => c.relPath)
+        .filter(Boolean)
+    )
     pullFileSel.value = preview.files
-      .filter((f) => f.reason !== GitSyncPullReason.SEEN_FILE)
+      .filter(
+        (f) =>
+          f.reason !== GitSyncPullReason.SEEN_FILE || needsSeen.has(f.relPath)
+      )
       .map((f) => f.relPath)
     pullKeySel.value = preview.candidates
       .filter(isPullActionable)
       .map(candidateId)
-    showSeenFiles.value = false
+    showSeenFiles.value = preview.files.some(
+      (f) =>
+        f.reason === GitSyncPullReason.SEEN_FILE && needsSeen.has(f.relPath)
+    )
     pullQuery.value = ''
     pullDecisionFilter.value = 'all'
     pullExpanded.value = {}
-    if (!preview.candidates.length) {
+    if ((preview.counts?.conflict ?? 0) > 0) {
+      await loadAll()
+    }
+    if (
+      !preview.candidates.some(
+        (c) => c.decision === 'apply-theirs' || c.decision === 'conflict'
+      )
+    ) {
       toast.add({
         title: 'Nothing new to pull',
         description: 'No new or changed batch files on the remote.',
@@ -585,7 +639,7 @@ async function confirmPull() {
     })
     toast.add({
       title: 'Pull finished',
-      description: `Applied ${result?.applied ?? 0}, kept ${result?.kept ?? 0}, conflicts ${result?.conflicts ?? 0}, files ${result?.files ?? 0}`,
+      description: `Published ${result?.applied ?? 0}, kept ${result?.kept ?? 0}, conflicts ${result?.conflicts ?? 0}, files ${result?.files ?? 0}`,
       color: 'success',
     })
     pullPreview.value = null
@@ -614,6 +668,9 @@ async function startPush() {
     showFilteredKeys.value = pushKeySel.value.length === 0
     pushQuery.value = ''
     pushExpanded.value = {}
+    if ((preview.counts?.conflict ?? 0) > 0) {
+      await loadAll()
+    }
   } finally {
     pushing.value = false
   }
@@ -629,6 +686,7 @@ async function confirmPush() {
       pushed: boolean
       skipped: { key: string; reason: string }[]
       reconciled?: boolean
+      conflicts?: number
     }>(`/api/projects/${projectId.value}/git-sync/push/apply`, {
       method: 'POST',
       body: {
@@ -636,7 +694,8 @@ async function confirmPush() {
         selectedKeys: pushKeySel.value,
       },
     })
-    const skipped = result?.skipped?.length ?? 0
+    const skipped = result.skipped?.length ?? 0
+    const conflictsN = result.conflicts ?? 0
     toast.add({
       title: result?.reconciled
         ? 'Already on Git — records updated'
@@ -646,11 +705,13 @@ async function confirmPush() {
       description: result?.reconciled
         ? `${result.count} keys had already landed; platform records are now in sync`
         : result?.filename
-          ? `${result.count} keys → ${result.filename}${skipped ? ` · ${skipped} skipped` : ''}`
+          ? `${result.count} keys → ${result.filename}${skipped ? ` · ${skipped} skipped` : ''}${conflictsN ? ` · ${conflictsN} conflict(s)` : ''}`
           : undefined,
-      color: 'success',
+      color: conflictsN ? 'warning' : 'success',
     })
     pushPreview.value = null
+    await loadAll()
+  } catch {
     await loadAll()
   } finally {
     applying.value = false
@@ -660,6 +721,85 @@ async function confirmPush() {
 function cancelPreview() {
   pullPreview.value = null
   pushPreview.value = null
+}
+
+function chosenConflictText(
+  conflict: GitSyncConflictRow,
+  action:
+    | typeof GitSyncConflictStatus.OURS
+    | typeof GitSyncConflictStatus.THEIRS
+    | typeof GitSyncConflictStatus.MERGED,
+  text?: string
+): string {
+  switch (action) {
+    case GitSyncConflictStatus.OURS:
+      return conflict.oursText
+    case GitSyncConflictStatus.THEIRS:
+      return conflict.theirsText
+    case GitSyncConflictStatus.MERGED:
+      return text ?? conflict.oursText
+    default: {
+      const _exhaustive: never = action
+      return _exhaustive
+    }
+  }
+}
+
+function markPushCandidateResolved(key: string, locale: string, chosen: string) {
+  const preview = pushPreview.value
+  if (!preview || preview.sourceLocale !== locale) return
+  pushPreview.value = {
+    ...preview,
+    candidates: preview.candidates.map((c) =>
+      c.key === key
+        ? {
+            ...c,
+            text: chosen,
+            theirsText: chosen,
+            baseText: chosen,
+            reason: GitSyncPushReason.UNCHANGED,
+            eligible: false,
+          }
+        : c
+    ),
+    counts: {
+      ...preview.counts,
+      conflict: Math.max(0, (preview.counts.conflict ?? 1) - 1),
+      unchanged: (preview.counts.unchanged ?? 0) + 1,
+    },
+  }
+  pushKeySel.value = pushKeySel.value.filter((k) => k !== key)
+}
+
+function markPullCandidateResolved(key: string, locale: string) {
+  const preview = pullPreview.value
+  if (!preview) return
+  pullPreview.value = {
+    ...preview,
+    candidates: preview.candidates.filter(
+      (c) => !(c.key === key && c.locale === locale)
+    ),
+    counts: {
+      ...preview.counts,
+      conflict: Math.max(0, preview.counts.conflict - 1),
+    },
+  }
+  const id = `${key}\0${locale}`
+  pullKeySel.value = pullKeySel.value.filter((k) => k !== id)
+  const next = pullPreview.value
+  if (
+    next &&
+    !next.candidates.some(
+      (c) => c.decision === 'conflict' || c.decision === 'apply-theirs'
+    )
+  ) {
+    pullPreview.value = null
+    toast.add({
+      title: 'Conflicts resolved',
+      description: 'Nothing left to apply for this pull.',
+      color: 'success',
+    })
+  }
 }
 
 async function resolve(
@@ -681,6 +821,9 @@ async function resolve(
       }
     )
     editingId.value = null
+    const chosen = chosenConflictText(conflict, action, text)
+    markPushCandidateResolved(conflict.key, conflict.locale, chosen)
+    markPullCandidateResolved(conflict.key, conflict.locale)
     await loadAll()
   } finally {
     resolvingId.value = null
@@ -698,12 +841,12 @@ function startEdit(conflict: GitSyncConflictRow) {
     <header class="shrink-0 px-6 py-5 bg-default border-b border-default">
       <h1 class="text-xl font-semibold tracking-tight">Git sync</h1>
       <p class="mt-1 text-sm text-muted">
-        Pull Git copy into drafts. Push published source strings. Resolve
-        conflicts here — not on Translations.
+        Pull confirmed Git text onto the platform (published). Push published
+        source strings. Resolve conflicts here — not on Translations.
       </p>
     </header>
 
-    <div class="p-6 flex flex-col gap-6 max-w-5xl">
+    <div class="p-6 flex flex-col gap-6">
       <UAlert
         v-if="!validID(projectId)"
         color="neutral"
@@ -732,8 +875,10 @@ function startEdit(conflict: GitSyncConflictRow) {
           v-else
           class="rounded-xl border border-default bg-default p-5 flex flex-col gap-4"
         >
+          <!-- The page runs full width for the review tables; form fields are
+               capped so inputs do not stretch across the whole screen. -->
           <h2 class="font-semibold">Set up Git sync</h2>
-          <p class="text-sm text-muted">
+          <p class="max-w-3xl text-sm text-muted">
             Fill the remote URL and token, then load products from that
             repository. Git HTTPS usernames are filled by the server
             (<code>x-token-auth</code> for a repository Access Token,
@@ -744,72 +889,74 @@ function startEdit(conflict: GitSyncConflictRow) {
             <code>read:repository:bitbucket</code> and
             <code>write:repository:bitbucket</code>. Do not use App Passwords.
           </p>
-          <UFormField label="Credential" name="credentialKind">
-            <USelect
-              v-model="form.credentialKind"
-              class="w-full"
-              :items="credentialItems"
-            />
-          </UFormField>
-          <UFormField label="Token" name="token">
-            <UInput
-              v-model="form.token"
-              type="password"
-              autocomplete="off"
-              class="w-full"
-              placeholder="Paste token (never shown again)"
-            />
-          </UFormField>
-          <UFormField label="Remote URL" name="remoteUrl">
-            <UInput
-              v-model="form.remoteUrl"
-              class="w-full"
-              placeholder="https://bitbucket.org/workspace/repo.git"
-              @blur="applyNormalizedRemoteUrl"
-            />
-            <template #help>
-              Git clone HTTPS URL ending in .git. A Bitbucket /src/… browser
-              page is converted automatically.
-            </template>
-          </UFormField>
-          <UFormField label="Branch" name="branch">
-            <UInput v-model="form.branch" class="w-full" />
-          </UFormField>
-          <UFormField label="Product" name="product">
-            <div class="flex flex-col gap-2 sm:flex-row sm:items-center">
+          <div class="max-w-2xl flex flex-col gap-4">
+            <UFormField label="Credential" name="credentialKind">
               <USelect
-                v-model="form.product"
+                v-model="form.credentialKind"
                 class="w-full"
-                :disabled="!productItems.length"
-                placeholder="Load products from the remote"
-                :items="productItems"
+                :items="credentialItems"
               />
-              <UButton
-                class="shrink-0"
-                color="neutral"
-                :loading="discovering"
-                :disabled="!canDiscover"
-                @click="loadProducts"
+            </UFormField>
+            <UFormField label="Token" name="token">
+              <UInput
+                v-model="form.token"
+                type="password"
+                autocomplete="off"
+                class="w-full"
+                placeholder="Paste token (never shown again)"
+              />
+            </UFormField>
+            <UFormField label="Remote URL" name="remoteUrl">
+              <UInput
+                v-model="form.remoteUrl"
+                class="w-full"
+                placeholder="https://bitbucket.org/workspace/repo.git"
+                @blur="applyNormalizedRemoteUrl"
+              />
+              <template #help>
+                Git clone HTTPS URL ending in .git. A Bitbucket /src/… browser
+                page is converted automatically.
+              </template>
+            </UFormField>
+            <UFormField label="Branch" name="branch">
+              <UInput v-model="form.branch" class="w-full" />
+            </UFormField>
+            <UFormField label="Product" name="product">
+              <div class="flex flex-col gap-2 sm:flex-row sm:items-center">
+                <USelect
+                  v-model="form.product"
+                  class="w-full"
+                  :disabled="!productItems.length"
+                  placeholder="Load products from the remote"
+                  :items="productItems"
+                />
+                <UButton
+                  class="shrink-0"
+                  color="neutral"
+                  :loading="discovering"
+                  :disabled="!canDiscover"
+                  @click="loadProducts"
+                >
+                  Load products
+                </UButton>
+              </div>
+              <p
+                v-if="isHttpsRemoteUrl(form.remoteUrl) && !canDiscover"
+                class="text-xs text-muted"
               >
-                Load products
+                Paste a token to enable Load products. Listing products clones
+                the remote.
+              </p>
+            </UFormField>
+            <div>
+              <UButton
+                :loading="saving"
+                color="primary"
+                @click="saveBinding"
+              >
+                Save
               </UButton>
             </div>
-            <p
-              v-if="isHttpsRemoteUrl(form.remoteUrl) && !canDiscover"
-              class="text-xs text-muted"
-            >
-              Paste a token to enable Load products. Listing products clones
-              the remote.
-            </p>
-          </UFormField>
-          <div>
-            <UButton
-              :loading="saving"
-              color="primary"
-              @click="saveBinding"
-            >
-              Save
-            </UButton>
           </div>
         </div>
       </template>
@@ -818,8 +965,8 @@ function startEdit(conflict: GitSyncConflictRow) {
         <div
           class="rounded-xl border border-default bg-default p-5 flex flex-col gap-4"
         >
-          <div class="flex flex-wrap items-start justify-between gap-3">
-            <div>
+          <div class="flex flex-wrap items-center justify-between gap-3">
+            <div class="min-w-0">
               <h2 class="font-semibold">
                 {{ status.binding?.product }}
               </h2>
@@ -831,11 +978,11 @@ function startEdit(conflict: GitSyncConflictRow) {
                 v-if="openCount > 0"
                 class="mt-1 text-sm text-amber-400"
               >
-                {{ openCount }} open conflict(s). Push is disabled until they
-                are resolved.
+                {{ openCount }} open conflict(s). Resolve the cards below
+                before Apply pull or Push.
               </p>
             </div>
-            <div class="flex flex-wrap items-center gap-2">
+            <div class="ml-auto shrink-0 flex flex-wrap items-center gap-2">
               <UButton
                 class="shrink-0"
                 :ui="{ label: 'whitespace-nowrap' }"
@@ -868,59 +1015,64 @@ function startEdit(conflict: GitSyncConflictRow) {
 
           <div
             v-if="isOwner && showSettings"
-            class="pt-3 border-t border-default flex flex-col gap-4"
+            class="pt-3 border-t border-default"
           >
-            <UFormField label="Credential" name="credentialKind">
-              <USelect
-                v-model="form.credentialKind"
-                class="w-full"
-                :items="credentialItems"
-              />
-            </UFormField>
-            <UFormField
-              label="Rotate token (leave blank to keep)"
-              name="token"
-            >
-              <UInput
-                v-model="form.token"
-                type="password"
-                autocomplete="off"
-                class="w-full"
-              />
-            </UFormField>
-            <UFormField label="Remote URL" name="remoteUrl">
-              <UInput
-                v-model="form.remoteUrl"
-                class="w-full"
-                placeholder="https://bitbucket.org/workspace/repo.git"
-                @blur="applyNormalizedRemoteUrl"
-              />
-            </UFormField>
-            <UFormField label="Branch" name="branch">
-              <UInput v-model="form.branch" class="w-full" />
-            </UFormField>
-            <UFormField label="Product" name="product">
-              <div class="flex flex-col gap-2 sm:flex-row sm:items-center">
+            <!-- Divider spans the card; fields stay readable and centred. -->
+            <div class="mx-auto max-w-2xl w-full flex flex-col gap-4">
+              <UFormField label="Credential" name="credentialKind">
                 <USelect
-                  v-model="form.product"
+                  v-model="form.credentialKind"
                   class="w-full"
-                  :disabled="!productItems.length"
-                  placeholder="Load products from the remote"
-                  :items="productItems"
+                  :items="credentialItems"
                 />
-                <UButton
-                  class="shrink-0"
-                  color="neutral"
-                  :loading="discovering"
-                  :disabled="!canDiscover"
-                  @click="loadProducts"
-                >
-                  Load products
-                </UButton>
-              </div>
-            </UFormField>
-            <div>
-              <UButton :loading="saving" @click="saveBinding">
+              </UFormField>
+              <UFormField
+                label="Rotate token (leave blank to keep)"
+                name="token"
+              >
+                <UInput
+                  v-model="form.token"
+                  type="password"
+                  autocomplete="off"
+                  class="w-full"
+                />
+              </UFormField>
+              <UFormField label="Remote URL" name="remoteUrl">
+                <UInput
+                  v-model="form.remoteUrl"
+                  class="w-full"
+                  placeholder="https://bitbucket.org/workspace/repo.git"
+                  @blur="applyNormalizedRemoteUrl"
+                />
+              </UFormField>
+              <UFormField label="Branch" name="branch">
+                <UInput v-model="form.branch" class="w-full" />
+              </UFormField>
+              <UFormField label="Product" name="product">
+                <div class="flex flex-col gap-2 sm:flex-row sm:items-center">
+                  <USelect
+                    v-model="form.product"
+                    class="w-full"
+                    :disabled="!productItems.length"
+                    placeholder="Load products from the remote"
+                    :items="productItems"
+                  />
+                  <UButton
+                    class="shrink-0"
+                    color="neutral"
+                    :loading="discovering"
+                    :disabled="!canDiscover"
+                    @click="loadProducts"
+                  >
+                    Load products
+                  </UButton>
+                </div>
+              </UFormField>
+              <UButton
+                class="w-full justify-center"
+                :loading="saving"
+                @click="saveBinding"
+              >
                 Save settings
               </UButton>
             </div>
@@ -932,21 +1084,27 @@ function startEdit(conflict: GitSyncConflictRow) {
           class="rounded-xl border border-primary/40 bg-default p-5 flex flex-col gap-4"
         >
           <div class="flex flex-wrap items-start justify-between gap-3">
-            <div>
+            <div class="min-w-0">
               <h2 class="font-semibold">Review pull</h2>
               <p class="mt-1 text-sm text-muted">
                 {{ pullFileSel.length }} of
                 {{ pullPreview.files.length }} file(s)
                 · {{ pullKeySel.length }} of
                 {{ pullPreview.candidates.length }} change(s) selected.
-                Nothing is written until you confirm.
+                Confirming Apply publishes Git text for selected Git-ahead
+                rows. Conflict rows cannot be checked — resolve the cards
+                below first. After every conflict in this preview is
+                resolved, Apply is enabled for remaining Git-ahead rows, or
+                the review closes if none remain.
               </p>
               <p class="mt-1 text-xs text-muted">
                 Remote {{ pullPreview.commitSha.slice(0, 8) }} · expires
                 {{ formatTime(pullPreview.expiresAt) }}
               </p>
             </div>
-            <div class="flex items-center gap-2">
+            <!-- `ml-auto` keeps the pair right-aligned even when it wraps onto
+                 its own line, so Pull and Push read the same. -->
+            <div class="ml-auto shrink-0 flex items-center gap-2">
               <UButton
                 color="neutral"
                 variant="ghost"
@@ -958,7 +1116,7 @@ function startEdit(conflict: GitSyncConflictRow) {
               <UButton
                 color="primary"
                 :loading="applying"
-                :disabled="!pullKeySel.length"
+                :disabled="!pullCanConfirm"
                 @click="confirmPull"
               >
                 Apply pull
@@ -1070,6 +1228,7 @@ function startEdit(conflict: GitSyncConflictRow) {
                 <template #key-cell="{ row }">
                   <code
                     class="text-xs font-mono break-all"
+                    :class="{ 'text-muted': !isPullActionable(row.original) }"
                     :title="row.original.key"
                   >
                     {{ formatI18nKeyDisplay(row.original.key) }}
@@ -1141,19 +1300,22 @@ function startEdit(conflict: GitSyncConflictRow) {
           class="rounded-xl border border-primary/40 bg-default p-5 flex flex-col gap-4"
         >
           <div class="flex flex-wrap items-start justify-between gap-3">
-            <div>
+            <div class="min-w-0">
               <h2 class="font-semibold">Review push</h2>
               <p class="mt-1 text-sm text-muted">
                 {{ pushKeySel.length }} of
                 {{ pushPreview.candidates.length }} source key(s) selected
                 ({{ pushPreview.sourceLocale }}). Nothing is committed until
-                you confirm.
+                you confirm.                 Git-ahead keys stay on Git unless you check them
+                (overwrites Git). Both-changed keys cannot be checked — use
+                the conflict cards below.
               </p>
               <p class="mt-1 text-xs text-muted">
                 Expires {{ formatTime(pushPreview.expiresAt) }}
               </p>
             </div>
-            <div class="flex items-center gap-2">
+            <!-- Same right-alignment rule as Review pull. -->
+            <div class="ml-auto shrink-0 flex items-center gap-2">
               <UButton
                 color="neutral"
                 variant="ghost"
@@ -1165,7 +1327,7 @@ function startEdit(conflict: GitSyncConflictRow) {
               <UButton
                 color="primary"
                 :loading="applying"
-                :disabled="!pushKeySel.length"
+                :disabled="!pushCanConfirm"
                 @click="confirmPush"
               >
                 Commit push
@@ -1227,7 +1389,7 @@ function startEdit(conflict: GitSyncConflictRow) {
                 </template>
                 <template #select-cell="{ row }">
                   <UCheckbox
-                    :disabled="!row.original.eligible"
+                    :disabled="!isPushRowSelectable(row.original)"
                     :model-value="isSelected('pushKey', row.original.key)"
                     @update:model-value="
                       setSelected('pushKey', row.original.key, $event)
@@ -1237,7 +1399,7 @@ function startEdit(conflict: GitSyncConflictRow) {
                 <template #key-cell="{ row }">
                   <code
                     class="text-xs font-mono break-all"
-                    :class="{ 'text-muted': !row.original.eligible }"
+                    :class="{ 'text-muted': !isPushRowSelectable(row.original) }"
                     :title="row.original.key"
                   >
                     {{ formatI18nKeyDisplay(row.original.key) }}
@@ -1277,11 +1439,19 @@ function startEdit(conflict: GitSyncConflictRow) {
                   />
                 </template>
                 <template #expanded="{ row }">
-                  <div class="grid grid-cols-1 md:grid-cols-2 gap-3 py-1">
+                  <div class="grid grid-cols-1 md:grid-cols-3 gap-3 py-1">
                     <div>
                       <p class="text-xs font-medium mb-1">Published source</p>
                       <p class="text-sm whitespace-pre-wrap break-words">
                         {{ row.original.text || '—' }}
+                      </p>
+                    </div>
+                    <div>
+                      <p class="text-xs font-medium mb-1">Git source</p>
+                      <p
+                        class="text-sm text-muted whitespace-pre-wrap break-words"
+                      >
+                        {{ row.original.theirsText || '—' }}
                       </p>
                     </div>
                     <div

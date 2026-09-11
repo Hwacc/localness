@@ -109,6 +109,20 @@ export function parseLiltFilename(name: string): {
   }
 }
 
+/** HHMMSS-hex, as written by `buildSourceFilename`. */
+const LOCALNESS_BATCH_ID = /^\d{6}-[0-9a-f]+$/i
+
+/**
+ * Merge order: calendar date, then connector batches, then Localness
+ * timed batches (later time wins). Raw string sort is wrong on the same
+ * day: a LILT uuid `5dbd…` sorts after `081602-…`, so the older connector
+ * file would overwrite a push we just landed.
+ */
+export function liltBatchSortKey(date: string, batchId: string): string {
+  const rank = LOCALNESS_BATCH_ID.test(batchId) ? '1' : '0'
+  return `${date}-${rank}-${batchId}`
+}
+
 export function validateFlatJson(data: unknown): Record<string, string> {
   if (!data || typeof data !== 'object' || Array.isArray(data)) {
     throw createError({
@@ -184,7 +198,7 @@ function fileSortKey(path: string): FileHit | null {
   return {
     ...parsed,
     path,
-    sortKey: `${parsed.date}-${parsed.batchId}-${path}`,
+    sortKey: `${liltBatchSortKey(parsed.date, parsed.batchId)}-${path}`,
   }
 }
 
@@ -275,6 +289,29 @@ export async function readSelectedLocaleMaps(
     }
   }
   return { maps, origin }
+}
+
+function isProductSourcePath(relPath: string, product: string): boolean {
+  const n = relPath.replace(/\\/g, '/')
+  return n.startsWith(`${product}/source/`)
+}
+
+/**
+ * Merged source-locale dictionary from `product/source/` only (not
+ * `translated/`). Later filename wins, same order as Pull.
+ */
+export async function readMergedSourceLocale(
+  repoRoot: string,
+  product: string,
+  sourceLocale: string,
+  localeOverride?: Record<string, string> | null
+): Promise<Map<string, string>> {
+  const files = await listRemoteFiles(repoRoot, product, localeOverride)
+  const sourceFiles = files.filter(
+    (f) => f.locale === sourceLocale && isProductSourcePath(f.relPath, product)
+  )
+  const { maps } = await readSelectedLocaleMaps(repoRoot, sourceFiles)
+  return maps.get(sourceLocale) ?? new Map()
 }
 
 export async function writeSourceBatch(params: {

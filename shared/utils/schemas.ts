@@ -180,6 +180,25 @@ export type ZExport = z.infer<typeof zExport>
 
 export const zPublish = z.object({
   keyIds: z.array(z.number().int().positive()).optional(),
+  /**
+   * Restrict the change to these locales. Omitted means every locale on the
+   * selected keys — callers that only touched one locale (a single cell) must
+   * pass it, or they publish someone else's unrelated draft.
+   */
+  locales: z.array(z.string().min(1)).optional(),
+  /**
+   * Exact `key + locale` pairs, addressed by key name. For callers holding a
+   * heterogeneous set (git pull results): `keyIds × locales` would be a cross
+   * product and would publish pairs the caller never touched.
+   */
+  rows: z
+    .array(
+      z.object({
+        key: z.string().min(1),
+        locale: z.string().min(1),
+      })
+    )
+    .optional(),
 })
 export type ZPublish = z.infer<typeof zPublish>
 

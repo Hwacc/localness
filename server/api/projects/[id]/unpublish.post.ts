@@ -34,10 +34,18 @@ export default defineEventHandler(async (event) => {
   if (ownedIds.length === 0) {
     return { updated: 0 }
   }
+  const locales = body.locales?.filter((s) => s.trim().length > 0)
+  // Same scoping rule as publish: only revert the locales the caller named.
+  const localeClause = locales?.length
+    ? ` AND "locale" IN (${locales.map(() => '?').join(',')})`
+    : ''
   const placeholders = ownedIds.map(() => '?').join(',')
   const updated = await prisma.$executeRawUnsafe(
-    `UPDATE "LocaleValue" SET "published_text" = NULL, "updated_at" = CURRENT_TIMESTAMP WHERE "i18n_key_id" IN (${placeholders})`,
-    ...ownedIds
+    // Skip rows that are already unpublished, or `changes()` would report every
+    // matched locale row as reverted work (same trap as publish).
+    `UPDATE "LocaleValue" SET "published_text" = NULL, "updated_at" = CURRENT_TIMESTAMP WHERE "i18n_key_id" IN (${placeholders})${localeClause} AND "published_text" IS NOT NULL`,
+    ...ownedIds,
+    ...(locales?.length ? locales : [])
   )
   return { updated }
 })

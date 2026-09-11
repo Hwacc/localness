@@ -1,8 +1,13 @@
 import { describe, expect, it } from 'vitest'
+import { mkdtemp, mkdir, writeFile, rm } from 'node:fs/promises'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
 import {
   buildSourceFilename,
+  liltBatchSortKey,
   parseLiltFilename,
   parseSeenFiles,
+  readMergedSourceLocale,
   seenFileMap,
   validateFlatJson,
 } from '#server/libs/git-sync/lilt-swbu'
@@ -62,6 +67,58 @@ describe('buildSourceFilename', () => {
 
   it('does not collide across calls in the same second', () => {
     expect(buildSourceFilename('en-US')).not.toBe(buildSourceFilename('en-US'))
+  })
+})
+
+describe('liltBatchSortKey', () => {
+  it('lets a same-day Localness push win over a connector uuid batch', () => {
+    const connector = liltBatchSortKey(
+      '20260910',
+      '5dbd3ccd8d999fc715de9a79'
+    )
+    const localness = liltBatchSortKey('20260910', '081602-664e0100fdf39b8d')
+    expect(localness > connector).toBe(true)
+  })
+
+  it('still orders two Localness batches by time', () => {
+    const earlier = liltBatchSortKey('20260910', '081602-aa')
+    const later = liltBatchSortKey('20260910', '090000-bb')
+    expect(later > earlier).toBe(true)
+  })
+
+  it('still orders by calendar date first', () => {
+    const prev = liltBatchSortKey('20260909', '230000-ff')
+    const next = liltBatchSortKey('20260910', '000001-aa')
+    expect(next > prev).toBe(true)
+  })
+})
+
+describe('readMergedSourceLocale', () => {
+  it('keeps keys from older batches when a later file is incremental', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'lilt-merge-'))
+    try {
+      const src = join(root, 'cortex', 'source')
+      await mkdir(src, { recursive: true })
+      await writeFile(
+        join(src, '20260910-5dbd3ccd8d999fc715de9a79_en-US.json'),
+        JSON.stringify({
+          cortex_mobile_title: 'KEEP FROM OLD BATCH',
+          other_key: 'still here',
+        })
+      )
+      await writeFile(
+        join(src, '20260910-184000-incprobe_en-US.json'),
+        JSON.stringify({
+          localness_inc_merge_probe: 'NEW ONLY',
+        })
+      )
+      const merged = await readMergedSourceLocale(root, 'cortex', 'en')
+      expect(merged.get('cortex_mobile_title')).toBe('KEEP FROM OLD BATCH')
+      expect(merged.get('other_key')).toBe('still here')
+      expect(merged.get('localness_inc_merge_probe')).toBe('NEW ONLY')
+    } finally {
+      await rm(root, { recursive: true, force: true })
+    }
   })
 })
 

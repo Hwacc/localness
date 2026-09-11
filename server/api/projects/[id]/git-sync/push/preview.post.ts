@@ -4,8 +4,8 @@ import { previewPush } from '#server/libs/git-sync/sync'
 
 /**
  * @route POST /api/projects/:id/git-sync/push/preview
- * Dry run: pure database work, no clone. Returns every source key with the
- * reason it is or is not proposed.
+ * Dry run: clone `source/`, three-way against the last landing, return every
+ * source key with the reason it is or is not proposed.
  */
 export default defineEventHandler(async (event) => {
   const id = getRouterParam(event, 'id')
