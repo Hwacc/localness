@@ -3,6 +3,7 @@ import { numericID } from '#server/helper/id'
 import { requireTeamMember } from '#server/helper/access'
 import { shapeI18nKeyRow } from '#server/helper/i18n'
 import { I18nKeyStatusFilter } from '#shared/constants'
+import { DRAFT_KEY_PREFIX } from '#shared/utils'
 
 /**
  * Mirrors `isI18nKeyDraft` in SQL. A key is draft when it has no locale rows,
@@ -30,11 +31,28 @@ function isoBound(raw: unknown): Date | null {
   return Number.isNaN(date.getTime()) ? null : date
 }
 
+/** Comma-separated numeric ids from the query, empty when absent. */
+function idList(raw: unknown): number[] {
+  const parts =
+    typeof raw === 'string'
+      ? raw.split(',')
+      : Array.isArray(raw)
+        ? raw.map(String)
+        : []
+  return parts
+    .map((part) => Number(part.trim()))
+    .filter((value) => Number.isInteger(value) && value > 0)
+}
+
 /**
  * @route GET /api/projects/:id/i18n-keys
- * @query q, status, from, to, page, limit
+ * @query q, status, from, to, pageIds, includeDraftKeys, idsOnly, page, limit
  * `from`/`to` are ISO instants bounding `updatedAt`; the client sends the
  * local day boundaries so the range means what the user picked on screen.
+ * `pageIds` scopes to keys tagged on those pages, plus keys with no tag at all
+ * (a plain translation entry is still exportable); `tagCount` is then counted
+ * within that scope. `idsOnly=1` returns every matching id without paging, for
+ * a "select all matching" action.
  */
 export default defineEventHandler(async (event) => {
   const id = getRouterParam(event, 'id')
@@ -56,6 +74,10 @@ export default defineEventHandler(async (event) => {
       : I18nKeyStatusFilter.ALL
   const from = isoBound(query.from)
   const to = isoBound(query.to)
+  const pageIds = idList(query.pageIds)
+  const includeDraftKeys =
+    query.includeDraftKeys === 'true' || query.includeDraftKeys === '1'
+  const idsOnly = query.idsOnly === 'true' || query.idsOnly === '1'
   const page = Math.max(1, Number(query.page ?? 1) || 1)
   const limit = Math.min(100, Math.max(1, Number(query.limit ?? 20) || 20))
   const skip = (page - 1) * limit
@@ -72,13 +94,14 @@ export default defineEventHandler(async (event) => {
     )
     statusIds = rows.map((r) => Number(r.id))
     if (!statusIds.length) {
-      return new Pagination(page, limit, 0, [])
+      return idsOnly ? { ids: [] } : new Pagination(page, limit, 0, [])
     }
   }
 
   const where = {
     projectId: nID,
     ...(statusIds ? { id: { in: statusIds } } : {}),
+    ...(includeDraftKeys ? {} : { NOT: { key: { startsWith: DRAFT_KEY_PREFIX } } }),
     ...(from || to
       ? {
           updatedAt: {
@@ -87,14 +110,31 @@ export default defineEventHandler(async (event) => {
           },
         }
       : {}),
-    ...(q
-      ? {
-          OR: [
-            { key: { contains: q } },
-            { origin: { contains: q } },
-          ],
-        }
-      : {}),
+    // Two independent OR groups, so they have to be nested under AND.
+    AND: [
+      ...(q
+        ? [{ OR: [{ key: { contains: q } }, { origin: { contains: q } }] }]
+        : []),
+      ...(pageIds.length
+        ? [
+            {
+              OR: [
+                { tags: { some: { pageID: { in: pageIds } } } },
+                { tags: { none: {} } },
+              ],
+            },
+          ]
+        : []),
+    ],
+  }
+
+  if (idsOnly) {
+    const ids = await prisma.i18nKey.findMany({
+      where,
+      orderBy: { updatedAt: 'desc' },
+      select: { id: true },
+    })
+    return { ids: ids.map((row) => row.id) }
   }
 
   const [total, rows] = await Promise.all([
@@ -106,7 +146,13 @@ export default defineEventHandler(async (event) => {
       orderBy: { updatedAt: 'desc' },
       include: {
         locales: true,
-        _count: { select: { tags: true } },
+        _count: {
+          select: {
+            tags: pageIds.length
+              ? { where: { pageID: { in: pageIds } } }
+              : true,
+          },
+        },
       },
     }),
   ])

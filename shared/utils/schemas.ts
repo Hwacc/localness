@@ -160,22 +160,30 @@ export const zTranslation = z.looseObject({
 })
 export type ZTranslation = z.infer<typeof zTranslation>
 
-export const zExport = z.object(
-  {
-    pages: z.array(z.string()),
-    fileFormat: z.array(
-      z.string().refine((v) => v === 'xlsx' || v === 'json', {
-        message: 'fileFormat must be xlsx or json',
-      })
-    ),
-    i18nKey: z.boolean(),
-    dateRange: z.object({
-      start: z.iso.datetime().optional(),
-      end: z.iso.datetime().optional(),
-    }),
-  },
-  'Export parameters validate failed'
-)
+/**
+ * Export takes an explicit selection, not filters: the user picks keys in the
+ * step 2 table, so search / status / date filtering happens there and never
+ * reaches this endpoint. What you saw in the table is what gets exported.
+ */
+export const zExportSelection = z.object({
+  /** Pages whose screenshots are exported, and the scope for tag rows. */
+  pages: z.array(z.string()),
+  /** Keys chosen in the picker table. */
+  keyIds: z.array(z.number().int().positive()),
+  /** Locale columns, in the order they should appear. */
+  locales: z.array(z.string().min(1)),
+  /** Keep the project's fallback locale column even if it was not picked. */
+  includeFallbackLocale: z.boolean().default(true),
+})
+export type ZExportSelection = z.infer<typeof zExportSelection>
+
+export const zExport = zExportSelection.extend({
+  fileFormat: z.array(
+    z.string().refine((v) => v === 'xlsx' || v === 'json', {
+      message: 'fileFormat must be xlsx or json',
+    })
+  ),
+})
 export type ZExport = z.infer<typeof zExport>
 
 export const zPublish = z.object({

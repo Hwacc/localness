@@ -1,39 +1,28 @@
 import XLSX from 'xlsx'
-import { TRANSLATION_LANGUAGES } from '#shared/constants'
 
+/** One row of the sheet, already shaped by the server. */
+export type ExportRow = {
+  id: number | null
+  keyId: number
+  pic: string
+  key: string
+  origin: string
+  texts: Record<string, string>
+}
 
-const SHEET_HEADER = ['id', 'pic', 'key', 'origin'].concat(
-  TRANSLATION_LANGUAGES.map((lang) => lang.value)
-)
+const FIXED_HEADER = ['id', 'key_id', 'pic', 'key', 'origin'] as const
 
+/**
+ * Builds the xlsx. One sheet, not one per framework: copy is a single set, and
+ * a framework only ever changes generated syntax (see CLAUDE.md P2).
+ */
 class Lister {
-  private vueAoo: any[] = []
-  private reactAoo: any[] = []
+  private rows: ExportRow[] = []
+  private localeColumns: string[] = []
 
-  public setTags(tags: Array<ITag & { pic: string }>) {
-    console.log('lister all tags', tags)
-    tags.forEach((tag) => {
-      this.vueAoo.push({
-        id: tag.id,
-        pic: tag.pic,
-        key: tag.i18nKey,
-        origin: tag.translation?.origin,
-        ...TRANSLATION_LANGUAGES.reduce((acc, lang) => {
-          acc[lang.value] = tag.translation?.vue?.[lang.value]
-          return acc
-        }, {} as Record<string, string | undefined>),
-      })
-      this.reactAoo.push({
-        id: tag.id,
-        pic: tag.pic,
-        key: tag.i18nKey,
-        origin: tag.translation?.origin,
-        ...TRANSLATION_LANGUAGES.reduce((acc, lang) => {
-          acc[lang.value] = tag.translation?.react?.[lang.value]
-          return acc
-        }, {} as Record<string, string | undefined>),
-      })
-    })
+  public setRows(rows: ExportRow[], localeColumns: string[]) {
+    this.rows = rows ?? []
+    this.localeColumns = localeColumns ?? []
   }
 
   public async generateJson() {
@@ -44,22 +33,29 @@ class Lister {
   public async generateXlsx() {
     return new Promise((resolve, reject) => {
       try {
-        console.log('lister generate xlsx')
+        const header = [...FIXED_HEADER, ...this.localeColumns]
+        const aoo = this.rows.map((row) => ({
+          id: row.id ?? '',
+          key_id: row.keyId,
+          pic: row.pic,
+          key: row.key,
+          origin: row.origin,
+          ...this.localeColumns.reduce(
+            (acc, locale) => {
+              acc[locale] = row.texts?.[locale] ?? ''
+              return acc
+            },
+            {} as Record<string, string>
+          ),
+        }))
         const workbook = XLSX.utils.book_new()
-        const vueSheet = XLSX.utils.aoa_to_sheet([SHEET_HEADER])
-        const reactSheet = XLSX.utils.aoa_to_sheet([SHEET_HEADER])
-
-        workbook.SheetNames.push('vue', 'react')
-        workbook.Sheets['vue'] = vueSheet
-        workbook.Sheets['react'] = reactSheet
-
-        XLSX.utils.sheet_add_json(vueSheet, this.vueAoo, {
+        const sheet = XLSX.utils.aoa_to_sheet([header])
+        workbook.SheetNames.push('translations')
+        workbook.Sheets['translations'] = sheet
+        XLSX.utils.sheet_add_json(sheet, aoo, {
           origin: -1,
           skipHeader: true,
-        })
-        XLSX.utils.sheet_add_json(reactSheet, this.reactAoo, {
-          origin: -1,
-          skipHeader: true,
+          header: [...header],
         })
         const buffer = XLSX.write(workbook, { bookType: 'xlsx', type: 'array' })
         resolve(new Blob([buffer], { type: 'application/octet-stream' }))

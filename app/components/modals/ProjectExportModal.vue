@@ -1,26 +1,126 @@
 <script setup lang="ts">
 import type { CheckboxGroupItem } from '@nuxt/ui'
 import { compact } from 'lodash-es'
-import {
-  today,
-  getLocalTimeZone,
-  type DateValue,
-} from '@internationalized/date'
+import { DEFAULT_LOCALES, TRANSLATION_LANGUAGES } from '#shared/constants'
 import { TaskState } from '~/libs/task-queue/types'
+import { useDebounceFn } from '@vueuse/core'
 
 const { $dayjs } = useNuxtApp()
 const projectStore = useProjectStore()
 
+function parseLocales(raw: unknown): string[] {
+  if (Array.isArray(raw) && raw.every((v) => typeof v === 'string')) {
+    return raw as string[]
+  }
+  if (typeof raw === 'string') {
+    try {
+      const parsed = JSON.parse(raw)
+      if (Array.isArray(parsed)) return parsed
+    } catch {
+      return [...DEFAULT_LOCALES]
+    }
+  }
+  return [...DEFAULT_LOCALES]
+}
+
+/** Column set and order follow the project, same as the Translations table. */
+const projectLocales = computed(() =>
+  parseLocales(projectStore.curProject?.settings?.locales)
+)
+const fallbackLocale = computed(
+  () => projectStore.curProject?.settings?.localeFallback || 'en'
+)
+
 const state = reactive({
   selectedPages:
     projectStore.curProject?.pages?.map((page) => page.id + '') || [],
-  i18nKey: true,
-  dateRange: {
-    start: undefined,
-    end: undefined,
-  },
+  selectedKeyIds: [] as number[],
+  selectedLocales: [] as string[],
+  includeFallbackLocale: true,
   fileFormat: ['xlsx'] as ('xlsx' | 'json')[],
 })
+
+state.selectedLocales = [...projectLocales.value]
+
+const selectedPageIds = computed(() =>
+  state.selectedPages.map((id) => Number(id)).filter(Number.isInteger)
+)
+
+function localeLabel(code: string) {
+  return TRANSLATION_LANGUAGES.find((l) => l.value === code)?.short ?? code
+}
+
+function toggleLocale(code: string) {
+  const index = state.selectedLocales.indexOf(code)
+  if (index > -1) state.selectedLocales.splice(index, 1)
+  else state.selectedLocales.push(code)
+}
+
+/** Locale columns as the server will build them, for the summary line. */
+const localeColumns = computed(() => {
+  const picked = projectLocales.value.filter((code) =>
+    state.selectedLocales.includes(code)
+  )
+  if (
+    state.includeFallbackLocale &&
+    fallbackLocale.value &&
+    !picked.includes(fallbackLocale.value)
+  ) {
+    return [fallbackLocale.value, ...picked]
+  }
+  return picked
+})
+
+type ExportSummary = {
+  keys: number
+  rows: number
+  tags: number
+  pages: number
+  locales: string[]
+  keysWithoutTag: number
+  skipped: Record<string, number>
+}
+
+const summary = ref<ExportSummary | null>(null)
+const summaryLoading = ref(false)
+
+function selectionBody() {
+  return {
+    pages: state.selectedPages,
+    keyIds: state.selectedKeyIds,
+    locales: state.selectedLocales,
+    includeFallbackLocale: state.includeFallbackLocale,
+  }
+}
+
+async function loadSummary() {
+  if (!validID(projectStore.curProject.id) || !state.selectedKeyIds.length) {
+    summary.value = null
+    return
+  }
+  summaryLoading.value = true
+  try {
+    summary.value =
+      (await useApi<ExportSummary>(
+        `/api/projects/${projectStore.curProject.id}/export/summary`,
+        { method: 'POST', body: selectionBody() }
+      )) ?? null
+  } finally {
+    summaryLoading.value = false
+  }
+}
+
+const summaryDebounced = useDebounceFn(loadSummary, 300)
+
+watch(
+  () => [
+    state.selectedKeyIds.length,
+    state.selectedLocales.length,
+    state.includeFallbackLocale,
+    selectedPageIds.value.length,
+  ],
+  () => summaryDebounced()
+)
 
 const curStep = ref(0)
 const stepper = useTemplateRef<any>('stepper')
@@ -32,17 +132,17 @@ const emit = defineEmits<{
 
 const steps = [
   {
-    title: 'Select Page',
+    title: 'Pages & images',
     icon: 'i-material-symbols:imagesmode-outline',
     slot: 'step1',
   },
   {
-    title: 'Tags Filter',
+    title: 'Keys & locales',
     icon: 'i-lucide:filter',
     slot: 'step2',
   },
   {
-    title: 'Select Export File',
+    title: 'File format',
     icon: 'i-lucide:file-output',
     slot: 'step3',
   },
@@ -132,21 +232,9 @@ const exportState = ref<'idle' | 'exporting' | 'exported'>('idle')
 
 function onExportClick() {
   exportState.value = 'exporting'
-  const startDate: DateValue | undefined = state.dateRange.start
-  const endDate: DateValue | undefined = state.dateRange.end
-  const dateRange = {
-    start: startDate
-      ? (startDate as DateValue).toDate('UTC').toISOString()
-      : undefined,
-    end: endDate
-      ? (endDate as DateValue).toDate('UTC').toISOString()
-      : undefined,
-  }
   const queue = exporter.exportProject({
-    pages: state.selectedPages,
+    ...selectionBody(),
     fileFormat: state.fileFormat,
-    i18nKey: state.i18nKey,
-    dateRange,
   })
   exportTasks.value =
     queue?.tasks.map((t) => {
@@ -193,12 +281,29 @@ const showPrevButton = computed(() => {
 const showNextButton = computed(() => {
   return exportState.value === 'idle' && stepper?.value?.hasNext
 })
+
+/** Each step guards its own requirement, so Next explains itself in place. */
+const nextDisabled = computed(() => {
+  if (curStep.value === 0) return !state.selectedPages.length
+  if (curStep.value === 1) {
+    return !state.selectedKeyIds.length || !localeColumns.value.length
+  }
+  return !state.fileFormat.length
+})
+
+const canExport = computed(
+  () =>
+    exporter.ready &&
+    state.selectedKeyIds.length > 0 &&
+    localeColumns.value.length > 0 &&
+    (summary.value ? summary.value.rows > 0 : true)
+)
 </script>
 
 <template>
   <UModal
     title="Export Project"
-    class="min-w-[40rem]"
+    class="min-w-208 max-w-[92vw]"
     :dismissible="exportState !== 'exporting'"
     :ui="{
       close: exportState === 'exporting' ? 'hidden' : '',
@@ -222,90 +327,107 @@ const showNextButton = computed(() => {
         </template>
 
         <template #step2>
-          <div class="flex flex-col gap-3.5">
-            <UFormField
-              class="flex items-center justify-between"
-              label="Include I18nKey"
-              description="Include empty i18n key tags"
-            >
-              <USwitch v-model="state.i18nKey" />
-            </UFormField>
-            <UFormField
-              class="flex items-center justify-between"
-              label="Date Range"
-              description="Filter tags by date range"
-            >
-              <UPopover>
-                <UButton
-                  color="neutral"
-                  variant="subtle"
-                  icon="i-lucide-calendar"
+          <div class="flex flex-col gap-3">
+            <div class="flex items-start gap-3">
+              <span
+                class="shrink-0 pt-1 text-xs font-medium text-muted uppercase"
+              >
+                Locale columns
+              </span>
+              <div class="flex flex-wrap items-center gap-1.5">
+                <UBadge
+                  v-for="code in projectLocales"
+                  :key="code"
+                  class="cursor-pointer"
+                  :variant="
+                    state.selectedLocales.includes(code) ? 'subtle' : 'outline'
+                  "
+                  :color="
+                    state.selectedLocales.includes(code) ? 'primary' : 'neutral'
+                  "
+                  :title="code"
+                  @click="toggleLocale(code)"
                 >
-                  <template v-if="state.dateRange.start">
-                    <template v-if="state.dateRange.end">
-                      {{
-                        $dayjs(
-                          (state.dateRange.start as DateValue).toDate(
-                            getLocalTimeZone()
-                          )
-                        ).format('YYYY-MM-DD')
-                      }}
-                      /
-                      {{
-                        $dayjs(
-                          (state.dateRange.end as DateValue).toDate(
-                            getLocalTimeZone()
-                          )
-                        ).format('YYYY-MM-DD')
-                      }}
-                    </template>
-                    <template v-else>
-                      {{
-                        $dayjs(
-                          (state.dateRange.start as DateValue).toDate(
-                            getLocalTimeZone()
-                          )
-                        ).format('YYYY-MM-DD')
-                      }}
-                    </template>
-                  </template>
-                  <template v-else> Pick a date </template>
-                </UButton>
-                <template #content>
-                  <UCalendar
-                    v-model="state.dateRange"
-                    class="p-2"
-                    range
-                    :number-of-months="2"
-                    :is-date-unavailable="
-                      (date: DateValue) =>
-                        date.compare(today(getLocalTimeZone())) > 0
-                    "
-                  />
-                </template>
-              </UPopover>
-            </UFormField>
+                  {{ localeLabel(code) }}
+                </UBadge>
+              </div>
+              <UCheckbox
+                v-model="state.includeFallbackLocale"
+                class="ml-auto shrink-0"
+                :label="`Always include ${fallbackLocale}`"
+                :ui="{ label: 'text-xs whitespace-nowrap' }"
+              />
+            </div>
+
+            <I18nKeyPickerTable
+              v-model="state.selectedKeyIds"
+              :project-id="projectStore.curProject.id"
+              :page-ids="selectedPageIds"
+            />
+
+            <div
+              class="rounded-lg border border-default px-3 py-2 text-xs flex flex-col gap-1"
+            >
+              <p v-if="!state.selectedKeyIds.length" class="text-muted">
+                Pick at least one key. Export ships published text only.
+              </p>
+              <template v-else-if="summary">
+                <p>
+                  <span class="font-medium">{{ summary.rows }}</span> row(s) ·
+                  {{ summary.tags }} tag(s) on {{ summary.pages }} page(s) ·
+                  {{ summary.locales.length }} locale column(s)
+                </p>
+                <p v-if="summary.skipped['no-published-text']" class="text-amber-400">
+                  {{ summary.skipped['no-published-text'] }} selected key(s)
+                  have no published text — they are skipped.
+                </p>
+                <p v-if="summary.keysWithoutTag" class="text-muted">
+                  {{ summary.keysWithoutTag }} key(s) have no tag on these
+                  pages — exported with an empty pic.
+                </p>
+              </template>
+              <p v-else class="text-muted">
+                {{ summaryLoading ? 'Checking selection…' : '—' }}
+              </p>
+            </div>
           </div>
         </template>
 
         <template #step3>
           <div class="w-full flex items-center justify-center gap-8">
-            <div
+            <UTooltip
               v-for="item in fileItems"
               :key="item.value"
-              :class="[
-                'border border-default rounded p-3.5 hover:border-green-300 cursor-pointer',
-                state.fileFormat.includes(item.value)
-                  ? 'border-green-400'
-                  : 'grayscale',
-              ]"
-              @click="() => onFileFormatClick(item.value)"
+              :text="item.value === 'json' ? 'Coming soon' : ''"
+              :disabled="item.value !== 'json'"
             >
-              <div class="flex flex-col items-center gap-2.5">
-                <UIcon size="64" :name="item.icon" />
-                {{ item.label }}
+              <div
+                :class="[
+                  'relative border border-default rounded p-3.5',
+                  item.value === 'json'
+                    ? 'opacity-50 cursor-not-allowed grayscale'
+                    : 'hover:border-green-300 cursor-pointer',
+                  state.fileFormat.includes(item.value)
+                    ? 'border-green-400'
+                    : 'grayscale',
+                ]"
+                @click="() => onFileFormatClick(item.value)"
+              >
+                <div class="flex flex-col items-center gap-2.5">
+                  <UIcon size="64" :name="item.icon" />
+                  {{ item.label }}
+                </div>
+                <UBadge
+                  v-if="item.value === 'json'"
+                  class="absolute -top-2 left-1/2 -translate-x-1/2 whitespace-nowrap"
+                  size="sm"
+                  color="neutral"
+                  variant="subtle"
+                >
+                  Coming soon
+                </UBadge>
               </div>
-            </div>
+            </UTooltip>
           </div>
         </template>
 
@@ -393,7 +515,7 @@ const showNextButton = computed(() => {
         color="primary"
         label="Next"
         trailing-icon="i-lucide:arrow-right"
-        :disabled="!state.selectedPages.length || !state.fileFormat.length"
+        :disabled="nextDisabled"
         @click="() => stepper?.next()"
       />
       <UButton
@@ -401,7 +523,7 @@ const showNextButton = computed(() => {
         color="primary"
         label="Export"
         icon="i-lucide:hard-drive-download"
-        :disabled="!exporter.ready"
+        :disabled="!canExport"
         @click="onExportClick"
       />
       <UButton

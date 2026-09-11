@@ -1,4 +1,4 @@
-import { flatMapDeep, isEmpty } from 'lodash-es'
+import { isEmpty } from 'lodash-es'
 import { ExportWorkerBells } from '~/assets/workers/export/types'
 import TaskQueue, { Task } from '~/libs/task-queue'
 import JSZip from 'jszip'
@@ -64,14 +64,15 @@ export function useProjectExport() {
 
     const requestTask = new Task(
       async (_, context) => {
-        const project = await useApi<IProject>(
-          `/api/project/export/${projectStore.curProject.id}`,
-          {
-            method: 'POST',
-            body: params,
-          }
-        )
+        const project = await useApi<
+          IProject & { rows?: unknown[]; localeColumns?: string[] }
+        >(`/api/project/export/${projectStore.curProject.id}`, {
+          method: 'POST',
+          body: params,
+        })
         context.project = project
+        context.rows = project.rows ?? []
+        context.localeColumns = project.localeColumns ?? []
         if (!isEmpty(project.pages)) {
           const pageTasks = project.pages.map((page) => {
             const pageQueue = new TaskQueue({
@@ -146,18 +147,14 @@ export function useProjectExport() {
 
     const generateXlsxTask = new Task(
       async (_, context) => {
-        const project = context.project as IProject
-        const allTags = flatMapDeep(project.pages, (page) => {
-          return page.tags.map((tag) => {
-            return {
-              ...tag,
-              pic: `${page.name}.jpg`,
-            }
-          })
-        })
+        // Rows come from the server: it owns the row rules (one row per tag,
+        // a pic-less row for a key with no tag, published text only).
         const res = await worker.value?.postAsyncMessage({
           bell: ExportWorkerBells.GENERATE_XLSX,
-          payload: { tags: allTags },
+          payload: {
+            rows: context.rows,
+            localeColumns: context.localeColumns,
+          },
         })
         context.xlsx = res.data
         return { status: 'ok' }

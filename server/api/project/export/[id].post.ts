@@ -1,11 +1,11 @@
-import prisma from '#server/libs/prisma'
 import { numericID } from '#server/helper/id'
 import { requireTeamMember } from '#server/helper/access'
-import { shapeTag } from '#server/helper/i18n'
+import { loadExportSelection } from '#server/helper/export-load'
 
 /**
  * @route POST /api/project/export/:id
- * @description Export a project
+ * @description Export the confirmed selection: screenshots for the chosen
+ * pages plus one xlsx row per tag (or a `pic`-less row for a key with no tag).
  * @access Private
  */
 export default defineEventHandler(async (event) => {
@@ -20,70 +20,21 @@ export default defineEventHandler(async (event) => {
   await requireTeamMember(event, nID)
 
   const body = await readValidatedBody(event, zExport.parse)
+  const loaded = await loadExportSelection(nID, body)
+  if (!loaded) return null
 
-  const inPages = body.pages.map((pageID) => numericID(pageID))
-  const inEmptyI18nKey = body.i18nKey
-  const startUpdatedAt = body.dateRange?.start
-  const endUpdatedAt = body.dateRange?.end
-
-  const project = await prisma.project.findUnique({
-    where: {
-      id: nID,
-    },
-    include: {
-      pages: {
-        where: {
-          AND: [
-            { id: { in: inPages } },
-            { image: { not: null } },
-            { image: { not: '' } },
-          ],
-        },
-        orderBy: {
-          updatedAt: 'desc',
-        },
-        include: {
-          tags: {
-            where: {
-              AND: [
-                { i18nKey: inEmptyI18nKey ? undefined : { not: null } },
-                { i18nKey: inEmptyI18nKey ? undefined : { not: '' } },
-                { updatedAt: { gte: startUpdatedAt } },
-                { updatedAt: { lte: endUpdatedAt } },
-                {
-                  i18nKeyId: { not: null },
-                },
-              ],
-            },
-            include: {
-              i18nKeyRecord: {
-                where: {
-                  AND: [
-                    { origin: { not: undefined } },
-                    { origin: { not: '' } },
-                  ],
-                },
-                include: { locales: true },
-              },
-            },
-          },
-        },
-      },
-    },
-  })
-  if (!project) return null
+  const { project, pages, result, localeColumns } = loaded
+  const drawnTagIds = new Set(result.tagIds)
   return {
     ...project,
-    pages: project.pages.map((page) => ({
+    // Only tags of selected keys are drawn, so the screenshots match the sheet.
+    pages: pages.map((page) => ({
       ...page,
-      tags: page.tags.flatMap((tag) => {
-        const locales = tag.i18nKeyRecord?.locales ?? []
-        const hasPublished = locales.some(
-          (locale) => (locale.publishedText ?? '') !== ''
-        )
-        if (!hasPublished) return []
-        return [shapeTag(tag, 'published')]
-      }),
+      tags: page.tags.filter((tag) => drawnTagIds.has(tag.id)),
     })),
+    localeColumns,
+    rows: result.rows,
+    skipped: result.skipped,
+    keysWithoutTag: result.keysWithoutTag,
   }
 })
