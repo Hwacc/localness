@@ -16,6 +16,11 @@ const { openSettings, openExport } = useProjectActions()
 
 const loading = ref(false)
 
+const { joinCode, joining, joinWithCode } = useJoinTeamByCode(async (team) => {
+  await projectStore.getProjects()
+  projectStore.setCurrentTeam(team.id)
+})
+
 const pageCount = computed(() =>
   projects.value.reduce((sum, p) => sum + (p.pages?.length ?? 0), 0)
 )
@@ -96,9 +101,29 @@ onMounted(async () => {
 
       <div
         v-if="!loading && teams.length === 0"
-        class="rounded-xl border border-default bg-default px-6 py-12 text-center text-sm text-muted"
+        class="rounded-xl border border-default bg-default px-6 py-12 text-center"
       >
-        You are not in a team yet. Ask an ADMIN to create one and invite you.
+        <p class="text-sm text-muted">
+          You are not in a team yet. Join with an invite code, or ask an ADMIN
+          to create one.
+        </p>
+        <form
+          class="mt-4 flex justify-center items-center gap-2"
+          @submit.prevent="joinWithCode"
+        >
+          <UInput
+            v-model="joinCode"
+            class="w-56"
+            placeholder="Invite code"
+          />
+          <UButton
+            type="submit"
+            label="Join team"
+            icon="i-lucide:log-in"
+            :loading="joining"
+            :disabled="!joinCode.trim()"
+          />
+        </form>
       </div>
 
       <section

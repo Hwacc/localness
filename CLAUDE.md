@@ -39,7 +39,7 @@ Nuxt 4 · Vue 3 · Prisma · SQLite · @nuxt/ui · Pinia · nuxt-auth-utils · L
 
 - UI default is **dark**. Visible copy is hardcoded English for now.
 - `app/` client, `server/` API, `shared/` constants and utils, `prisma/schema.prisma` schema.
-- Prisma client emits to `prisma/client` (see generator in schema).
+- Prisma client emits to `prisma/client` (see generator in schema). Default store is **SQLite** (prototype / single-node). PostgreSQL is the named later cutover — not a runtime toggle, not MySQL in parallel. New dialect SQL belongs in `server/libs/`, not handlers. Do not add `pg` / `mysql2` until that sprint. Rationale: vault `项目/Localness.md` → 数据存储.
 - `#server` → `server/`; `#shared/*` is shared by client and server.
 - `modals/` and `slideovers/` have **no pathPrefix** — import by filename.
 
@@ -55,7 +55,7 @@ Nuxt 4 · Vue 3 · Prisma · SQLite · @nuxt/ui · Pinia · nuxt-auth-utils · L
 - Export (xlsx / JSON) uses **published** text. JSON: `GET /api/projects/:id/translations/:locale?version=published`.
 - Project export takes an **explicit selection** (`pages` + `keyIds` + `locales`), never filters — filtering happens in the step 2 picker table. One xlsx sheet `translations`, columns `id | key_id | pic | key | origin | <locales>`; a selected key with no tag on those pages still gets a row with an empty `pic`; a key with no published text produces none. Row rules live in `server/helper/export-rows.ts` — keep them there and tested.
 - Auto draft keys: `__draft_<fingerprint>`. Display via `formatI18nKeyDisplay` (`__draft_` + first 5 hash chars). **Always** `import { formatI18nKeyDisplay } from '#shared/utils'` — do not rely on auto-import in templates or TSX.
-- No public signup. A Team invite code is **not** a registration code (see P1).
+- No public signup. A Team invite code is **not** a registration code (see P1). Logged-in users redeem via `POST /api/teams/join` (redeem = consent). Username invite is **pending**: it writes a `TEAM_INVITE` inbox row; Accept in the left-rail Inbox drawer creates `UserTeam`. Inviting someone already on the team is 409 (does not change role).
 
 ## Git file sync (`/git`)
 
@@ -89,7 +89,7 @@ APIs: `GET/PUT /api/projects/:id/git-sync`, `POST .../products` (OWNER; clone re
 | `/editor` | **ssr: false** (sider project fetch needs cookies) |
 | `/translations` | Key table; can create keys with no tag |
 | `/git` | Git sync; **ssr: false**; Pull/Push review panels + conflict cards |
-| `/teams` | Teams; invite by existing username |
+| `/teams` | Teams; join by invite code; OWNER invite-by-username (pending) + invite codes |
 
 Switching project must not change the current route.
 
@@ -118,7 +118,7 @@ Persist lock on `settings.locked` through the tag update API. `FuncLockBtn` uses
 **P0 — Bidirectional Git file sync** — shipped: `/git`, dual-track tokens, three-way conflicts, preview/confirm/apply for both directions. Do not put tokens or internal remotes in docs.
 
 **P1 — Atlassian login + Team invite codes**  
-Invite codes let an **already logged-in user join a Team**. They do not create accounts. Atlassian is how people get accounts. Users with no Team may log in but see no projects.
+Invite codes are **shipped**. Username invite now goes through the **Inbox** (left rail, above Settings): Accept / Decline in the drawer. **Atlassian login is not done.** Users with no Team may log in but see no projects until they join.
 
 **P2 — Multi-platform (Vue / React) is a JSON-generation concern, not storage**  
 Copy stays **one set**. A framework profile may later shape *generated output* only; it is never a second copy set. The current `:framework` route param, `shapeI18nKey`'s `vue`/`react` copy and the `TranslationLinkModal` switcher are vestigial — remove them in their own change. Rationale in the vault (`项目/Localness.md` → P2).

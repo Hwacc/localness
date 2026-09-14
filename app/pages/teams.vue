@@ -20,8 +20,23 @@ const detail = ref<ITeam | null>(null)
 const loading = ref(false)
 const creating = ref(false)
 const inviting = ref(false)
+const creatingCode = ref(false)
 const newTeamName = ref('')
 const inviteUsername = ref('')
+const inviteCodes = ref<ITeamInviteCode[]>([])
+const newCodeRole = ref<TeamRole>(TeamRole.MEMBER)
+const newCodeMaxUses = ref(20)
+const newCodeUnlimited = ref(false)
+const newCodeNeverExpires = ref(false)
+const newCodeExpiresAt = ref('')
+const createTeamOpen = ref(false)
+const newCodeOpen = ref(false)
+
+const { joinCode, joining, joinWithCode } = useJoinTeamByCode(async (team) => {
+  await loadTeams()
+  selectedId.value = team.id
+  await loadDetail()
+})
 
 const selectedId = computed({
   get: () => curTeamId.value,
@@ -113,14 +128,27 @@ async function loadTeams() {
 async function loadDetail() {
   if (!validID(selectedId.value)) {
     detail.value = null
+    inviteCodes.value = []
     return
   }
   loading.value = true
   try {
     detail.value = await useApi<ITeam>(`/api/teams/${selectedId.value}`)
+    await loadInviteCodes()
   } finally {
     loading.value = false
   }
+}
+
+async function loadInviteCodes() {
+  if (!validID(selectedId.value) || !isOwner.value) {
+    inviteCodes.value = []
+    return
+  }
+  inviteCodes.value =
+    (await useApi<ITeamInviteCode[]>(
+      `/api/teams/${selectedId.value}/invite-codes`
+    )) ?? []
 }
 
 watch(selectedId, () => {
@@ -145,6 +173,7 @@ async function createTeam() {
     })
     await loadTeams()
     selectedId.value = created.id
+    createTeamOpen.value = false
   } finally {
     creating.value = false
   }
@@ -161,7 +190,7 @@ async function inviteMember() {
     })
     inviteUsername.value = ''
     toast.add({
-      title: 'Member invited',
+      title: 'Invite sent',
       color: 'success',
       icon: 'i-lucide:check',
     })
@@ -170,6 +199,71 @@ async function inviteMember() {
   } finally {
     inviting.value = false
   }
+}
+
+async function createInviteCode() {
+  if (!validID(selectedId.value)) return
+  creatingCode.value = true
+  try {
+    const created = await useApi<ITeamInviteCode>(
+      `/api/teams/${selectedId.value}/invite-codes`,
+      {
+        method: 'POST',
+        body: {
+          role: newCodeRole.value,
+          maxUses: newCodeUnlimited.value ? null : newCodeMaxUses.value,
+          expiresAt: newCodeNeverExpires.value
+            ? null
+            : newCodeExpiresAt.value
+              ? new Date(newCodeExpiresAt.value).toISOString()
+              : undefined,
+        },
+      }
+    )
+    if (!created) return
+    toast.add({
+      title: 'Invite code created',
+      description: created.code,
+      color: 'success',
+      icon: 'i-lucide:check',
+    })
+    await loadInviteCodes()
+    newCodeOpen.value = false
+  } finally {
+    creatingCode.value = false
+  }
+}
+
+async function copyInviteCode(code: string) {
+  await navigator.clipboard.writeText(code)
+  toast.add({
+    title: 'Copied',
+    description: code,
+    color: 'success',
+    icon: 'i-lucide:copy',
+  })
+}
+
+async function revokeInviteCode(codeId: ID) {
+  if (!validID(selectedId.value)) return
+  await useApi(`/api/teams/${selectedId.value}/invite-codes/${codeId}`, {
+    method: 'DELETE',
+  })
+  toast.add({
+    title: 'Invite code revoked',
+    color: 'success',
+    icon: 'i-lucide:check',
+  })
+  await loadInviteCodes()
+}
+
+function codeMeta(row: ITeamInviteCode) {
+  const uses =
+    row.remainingUses == null ? 'Unlimited' : `${row.remainingUses} left`
+  const expiry = row.expiresAt
+    ? new Date(row.expiresAt).toLocaleDateString()
+    : 'No expiry'
+  return `${row.role} · ${uses} · ${expiry}`
 }
 
 async function removeMember(userId: ID) {
@@ -202,32 +296,51 @@ onMounted(async () => {
 <template>
   <div class="h-full flex flex-col bg-muted">
     <header
-      class="shrink-0 px-6 py-5 bg-default border-b border-default flex items-start justify-between gap-6"
+      class="shrink-0 h-14 px-6 bg-default border-b border-default flex items-center gap-2"
     >
-      <div class="min-w-0">
-        <h1 class="text-xl font-semibold tracking-tight">Teams</h1>
-        <p class="mt-1 text-sm text-muted">
-          Create a team, invite existing users, and manage owners.
-        </p>
-      </div>
-      <form
-        v-if="isAdmin"
-        class="flex items-center gap-2 shrink-0"
-        @submit.prevent="createTeam"
-      >
+      <h1 class="text-lg font-semibold tracking-tight">Teams</h1>
+      <span class="ml-auto" />
+      <form class="flex items-center gap-2" @submit.prevent="joinWithCode">
         <UInput
-          v-model="newTeamName"
-          class="w-52"
-          placeholder="New team name"
+          v-model="joinCode"
+          size="sm"
+          class="w-44"
+          placeholder="Invite code"
         />
         <UButton
           type="submit"
-          label="Create team"
-          icon="i-lucide:plus"
-          :loading="creating"
-          :disabled="newTeamName.trim().length < 2"
+          size="sm"
+          label="Join"
+          :loading="joining"
+          :disabled="!joinCode.trim()"
         />
       </form>
+      <UPopover v-if="isAdmin" v-model:open="createTeamOpen">
+        <UButton
+          size="sm"
+          color="neutral"
+          variant="outline"
+          icon="i-lucide:plus"
+          label="Team"
+        />
+        <template #content>
+          <form class="p-3 flex items-center gap-2" @submit.prevent="createTeam">
+            <UInput
+              v-model="newTeamName"
+              size="sm"
+              class="w-44"
+              placeholder="Team name"
+            />
+            <UButton
+              type="submit"
+              size="sm"
+              label="Create"
+              :loading="creating"
+              :disabled="newTeamName.trim().length < 2"
+            />
+          </form>
+        </template>
+      </UPopover>
     </header>
 
     <div class="flex-1 min-h-0 grid grid-cols-[18rem_minmax(0,1fr)]">
@@ -236,7 +349,7 @@ onMounted(async () => {
           Your teams
         </p>
         <div v-if="teams.length === 0" class="px-2 py-8 text-sm text-muted">
-          No teams yet. An ADMIN must create one.
+          No teams yet. Join with an invite code, or ask an ADMIN to create one.
         </div>
         <button
           v-for="team in teams"
@@ -293,6 +406,105 @@ onMounted(async () => {
                 :disabled="!inviteUsername.trim()"
               />
             </form>
+          </div>
+
+          <div
+            v-if="isOwner"
+            class="shrink-0 rounded-xl border border-default bg-default overflow-hidden"
+          >
+            <div class="px-4 py-2.5 flex items-center gap-2">
+              <h3 class="text-sm font-semibold">Invite codes</h3>
+              <span class="ml-auto" />
+              <UPopover v-model:open="newCodeOpen">
+                <UButton
+                  size="xs"
+                  color="neutral"
+                  variant="outline"
+                  icon="i-lucide:plus"
+                  label="New"
+                />
+                <template #content>
+                  <form
+                    class="p-3 w-64 flex flex-col gap-2.5"
+                    @submit.prevent="createInviteCode"
+                  >
+                    <UFormField label="Role">
+                      <USelect
+                        v-model="newCodeRole"
+                        class="w-full"
+                        :items="[
+                          { label: 'MEMBER', value: TeamRole.MEMBER },
+                          { label: 'OWNER', value: TeamRole.OWNER },
+                        ]"
+                      />
+                    </UFormField>
+                    <UFormField label="Max uses">
+                      <UInput
+                        v-model.number="newCodeMaxUses"
+                        type="number"
+                        min="1"
+                        :disabled="newCodeUnlimited"
+                      />
+                    </UFormField>
+                    <UCheckbox v-model="newCodeUnlimited" label="No limit" />
+                    <UFormField label="Expires">
+                      <UInput
+                        v-model="newCodeExpiresAt"
+                        type="datetime-local"
+                        :disabled="newCodeNeverExpires"
+                      />
+                    </UFormField>
+                    <UCheckbox
+                      v-model="newCodeNeverExpires"
+                      label="Never expires"
+                    />
+                    <UButton
+                      type="submit"
+                      size="sm"
+                      label="Create"
+                      :loading="creatingCode"
+                    />
+                  </form>
+                </template>
+              </UPopover>
+            </div>
+            <div
+              v-if="inviteCodes.length === 0"
+              class="px-4 pb-3 text-xs text-muted"
+            >
+              None yet. New codes last 14 days and 20 joins.
+            </div>
+            <ul v-else class="border-t border-default divide-y divide-default">
+              <li
+                v-for="row in inviteCodes"
+                :key="row.id"
+                class="px-4 py-2 flex items-center gap-3"
+              >
+                <code class="text-sm font-medium tracking-wide">{{
+                  row.code
+                }}</code>
+                <span class="text-xs text-muted truncate">{{
+                  codeMeta(row)
+                }}</span>
+                <span class="ml-auto" />
+                <UButton
+                  size="xs"
+                  color="neutral"
+                  variant="ghost"
+                  icon="i-lucide:copy"
+                  square
+                  @click="copyInviteCode(row.code)"
+                />
+                <UButton
+                  size="xs"
+                  color="error"
+                  variant="ghost"
+                  icon="i-lucide:x"
+                  square
+                  @click="revokeInviteCode(row.id)"
+                />
+              </li>
+            </ul>
           </div>
 
           <div

@@ -3,7 +3,9 @@ import {
   GitCredentialKind,
   GitSyncAdapter,
   GitSyncConflictStatus,
+  NotificationAction,
   OCR_LANGUAGES,
+  TeamRole,
 } from '#shared/constants'
 
 /** Accepts T | null | undefined, including a missing object key (Zod v4). */
@@ -335,3 +337,23 @@ export const zGitSyncConflictResolve = z.object({
   text: z.string().optional(),
 })
 export type ZGitSyncConflictResolve = z.infer<typeof zGitSyncConflictResolve>
+
+export const zTeamInviteCodeCreate = z.object({
+  role: z.enum([TeamRole.OWNER, TeamRole.MEMBER]).optional(),
+  maxUses: z.number().int().positive().nullable().optional(),
+  expiresAt: z.string().min(1).nullable().optional(),
+})
+export type ZTeamInviteCodeCreate = z.infer<typeof zTeamInviteCodeCreate>
+
+export const zTeamInviteJoin = z.object({
+  code: z.string().trim().min(1),
+})
+export type ZTeamInviteJoin = z.infer<typeof zTeamInviteJoin>
+
+export const zNotificationAct = z.object({
+  action: z.enum([
+    NotificationAction.ACCEPTED,
+    NotificationAction.DECLINED,
+  ]),
+})
+export type ZNotificationAct = z.infer<typeof zNotificationAct>

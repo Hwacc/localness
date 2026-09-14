@@ -139,7 +139,7 @@ async function onSubmit(_: FormSubmitEvent<ZProject>) {
                 variant="soft"
                 color="warning"
                 title="No team"
-                description="Only a Team OWNER can create a project. Ask an ADMIN to create a team and invite you as OWNER."
+                description="Only a Team OWNER can create a project. Ask an ADMIN to create a team, or join with an OWNER invite code."
               />
             </div>
           </template>

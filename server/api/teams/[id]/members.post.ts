@@ -1,8 +1,11 @@
-import prisma from '#server/libs/prisma'
 import { numericID } from '#server/helper/id'
 import { readZodBody } from '#server/helper/validate'
 import { requireTeamOwner } from '#server/helper/access'
-import { TeamRole, UserRole } from '#shared/constants'
+import {
+  createTeamInviteNotification,
+  throwNotificationHttp,
+} from '#server/helper/notifications'
+import { TeamRole } from '#shared/constants'
 import { z } from 'zod/v4'
 
 const zInvite = z.object({
@@ -12,7 +15,7 @@ const zInvite = z.object({
 
 /**
  * @route POST /api/teams/:id/members
- * @description Invite an existing user into the team (OWNER)
+ * @description Send a pending team invite (OWNER). Does not add the member yet.
  */
 export default defineEventHandler(async (event) => {
   const id = getRouterParam(event, 'id')
@@ -23,44 +26,17 @@ export default defineEventHandler(async (event) => {
     })
   }
   const teamId = numericID(id)
-  await requireTeamOwner(event, teamId)
+  const { userId } = await requireTeamOwner(event, teamId)
   const { username, role } = await readZodBody(event, zInvite.parse)
-  const invitee = await prisma.user.findUnique({
-    where: { username },
-  })
-  if (!invitee) {
-    throw createError({
-      statusCode: 404,
-      statusMessage: 'User not found',
-    })
-  }
-  if (invitee.role === UserRole.GUEST) {
-    throw createError({
-      statusCode: 400,
-      statusMessage: 'GUEST cannot join a team',
-    })
-  }
-  const member = await prisma.userTeam.upsert({
-    where: {
-      userId_teamId: { userId: invitee.id, teamId },
-    },
-    create: {
-      userId: invitee.id,
+  try {
+    const notification = await createTeamInviteNotification({
       teamId,
+      invitedBy: userId,
+      username,
       role: role ?? TeamRole.MEMBER,
-    },
-    update: {
-      role: role ?? TeamRole.MEMBER,
-    },
-    include: {
-      user: {
-        omit: {
-          password: true,
-          createdAt: true,
-          updatedAt: true,
-        },
-      },
-    },
-  })
-  return member
+    })
+    return { ok: true, pending: true, notification }
+  } catch (error) {
+    throwNotificationHttp(error)
+  }
 })
