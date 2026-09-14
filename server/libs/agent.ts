@@ -4,10 +4,16 @@ import { CozeAgent } from './agent/CozeAgent'
 
 class AgentManager {
   private static instance: AgentManager
-  private agent!: AbstractAgent
+  private cozeAgent: AbstractAgent | undefined
 
-  private constructor() {
-    this.agent = new CozeAgent()
+  private constructor() {}
+
+  // Built on first use, not on import: `CozeAgent` reads its credential file in
+  // the constructor, so an eager build would throw at module evaluation and take
+  // the whole server down when the secrets are absent.
+  private get agent(): AbstractAgent {
+    this.cozeAgent ??= new CozeAgent()
+    return this.cozeAgent
   }
 
   public async generateI18nKey<T>(parmas?: ZGenI18nKey): Promise<T> {
