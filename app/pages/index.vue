@@ -9,6 +9,8 @@ definePageMeta({
 })
 
 const { login } = useAuthStore()
+const toast = useToast()
+const route = useRoute()
 
 const startFlag = useStorage('get-start', false)
 function onStart() {
@@ -17,19 +19,50 @@ function onStart() {
 
 const showPassword = ref(false)
 const zLogin = z.object({
-  username: z.string().min(3),
+  username: z
+    .string()
+    .min(1, 'Please enter your username')
+    .min(3, 'Username needs at least 3 characters'),
   password: zPassword,
 })
 type ZLogin = z.infer<typeof zLogin>
 const state = reactive<ZLogin>({ username: '', password: '' })
 
+const { data: providers } = await useFetch<{ atlassian: boolean }>(
+  '/api/auth/providers'
+)
+const atlassianReady = computed(() => Boolean(providers.value?.atlassian))
+
 async function onSubmit() {
   const success = await login(state.username, state.password)
-  console.log('login page --->', success)
   if (success) {
     await navigateTo('/transfer')
   }
 }
+
+function continueWithAtlassian() {
+  if (!atlassianReady.value) return
+  window.location.href = '/auth/atlassian'
+}
+
+const oauthErrorCopy: Record<string, string> = {
+  atlassian: 'Atlassian sign-in failed. Try again or use username and password.',
+  domain: 'That Atlassian email is not allowed to sign in here.',
+  no_account_id: 'Atlassian did not return an account. Try again.',
+}
+
+onMounted(() => {
+  const code = route.query.oauth_error
+  if (typeof code !== 'string' || !code) return
+  startFlag.value = true
+  toast.add({
+    title: 'Atlassian sign-in failed',
+    description: oauthErrorCopy[code] ?? oauthErrorCopy.atlassian,
+    color: 'error',
+    icon: 'i-lucide:circle-alert',
+  })
+  void navigateTo({ path: '/', query: {} }, { replace: true })
+})
 </script>
 
 <template>
@@ -97,6 +130,19 @@ async function onSubmit() {
               label="Login"
               type="submit"
             />
+            <div class="flex items-center gap-3 text-xs text-muted">
+              <span class="h-px flex-1 bg-default" />
+              or
+              <span class="h-px flex-1 bg-default" />
+            </div>
+            <AtlassianButton
+              label="Continue with Atlassian"
+              :disabled="!atlassianReady"
+              @click="continueWithAtlassian"
+            />
+            <p v-if="!atlassianReady" class="text-xs text-muted text-center">
+              Atlassian login is not configured. Contact an admin.
+            </p>
           </UForm>
         </motion.div>
       </AnimatePresence>

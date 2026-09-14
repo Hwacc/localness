@@ -14,13 +14,16 @@ export function zNilable<T extends z.ZodType>(schema: T) {
 }
 
 export const PASSWORD_REGEX = /^(?=.*[a-zA-Z])(?=.*\d)[a-zA-Z\d_]*$/
+// Messages are user-facing: forms surface the first failing check, so the empty
+// case gets its own prompt instead of falling through to the length message.
 export const zPassword = z
   .string()
-  .max(16)
-  .min(6)
+  .min(1, 'Please enter your password')
+  .min(6, 'Password needs at least 6 characters')
+  .max(16, 'Password can be at most 16 characters')
   .regex(
     PASSWORD_REGEX,
-    'Password must be at least 6 characters long and contain at least one letter and one number'
+    'Password can use letters, numbers and underscore, and needs at least one letter and one number'
   )
 export type ZPassword = z.infer<typeof zPassword>
 

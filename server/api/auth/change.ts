@@ -26,6 +26,7 @@ export default defineEventHandler(async (event) => {
   )
   const data = {
     password: hashedPassword,
+    passwordSetAt: new Date(),
   }
   const id = numericID(session.user.id)
   await prisma.user.update({

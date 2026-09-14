@@ -1,5 +1,5 @@
-import prisma from '#server/libs/prisma'
 import { numericID } from '#server/helper/id'
+import { loadPublicUser } from '#server/helper/atlassian-auth'
 
 /**
  * @route GET /api/user
@@ -14,14 +14,12 @@ export default defineEventHandler(async (event) => {
       statusMessage: 'Unauthorized',
     })
   }
-  const id = numericID(session.user.id)
-  const user = await prisma.user.findUnique({
-    where: { id },
-    omit: {
-      password: true,
-      createdAt: true,
-      updatedAt: true,
-    },
-  })
+  const user = await loadPublicUser(numericID(session.user.id))
+  if (!user) {
+    throw createError({
+      statusCode: 404,
+      statusMessage: 'User not found',
+    })
+  }
   return user
 })

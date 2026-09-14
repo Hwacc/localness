@@ -18,6 +18,7 @@ declare module '#app' {
 declare module 'h3' {
   interface H3EventContext {
     ossStorage: Storage
+    isHttps?: boolean
   }
 }
 

@@ -25,7 +25,9 @@ pnpm exec prisma migrate dev
 pnpm build               # ship / production only — not a verification step
 ```
 
-There is no public register API. Create users with `scripts/register.ts` (prod: `register:prod`).
+There is no public register API. Create users with `scripts/register.ts` (in Docker: `docker compose exec localness tsx scripts/register.ts`).
+
+Docker is the only deployment path; the pm2 / `*:prod` scripts are gone. The container applies migrations on every boot. Locally, `pnpm dev` does **not** — a dev-only nitro plugin warns when `prisma/migrations` has entries the database has not applied, and you run `pnpm exec prisma migrate dev` yourself.
 
 ## Verify
 
@@ -118,7 +120,11 @@ Persist lock on `settings.locked` through the tag update API. `FuncLockBtn` uses
 **P0 — Bidirectional Git file sync** — shipped: `/git`, dual-track tokens, three-way conflicts, preview/confirm/apply for both directions. Do not put tokens or internal remotes in docs.
 
 **P1 — Atlassian login + Team invite codes**  
-Invite codes are **shipped**. Username invite now goes through the **Inbox** (left rail, above Settings): Accept / Decline in the drawer. **Atlassian login is not done.** Users with no Team may log in but see no projects until they join.
+Invite codes are **shipped**. Username invite goes through the **Inbox** (left rail, above Settings): Accept / Decline in the drawer.
+
+Atlassian login is **shipped**: OAuth 2.0 3LO (`/auth/atlassian`), JIT User + `AuthIdentity` keyed by `account_id` (not email). Existing local accounts only link via User Settings → Connect. Email domain allowlist is `NUXT_ATLASSIAN_ALLOWED_EMAIL_DOMAINS` (runtime env; never commit real domains). Login button uses Atlassian logo + `#0052CC` / `#0065FF`. Do not store access tokens. Organization Access is out of scope.
+
+Users with no Team may log in; Dashboard shows a skippable join-code dialog once per session, plus the empty-state form.
 
 **P2 — Multi-platform (Vue / React) is a JSON-generation concern, not storage**  
 Copy stays **one set**. A framework profile may later shape *generated output* only; it is never a second copy set. The current `:framework` route param, `shapeI18nKey`'s `vue`/`react` copy and the `TranslationLinkModal` switcher are vestigial — remove them in their own change. Rationale in the vault (`项目/Localness.md` → P2).

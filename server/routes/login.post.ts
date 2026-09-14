@@ -1,12 +1,13 @@
 import prisma from '#server/libs/prisma'
-import { omit } from 'lodash-es'
 import bcrypt from 'bcryptjs'
 import { z } from 'zod/v4'
 import { readZodBody } from '#server/helper/validate'
+import { loadPublicUser } from '#server/helper/atlassian-auth'
+import { sessionCookieOptions } from '#server/helper/session'
 import type { UserRole } from '#shared/constants'
 
 const zLogin = z.object({
-  username: z.string().min(3, 'Username must be at least 3 characters long'),
+  username: z.string().min(3, 'Username needs at least 3 characters'),
   password: zPassword,
 })
 
@@ -16,7 +17,6 @@ const zLogin = z.object({
  * @access Public
  */
 export default defineEventHandler(async (event) => {
-  const isHttps = event.context.isHttps
   const { username, password } = await readZodBody(event, zLogin.parse)
 
   const user = await prisma.user.findUnique({
@@ -24,20 +24,17 @@ export default defineEventHandler(async (event) => {
       username: username,
     },
   })
-  if (!user) {
-    throw createError({
+  // One message for both branches: friendlier than "User not found", and it
+  // does not tell a stranger which usernames exist.
+  const wrongCredentials = () =>
+    createError({
       statusCode: 400,
-      statusMessage: 'User not found',
+      statusMessage: 'Incorrect username or password. Please try again.',
     })
-  }
+  if (!user) throw wrongCredentials()
 
   const verified = await bcrypt.compare(password, user.password)
-  if (!verified) {
-    throw createError({
-      statusCode: 400,
-      statusMessage: 'Invalid password',
-    })
-  }
+  if (!verified) throw wrongCredentials()
   await setUserSession(
     event,
     {
@@ -47,17 +44,9 @@ export default defineEventHandler(async (event) => {
         role: user.role as UserRole,
       },
     },
-    {
-      cookie: {
-        httpOnly: isHttps,
-        secure: isHttps,
-        sameSite: isHttps ? 'strict' : 'lax',
-        maxAge: 60 * 60 * 24 * 30,
-      },
-      maxAge: 60 * 60 * 24 * 30,
-    }
+    sessionCookieOptions(event)
   )
   return {
-    user: omit(user, ['password', 'createdAt', 'updatedAt']),
+    user: await loadPublicUser(user.id),
   }
 })

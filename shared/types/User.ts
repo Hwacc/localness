@@ -9,6 +9,12 @@ export interface IUser {
   nickname?: string
   email?: string
   avatar?: string
+  hasPasswordSet?: boolean
+  atlassian?: {
+    connected: boolean
+    displayName?: string
+    email?: string
+  }
   projects?: IProject[]
   ownProjects?: IProject[]
 }

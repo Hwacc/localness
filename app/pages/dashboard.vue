@@ -7,7 +7,7 @@ definePageMeta({
 })
 
 const { $dayjs } = useNuxtApp()
-const { loggedIn } = useUserSession()
+const { loggedIn, user: sessionUser } = useUserSession()
 const projectStore = useProjectStore()
 const { teams, projects, projectsByTeam, curProject } =
   storeToRefs(projectStore)
@@ -19,6 +19,78 @@ const loading = ref(false)
 const { joinCode, joining, joinWithCode } = useJoinTeamByCode(async (team) => {
   await projectStore.getProjects()
   projectStore.setCurrentTeam(team.id)
+  joinPromptOpen.value = false
+})
+
+const toast = useToast()
+const route = useRoute()
+const joinPromptOpen = ref(false)
+
+function joinPromptStorageKey() {
+  return `localness:join-team-prompt:${sessionUser.value?.id ?? ''}`
+}
+
+function skipJoinPrompt() {
+  if (import.meta.client && sessionUser.value?.id) {
+    sessionStorage.setItem(joinPromptStorageKey(), '1')
+  }
+}
+
+async function onJoinedFromPrompt(team: ITeam) {
+  skipJoinPrompt()
+  await projectStore.getProjects()
+  projectStore.setCurrentTeam(team.id)
+}
+
+function maybeOpenJoinPrompt() {
+  if (loading.value || teams.value.length > 0) return
+  if (!sessionUser.value?.id) return
+  if (!import.meta.client) return
+  if (sessionStorage.getItem(joinPromptStorageKey())) return
+  joinPromptOpen.value = true
+}
+
+onMounted(async () => {
+  if (!loggedIn.value) return
+  loading.value = true
+  try {
+    await projectStore.getProjects()
+  } finally {
+    loading.value = false
+  }
+  maybeOpenJoinPrompt()
+
+  const code = route.query.oauth_error
+  if (typeof code === 'string' && code) {
+    const copy: Record<string, string> = {
+      atlassian: 'Atlassian sign-in failed. Try again.',
+      domain: 'That Atlassian email is not allowed.',
+      already_bound: 'This account already has an Atlassian login.',
+      identity_taken: 'That Atlassian account is linked to another user.',
+    }
+    toast.add({
+      title: 'Atlassian',
+      description: copy[code] ?? copy.atlassian,
+      color: 'error',
+      icon: 'i-lucide:circle-alert',
+    })
+  }
+  if (route.query.oauth === 'bound') {
+    toast.add({
+      title: 'Atlassian connected',
+      color: 'success',
+      icon: 'i-lucide:circle-check',
+    })
+  }
+  if (route.query.oauth_error || route.query.oauth) {
+    const nextQuery = { ...route.query }
+    delete nextQuery.oauth_error
+    delete nextQuery.oauth
+    await navigateTo(
+      { path: '/dashboard', query: { ...nextQuery } },
+      { replace: true }
+    )
+  }
 })
 
 const pageCount = computed(() =>
@@ -34,16 +106,6 @@ function isCurrent(project: IProject) {
 function selectProject(project: IProject) {
   projectStore.setCurrentProject(project)
 }
-
-onMounted(async () => {
-  if (!loggedIn.value) return
-  loading.value = true
-  try {
-    await projectStore.getProjects()
-  } finally {
-    loading.value = false
-  }
-})
 </script>
 
 <template>
@@ -226,5 +288,10 @@ onMounted(async () => {
         </div>
       </section>
     </div>
+    <JoinTeamDialog
+      v-model:open="joinPromptOpen"
+      @skip="skipJoinPrompt"
+      @joined="onJoinedFromPrompt"
+    />
   </div>
 </template>

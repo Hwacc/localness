@@ -28,6 +28,13 @@ export default defineNuxtConfig({
     'nuxt-auth-utils',
   ],
   runtimeConfig: {
+    oauth: {
+      atlassian: {
+        clientId: '',
+        clientSecret: '',
+      },
+    },
+    atlassianAllowedEmailDomains: '',
     public: {
       ossEngine: process.env.NUXT_PUBLIC_OSS_ENGINE || 'LOCAL',
       ossBaseUrl: process.env.NUXT_PUBLIC_OSS_BASE_URL || '/upload/',
