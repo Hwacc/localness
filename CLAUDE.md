@@ -1,6 +1,6 @@
 # Localness
 
-Product name: **Localness**. This repo folder is still `coze-i18n` and will be renamed later.
+Product name: **Localness**. This repo folder is now `localness` (renamed from `coze-i18n` on 2026-09-14).
 
 Screenshot tagging plus a translation key store (Project → Page → Tag → I18nKey / LocaleValue). **Not** a headless CMS. Do not grow Schema-driven content modules in the Localess/Strapi sense.
 
