@@ -793,6 +793,7 @@ onMounted(async () => {
           <UCheckbox
             v-model="includeDraftKeys"
             label="Show __draft_ keys"
+            class="items-center"
             :ui="{ label: 'text-xs whitespace-nowrap' }"
           />
         </UTooltip>
