@@ -1,6 +1,7 @@
 import type { H3Event } from 'h3'
 import prisma from '#server/libs/prisma'
 import { numericID } from '#server/helper/id'
+import { isProjectSteward } from '#server/helper/project-owner'
 import { TeamRole, UserRole } from '#shared/constants'
 
 export async function requirePlatformAdmin(event: H3Event) {
@@ -38,13 +39,25 @@ export async function requireTeamOwner(event: H3Event, teamId: number) {
 
 export async function requireProjectOwner(event: H3Event, projectId: number) {
   const access = await requireTeamMember(event, projectId)
-  if (access.membership.role !== TeamRole.OWNER) {
+  const ownerRow = await prisma.projectOwner.findUnique({
+    where: {
+      userId_projectId: { userId: access.userId, projectId },
+    },
+    select: { userId: true },
+  })
+  if (
+    !isProjectSteward({
+      userId: access.userId,
+      teamRole: access.membership.role,
+      ownerUserIds: ownerRow ? [ownerRow.userId] : [],
+    })
+  ) {
     throw createError({
       statusCode: 403,
       statusMessage: 'Forbidden',
     })
   }
-  return access
+  return { ...access, isSteward: true }
 }
 
 export async function requireTeamAccess(event: H3Event, teamId: number) {

@@ -11,9 +11,9 @@ const doImage = async (el: HTMLElement, binding: any) => {
 
   const isBg = arg === 'background' || arg === 'bg'
   if (isBg) {
-    el.style.backgroundImage = `url('http://iph.href.lu/600x400?text=Loading...')`
+    el.style.backgroundImage = `url("${IMAGE_LOADING_PLACEHOLDER}")`
   } else {
-    ;(el as HTMLImageElement).src = 'http://iph.href.lu/600x400?text=Loading...'
+    ;(el as HTMLImageElement).src = IMAGE_LOADING_PLACEHOLDER
   }
   let url = value
 
@@ -36,15 +36,17 @@ const doImage = async (el: HTMLElement, binding: any) => {
         el.style.backgroundImage = `url('${url}')`
       } else if (!isLoading.value && error.value) {
         console.error('image load error', error.value)
-        el.style.backgroundImage = `url('http://iph.href.lu/600x400?text=Error')`
+        el.style.backgroundImage = `url("${IMAGE_ERROR_PLACEHOLDER}")`
       }
     })
   } else {
     ;(el as HTMLImageElement).src = url
     ;(el as HTMLImageElement).onerror = (e) => {
       console.error('image load error', e)
-      ;(el as HTMLImageElement).src =
-        'http://iph.href.lu/600x400?fg=666666&bg=f4cccc&&text=Error'
+      // Clear the handler first: if the placeholder itself ever failed this
+      // would loop on every error.
+      ;(el as HTMLImageElement).onerror = null
+      ;(el as HTMLImageElement).src = IMAGE_ERROR_PLACEHOLDER
     }
   }
 }

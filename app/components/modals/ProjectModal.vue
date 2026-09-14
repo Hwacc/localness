@@ -1,6 +1,5 @@
 <script setup lang="ts">
 import type { FormSubmitEvent } from '@nuxt/ui'
-import { TeamRole } from '#shared/constants'
 
 type Mode = 'edit' | 'create'
 const { mode, project = new Project('') } = defineProps<{
@@ -11,7 +10,7 @@ const { mode, project = new Project('') } = defineProps<{
 const teams = ref<ITeam[]>([])
 const ownedTeams = computed(() =>
   teams.value
-    .filter((t) => t.role === TeamRole.OWNER)
+    .filter((t) => Boolean(t.role))
     .map((t) => ({ label: t.name, value: t.id }))
 )
 
@@ -130,7 +129,7 @@ async function onSubmit(_: FormSubmitEvent<ZProject>) {
                 <USelect
                   v-model="state.teamId"
                   class="w-full"
-                  placeholder="Select a team you own"
+                  placeholder="Select a team"
                   :items="ownedTeams"
                 />
               </UFormField>
@@ -139,7 +138,7 @@ async function onSubmit(_: FormSubmitEvent<ZProject>) {
                 variant="soft"
                 color="warning"
                 title="No team"
-                description="Only a Team OWNER can create a project. Ask an ADMIN to create a team, or join with an OWNER invite code."
+                description="You need to be in a team to create a project. Ask an ADMIN to create a team, or join with an invite code."
               />
             </div>
           </template>

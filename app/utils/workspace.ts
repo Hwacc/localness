@@ -1,5 +1,3 @@
-import { TeamRole } from '#shared/constants'
-
 export const WORKSPACE_TEAM_KEY = 'workspace:teamId'
 export const WORKSPACE_PROJECT_KEY = 'workspace:projectId'
 export const WORKSPACE_PAGES_KEY = 'workspace:pageByProject'
@@ -11,6 +9,7 @@ export function emptyProject(partial: Partial<IProject> = {}): IProject {
     description: '',
     pages: [],
     users: [],
+    isSteward: false,
     ...partial,
   }
 }
@@ -67,5 +66,9 @@ export function writePageForProject(projectId: ID, pageId: ID) {
 }
 
 export function canCreateProject(team?: ITeam | null) {
-  return team?.role === TeamRole.OWNER
+  return Boolean(team?.role)
+}
+
+export function canManageProjectSettings(project?: IProject | null) {
+  return Boolean(project?.isSteward)
 }

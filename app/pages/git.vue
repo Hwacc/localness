@@ -5,7 +5,6 @@ import {
   GitSyncConflictStatus,
   GitSyncPullReason,
   GitSyncPushReason,
-  TeamRole,
 } from '#shared/constants'
 import { formatI18nKeyDisplay, validID } from '#shared/utils'
 import { isHttpsRemoteUrl, normalizeGitHttpsRemote } from '#shared/utils/schemas'
@@ -31,6 +30,7 @@ type GitSyncBindingPublic = {
 
 type GitSyncStatus = {
   role: string
+  isSteward: boolean
   configured: boolean
   binding: GitSyncBindingPublic | null
   openConflicts: number
@@ -136,7 +136,7 @@ const form = reactive({
 })
 
 const projectId = computed(() => curProject.value.id)
-const isOwner = computed(() => status.value?.role === TeamRole.OWNER)
+const isSteward = computed(() => Boolean(status.value?.isSteward))
 const configured = computed(() => Boolean(status.value?.configured))
 const openCount = computed(
   () => status.value?.openConflicts ?? conflicts.value.length
@@ -215,7 +215,7 @@ async function loadAll() {
     )
     status.value = next
     applyBindingToForm(next.binding)
-    showSettings.value = !next.configured && next.role === TeamRole.OWNER
+    showSettings.value = !next.configured && Boolean(next.isSteward)
     if (next.configured) {
       conflicts.value =
         (await useApi<GitSyncConflictRow[]>(
@@ -901,7 +901,7 @@ function startEdit(conflict: GitSyncConflictRow) {
 
       <template v-else-if="status && !configured">
         <UAlert
-          v-if="!isOwner"
+          v-if="!isSteward"
           color="warning"
           variant="subtle"
           title="LILT Git sync is not configured"
@@ -1047,7 +1047,7 @@ function startEdit(conflict: GitSyncConflictRow) {
                 @click="openHistory"
               />
               <UButton
-                v-if="isOwner"
+                v-if="isSteward"
                 color="neutral"
                 variant="ghost"
                 @click="showSettings = !showSettings"
@@ -1058,7 +1058,7 @@ function startEdit(conflict: GitSyncConflictRow) {
           </div>
 
           <div
-            v-if="isOwner && showSettings"
+            v-if="isSteward && showSettings"
             class="pt-3 border-t border-default"
           >
             <!-- Divider spans the card; fields stay readable and centred. -->

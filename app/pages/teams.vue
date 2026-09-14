@@ -688,7 +688,7 @@ onMounted(async () => {
               <h3 class="text-sm font-semibold">Projects</h3>
               <span class="ml-auto" />
               <UButton
-                v-if="isOwner"
+                v-if="isMember"
                 size="xs"
                 color="neutral"
                 variant="outline"
@@ -699,7 +699,6 @@ onMounted(async () => {
             </div>
             <div v-if="teamProjects.length === 0" class="px-5 py-6 text-sm text-muted">
               No projects in this team.
-              <span v-if="!isOwner"> Ask a Team OWNER to create one.</span>
             </div>
             <ul v-else class="divide-y divide-default">
               <li
@@ -720,7 +719,12 @@ onMounted(async () => {
                   icon="i-tabler:package-export"
                   @click="openExport(project)"
                 />
+                <ProjectOwnersPopover
+                  v-if="isOwner"
+                  :project-id="project.id"
+                />
                 <UButton
+                  v-if="canManageProjectSettings(project)"
                   size="xs"
                   color="neutral"
                   variant="ghost"

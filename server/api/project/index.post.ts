@@ -1,12 +1,12 @@
 import prisma from '#server/libs/prisma'
 import { readZodBody } from '#server/helper/validate'
-import { requireTeamOwner } from '#server/helper/access'
+import { requireTeamAccess } from '#server/helper/access'
 import { projectDetailInclude, shapeProject } from '#server/helper/i18n'
 import { DEFAULT_LOCALES, DEFAULT_LOCALE_FALLBACK } from '#shared/constants'
 
 /**
  * @route POST /api/project
- * @description Create a project (Team OWNER)
+ * @description Create a project (any team member). Creator becomes Project Owner.
  * @access Private
  */
 export default defineEventHandler(async (event) => {
@@ -20,25 +20,33 @@ export default defineEventHandler(async (event) => {
       statusMessage: 'Missing teamId',
     })
   }
-  await requireTeamOwner(event, teamId)
+  const { userId } = await requireTeamAccess(event, teamId)
 
-  const createdProject = await prisma.project.create({
-    data: {
-      name,
-      description,
-      teamId,
-    },
-  })
-
-  await prisma.projectSettings.create({
-    data: {
-      projectID: createdProject.id,
-      ocrLanguage: settings?.ocrLanguage ?? 'eng',
-      ocrEngine: settings?.ocrEngine ?? 1,
-      prompt: settings?.prompt ?? '',
-      locales: [...DEFAULT_LOCALES],
-      localeFallback: DEFAULT_LOCALE_FALLBACK,
-    },
+  const createdProject = await prisma.$transaction(async (tx) => {
+    const created = await tx.project.create({
+      data: {
+        name,
+        description,
+        teamId,
+      },
+    })
+    await tx.projectSettings.create({
+      data: {
+        projectID: created.id,
+        ocrLanguage: settings?.ocrLanguage ?? 'eng',
+        ocrEngine: settings?.ocrEngine ?? 1,
+        prompt: settings?.prompt ?? '',
+        locales: [...DEFAULT_LOCALES],
+        localeFallback: DEFAULT_LOCALE_FALLBACK,
+      },
+    })
+    await tx.projectOwner.create({
+      data: {
+        userId,
+        projectId: created.id,
+      },
+    })
+    return created
   })
 
   const project = await prisma.project.findUnique({
@@ -47,5 +55,5 @@ export default defineEventHandler(async (event) => {
     },
     include: projectDetailInclude,
   })
-  return project ? shapeProject(project) : null
+  return project ? shapeProject(project, userId) : null
 })
