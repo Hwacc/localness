@@ -25,17 +25,54 @@ model User {
   pageLogs       PageLog[]
   projectLogs    ProjectLog[]
   gitSyncLogs    GitSyncLog[]
+  inviteCodes    TeamInviteCode[]
+  notifications  Notification[]
 
   @@unique([username, id])
 }
 
+model Notification {
+  id        Int       @id @default(autoincrement())
+  createdAt DateTime  @default(now()) @map("created_at")
+  userId    Int       @map("user_id")
+  type      String
+  title     String
+  body      String    @default("")
+  payload   Json
+  readAt    DateTime? @map("read_at")
+  actedAt   DateTime? @map("acted_at")
+  action    String    @default("none")
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, action])
+  @@index([userId, createdAt])
+}
+
 model Team {
-  id        Int        @id @default(autoincrement())
-  createdAt DateTime   @default(now()) @map("created_at")
-  updatedAt DateTime   @updatedAt @map("updated_at")
-  name      String
-  members   UserTeam[]
-  projects  Project[]
+  id          Int              @id @default(autoincrement())
+  createdAt   DateTime         @default(now()) @map("created_at")
+  updatedAt   DateTime         @updatedAt @map("updated_at")
+  name        String
+  members     UserTeam[]
+  projects    Project[]
+  inviteCodes TeamInviteCode[]
+}
+
+model TeamInviteCode {
+  id        Int       @id @default(autoincrement())
+  createdAt DateTime  @default(now()) @map("created_at")
+  teamId    Int       @map("team_id")
+  code      String    @unique
+  role      String    @default("MEMBER")
+  maxUses   Int?      @map("max_uses")
+  usedCount Int       @default(0) @map("used_count")
+  expiresAt DateTime? @map("expires_at")
+  createdBy Int       @map("created_by")
+  revokedAt DateTime? @map("revoked_at")
+  team      Team      @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  creator   User      @relation(fields: [createdBy], references: [id], onDelete: Restrict)
+
+  @@index([teamId, revokedAt])
 }
 
 model UserTeam {

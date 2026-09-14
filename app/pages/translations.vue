@@ -30,6 +30,13 @@ const table = useTemplateRef('table')
 
 const q = ref('')
 const statusFilter = ref<I18nKeyStatusFilter>(I18nKeyStatusFilter.ALL)
+/**
+ * This is the key table, so auto draft keys (`__draft_…` created by tagging a
+ * screenshot) are visible by default — hiding them made a freshly tagged
+ * translation unreachable from any status filter. The picker table defaults the
+ * other way because there you are choosing keys to export.
+ */
+const includeDraftKeys = ref(true)
 const page = ref(1)
 const limit = 20
 const total = ref(0)
@@ -561,6 +568,7 @@ async function loadKeys() {
     if (statusFilter.value !== I18nKeyStatusFilter.ALL) {
       params.set('status', statusFilter.value)
     }
+    if (includeDraftKeys.value) params.set('includeDraftKeys', '1')
     // Whole local days, so a single picked day covers that day end to end.
     const start = asDate(dateRange.value.start)
     const end = asDate(dateRange.value.end)
@@ -607,7 +615,7 @@ watch(q, () => {
 })
 
 // Status is a discrete choice, not typing — apply it immediately.
-watch(statusFilter, () => {
+watch([statusFilter, includeDraftKeys], () => {
   page.value = 1
   loadKeys()
 })
@@ -778,6 +786,16 @@ onMounted(async () => {
             </div>
           </template>
         </UPopover>
+        <UTooltip
+          text="Placeholder keys the editor creates for an unbound tag (__draft_…). Uncheck to hide them. This is not the Draft status filter."
+          :content="{ side: 'top' }"
+        >
+          <UCheckbox
+            v-model="includeDraftKeys"
+            label="Show __draft_ keys"
+            :ui="{ label: 'text-xs whitespace-nowrap' }"
+          />
+        </UTooltip>
         <div class="ml-auto flex items-center gap-2">
           <UDropdownMenu
             :items="columnsDropdownItems"

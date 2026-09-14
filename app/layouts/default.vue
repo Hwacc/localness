@@ -92,6 +92,9 @@ const navItems = [
             <ClientOnly>
               <AppUserAccount />
             </ClientOnly>
+            <ClientOnly>
+              <AppNotificationDrawer />
+            </ClientOnly>
             <AppSettingsDrawer />
           </div>
         </div>

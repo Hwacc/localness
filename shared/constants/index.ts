@@ -9,6 +9,17 @@ export enum TeamRole {
   MEMBER = 'MEMBER',
 }
 
+export enum NotificationType {
+  TEAM_INVITE = 'TEAM_INVITE',
+}
+
+export enum NotificationAction {
+  PENDING = 'pending',
+  ACCEPTED = 'accepted',
+  DECLINED = 'declined',
+  NONE = 'none',
+}
+
 /** Status filter on the translations table. Not stored — a query option only. */
 export enum I18nKeyStatusFilter {
   ALL = 'all',
