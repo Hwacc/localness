@@ -1,5 +1,4 @@
 <script setup lang="ts">
-import { TeamRole } from '#shared/constants'
 
 definePageMeta({
   middleware: ['protected'],
@@ -200,7 +199,7 @@ function selectProject(project: IProject) {
           </UBadge>
           <span class="ml-auto" />
           <UButton
-            v-if="team.role === TeamRole.OWNER"
+            v-if="canCreateProject(team)"
             size="sm"
             color="neutral"
             variant="outline"
@@ -214,9 +213,6 @@ function selectProject(project: IProject) {
           class="rounded-xl border border-dashed border-default bg-default px-4 py-8 text-sm text-muted"
         >
           No projects in this team.
-          <span v-if="team.role !== TeamRole.OWNER">
-            Ask a Team OWNER to create one.
-          </span>
         </div>
         <div
           v-else
@@ -277,6 +273,7 @@ function selectProject(project: IProject) {
                 @click="openExport(project)"
               />
               <UButton
+                v-if="canManageProjectSettings(project)"
                 size="xs"
                 color="neutral"
                 variant="ghost"

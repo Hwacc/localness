@@ -1,7 +1,7 @@
 import prisma from '#server/libs/prisma'
 import { numericID } from '#server/helper/id'
 import { readZodBody } from '#server/helper/validate'
-import { requireTeamMember } from '#server/helper/access'
+import { requireProjectOwner } from '#server/helper/access'
 import { PROJECT_SETTINGS_OMIT } from '#server/helper/i18n'
 
 /**
@@ -25,7 +25,7 @@ export default defineEventHandler(async (event) => {
     })
   }
 
-  await requireTeamMember(event, nID)
+  await requireProjectOwner(event, nID)
 
   const { name, description, settings } = await readZodBody(
     event,

@@ -24,5 +24,5 @@ export default defineEventHandler(async (event) => {
       updatedAt: 'desc',
     },
   })
-  return projects.map((p) => shapeProject(p))
+  return projects.map((p) => shapeProject(p, userId))
 })

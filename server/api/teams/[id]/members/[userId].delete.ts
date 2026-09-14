@@ -47,10 +47,18 @@ export default defineEventHandler(async (event) => {
     })
   }
 
-  await prisma.userTeam.delete({
-    where: {
-      userId_teamId: { userId: targetUserId, teamId },
-    },
-  })
+  await prisma.$transaction([
+    prisma.projectOwner.deleteMany({
+      where: {
+        userId: targetUserId,
+        project: { teamId },
+      },
+    }),
+    prisma.userTeam.delete({
+      where: {
+        userId_teamId: { userId: targetUserId, teamId },
+      },
+    }),
+  ])
   return { ok: true }
 })

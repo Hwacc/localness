@@ -11,6 +11,12 @@ export interface IProjectSetting {
   localeFallback?: string
 }
 
+export interface IProjectOwner {
+  userId: ID
+  username?: string
+  nickname?: string
+}
+
 export interface IProject {
   id: ID
   name: string
@@ -22,6 +28,8 @@ export interface IProject {
   teamId?: ID
   team?: ITeam
   settings?: IProjectSetting
+  owners?: IProjectOwner[]
+  isSteward?: boolean
 }
 
 export class Project implements IProject {

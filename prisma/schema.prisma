@@ -29,6 +29,7 @@ model User {
   inviteCodes    TeamInviteCode[]
   notifications  Notification[]
   authIdentities AuthIdentity[]
+  projectOwners  ProjectOwner[]
 
   @@unique([username, id])
 }
@@ -121,8 +122,19 @@ model Project {
   gitSyncConflicts GitSyncConflict[]
   gitSyncPreviews  GitSyncPreview[]
   gitSyncLogs      GitSyncLog[]
+  owners           ProjectOwner[]
 
   @@index([teamId])
+}
+
+model ProjectOwner {
+  userId    Int     @map("user_id")
+  projectId Int     @map("project_id")
+  user      User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  project   Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@id([userId, projectId])
+  @@index([projectId])
 }
 
 model ProjectSettings {

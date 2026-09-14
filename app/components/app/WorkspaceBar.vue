@@ -1,6 +1,4 @@
 <script setup lang="ts">
-import { TeamRole } from '#shared/constants'
-
 const projectStore = useProjectStore()
 const { curProject, curTeam, teams, projects } = storeToRefs(projectStore)
 const { open: openCreateProject } = useCreateProjectModal()
@@ -20,7 +18,8 @@ const teamItems = computed(() =>
   }))
 )
 
-const canCreate = computed(() => curTeam.value?.role === TeamRole.OWNER)
+const canCreate = computed(() => canCreateProject(curTeam.value))
+const canSettings = computed(() => canManageProjectSettings(curProject.value))
 
 function isCurrent(project: IProject) {
   return String(project.id) === String(curProject.value.id)
@@ -94,6 +93,7 @@ function onTeamChange(id: ID | undefined) {
         @click="openExport()"
       />
       <UButton
+        v-if="canSettings"
         color="neutral"
         variant="outline"
         size="sm"

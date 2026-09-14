@@ -1,6 +1,7 @@
 import { omit } from 'lodash-es'
 import prisma from '#server/libs/prisma'
 import { isI18nKeyDraft } from '#shared/utils'
+import { isProjectSteward } from '#server/helper/project-owner'
 
 type LocaleRow = {
   locale: string
@@ -71,6 +72,17 @@ export const projectDetailInclude = {
   },
   settings: {
     omit: PROJECT_SETTINGS_OMIT,
+  },
+  owners: {
+    include: {
+      user: {
+        select: {
+          id: true,
+          username: true,
+          nickname: true,
+        },
+      },
+    },
   },
 }
 
@@ -168,13 +180,37 @@ export function shapeTag<
   }
 }
 
-export function shapeProject<T extends { team?: { members?: { user: unknown }[] } }>(
-  project: T
-) {
+export function shapeProject<
+  T extends {
+    team?: { members?: { userId?: number; role?: string; user: unknown }[] }
+    owners?: {
+      userId: number
+      user?: { username?: string | null; nickname?: string | null }
+    }[]
+  },
+>(project: T, viewerUserId?: number) {
   const users = project.team?.members?.map((m) => m.user) ?? []
+  const ownerUserIds = (project.owners ?? []).map((o) => o.userId)
+  const teamRole = viewerUserId
+    ? project.team?.members?.find((m) => m.userId === viewerUserId)?.role
+    : undefined
+  const owners = (project.owners ?? []).map((o) => ({
+    userId: o.userId,
+    username: o.user?.username,
+    nickname: o.user?.nickname,
+  }))
   return {
     ...project,
     users,
+    owners,
+    isSteward:
+      viewerUserId != null
+        ? isProjectSteward({
+            userId: viewerUserId,
+            teamRole,
+            ownerUserIds,
+          })
+        : false,
   }
 }
 

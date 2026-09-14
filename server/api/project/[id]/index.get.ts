@@ -17,7 +17,7 @@ export default defineEventHandler(async (event) => {
     })
   }
   const nID = numericID(id)
-  await requireTeamMember(event, nID)
+  const { userId } = await requireTeamMember(event, nID)
   const project = await prisma.project.findUnique({
     where: {
       id: nID,
@@ -31,5 +31,5 @@ export default defineEventHandler(async (event) => {
       },
     },
   })
-  return project ? shapeProject(project) : null
+  return project ? shapeProject(project, userId) : null
 })
