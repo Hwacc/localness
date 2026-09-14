@@ -12,6 +12,7 @@ const {
   file = undefined,
   autoUpload = false,
   limitSize = 0,
+  fallbackText = '',
   class: propsClass = '',
 } = defineProps<
   ImagePreviewProps & {
@@ -120,6 +121,7 @@ defineExpose({
     :url="previewUrl"
     :disabled="disabled"
     :deleteable="deleteable"
+    :fallback-text="fallbackText"
     @click="onClick"
     @delete="onDelete"
   />

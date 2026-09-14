@@ -204,7 +204,11 @@ onMounted(() => {
                   {{ row.commitSha.slice(0, 7) }}
                 </span>
                 <div class="flex items-center gap-2">
-                  <UAvatar size="xs" :src="row.user?.avatar" />
+                  <UserAvatar
+                    size="xs"
+                    :avatar="row.user?.avatar"
+                    :name="row.user?.nickname ?? row.user?.username"
+                  />
                   <span class="text-xs text-muted">
                     {{ row.user?.nickname ?? row.user?.username ?? 'Unknown' }}
                   </span>

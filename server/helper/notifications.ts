@@ -83,7 +83,11 @@ export function shapeNotification(row: {
   }
 }
 
-function payloadTeamId(payload: unknown): number | null {
+/**
+ * Exported because `payload` is JSON with no foreign key, so a caller that
+ * deletes a Team has to find its pending invites by reading them.
+ */
+export function payloadTeamId(payload: unknown): number | null {
   if (!payload || typeof payload !== 'object') return null
   const teamId = Number((payload as { teamId?: unknown }).teamId)
   return Number.isInteger(teamId) ? teamId : null

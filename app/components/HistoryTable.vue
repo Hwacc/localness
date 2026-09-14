@@ -1,7 +1,7 @@
 <script setup lang="tsx" generic="T extends ILog<Record<string, any>>">
 import type { TableColumn } from '@nuxt/ui'
 import type { ComponentProps } from 'vue-component-type-helpers'
-import { UAvatar, UBadge } from '#components'
+import { UBadge, UserAvatar } from '#components'
 import { LogAction, LogStatus } from '~~/shared/constants/log'
 import dayjs from 'dayjs'
 
@@ -91,7 +91,11 @@ const computedColumns = computed<TableColumn<T>[]>(() => [
       const user = row.getValue('user') as IUser
       return (
         <div class="flex items-center gap-2">
-          <UAvatar src={user?.avatar} />
+          <UserAvatar
+            avatar={user?.avatar}
+            name={user?.nickname ?? user?.username}
+            size="md"
+          />
           <span>{user?.nickname ?? user?.username}</span>
         </div>
       )
