@@ -3,7 +3,8 @@ import type { ImageUploader } from '#components'
 import { z } from 'zod/v4'
 
 const userStore = useUserStore()
-const tabsItems = [
+const hasPasswordSet = computed(() => userStore.user.hasPasswordSet !== false)
+const tabsItems = computed(() => [
   {
     label: 'Profile',
     desc: '',
@@ -12,11 +13,13 @@ const tabsItems = [
   },
   {
     label: 'Account',
-    desc: 'Change password successfully will log you out to login again.',
+    desc: hasPasswordSet.value
+      ? 'Change password successfully will log you out to login again.'
+      : 'Set a password to also sign in with username. You will be logged out after saving.',
     icon: 'i-lucide:lock',
     slot: 'account',
   },
-]
+])
 
 const emit = defineEmits<{
   close: [boolean]
@@ -71,6 +74,25 @@ const authState = reactive<ZAuth>({
 async function onAuthSubmit() {
   await authStore.changePassword(authState.newPwd)
   emit('close', true)
+}
+
+const atlassianReady = ref(false)
+const atlassian = computed(
+  () => userStore.user.atlassian ?? { connected: false }
+)
+
+onMounted(async () => {
+  try {
+    const res = await $fetch<{ atlassian: boolean }>('/api/auth/providers')
+    atlassianReady.value = Boolean(res?.atlassian)
+  } catch {
+    atlassianReady.value = false
+  }
+})
+
+function connectAtlassian() {
+  if (!atlassianReady.value) return
+  window.location.href = '/auth/atlassian'
 }
 </script>
 
@@ -130,6 +152,31 @@ async function onAuthSubmit() {
         </template>
         <template #account="{ item }">
           <div class="flex flex-col gap-3 pt-2.5">
+            <div class="rounded-lg border border-default p-3 flex flex-col gap-2">
+              <p class="text-sm font-medium">Atlassian</p>
+              <template v-if="atlassian.connected">
+                <p class="text-sm text-muted">Connected</p>
+                <p v-if="atlassian.displayName" class="text-sm">
+                  {{ atlassian.displayName }}
+                </p>
+                <p v-if="atlassian.email" class="text-sm text-muted">
+                  {{ atlassian.email }}
+                </p>
+              </template>
+              <template v-else>
+                <AtlassianButton
+                  label="Connect Atlassian"
+                  :disabled="!atlassianReady"
+                  @click="connectAtlassian"
+                />
+                <p
+                  v-if="!atlassianReady"
+                  class="text-xs text-muted"
+                >
+                  Atlassian login is not configured. Contact an admin.
+                </p>
+              </template>
+            </div>
             <UAlert
               variant="soft"
               color="warning"
@@ -142,7 +189,10 @@ async function onAuthSubmit() {
               :schema="zAuth"
               @submit="onAuthSubmit"
             >
-              <UFormField label="New password" name="newPwd">
+              <UFormField
+                :label="hasPasswordSet ? 'New password' : 'Set password'"
+                name="newPwd"
+              >
                 <UInput
                   v-model="authState.newPwd"
                   class="w-full"
@@ -183,7 +233,11 @@ async function onAuthSubmit() {
                   label="Cancel"
                   @click="emit('close', false)"
                 />
-                <UButton type="submit" label="Save" icon="i-lucide-save" />
+                <UButton
+                  type="submit"
+                  :label="hasPasswordSet ? 'Save' : 'Set password'"
+                  icon="i-lucide-save"
+                />
               </div>
             </UForm>
           </div>

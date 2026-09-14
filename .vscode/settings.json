@@ -1,0 +1,8 @@
+{
+  // There is no Python in this repo, but the Python extension defaults
+  // `python.envFile` to ${workspaceFolder}/.env and then nags every time that
+  // file is saved. Pointing it at nothing silences it without turning on
+  // terminal env injection, which would leak our Nuxt/Prisma secrets into
+  // every integrated terminal.
+  "python.envFile": ""
+}

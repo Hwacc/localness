@@ -19,6 +19,7 @@ model User {
   password       String
   role           String           @default("USER")
   avatar         String?
+  passwordSetAt  DateTime?        @map("password_set_at")
   teams          UserTeam[]
   translationLog TranslationLog[]
   tagLogs        TagLog[]
@@ -27,8 +28,25 @@ model User {
   gitSyncLogs    GitSyncLog[]
   inviteCodes    TeamInviteCode[]
   notifications  Notification[]
+  authIdentities AuthIdentity[]
 
   @@unique([username, id])
+}
+
+model AuthIdentity {
+  id                Int      @id @default(autoincrement())
+  createdAt         DateTime @default(now()) @map("created_at")
+  updatedAt         DateTime @updatedAt @map("updated_at")
+  provider          String
+  providerAccountId String   @map("provider_account_id")
+  displayName       String?  @map("display_name")
+  email             String?
+  userId            Int      @map("user_id")
+  user              User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+  @@unique([userId, provider])
+  @@index([userId])
 }
 
 model Notification {

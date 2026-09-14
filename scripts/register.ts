@@ -78,6 +78,7 @@ async function register() {
       data: {
         username,
         password: hashedPassword,
+        passwordSetAt: new Date(),
         role,
       },
     })

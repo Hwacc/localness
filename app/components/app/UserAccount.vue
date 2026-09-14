@@ -45,6 +45,20 @@ function openProfile() {
   userModal.open()
 }
 
+const route = useRoute()
+
+watch(
+  () => route.query.settings,
+  (value) => {
+    if (!value) return
+    openProfile()
+    const nextQuery = { ...route.query }
+    delete nextQuery.settings
+    void navigateTo({ path: route.path, query: nextQuery }, { replace: true })
+  },
+  { immediate: true }
+)
+
 function logout() {
   authStore.logout()
 }

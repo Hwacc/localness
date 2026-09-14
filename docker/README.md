@@ -8,7 +8,7 @@ database and, with the `LOCAL` storage engine, the uploaded screenshots —
 
 ```bash
 cp .env.docker.example .env.docker
-# fill in NUXT_SESSION_PASSWORD (32+ chars); keep OSS_BASE_URL=/upload/ for LOCAL
+# fill in NUXT_SESSION_PASSWORD (32+ chars); keep NUXT_PUBLIC_OSS_BASE_URL=/upload/ for LOCAL
 docker compose up -d --build
 docker compose logs -f localness      # migrations run before the server starts
 ```
@@ -28,7 +28,7 @@ booted-but-broken container from a healthy one.
 Everything lives in `.env.docker` (never in the image — `.dockerignore` keeps
 `.env*` out of the build context). See `.env.docker.example` for the full list.
 
-Two variables are special:
+These need care:
 
 - **`NUXT_SALT_SIZE`** is also a build argument, because
   `nuxt.config.ts` bakes it into the bundle via `auth.hash.scrypt.saltSize`.
@@ -41,6 +41,39 @@ Two variables are special:
   reads the volume). Leave it empty and the editor requests `/{uuid}.png`.
 
 `DATABASE_CLIENT` from the old `.env` files is dead — no code reads it.
+
+### Atlassian OAuth (optional)
+
+Leave all four unset and the app runs on username/password only: the login page
+shows a disabled "Continue with Atlassian" button and the hint "Atlassian login
+is not configured. Contact an admin."
+
+```bash
+NUXT_OAUTH_ATLASSIAN_CLIENT_ID=
+NUXT_OAUTH_ATLASSIAN_CLIENT_SECRET=
+NUXT_OAUTH_ATLASSIAN_REDIRECT_URL=https://<your-origin>/auth/atlassian
+NUXT_ATLASSIAN_ALLOWED_EMAIL_DOMAINS=example.com,example.org
+```
+
+- Create an OAuth 2.0 (3LO) app at developer.atlassian.com. The only scope
+  requested is `read:me`. The callback registered there must match
+  `NUXT_OAUTH_ATLASSIAN_REDIRECT_URL` exactly, path included
+  (`<your-origin>/auth/atlassian`). Behind a reverse proxy that is the public
+  origin, not `localhost:13000`.
+- **`NUXT_ATLASSIAN_ALLOWED_EMAIL_DOMAINS` empty means deny everyone**, not
+  allow everyone (`isEmailDomainAllowed` returns false on an empty list). The
+  button is enabled as soon as the client id and secret are set, so leaving the
+  allowlist out gives you a button that always bounces back to `/` with
+  `?oauth_error=domain`. Comma-separated, no `@`, case-insensitive.
+- Access tokens are never stored. A successful sign-in keeps only an
+  `AuthIdentity` row keyed by the Atlassian `account_id` — deliberately not
+  email, so a renamed mailbox does not orphan the account.
+- First sign-in from an allowed domain provisions a `USER` just in time, with a
+  random unusable password. An account that already exists locally is **not**
+  matched by email: its owner links it from User Settings → Connect while
+  logged in.
+- Never commit real domains, the client id, or the secret. They belong in
+  `.env.docker`, which `.dockerignore` keeps out of the build context.
 
 ## Upgrades
 
@@ -77,5 +110,8 @@ Restore is the same command with `tar xzf` into an empty volume.
   non-root user.
 - No pnpm at runtime — corepack would re-download it on every boot as the
   unprivileged user. Binaries are called from `node_modules/.bin`.
-- `ecosystem.config.cjs` (pm2) is the older, non-container deployment path and
-  is excluded from the image; Docker's restart policy replaces it.
+- Docker is the only deployment path. The older pm2 one (`ecosystem.config.cjs`
+  plus the `*:prod` package scripts) was removed on 2026-09-14: it started the
+  server without running migrations, and its hardcoded `DATABASE_URL` overrode
+  `.env.production`, so `prisma migrate deploy` could migrate a different file
+  than the server opened. Docker's restart policy replaces pm2.
