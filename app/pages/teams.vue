@@ -1,7 +1,7 @@
 <script setup lang="tsx">
 import type { TableColumn, TableRow } from '@nuxt/ui'
 import { TeamRole, UserRole } from '#shared/constants'
-import { UAvatar, UBadge, UButton } from '#components'
+import { AlertModal, UBadge, UButton, UTooltip, UserAvatar } from '#components'
 
 definePageMeta({
   middleware: ['protected'],
@@ -16,11 +16,14 @@ const projectStore = useProjectStore()
 const { teams, curTeamId, projects, curProject } = storeToRefs(projectStore)
 const { open: openCreateProject } = useCreateProjectModal()
 const { openSettings, openExport } = useProjectActions()
+const overlay = useOverlay()
 const detail = ref<ITeam | null>(null)
 const loading = ref(false)
 const creating = ref(false)
 const inviting = ref(false)
 const creatingCode = ref(false)
+const leaving = ref(false)
+const deleting = ref(false)
 const newTeamName = ref('')
 const inviteUsername = ref('')
 const inviteCodes = ref<ITeamInviteCode[]>([])
@@ -52,6 +55,9 @@ const teamProjects = computed(() =>
 const isAdmin = computed(() => user.value.role === UserRole.ADMIN)
 const myRole = computed(() => detail.value?.role)
 const isOwner = computed(() => myRole.value === TeamRole.OWNER)
+// An ADMIN sees every team through `GET /api/teams`, including ones they are not
+// on, so "has a role here" is not the same as "is an admin".
+const isMember = computed(() => Boolean(myRole.value))
 
 const members = computed(() => detail.value?.members ?? [])
 
@@ -69,7 +75,11 @@ const memberColumns = computed<TableColumn<ITeamMember>[]>(() => {
         const member = row.original.user
         return (
           <div class="flex items-center gap-2.5">
-            <UAvatar src={member?.avatar} size="sm" />
+            <UserAvatar
+              avatar={member?.avatar}
+              name={member?.nickname || member?.username}
+              size="sm"
+            />
             <div class="min-w-0">
               <p class="font-medium truncate">{member?.username}</p>
               <p class="text-xs text-muted truncate">
@@ -98,18 +108,51 @@ const memberColumns = computed<TableColumn<ITeamMember>[]>(() => {
     cols.push({
       id: 'actions',
       header: '',
-      cell: ({ row }: { row: TableRow<ITeamMember> }) => (
-        <UButton
-          size="xs"
-          color="error"
-          variant="ghost"
-          label="Remove"
-          disabled={
-            row.original.role === TeamRole.OWNER && ownerCount(detail.value) <= 1
-          }
-          onClick={() => removeMember(row.original.userId)}
-        />
-      ),
+      cell: ({ row }: { row: TableRow<ITeamMember> }) => {
+        // Demoting or removing the only OWNER would leave the team unmanageable,
+        // so both are blocked on the same condition the server checks.
+        const isLastOwner =
+          row.original.role === TeamRole.OWNER && ownerCount(detail.value) <= 1
+        return (
+          <div class="flex items-center justify-end gap-1">
+            {row.original.role === TeamRole.MEMBER ? (
+              <UButton
+                size="xs"
+                color="neutral"
+                variant="ghost"
+                label="Make owner"
+                onClick={() =>
+                  setMemberRole(row.original.userId, TeamRole.OWNER)
+                }
+              />
+            ) : (
+              <UTooltip
+                text="A team must keep at least one OWNER"
+                disabled={!isLastOwner}
+              >
+                <UButton
+                  size="xs"
+                  color="neutral"
+                  variant="ghost"
+                  label="Make member"
+                  disabled={isLastOwner}
+                  onClick={() =>
+                    setMemberRole(row.original.userId, TeamRole.MEMBER)
+                  }
+                />
+              </UTooltip>
+            )}
+            <UButton
+              size="xs"
+              color="error"
+              variant="ghost"
+              label="Remove"
+              disabled={isLastOwner}
+              onClick={() => removeMember(row.original.userId)}
+            />
+          </div>
+        )
+      },
     })
   }
   return cols
@@ -280,6 +323,105 @@ async function removeMember(userId: ID) {
   await loadDetail()
 }
 
+async function setMemberRole(userId: ID, role: TeamRole) {
+  if (!validID(selectedId.value)) return
+  await useApi(`/api/teams/${selectedId.value}/members/${userId}`, {
+    method: 'PATCH',
+    body: { role },
+  })
+  toast.add({
+    title: role === TeamRole.OWNER ? 'Promoted to OWNER' : 'Changed to MEMBER',
+    color: 'success',
+    icon: 'i-lucide:check',
+  })
+  await loadTeams()
+  await loadDetail()
+}
+
+/**
+ * Leaving is the same endpoint as removing somebody, so the "a team must keep at
+ * least one OWNER" rule is enforced in one place. The button is disabled rather
+ * than letting the request 400, and says what to do instead.
+ */
+const leaveBlockedReason = computed(() => {
+  if (!isMember.value) return 'You are not a member of this team'
+  if (!isOwner.value) return ''
+  if (ownerCount(detail.value) > 1) return ''
+  return members.value.length > 1
+    ? 'Promote another member to OWNER first'
+    : 'You are the only member — delete the team instead'
+})
+
+/** Mirrors `teamDeleteRejectReason` on the server. */
+const deleteBlockedReason = computed(() => {
+  if (!isOwner.value) return 'Only an OWNER can delete a team'
+  if (members.value.length > 1) return 'Remove the other members first'
+  if (teamProjects.value.length > 0) return 'Delete this team’s projects first'
+  return ''
+})
+
+/** Both actions cost the user their access, so neither fires on a single click. */
+const leaveModal = overlay.create(AlertModal)
+const deleteModal = overlay.create(AlertModal)
+
+async function afterTeamExit() {
+  detail.value = null
+  selectedId.value = undefined
+  await loadTeams()
+  await loadDetail()
+}
+
+function confirmLeaveTeam() {
+  if (!validID(selectedId.value) || leaveBlockedReason.value) return
+  leaveModal.open({
+    mode: 'warning',
+    title: 'Leave team',
+    message: `Leave “${detail.value?.name}”? You lose access to its projects and need a new invite to come back.`,
+    okText: 'Leave',
+    onOk: async (_mode, { close }) => {
+      leaving.value = true
+      try {
+        await useApi(`/api/teams/${selectedId.value}/members/${user.value.id}`, {
+          method: 'DELETE',
+        })
+        toast.add({
+          title: 'Left team',
+          color: 'success',
+          icon: 'i-lucide:check',
+        })
+        close()
+        await afterTeamExit()
+      } finally {
+        leaving.value = false
+      }
+    },
+  })
+}
+
+function confirmDeleteTeam() {
+  if (!validID(selectedId.value) || deleteBlockedReason.value) return
+  deleteModal.open({
+    mode: 'delete',
+    title: 'Delete team',
+    message: `Delete “${detail.value?.name}”? This cannot be undone. Its invite codes and any pending invites are dropped.`,
+    onOk: async (_mode, { close }) => {
+      deleting.value = true
+      try {
+        await useApi(`/api/teams/${selectedId.value}`, { method: 'DELETE' })
+        toast.add({
+          title: 'Team deleted',
+          color: 'success',
+          icon: 'i-lucide:check',
+        })
+        close()
+        await afterTeamExit()
+      } finally {
+        deleting.value = false
+      }
+    },
+  })
+}
+
 function isSelected(id: ID) {
   return String(selectedId.value) === String(id)
 }
@@ -406,6 +548,36 @@ onMounted(async () => {
                 :disabled="!inviteUsername.trim()"
               />
             </form>
+            <UTooltip
+              v-if="isMember"
+              :text="leaveBlockedReason"
+              :disabled="!leaveBlockedReason"
+            >
+              <UButton
+                color="neutral"
+                variant="outline"
+                icon="i-lucide:log-out"
+                label="Leave team"
+                :loading="leaving"
+                :disabled="Boolean(leaveBlockedReason)"
+                @click="confirmLeaveTeam"
+              />
+            </UTooltip>
+            <UTooltip
+              v-if="isOwner"
+              :text="deleteBlockedReason"
+              :disabled="!deleteBlockedReason"
+            >
+              <UButton
+                color="error"
+                variant="outline"
+                icon="i-lucide:trash-2"
+                label="Delete team"
+                :loading="deleting"
+                :disabled="Boolean(deleteBlockedReason)"
+                @click="confirmDeleteTeam"
+              />
+            </UTooltip>
           </div>
 
           <div

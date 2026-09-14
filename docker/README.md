@@ -55,11 +55,16 @@ NUXT_OAUTH_ATLASSIAN_REDIRECT_URL=https://<your-origin>/auth/atlassian
 NUXT_ATLASSIAN_ALLOWED_EMAIL_DOMAINS=example.com,example.org
 ```
 
-- Create an OAuth 2.0 (3LO) app at developer.atlassian.com. The only scope
-  requested is `read:me`. The callback registered there must match
+- Create an OAuth 2.0 (3LO) app at developer.atlassian.com and grant it
+  `read:me` and `read:account` under the User identity API. **Scope is decided
+  in the console, not in this repo** — the app code cannot narrow what the 3LO
+  app is allowed to do. All we need from the profile is the email.
+- The callback registered on the app must match
   `NUXT_OAUTH_ATLASSIAN_REDIRECT_URL` exactly, path included
   (`<your-origin>/auth/atlassian`). Behind a reverse proxy that is the public
-  origin, not `localhost:13000`.
+  origin, not `localhost:13000`. Left empty, nuxt-auth-utils rebuilds it from
+  the incoming request (`protocol://host/path`), which is what a proxy rewrites
+  — so set it explicitly anywhere but plain localhost.
 - **`NUXT_ATLASSIAN_ALLOWED_EMAIL_DOMAINS` empty means deny everyone**, not
   allow everyone (`isEmailDomainAllowed` returns false on an empty list). The
   button is enabled as soon as the client id and secret are set, so leaving the
