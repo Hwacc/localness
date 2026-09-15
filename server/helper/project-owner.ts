@@ -3,6 +3,11 @@ export type ProjectStewardInput = {
   ownerUserIds: number[]
 }
 
+export type ProjectOwnerRoster = {
+  projectId: number
+  ownerUserIds: number[]
+}
+
 export function isProjectSteward(input: ProjectStewardInput): boolean {
   return input.ownerUserIds.includes(input.userId)
 }
@@ -40,6 +45,21 @@ export function removeProjectOwnerRejectReason(input: {
   return null
 }
 
+export function projectsLeftWithoutOwner(input: {
+  targetUserId: number
+  projects: ProjectOwnerRoster[]
+}): number[] {
+  return input.projects
+    .filter(
+      (project) =>
+        project.ownerUserIds.includes(input.targetUserId) &&
+        project.ownerUserIds.length <= 1
+    )
+    .map((project) => project.projectId)
+}
+
+const LAST_PROJECT_OWNER_RULE = 'A project must keep at least one Project Owner'
+
 export const ADD_PROJECT_OWNER_MESSAGES: Record<
   AddProjectOwnerRejection,
   string
@@ -55,7 +75,16 @@ export const REMOVE_PROJECT_OWNER_MESSAGES: Record<
 > = {
   'cannot-appoint': 'Only a Project Owner or Admin can change Project Owners',
   'not-listed': 'User is not a Project Owner',
-  'last-owner': 'A project must keep at least one Project Owner',
+  'last-owner': LAST_PROJECT_OWNER_RULE,
+}
+
+/**
+ * Refusal text for a Team exit that would strand projects. Names them, because
+ * "appoint another owner first" is only actionable if the user is told which
+ * project to open.
+ */
+export function strandedProjectMessage(projectNames: string[]): string {
+  return `${LAST_PROJECT_OWNER_RULE}: appoint another owner for ${projectNames.join(', ')}`
 }
 
 export function ownerChangeStatus(

@@ -7,11 +7,16 @@ import {
 } from '#shared/constants'
 
 const db = vi.hoisted(() => ({
-  invitee: null as { id: number; role: string; username: string } | null,
+  // Keyed by id because the invitee and the inviter are both looked up with
+  // `where.id` now — a fake that discriminates by key name cannot tell them
+  // apart, and would hand the invitee lookup the inviter's row.
+  usersById: {} as Record<
+    number,
+    { id: number; username: string; nickname: string | null; role: string }
+  >,
   membership: null as { role: string } | null,
   pending: [] as Array<{ payload: { teamId: number } }>,
   team: null as { name: string } | null,
-  inviter: null as { username: string; nickname: string | null } | null,
   created: null as Record<string, unknown> | null,
   userTeamCreated: null as Record<string, unknown> | null,
   notification: null as {
@@ -59,15 +64,8 @@ vi.mock('#server/libs/prisma', () => {
   return {
     default: {
       user: {
-        findUnique: async ({
-          where,
-        }: {
-          where: { username?: string; id?: number }
-        }) => {
-          if (where.username) return db.invitee
-          if (where.id) return db.inviter
-          return null
-        },
+        findUnique: async ({ where }: { where: { id?: number } }) =>
+          where.id == null ? null : (db.usersById[where.id] ?? null),
       },
       userTeam: {
         findUnique: async () => db.membership,
@@ -107,11 +105,13 @@ const {
 
 describe('createTeamInviteNotification', () => {
   beforeEach(() => {
-    db.invitee = { id: 2, role: UserRole.USER, username: 'bob' }
+    db.usersById = {
+      1: { id: 1, username: 'alice', nickname: 'Alice', role: UserRole.USER },
+      2: { id: 2, username: 'bob', nickname: null, role: UserRole.USER },
+    }
     db.membership = null
     db.pending = []
     db.team = { name: 'Alpha' }
-    db.inviter = { username: 'alice', nickname: 'Alice' }
     db.created = null
   })
 
@@ -119,7 +119,7 @@ describe('createTeamInviteNotification', () => {
     const row = await createTeamInviteNotification({
       teamId: 7,
       invitedBy: 1,
-      username: 'bob',
+      userId: 2,
       role: TeamRole.MEMBER,
     })
     expect(row.action).toBe(NotificationAction.PENDING)
@@ -130,16 +130,30 @@ describe('createTeamInviteNotification', () => {
     })
   })
 
-  it('rejects a missing user', async () => {
-    db.invitee = null
+  it('rejects an id that resolves to nobody', async () => {
+    delete db.usersById[2]
     await expect(
       createTeamInviteNotification({
         teamId: 7,
         invitedBy: 1,
-        username: 'ghost',
+        userId: 2,
         role: TeamRole.MEMBER,
       })
     ).rejects.toMatchObject({ statusCode: 404 })
+  })
+
+  it('rejects inviting yourself', async () => {
+    await expect(
+      createTeamInviteNotification({
+        teamId: 7,
+        invitedBy: 1,
+        userId: 1,
+        role: TeamRole.MEMBER,
+      })
+    ).rejects.toMatchObject({
+      statusCode: 400,
+      message: 'You cannot invite yourself',
+    })
   })
 
   it('rejects someone already on the team', async () => {
@@ -148,7 +162,7 @@ describe('createTeamInviteNotification', () => {
       createTeamInviteNotification({
         teamId: 7,
         invitedBy: 1,
-        username: 'bob',
+        userId: 2,
         role: TeamRole.MEMBER,
       })
     ).rejects.toMatchObject({
@@ -163,7 +177,7 @@ describe('createTeamInviteNotification', () => {
       createTeamInviteNotification({
         teamId: 7,
         invitedBy: 1,
-        username: 'bob',
+        userId: 2,
         role: TeamRole.MEMBER,
       })
     ).rejects.toMatchObject({

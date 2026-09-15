@@ -31,3 +31,34 @@ export interface ITeamInviteCode {
   createdAt: string
   revokedAt: string | null
 }
+
+/**
+ * Why a searched user can or cannot be invited right now. Mirrors the server's
+ * invite checks (self 400, already-on-team 409, already-pending 409) so the list
+ * can say why instead of letting the OWNER pick somebody and eat the error.
+ */
+export type TeamMemberCandidateStatus =
+  | 'invitable'
+  | 'self'
+  | 'member'
+  | 'pending'
+
+/**
+ * A user a Team OWNER may invite.
+ *
+ * Deliberately has no `email`: it is matched against, but must never be handed
+ * back, so the type itself cannot carry one out of the server.
+ */
+export interface ITeamMemberCandidate {
+  userId: ID
+  username: string
+  nickname: string | null
+  avatar: string | null
+  status: TeamMemberCandidateStatus
+}
+
+export interface ITeamMemberCandidates {
+  candidates: ITeamMemberCandidate[]
+  /** True when the search hit the result cap, so matches may be missing. */
+  truncated: boolean
+}

@@ -1,5 +1,6 @@
 <script setup lang="tsx">
 import type { TableColumn, TableRow } from '@nuxt/ui'
+import { useDebounceFn } from '@vueuse/core'
 import { TeamRole, UserRole } from '#shared/constants'
 import { AlertModal, ProjectOwnerBadge, TeamMemberBadge, TeamOwnerBadge, UBadge, UButton, UTooltip, UserAvatar } from '#components'
 
@@ -25,7 +26,14 @@ const creatingCode = ref(false)
 const leaving = ref(false)
 const deleting = ref(false)
 const newTeamName = ref('')
-const inviteUsername = ref('')
+const inviteSearch = ref('')
+const invitePicked = ref<number | undefined>()
+const invitePickedRow = ref<ITeamMemberCandidate | null>(null)
+const inviteCandidates = ref<ITeamMemberCandidate[]>([])
+const inviteSearching = ref(false)
+const inviteTruncated = ref(false)
+/** Bumped on reset: rebuilding the picker is the only reliable way to clear its text. */
+const inviteFormKey = ref(0)
 const inviteCodes = ref<ITeamInviteCode[]>([])
 const newCodeRole = ref<TeamRole>(TeamRole.MEMBER)
 const newCodeMaxUses = ref(20)
@@ -123,9 +131,20 @@ const memberColumns = computed<TableColumn<ITeamMember>[]>(() => {
       header: '',
       cell: ({ row }: { row: TableRow<ITeamMember> }) => {
         // Demoting or removing the only OWNER would leave the team unmanageable,
-        // so both are blocked on the same condition the server checks.
+        // and removing the only Project Owner of a project would leave that
+        // project unconfigurable. Both are blocked on the same conditions the
+        // server checks.
         const isLastOwner =
           row.original.role === TeamRole.OWNER && ownerCount(detail.value) <= 1
+        const stranded = soleOwnedProjectNames(
+          teamProjects.value,
+          row.original.userId
+        )
+        const removeBlockedReason = isLastOwner
+          ? 'A team must keep at least one Team OWNER'
+          : stranded.length > 0
+            ? `Appoint another Project Owner for ${stranded.join(', ')} first`
+            : ''
         return (
           <div class="flex items-center justify-end gap-1">
             {row.original.role === TeamRole.MEMBER ? (
@@ -155,14 +174,19 @@ const memberColumns = computed<TableColumn<ITeamMember>[]>(() => {
                 />
               </UTooltip>
             )}
-            <UButton
-              size="xs"
-              color="error"
-              variant="ghost"
-              label="Remove"
-              disabled={isLastOwner}
-              onClick={() => removeMember(row.original.userId)}
-            />
+            <UTooltip
+              text={removeBlockedReason}
+              disabled={!removeBlockedReason}
+            >
+              <UButton
+                size="xs"
+                color="error"
+                variant="ghost"
+                label="Remove"
+                disabled={Boolean(removeBlockedReason)}
+                onClick={() => removeMember(row.original.userId)}
+              />
+            </UTooltip>
           </div>
         )
       },
@@ -208,6 +232,8 @@ async function loadInviteCodes() {
 }
 
 watch(selectedId, () => {
+  // A pick made against one Team must not be submittable against the next.
+  resetInvitePicker()
   loadDetail()
 })
 
@@ -235,16 +261,166 @@ async function createTeam() {
   }
 }
 
+type InviteOption = {
+  userId: number
+  label: string
+  description?: string
+  /**
+   * Not named `avatar`: `InputMenuItem` reserves that key for `AvatarProps` (the
+   * default slot rendering does `v-bind="item.avatar"`), so a raw URL there is a
+   * type error and a Vue warning at runtime.
+   */
+  avatarUrl: string | null
+  disabled: boolean
+}
+
+/**
+ * Slot props are typed as the whole item union (a string or number is a legal
+ * `InputMenuItem`), so this narrows to what the picker actually passes.
+ */
+function inviteItem(item: unknown): InviteOption | null {
+  return item && typeof item === 'object' ? (item as InviteOption) : null
+}
+
+/**
+ * Why a searched user cannot be invited. Mirrors the codes the invite endpoint
+ * refuses with, so the list explains the reason up front instead of letting the
+ * OWNER pick somebody and eat a 409.
+ */
+function inviteBlockedReason(status: TeamMemberCandidateStatus): string {
+  switch (status) {
+    case 'invitable':
+      return ''
+    case 'self':
+      return 'That is you'
+    case 'member':
+      return 'Already on this team'
+    case 'pending':
+      return 'Invite already pending'
+    default: {
+      const _exhaustive: never = status
+      return _exhaustive
+    }
+  }
+}
+
+function inviteLabel(row: ITeamMemberCandidate) {
+  return row.nickname || row.username
+}
+
+function inviteOption(row: ITeamMemberCandidate): InviteOption {
+  const blocked = inviteBlockedReason(row.status)
+  return {
+    userId: Number(row.userId),
+    label: inviteLabel(row),
+    ...(blocked ? { description: blocked } : {}),
+    avatarUrl: row.avatar,
+    // A disabled row cannot be selected at all, so a member or an
+    // already-invited user never becomes a submittable pick.
+    disabled: Boolean(blocked),
+  }
+}
+
+/**
+ * What the picker renders.
+ *
+ * The picked row is pinned in even when it is missing from the latest results:
+ * the component resolves the model value back to a label through `items` and
+ * falls back to `String(value)` — a bare userId — when it cannot find it, and
+ * that lookup runs on every dropdown close, not only on selection.
+ */
+const inviteItems = computed<InviteOption[]>(() => {
+  const options = inviteCandidates.value.map(inviteOption)
+  const picked = invitePickedRow.value
+  if (!picked) return options
+  const pickedOption = inviteOption(picked)
+  return options.some((row) => row.userId === pickedOption.userId)
+    ? options
+    : [pickedOption, ...options]
+})
+
+let inviteSearchSeq = 0
+
+async function loadInviteCandidates() {
+  const q = inviteSearch.value.trim()
+  if (!validID(selectedId.value) || q.length < 2) {
+    inviteCandidates.value = []
+    inviteTruncated.value = false
+    return
+  }
+  const seq = ++inviteSearchSeq
+  inviteSearching.value = true
+  try {
+    const res = await useApi<ITeamMemberCandidates>(
+      `/api/teams/${selectedId.value}/member-candidates`,
+      // `query`, not string interpolation: emails contain `+`, which a hand-built
+      // query string would decode as a space.
+      { query: { q } }
+    )
+    // A slower earlier request must not overwrite a newer one's results.
+    if (!res || seq !== inviteSearchSeq) return
+    inviteCandidates.value = res.candidates
+    inviteTruncated.value = res.truncated
+  } finally {
+    if (seq === inviteSearchSeq) inviteSearching.value = false
+  }
+}
+
+const inviteSearchDebounced = useDebounceFn(loadInviteCandidates, 300)
+
+watch(inviteSearch, (value) => {
+  const picked = invitePickedRow.value
+  /*
+   * Selecting a row blanks the search term internally — the visible text comes
+   * from the model value, not the term — so an empty term is not the user typing
+   * away from their pick. Anything else is, and dropping the pick there is what
+   * stops a stale selection from being submitted.
+   */
+  if (picked && value !== '' && value !== inviteLabel(picked)) {
+    invitePicked.value = undefined
+    invitePickedRow.value = null
+  }
+  inviteSearchDebounced()
+})
+
+watch(invitePicked, (value) => {
+  if (value == null) {
+    invitePickedRow.value = null
+    return
+  }
+  invitePickedRow.value =
+    inviteCandidates.value.find(
+      (row) => Number(row.userId) === Number(value)
+    ) ?? null
+})
+
+/**
+ * Clearing the search term does not clear the box: in single-select mode the
+ * inner input owns its text and `v-model:search-term` is effectively read-only.
+ * Resetting the model empties it, and the key bump covers the case the model
+ * reset cannot — it is skipped while the dropdown is still open.
+ */
+function resetInvitePicker() {
+  inviteSearchSeq += 1
+  invitePicked.value = undefined
+  invitePickedRow.value = null
+  inviteCandidates.value = []
+  inviteSearching.value = false
+  inviteTruncated.value = false
+  inviteSearch.value = ''
+  inviteFormKey.value += 1
+}
+
 async function inviteMember() {
-  const username = inviteUsername.value.trim()
-  if (!username || !validID(selectedId.value)) return
+  const invitee = invitePickedRow.value
+  if (!invitee || !validID(selectedId.value)) return
   inviting.value = true
   try {
     await useApi(`/api/teams/${selectedId.value}/members`, {
       method: 'POST',
-      body: { username },
+      body: { userId: Number(invitee.userId) },
     })
-    inviteUsername.value = ''
+    resetInvitePicker()
     toast.add({
       title: 'Invite sent',
       color: 'success',
@@ -352,12 +528,21 @@ async function setMemberRole(userId: ID, role: TeamRole) {
 }
 
 /**
- * Leaving is the same endpoint as removing somebody, so the "a team must keep at
- * least one OWNER" rule is enforced in one place. The button is disabled rather
- * than letting the request 400, and says what to do instead.
+ * Leaving is the same endpoint as removing somebody, so both rules are enforced
+ * in one place. The button is disabled rather than letting the request 400, and
+ * says what to do instead.
  */
 const leaveBlockedReason = computed(() => {
   if (!isMember.value) return 'You are not a member of this team'
+  // Checked before the OWNER rule and for every member alike: whoever created a
+  // project is its Project Owner, and a project left with none is not
+  // recoverable from inside the Team.
+  const stranded = soleOwnedProjectNames(teamProjects.value, user.value.id)
+  if (stranded.length > 0) {
+    return members.value.length > 1
+      ? `Appoint another Project Owner for ${stranded.join(', ')} first`
+      : `Invite someone to this team and appoint them Project Owner for ${stranded.join(', ')} first`
+  }
   if (!isOwner.value) return ''
   if (ownerCount(detail.value) > 1) return ''
   return members.value.length > 1
@@ -563,18 +748,45 @@ onMounted(async () => {
               class="flex items-center gap-2"
               @submit.prevent="inviteMember"
             >
-              <UInput
-                v-model="inviteUsername"
-                class="w-56"
-                placeholder="Invite by username"
-              />
+              <UInputMenu
+                :key="inviteFormKey"
+                v-model="invitePicked"
+                v-model:search-term="inviteSearch"
+                :items="inviteItems"
+                value-key="userId"
+                :ignore-filter="true"
+                :loading="inviteSearching"
+                :open-on-click="true"
+                class="w-64"
+                placeholder="Search name, username, or email"
+              >
+                <template #item-leading="{ item }">
+                  <UserAvatar
+                    :avatar="inviteItem(item)?.avatarUrl ?? null"
+                    :name="inviteItem(item)?.label ?? ''"
+                    size="sm"
+                  />
+                </template>
+                <template #empty>
+                  <p class="px-2 py-3 text-sm text-muted">
+                    {{
+                      inviteSearch.trim().length < 2
+                        ? 'Type at least 2 characters'
+                        : 'No matching user'
+                    }}
+                  </p>
+                </template>
+              </UInputMenu>
               <UButton
                 type="submit"
                 label="Invite"
                 icon="i-lucide:user-plus"
                 :loading="inviting"
-                :disabled="!inviteUsername.trim()"
+                :disabled="!invitePickedRow"
               />
+              <span v-if="inviteTruncated" class="text-xs text-muted">
+                More matches — keep typing
+              </span>
             </form>
             <UTooltip
               v-if="isMember"

@@ -80,3 +80,24 @@ export function ownedProjectNames(projects: IProject[], userId: ID): string[] {
     )
     .map((project) => project.name)
 }
+
+/**
+ * Names of the Team's projects where `userId` is the *only* Project Owner.
+ *
+ * Leaving the Team deletes their ProjectOwner rows, and a project left with none
+ * cannot be configured by anyone on the Team — so the page blocks the exit on
+ * the same condition the server refuses it with
+ * `projectsLeftWithoutOwner`. Who created a project is its Project Owner, so
+ * this can be true of a plain MEMBER, not just a Team OWNER.
+ */
+export function soleOwnedProjectNames(projects: IProject[], userId: ID): string[] {
+  return projects
+    .filter((project) => {
+      const owners = project.owners ?? []
+      return (
+        owners.length <= 1 &&
+        owners.some((row) => String(row.userId) === String(userId))
+      )
+    })
+    .map((project) => project.name)
+}

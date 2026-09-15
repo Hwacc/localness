@@ -72,9 +72,10 @@ export function memberRemovalRejectReason(
  * This is the escape hatch for the one case `memberRemovalRejectReason` cannot
  * resolve: a sole OWNER with nobody to promote first. It is deliberately narrow
  * — the actor must be the only member left, and the Team must hold no projects,
- * so deleting a Team can never destroy translation data as a side effect. An
- * OWNER who wants out of a Team with projects deletes the projects first, which
- * is an explicit act.
+ * so deleting a Team can never destroy translation data as a side effect. That
+ * leaves an OWNER who wants out of a Team that holds projects with no path at
+ * all: `TEAM_DELETE_MESSAGES['has-projects']` tells them to delete the projects
+ * first, but nothing in this codebase can delete a project yet.
  */
 export function teamDeleteRejectReason(
   members: TeamMemberRow[],
