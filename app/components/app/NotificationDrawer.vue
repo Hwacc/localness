@@ -1,14 +1,19 @@
 <script setup lang="ts">
 import { NotificationAction } from '#shared/constants'
+import { AlertModal } from '#components'
 
 const open = ref(false)
 const {
   items,
   pendingCount,
   actingId,
+  removingId,
+  clearing,
   startPolling,
   markVisibleRead,
   act,
+  remove,
+  clearAll,
 } = useNotifications()
 
 watch(open, async (isOpen) => {
@@ -19,6 +24,28 @@ watch(open, async (isOpen) => {
 onMounted(() => {
   startPolling()
 })
+
+/**
+ * Clearing the Inbox also throws away unresolved invites, which is the same as
+ * declining them without a trace — worth one confirmation, unlike the single-row
+ * `×`. `remove` itself needs no modal.
+ */
+const overlay = useOverlay()
+const clearModal = overlay.create(AlertModal)
+
+function confirmClearAll() {
+  clearModal.open({
+    mode: 'delete',
+    title: 'Clear Inbox',
+    message:
+      'Delete every notification? Pending invites go too, and the sender is not told — you will need a new invite to join that team.',
+    okText: 'Clear',
+    onOk: async (_mode, { close }) => {
+      await clearAll()
+      close()
+    },
+  })
+}
 
 function actionLabel(action: string) {
   switch (action) {
@@ -65,6 +92,24 @@ function actionLabel(action: string) {
       </span>
     </UTooltip>
     <template #body>
+      <div
+        v-if="items.length > 0"
+        class="mb-3 flex items-center justify-between gap-2"
+      >
+        <span class="text-xs text-muted">
+          {{ items.length }} in Inbox
+        </span>
+        <UButton
+          size="xs"
+          color="neutral"
+          variant="ghost"
+          icon="i-lucide:trash-2"
+          label="Clear all"
+          :loading="clearing"
+          :disabled="clearing"
+          @click="confirmClearAll"
+        />
+      </div>
       <div v-if="items.length === 0" class="text-sm text-muted">
         No notifications.
       </div>
@@ -74,8 +119,22 @@ function actionLabel(action: string) {
           :key="row.id"
           class="rounded-lg border border-default px-3 py-2.5"
         >
-          <p class="text-sm font-medium">{{ row.title }}</p>
-          <p class="mt-0.5 text-xs text-muted">{{ row.body }}</p>
+          <div class="flex items-start gap-2">
+            <div class="min-w-0 flex-1">
+              <p class="text-sm font-medium">{{ row.title }}</p>
+              <p class="mt-0.5 text-xs text-muted">{{ row.body }}</p>
+            </div>
+            <UButton
+              size="xs"
+              color="neutral"
+              variant="ghost"
+              icon="i-lucide:x"
+              square
+              :loading="removingId === row.id"
+              :aria-label="`Delete ${row.title}`"
+              @click="remove(row.id)"
+            />
+          </div>
           <div
             v-if="row.action === NotificationAction.PENDING"
             class="mt-2 flex items-center gap-2"

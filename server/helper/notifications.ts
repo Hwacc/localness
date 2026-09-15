@@ -204,6 +204,26 @@ export async function markNotificationsRead(
   return listNotifications(userId)
 }
 
+/**
+ * Remove notifications from an Inbox. Hard delete is safe here because nothing
+ * reads a row back: `pendingCount` is a live count, and `actOnNotification`
+ * rejects anything no longer PENDING.
+ *
+ * Deleting a *pending* invite is effectively a silent decline — the "already
+ * pending" check keys off the row existing, so the block is released with no
+ * "Declined" trace left behind.
+ */
+export async function deleteNotifications(userId: number, ids?: number[]) {
+  await prisma.notification.deleteMany({
+    where: {
+      // Scoped by userId, so ids guessed off another account delete nothing.
+      userId,
+      ...(ids?.length ? { id: { in: ids } } : {}),
+    },
+  })
+  return listNotifications(userId)
+}
+
 export async function actOnNotification(params: {
   userId: number
   notificationId: number

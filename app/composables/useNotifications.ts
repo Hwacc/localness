@@ -8,6 +8,8 @@ export function useNotifications() {
   const items = useState<INotification[]>('notifications:items', () => [])
   const pendingCount = useState('notifications:pending', () => 0)
   const actingId = useState<ID | null>('notifications:acting', () => null)
+  const removingId = useState<ID | null>('notifications:removing', () => null)
+  const clearing = useState('notifications:clearing', () => false)
   const timer = useState<ReturnType<typeof setInterval> | null>(
     'notifications:timer',
     () => null
@@ -40,6 +42,39 @@ export function useNotifications() {
     if (!res) return
     items.value = res.items
     pendingCount.value = res.pendingCount
+  }
+
+  async function requestDelete(ids?: number[]) {
+    const res = await useApi<{
+      items: INotification[]
+      pendingCount: number
+    }>('/api/notifications/delete', {
+      method: 'POST',
+      // No ids means the whole Inbox, unresolved invites included.
+      body: ids?.length ? { ids } : {},
+    })
+    if (!res) return
+    items.value = res.items
+    pendingCount.value = res.pendingCount
+  }
+
+  async function remove(id: ID) {
+    if (!validID(id)) return
+    removingId.value = id
+    try {
+      await requestDelete([Number(id)])
+    } finally {
+      removingId.value = null
+    }
+  }
+
+  async function clearAll() {
+    clearing.value = true
+    try {
+      await requestDelete()
+    } finally {
+      clearing.value = false
+    }
   }
 
   async function act(id: ID, action: NotificationAction) {
@@ -105,9 +140,13 @@ export function useNotifications() {
     items,
     pendingCount,
     actingId,
+    removingId,
+    clearing,
     refresh,
     markVisibleRead,
     act,
+    remove,
+    clearAll,
     startPolling,
     reset,
   }
