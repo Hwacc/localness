@@ -1,6 +1,6 @@
 import prisma from '#server/libs/prisma'
 import { readZodBody } from '#server/helper/validate'
-import { requireTeamAccess } from '#server/helper/access'
+import { requireTeamMembership } from '#server/helper/access'
 import { projectDetailInclude, shapeProject } from '#server/helper/i18n'
 import { DEFAULT_LOCALES, DEFAULT_LOCALE_FALLBACK } from '#shared/constants'
 
@@ -20,7 +20,7 @@ export default defineEventHandler(async (event) => {
       statusMessage: 'Missing teamId',
     })
   }
-  const { userId } = await requireTeamAccess(event, teamId)
+  const { userId } = await requireTeamMembership(event, teamId)
 
   const createdProject = await prisma.$transaction(async (tx) => {
     const created = await tx.project.create({

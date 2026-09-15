@@ -1,7 +1,7 @@
 export enum UserRole {
+  /** Platform operator. Not an implicit Project Owner. */
   ADMIN = 'ADMIN',
   USER = 'USER',
-  GUEST = 'GUEST',
 }
 
 export enum TeamRole {

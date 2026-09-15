@@ -22,7 +22,7 @@ export interface IUser {
 export class User implements IUser {
   id: ID = 0
   username: string = ''
-  role: UserRole = UserRole.GUEST
+  role: UserRole = UserRole.USER
   nickname?: string | undefined = undefined
   email?: string | undefined = undefined
   avatar?: string | undefined = undefined

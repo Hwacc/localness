@@ -191,9 +191,6 @@ export function shapeProject<
 >(project: T, viewerUserId?: number) {
   const users = project.team?.members?.map((m) => m.user) ?? []
   const ownerUserIds = (project.owners ?? []).map((o) => o.userId)
-  const teamRole = viewerUserId
-    ? project.team?.members?.find((m) => m.userId === viewerUserId)?.role
-    : undefined
   const owners = (project.owners ?? []).map((o) => ({
     userId: o.userId,
     username: o.user?.username,
@@ -207,7 +204,6 @@ export function shapeProject<
       viewerUserId != null
         ? isProjectSteward({
             userId: viewerUserId,
-            teamRole,
             ownerUserIds,
           })
         : false,

@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { TeamRole } from '#shared/constants'
 
 definePageMeta({
   middleware: ['protected'],
@@ -91,17 +92,13 @@ onMounted(async () => {
     )
   }
 })
-
 const pageCount = computed(() =>
   projects.value.reduce((sum, p) => sum + (p.pages?.length ?? 0), 0)
 )
-
 const recentProjects = computed(() => projects.value.slice(0, 3))
-
 function isCurrent(project: IProject) {
   return String(project.id) === String(curProject.value.id)
 }
-
 function selectProject(project: IProject) {
   projectStore.setCurrentProject(project)
 }
@@ -134,9 +131,14 @@ function selectProject(project: IProject) {
         </div>
         <div class="rounded-xl border border-default bg-default px-4 py-3">
           <p class="text-xs text-muted">Current project</p>
-          <p class="mt-1 text-lg font-semibold truncate">
+          <p class="mt-1 text-lg font-semibold truncate min-w-0">
             {{ validID(curProject.id) ? curProject.name : '—' }}
           </p>
+          <ProjectOwnerBadge
+            class="mt-1"
+            :project="curProject"
+            :visible="Boolean(curProject.isSteward)"
+          />
         </div>
       </div>
 
@@ -148,15 +150,26 @@ function selectProject(project: IProject) {
           Recently updated
         </p>
         <div class="mt-2 flex flex-wrap gap-2">
-          <UButton
+          <div
             v-for="project in recentProjects"
             :key="project.id"
-            color="neutral"
-            variant="outline"
-            size="sm"
-            :label="project.name"
-            @click="selectProject(project)"
-          />
+            class="inline-flex max-w-full items-center gap-1"
+          >
+            <UButton
+              color="neutral"
+              variant="outline"
+              size="sm"
+              class="min-w-0"
+              @click="selectProject(project)"
+            >
+              <span class="min-w-0 truncate">{{ project.name }}</span>
+            </UButton>
+            <ProjectOwnerBadge
+              :project="project"
+              :visible="Boolean(project.isSteward)"
+              compact
+            />
+          </div>
         </div>
       </div>
 
@@ -165,7 +178,7 @@ function selectProject(project: IProject) {
         class="rounded-xl border border-default bg-default px-6 py-12 text-center"
       >
         <p class="text-sm text-muted">
-          You are not in a team yet. Join with an invite code, or ask an ADMIN
+          You are not in a team yet. Join with an invite code, or ask an Admin
           to create one.
         </p>
         <form
@@ -194,9 +207,8 @@ function selectProject(project: IProject) {
       >
         <div class="flex items-center gap-2">
           <h2 class="text-sm font-semibold truncate">{{ team.name }}</h2>
-          <UBadge color="neutral" variant="subtle" size="sm">
-            {{ team.role || 'MEMBER' }}
-          </UBadge>
+          <TeamOwnerBadge :visible="team.role === TeamRole.OWNER" />
+          <TeamMemberBadge :visible="team.role === TeamRole.MEMBER" />
           <span class="ml-auto" />
           <UButton
             v-if="canCreateProject(team)"
@@ -230,7 +242,13 @@ function selectProject(project: IProject) {
             "
             @click="selectProject(project)"
           >
-            <p class="font-medium truncate">{{ project.name }}</p>
+            <div class="flex items-start gap-2 min-w-0">
+              <p class="font-medium truncate min-w-0 flex-1">{{ project.name }}</p>
+              <ProjectOwnerBadge
+                :project="project"
+                :visible="Boolean(project.isSteward)"
+              />
+            </div>
             <p class="mt-1 text-xs text-muted line-clamp-2">
               {{ project.description || 'No description' }}
             </p>

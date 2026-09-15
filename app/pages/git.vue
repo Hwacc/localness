@@ -875,7 +875,10 @@ function startEdit(conflict: GitSyncConflictRow) {
 <template>
   <div class="h-full min-w-0 overflow-auto bg-muted">
     <header class="shrink-0 px-6 py-5 bg-default border-b border-default">
-      <h1 class="text-xl font-semibold tracking-tight">LILT Git sync</h1>
+      <div class="flex items-center gap-2 min-w-0">
+        <h1 class="text-xl font-semibold tracking-tight">LILT Git sync</h1>
+        <ProjectOwnerBadge :project="curProject" :visible="isSteward" />
+      </div>
       <p class="mt-1 text-sm text-muted">
         Sync this project against a LILT product folder in Git. Pull confirmed
         Git text onto the platform (published). Push published source strings.
@@ -905,7 +908,7 @@ function startEdit(conflict: GitSyncConflictRow) {
           color="warning"
           variant="subtle"
           title="LILT Git sync is not configured"
-          description="Contact the project owner to configure LILT Git sync."
+          description="Contact a Project Owner to configure LILT Git sync."
         />
 
         <div

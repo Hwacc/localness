@@ -72,3 +72,11 @@ export function canCreateProject(team?: ITeam | null) {
 export function canManageProjectSettings(project?: IProject | null) {
   return Boolean(project?.isSteward)
 }
+
+export function ownedProjectNames(projects: IProject[], userId: ID): string[] {
+  return projects
+    .filter((project) =>
+      project.owners?.some((row) => String(row.userId) === String(userId))
+    )
+    .map((project) => project.name)
+}
