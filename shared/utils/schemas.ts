@@ -353,6 +353,16 @@ export const zTeamInviteJoin = z.object({
 })
 export type ZTeamInviteJoin = z.infer<typeof zTeamInviteJoin>
 
+/**
+ * Inviting a member is by id, not username: the picker resolves a search hit to
+ * a user, and nickname/email are neither unique nor stable enough to key on.
+ */
+export const zTeamInviteMember = z.object({
+  userId: z.number().int().positive(),
+  role: z.enum([TeamRole.OWNER, TeamRole.MEMBER]).optional(),
+})
+export type ZTeamInviteMember = z.infer<typeof zTeamInviteMember>
+
 export const zNotificationAct = z.object({
   action: z.enum([
     NotificationAction.ACCEPTED,

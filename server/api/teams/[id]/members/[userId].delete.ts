@@ -2,6 +2,10 @@ import prisma from '#server/libs/prisma'
 import { numericID } from '#server/helper/id'
 import { requireTeamOwner } from '#server/helper/access'
 import {
+  projectsLeftWithoutOwner,
+  strandedProjectMessage,
+} from '#server/helper/project-owner'
+import {
   MEMBER_REMOVAL_MESSAGES,
   memberRemovalRejectReason,
 } from '#server/helper/team-membership'
@@ -13,6 +17,10 @@ import {
  * One route for both so the "a team must keep at least one OWNER" guard cannot
  * drift between kick and leave. Without the self case a plain MEMBER had no way
  * out of a team at all.
+ *
+ * Two guards run, in that order: the Team keeps an OWNER, and every Project
+ * keeps a Project Owner. Any member can be a Project's only owner (whoever
+ * created it is one), so the second applies to kicks and departures alike.
  */
 export default defineEventHandler(async (event) => {
   const id = getRouterParam(event, 'id')
@@ -47,18 +55,42 @@ export default defineEventHandler(async (event) => {
     })
   }
 
-  await prisma.$transaction([
-    prisma.projectOwner.deleteMany({
+  await prisma.$transaction(async (tx) => {
+    // Deleting the membership below takes this user's ProjectOwner rows with it,
+    // so the check and the delete share one transaction.
+    const teamProjects = await tx.project.findMany({
+      where: { teamId },
+      select: { id: true, name: true, owners: { select: { userId: true } } },
+    })
+    const stranded = projectsLeftWithoutOwner({
+      targetUserId,
+      projects: teamProjects.map((project) => ({
+        projectId: project.id,
+        ownerUserIds: project.owners.map((owner) => owner.userId),
+      })),
+    })
+    if (stranded.length > 0) {
+      throw createError({
+        statusCode: 400,
+        statusMessage: strandedProjectMessage(
+          teamProjects
+            .filter((project) => stranded.includes(project.id))
+            .map((project) => project.name)
+        ),
+      })
+    }
+
+    await tx.projectOwner.deleteMany({
       where: {
         userId: targetUserId,
         project: { teamId },
       },
-    }),
-    prisma.userTeam.delete({
+    })
+    await tx.userTeam.delete({
       where: {
         userId_teamId: { userId: targetUserId, teamId },
       },
-    }),
-  ])
+    })
+  })
   return { ok: true }
 })

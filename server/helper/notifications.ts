@@ -95,12 +95,14 @@ export function payloadTeamId(payload: unknown): number | null {
 export async function createTeamInviteNotification(params: {
   teamId: number
   invitedBy: number
-  username: string
+  userId: number
   role: TeamRole
 }) {
+  // By id, not username: the page resolves a search hit (username, nickname, or
+  // email) to a user before calling this, and only `username` is unique.
   const invitee = await prisma.user.findUnique({
-    where: { username: params.username },
-    select: { id: true, username: true },
+    where: { id: params.userId },
+    select: { id: true },
   })
   if (!invitee) {
     throw new NotificationError(404, 'User not found')
