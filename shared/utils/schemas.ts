@@ -370,3 +370,9 @@ export const zNotificationAct = z.object({
   ]),
 })
 export type ZNotificationAct = z.infer<typeof zNotificationAct>
+
+/** Which Inbox rows an action applies to. Omitted ids means all of them. */
+export const zNotificationIds = z.object({
+  ids: z.array(z.number().int().positive()).optional(),
+})
+export type ZNotificationIds = z.infer<typeof zNotificationIds>

@@ -18,6 +18,7 @@ const db = vi.hoisted(() => ({
   pending: [] as Array<{ payload: { teamId: number } }>,
   team: null as { name: string } | null,
   created: null as Record<string, unknown> | null,
+  deleteArgs: null as Record<string, unknown> | null,
   userTeamCreated: null as Record<string, unknown> | null,
   notification: null as {
     id: number
@@ -75,6 +76,11 @@ vi.mock('#server/libs/prisma', () => {
       },
       notification: {
         findMany: async () => db.pending,
+        count: async () => db.pending.length,
+        deleteMany: async ({ where }: { where: Record<string, unknown> }) => {
+          db.deleteArgs = where
+          return { count: 0 }
+        },
         create: async ({ data }: { data: Record<string, unknown> }) => {
           db.created = data
           return {
@@ -101,6 +107,7 @@ const {
   NotificationError,
   actOnNotification,
   createTeamInviteNotification,
+  deleteNotifications,
 } = await import('#server/helper/notifications')
 
 describe('createTeamInviteNotification', () => {
@@ -184,6 +191,30 @@ describe('createTeamInviteNotification', () => {
       statusCode: 409,
       message: 'Invite already pending',
     })
+  })
+})
+
+describe('deleteNotifications', () => {
+  beforeEach(() => {
+    db.pending = []
+    db.deleteArgs = null
+  })
+
+  it('scopes the delete to the owner even when ids are given', async () => {
+    await deleteNotifications(2, [4, 5])
+    // Without the userId clause, ids guessed off another account would delete
+    // rows that user never owned.
+    expect(db.deleteArgs).toEqual({ userId: 2, id: { in: [4, 5] } })
+  })
+
+  it('deletes the whole Inbox when no ids are given', async () => {
+    await deleteNotifications(2)
+    expect(db.deleteArgs).toEqual({ userId: 2 })
+  })
+
+  it('returns the refreshed list and pending count', async () => {
+    const result = await deleteNotifications(2, [4])
+    expect(result).toEqual({ items: [], pendingCount: 0 })
   })
 })
 
