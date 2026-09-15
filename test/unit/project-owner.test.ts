@@ -1,39 +1,34 @@
 import { describe, expect, it } from 'vitest'
-import { TeamRole } from '#shared/constants'
 import {
   addProjectOwnerRejectReason,
-  isImplicitProjectSteward,
   isProjectSteward,
+  ownerChangeStatus,
   removeProjectOwnerRejectReason,
 } from '#server/helper/project-owner'
 
 describe('isProjectSteward', () => {
-  it('treats a Team OWNER as an implicit steward without a table row', () => {
-    expect(isImplicitProjectSteward(TeamRole.OWNER)).toBe(true)
+  it('does not treat a Team OWNER as steward without a table row', () => {
     expect(
       isProjectSteward({
         userId: 1,
-        teamRole: TeamRole.OWNER,
         ownerUserIds: [],
       })
-    ).toBe(true)
+    ).toBe(false)
   })
 
   it('treats an explicit ProjectOwner row as steward', () => {
     expect(
       isProjectSteward({
         userId: 2,
-        teamRole: TeamRole.MEMBER,
         ownerUserIds: [2],
       })
     ).toBe(true)
   })
 
-  it('rejects a plain member with no row', () => {
+  it('rejects a user who is not in ownerUserIds', () => {
     expect(
       isProjectSteward({
         userId: 3,
-        teamRole: TeamRole.MEMBER,
         ownerUserIds: [2],
       })
     ).toBe(false)
@@ -42,21 +37,20 @@ describe('isProjectSteward', () => {
 
 describe('addProjectOwnerRejectReason', () => {
   const base = {
-    actorIsTeamOwner: true,
+    actorCanAppoint: true,
     targetUserId: 2,
     teamMemberIds: [1, 2],
-    teamRoleByUserId: { 1: TeamRole.OWNER, 2: TeamRole.MEMBER },
-    ownerUserIds: [] as number[],
+    ownerUserIds: [1],
   }
 
   it('adds a team member who is not already a steward', () => {
     expect(addProjectOwnerRejectReason(base)).toBeNull()
   })
 
-  it('rejects a non-team-owner actor', () => {
+  it('rejects an actor who cannot appoint', () => {
     expect(
-      addProjectOwnerRejectReason({ ...base, actorIsTeamOwner: false })
-    ).toBe('not-team-owner')
+      addProjectOwnerRejectReason({ ...base, actorCanAppoint: false })
+    ).toBe('cannot-appoint')
   })
 
   it('rejects a user who is not on the team', () => {
@@ -65,7 +59,7 @@ describe('addProjectOwnerRejectReason', () => {
     ).toBe('not-member')
   })
 
-  it('rejects an implicit Team OWNER as already steward', () => {
+  it('rejects someone already listed', () => {
     expect(
       addProjectOwnerRejectReason({ ...base, targetUserId: 1 })
     ).toBe('already-steward')
@@ -73,36 +67,40 @@ describe('addProjectOwnerRejectReason', () => {
 })
 
 describe('removeProjectOwnerRejectReason', () => {
-  it('removes an explicit Project Owner', () => {
+  it('removes an explicit Project Owner when another remains', () => {
     expect(
       removeProjectOwnerRejectReason({
-        actorIsTeamOwner: true,
+        actorCanAppoint: true,
         targetUserId: 2,
-        teamRoleByUserId: { 1: TeamRole.OWNER, 2: TeamRole.MEMBER },
-        ownerUserIds: [2],
+        ownerUserIds: [1, 2],
       })
     ).toBeNull()
   })
 
-  it('refuses to remove an implicit Team OWNER', () => {
+  it('refuses to remove the last Project Owner', () => {
     expect(
       removeProjectOwnerRejectReason({
-        actorIsTeamOwner: true,
+        actorCanAppoint: true,
         targetUserId: 1,
-        teamRoleByUserId: { 1: TeamRole.OWNER },
         ownerUserIds: [1],
       })
-    ).toBe('implicit-team-owner')
+    ).toBe('last-owner')
   })
 
-  it('rejects a non-team-owner actor', () => {
+  it('rejects an actor who cannot appoint', () => {
     expect(
       removeProjectOwnerRejectReason({
-        actorIsTeamOwner: false,
+        actorCanAppoint: false,
         targetUserId: 2,
-        teamRoleByUserId: { 2: TeamRole.MEMBER },
-        ownerUserIds: [2],
+        ownerUserIds: [1, 2],
       })
-    ).toBe('not-team-owner')
+    ).toBe('cannot-appoint')
+  })
+})
+
+describe('ownerChangeStatus', () => {
+  it('maps cannot-appoint to 403 and last-owner to 400', () => {
+    expect(ownerChangeStatus('cannot-appoint')).toBe(403)
+    expect(ownerChangeStatus('last-owner')).toBe(400)
   })
 })

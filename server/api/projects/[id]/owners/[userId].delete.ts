@@ -1,15 +1,16 @@
 import prisma from '#server/libs/prisma'
 import { numericID } from '#server/helper/id'
-import { requireTeamMember } from '#server/helper/access'
-import { TeamRole } from '#shared/constants'
+import { requireProjectRosterAccess } from '#server/helper/access'
 import {
   REMOVE_PROJECT_OWNER_MESSAGES,
+  isProjectSteward,
+  ownerChangeStatus,
   removeProjectOwnerRejectReason,
 } from '#server/helper/project-owner'
 
 /**
  * @route DELETE /api/projects/:id/owners/:userId
- * @description Remove a Project Owner (Team OWNER only; not implicit Team OWNER)
+ * @description Remove a Project Owner (current Project Owner or Admin; last owner stays)
  */
 export default defineEventHandler(async (event) => {
   const id = getRouterParam(event, 'id')
@@ -22,28 +23,27 @@ export default defineEventHandler(async (event) => {
   }
   const projectId = numericID(id)
   const targetUserId = numericID(userIdParam)
-  const { membership, project } = await requireTeamMember(event, projectId)
+  const { userId, isAdmin } = await requireProjectRosterAccess(
+    event,
+    projectId
+  )
 
-  const members = await prisma.userTeam.findMany({
-    where: { teamId: project.teamId },
-    select: { userId: true, role: true },
-  })
   const owners = await prisma.projectOwner.findMany({
     where: { projectId },
     select: { userId: true },
   })
-  const teamRoleByUserId: Record<number, string> = {}
-  for (const row of members) teamRoleByUserId[row.userId] = row.role
+  const ownerUserIds = owners.map((o) => o.userId)
+  const actorCanAppoint =
+    isAdmin || isProjectSteward({ userId, ownerUserIds })
 
   const reason = removeProjectOwnerRejectReason({
-    actorIsTeamOwner: membership.role === TeamRole.OWNER,
+    actorCanAppoint,
     targetUserId,
-    teamRoleByUserId,
-    ownerUserIds: owners.map((o) => o.userId),
+    ownerUserIds,
   })
   if (reason) {
     throw createError({
-      statusCode: reason === 'not-team-owner' ? 403 : 400,
+      statusCode: ownerChangeStatus(reason),
       statusMessage: REMOVE_PROJECT_OWNER_MESSAGES[reason],
     })
   }

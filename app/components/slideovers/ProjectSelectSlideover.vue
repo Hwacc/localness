@@ -73,9 +73,16 @@ async function onSelectProject(p: IProject) {
             class="flex flex-col gap-1 p-2 cursor-pointer hover:bg-elevated hover:text-green-600"
             @click="onSelectProject(project)"
           >
-            <p class="font-bold">
-              {{ project.name }}
-            </p>
+            <div class="flex items-center gap-2 min-w-0">
+              <p class="font-bold min-w-0 truncate">
+                {{ project.name }}
+              </p>
+              <ProjectOwnerBadge
+                :project="project"
+                :visible="Boolean(project.isSteward)"
+                compact
+              />
+            </div>
             <p class="text-xs color-secondary">
               Last Updated:
               {{ $dayjs(project.updatedAt).format('YYYY-MM-DD HH:mm:ss') }}

@@ -3,7 +3,6 @@ type OwnerRow = {
   userId: ID
   username: string
   nickname: string | null
-  implicit: boolean
 }
 
 type CandidateRow = {
@@ -59,6 +58,10 @@ const candidateItems = computed(() =>
   }))
 )
 
+const canRemove = computed(
+  () => canAppoint.value && owners.value.length > 1
+)
+
 async function addOwner() {
   if (pick.value == null || !canAppoint.value) return
   adding.value = true
@@ -80,6 +83,7 @@ async function addOwner() {
 }
 
 async function removeOwner(userId: ID) {
+  if (!canRemove.value) return
   await useApi(`/api/projects/${props.projectId}/owners/${userId}`, {
     method: 'DELETE',
   })
@@ -113,16 +117,9 @@ async function removeOwner(userId: ID) {
             class="flex items-center gap-2 text-sm"
           >
             <span class="min-w-0 truncate">{{ displayName(row) }}</span>
-            <UBadge
-              v-if="row.implicit"
-              color="neutral"
-              variant="subtle"
-              size="xs"
-              label="Team OWNER"
-            />
             <span class="ml-auto" />
             <UButton
-              v-if="canAppoint && !row.implicit"
+              v-if="canRemove"
               size="xs"
               color="neutral"
               variant="ghost"
@@ -132,7 +129,7 @@ async function removeOwner(userId: ID) {
             />
           </li>
           <li v-if="owners.length === 0" class="text-xs text-muted">
-            No extra owners. Team OWNERs can still manage this project.
+            No Project Owners. Ask an Admin to appoint one.
           </li>
         </ul>
         <div v-if="canAppoint && candidateItems.length > 0" class="flex gap-2">
@@ -140,7 +137,7 @@ async function removeOwner(userId: ID) {
             v-model="pick"
             class="min-w-0 flex-1"
             size="xs"
-            placeholder="Add member"
+            placeholder="Add Team member"
             :items="candidateItems"
           />
           <UButton

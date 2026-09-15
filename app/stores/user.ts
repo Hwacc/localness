@@ -5,7 +5,7 @@ function emptyUser(): IUser {
   return {
     id: 0,
     username: '',
-    role: UserRole.GUEST,
+    role: UserRole.USER,
     projects: [],
     ownProjects: [],
   }

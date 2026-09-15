@@ -138,7 +138,7 @@ async function onSubmit(_: FormSubmitEvent<ZProject>) {
                 variant="soft"
                 color="warning"
                 title="No team"
-                description="You need to be in a team to create a project. Ask an ADMIN to create a team, or join with an invite code."
+                description="You need to be in a team to create a project. Ask an Admin to create a team, or join with an invite code."
               />
             </div>
           </template>

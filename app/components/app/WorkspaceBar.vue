@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import { TeamRole } from '#shared/constants'
+
 const projectStore = useProjectStore()
 const { curProject, curTeam, teams, projects } = storeToRefs(projectStore)
 const { open: openCreateProject } = useCreateProjectModal()
@@ -13,7 +15,7 @@ const teamProjects = computed(() =>
 
 const teamItems = computed(() =>
   teams.value.map((t) => ({
-    label: t.role ? `${t.name} · ${t.role}` : t.name,
+    label: t.name,
     value: t.id,
   }))
 )
@@ -47,6 +49,10 @@ function onTeamChange(id: ID | undefined) {
       :items="teamItems"
       @update:model-value="onTeamChange"
     />
+    <TeamOwnerBadge
+      :visible="curTeam?.role === TeamRole.OWNER"
+      compact
+    />
     <div class="min-w-0 flex-1 flex items-center gap-1 overflow-hidden">
       <div
         class="min-w-0 flex-1 flex items-center gap-1 overflow-x-auto"
@@ -55,7 +61,7 @@ function onTeamChange(id: ID | undefined) {
           v-for="project in teamProjects"
           :key="project.id"
           type="button"
-          class="shrink-0 max-w-48 truncate rounded-md px-2.5 py-1 text-sm transition-colors"
+          class="shrink-0 max-w-56 inline-flex items-center gap-1 rounded-md px-2.5 py-1 text-sm transition-colors"
           :class="
             isCurrent(project)
               ? 'bg-elevated font-medium text-highlighted'
@@ -63,7 +69,12 @@ function onTeamChange(id: ID | undefined) {
           "
           @click="selectProject(project)"
         >
-          {{ project.name }}
+          <span class="min-w-0 truncate">{{ project.name }}</span>
+          <ProjectOwnerBadge
+            :project="project"
+            :visible="Boolean(project.isSteward)"
+            compact
+          />
         </button>
         <p
           v-if="teamProjects.length === 0"

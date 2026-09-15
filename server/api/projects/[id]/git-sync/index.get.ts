@@ -23,7 +23,6 @@ export default defineEventHandler(async (event) => {
   })
   const isSteward = isProjectSteward({
     userId,
-    teamRole: membership.role,
     ownerUserIds: ownerRow ? [ownerRow.userId] : [],
   })
   const openConflicts = await prisma.gitSyncConflict.count({

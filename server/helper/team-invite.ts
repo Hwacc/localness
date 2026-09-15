@@ -1,6 +1,5 @@
 import { randomBytes } from 'node:crypto'
 import prisma from '#server/libs/prisma'
-import { UserRole } from '#shared/constants'
 
 export const INVITE_CODE_LENGTH = 10
 export const INVITE_CODE_ALPHABET = '0123456789ABCDEFGHJKMNPQRSTVWXYZ'
@@ -96,13 +95,10 @@ export async function redeemInviteCode(params: {
   return prisma.$transaction(async (tx) => {
     const user = await tx.user.findUnique({
       where: { id: params.userId },
-      select: { id: true, role: true },
+      select: { id: true },
     })
     if (!user) {
       throw new TeamInviteError(404, INVALID_INVITE_MESSAGE)
-    }
-    if (user.role === UserRole.GUEST) {
-      throw new TeamInviteError(400, 'GUEST cannot join a team')
     }
 
     const invite = await tx.teamInviteCode.findUnique({

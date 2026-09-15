@@ -163,17 +163,6 @@ describe('redeemInviteCode', () => {
     ).rejects.toMatchObject({ statusCode: 404 })
   })
 
-  it('rejects a GUEST without incrementing uses', async () => {
-    db.user = { id: 2, role: UserRole.GUEST }
-    await expect(
-      redeemInviteCode({ userId: 2, code: 'ABC123DEF0', now })
-    ).rejects.toMatchObject({
-      statusCode: 400,
-      message: 'GUEST cannot join a team',
-    })
-    expect(db.usedIncrements).toBe(0)
-  })
-
   it('returns alreadyMember without changing role or uses', async () => {
     db.membership = { role: TeamRole.MEMBER }
     db.invite = invite({ role: TeamRole.OWNER })

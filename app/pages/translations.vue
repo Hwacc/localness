@@ -722,10 +722,13 @@ onMounted(async () => {
     >
       <div class="min-w-0 flex items-baseline gap-2">
         <h1 class="text-lg font-semibold tracking-tight">Translations</h1>
-        <!-- The empty-project hint lives in the table's empty slot instead. -->
         <span v-if="validID(curProject.id)" class="truncate text-sm text-muted">
           {{ curProject.name }}
         </span>
+        <ProjectOwnerBadge
+          :project="curProject"
+          :visible="Boolean(curProject.isSteward)"
+        />
       </div>
       <UButton
         class="shrink-0"

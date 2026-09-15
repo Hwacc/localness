@@ -3,7 +3,6 @@ import {
   NotificationAction,
   NotificationType,
   TeamRole,
-  UserRole,
 } from '#shared/constants'
 
 export class NotificationError extends Error {
@@ -101,13 +100,10 @@ export async function createTeamInviteNotification(params: {
 }) {
   const invitee = await prisma.user.findUnique({
     where: { username: params.username },
-    select: { id: true, role: true, username: true },
+    select: { id: true, username: true },
   })
   if (!invitee) {
     throw new NotificationError(404, 'User not found')
-  }
-  if (invitee.role === UserRole.GUEST) {
-    throw new NotificationError(400, 'GUEST cannot join a team')
   }
   if (invitee.id === params.invitedBy) {
     throw new NotificationError(400, 'You cannot invite yourself')
@@ -224,13 +220,6 @@ export async function actOnNotification(params: {
       case NotificationType.TEAM_INVITE: {
         if (params.action === NotificationAction.ACCEPTED) {
           const payload = parseTeamInvitePayload(row.payload)
-          const user = await tx.user.findUnique({
-            where: { id: params.userId },
-            select: { role: true },
-          })
-          if (!user || user.role === UserRole.GUEST) {
-            throw new NotificationError(400, 'GUEST cannot join a team')
-          }
           const existing = await tx.userTeam.findUnique({
             where: {
               userId_teamId: {

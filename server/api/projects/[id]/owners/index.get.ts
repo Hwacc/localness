@@ -1,12 +1,11 @@
 import prisma from '#server/libs/prisma'
 import { numericID } from '#server/helper/id'
-import { requireTeamMember } from '#server/helper/access'
-import { isImplicitProjectSteward, isProjectSteward } from '#server/helper/project-owner'
-import { TeamRole } from '#shared/constants'
+import { requireProjectRosterAccess } from '#server/helper/access'
+import { isProjectSteward } from '#server/helper/project-owner'
 
 /**
  * @route GET /api/projects/:id/owners
- * @description List Project Owners (steward or Team OWNER)
+ * @description List Project Owners (Project Owner or Admin)
  */
 export default defineEventHandler(async (event) => {
   const id = getRouterParam(event, 'id')
@@ -14,7 +13,7 @@ export default defineEventHandler(async (event) => {
     throw createError({ statusCode: 400, statusMessage: 'Missing project id' })
   }
   const projectId = numericID(id)
-  const { membership, userId, project } = await requireTeamMember(
+  const { userId, isAdmin, project } = await requireProjectRosterAccess(
     event,
     projectId
   )
@@ -25,12 +24,9 @@ export default defineEventHandler(async (event) => {
     },
   })
   const ownerUserIds = ownerRows.map((row) => row.userId)
-  const viewerIsSteward = isProjectSteward({
-    userId,
-    teamRole: membership.role,
-    ownerUserIds,
-  })
-  if (!viewerIsSteward) {
+  const canAppoint =
+    isAdmin || isProjectSteward({ userId, ownerUserIds })
+  if (!canAppoint) {
     throw createError({ statusCode: 403, statusMessage: 'Forbidden' })
   }
 
@@ -41,36 +37,14 @@ export default defineEventHandler(async (event) => {
     },
   })
 
-  const listed = new Map<
-    number,
-    {
-      userId: number
-      username: string
-      nickname: string | null
-      implicit: boolean
-    }
-  >()
-  for (const row of members) {
-    if (!isImplicitProjectSteward(row.role)) continue
-    listed.set(row.userId, {
-      userId: row.userId,
-      username: row.user.username,
-      nickname: row.user.nickname,
-      implicit: true,
-    })
-  }
-  for (const row of ownerRows) {
-    if (listed.has(row.userId)) continue
-    listed.set(row.userId, {
-      userId: row.userId,
-      username: row.user.username,
-      nickname: row.user.nickname,
-      implicit: false,
-    })
-  }
-
+  const listedIds = new Set(ownerUserIds)
+  const owners = ownerRows.map((row) => ({
+    userId: row.userId,
+    username: row.user.username,
+    nickname: row.user.nickname,
+  }))
   const candidates = members
-    .filter((row) => !listed.has(row.userId))
+    .filter((row) => !listedIds.has(row.userId))
     .map((row) => ({
       userId: row.userId,
       username: row.user.username,
@@ -78,8 +52,8 @@ export default defineEventHandler(async (event) => {
     }))
 
   return {
-    canAppoint: membership.role === TeamRole.OWNER,
-    owners: [...listed.values()],
+    canAppoint,
+    owners,
     candidates,
   }
 })

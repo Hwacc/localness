@@ -1,7 +1,7 @@
 <script setup lang="tsx">
 import type { TableColumn, TableRow } from '@nuxt/ui'
 import { TeamRole, UserRole } from '#shared/constants'
-import { AlertModal, UBadge, UButton, UTooltip, UserAvatar } from '#components'
+import { AlertModal, ProjectOwnerBadge, TeamMemberBadge, TeamOwnerBadge, UBadge, UButton, UTooltip, UserAvatar } from '#components'
 
 definePageMeta({
   middleware: ['protected'],
@@ -55,7 +55,7 @@ const teamProjects = computed(() =>
 const isAdmin = computed(() => user.value.role === UserRole.ADMIN)
 const myRole = computed(() => detail.value?.role)
 const isOwner = computed(() => myRole.value === TeamRole.OWNER)
-// An ADMIN sees every team through `GET /api/teams`, including ones they are not
+// An Admin sees every team through `GET /api/teams`, including ones they are not
 // on, so "has a role here" is not the same as "is an admin".
 const isMember = computed(() => Boolean(myRole.value))
 
@@ -94,14 +94,27 @@ const memberColumns = computed<TableColumn<ITeamMember>[]>(() => {
       id: 'role',
       accessorKey: 'role',
       header: 'Role',
-      cell: ({ row }: { row: TableRow<ITeamMember> }) => (
-        <UBadge
-          color={row.original.role === TeamRole.OWNER ? 'primary' : 'neutral'}
-          variant="subtle"
-        >
-          {row.original.role}
-        </UBadge>
-      ),
+      cell: ({ row }: { row: TableRow<ITeamMember> }) => {
+        const owned = ownedProjectNames(
+          teamProjects.value,
+          row.original.userId
+        )
+        return (
+          <div class="flex flex-wrap items-center gap-1">
+            {row.original.role === TeamRole.OWNER ? (
+              <TeamOwnerBadge visible />
+            ) : (
+              <TeamMemberBadge visible />
+            )}
+            {owned.length > 0 ? (
+              <ProjectOwnerBadge
+                visible
+                hint={`Project Owner: ${owned.join(', ')}`}
+              />
+            ) : null}
+          </div>
+        )
+      },
     },
   ]
   if (isOwner.value) {
@@ -127,7 +140,7 @@ const memberColumns = computed<TableColumn<ITeamMember>[]>(() => {
               />
             ) : (
               <UTooltip
-                text="A team must keep at least one OWNER"
+                text="A team must keep at least one Team OWNER"
                 disabled={!isLastOwner}
               >
                 <UButton
@@ -306,7 +319,7 @@ function codeMeta(row: ITeamInviteCode) {
   const expiry = row.expiresAt
     ? new Date(row.expiresAt).toLocaleDateString()
     : 'No expiry'
-  return `${row.role} · ${uses} · ${expiry}`
+  return `${uses} · ${expiry}`
 }
 
 async function removeMember(userId: ID) {
@@ -330,7 +343,7 @@ async function setMemberRole(userId: ID, role: TeamRole) {
     body: { role },
   })
   toast.add({
-    title: role === TeamRole.OWNER ? 'Promoted to OWNER' : 'Changed to MEMBER',
+    title: role === TeamRole.OWNER ? 'Promoted to Team OWNER' : 'Changed to Team member',
     color: 'success',
     icon: 'i-lucide:check',
   })
@@ -348,13 +361,13 @@ const leaveBlockedReason = computed(() => {
   if (!isOwner.value) return ''
   if (ownerCount(detail.value) > 1) return ''
   return members.value.length > 1
-    ? 'Promote another member to OWNER first'
+    ? 'Promote another member to Team OWNER first'
     : 'You are the only member — delete the team instead'
 })
 
 /** Mirrors `teamDeleteRejectReason` on the server. */
 const deleteBlockedReason = computed(() => {
-  if (!isOwner.value) return 'Only an OWNER can delete a team'
+  if (!isOwner.value) return 'Only a Team OWNER can delete a team'
   if (members.value.length > 1) return 'Remove the other members first'
   if (teamProjects.value.length > 0) return 'Delete this team’s projects first'
   return ''
@@ -491,7 +504,7 @@ onMounted(async () => {
           Your teams
         </p>
         <div v-if="teams.length === 0" class="px-2 py-8 text-sm text-muted">
-          No teams yet. Join with an invite code, or ask an ADMIN to create one.
+          No teams yet. Join with an invite code, or ask an Admin to create one.
         </div>
         <button
           v-for="team in teams"
@@ -505,10 +518,15 @@ onMounted(async () => {
           "
           @click="selectedId = team.id"
         >
-          <div class="font-medium truncate">{{ team.name }}</div>
+          <div class="flex items-center gap-2 min-w-0">
+            <div class="font-medium truncate">{{ team.name }}</div>
+            <TeamOwnerBadge
+              :visible="team.role === TeamRole.OWNER"
+              compact
+            />
+          </div>
           <div class="mt-0.5 text-xs text-muted">
             {{ team.members?.length ?? 0 }} members
-            <span v-if="team.role"> · {{ team.role }}</span>
           </div>
         </button>
       </aside>
@@ -526,8 +544,18 @@ onMounted(async () => {
           >
             <div class="min-w-0 mr-auto">
               <h2 class="text-lg font-semibold truncate">{{ detail.name }}</h2>
-              <p class="text-sm text-muted">
-                Your role: {{ myRole || (isAdmin ? 'ADMIN' : '—') }}
+              <p class="text-sm text-muted flex items-center gap-2 flex-wrap">
+                <span>Your role:</span>
+                <TeamOwnerBadge :visible="isOwner" />
+                <TeamMemberBadge :visible="isMember && !isOwner" />
+                <UBadge
+                  v-if="!isMember && isAdmin"
+                  color="neutral"
+                  variant="subtle"
+                  size="xs"
+                  label="Admin"
+                />
+                <span v-if="!isMember && !isAdmin">—</span>
               </p>
             </div>
             <form
@@ -605,8 +633,8 @@ onMounted(async () => {
                         v-model="newCodeRole"
                         class="w-full"
                         :items="[
-                          { label: 'MEMBER', value: TeamRole.MEMBER },
-                          { label: 'OWNER', value: TeamRole.OWNER },
+                          { label: 'Team member', value: TeamRole.MEMBER },
+                          { label: 'Team OWNER', value: TeamRole.OWNER },
                         ]"
                       />
                     </UFormField>
@@ -655,6 +683,11 @@ onMounted(async () => {
                 <code class="text-sm font-medium tracking-wide">{{
                   row.code
                 }}</code>
+                <TeamOwnerBadge :visible="row.role === TeamRole.OWNER" compact />
+                <TeamMemberBadge
+                  :visible="row.role === TeamRole.MEMBER"
+                  compact
+                />
                 <span class="text-xs text-muted truncate">{{
                   codeMeta(row)
                 }}</span>
@@ -707,7 +740,13 @@ onMounted(async () => {
                 class="flex items-center gap-3 px-5 py-3"
               >
                 <div class="min-w-0 flex-1">
-                  <p class="font-medium truncate">{{ project.name }}</p>
+                  <div class="flex items-center gap-2 min-w-0">
+                    <p class="font-medium truncate min-w-0 flex-1">{{ project.name }}</p>
+                    <ProjectOwnerBadge
+                      :project="project"
+                      :visible="Boolean(project.isSteward)"
+                    />
+                  </div>
                   <p class="text-xs text-muted">
                     {{ project.pages?.length ?? 0 }} pages
                   </p>
@@ -720,7 +759,7 @@ onMounted(async () => {
                   @click="openExport(project)"
                 />
                 <ProjectOwnersPopover
-                  v-if="isOwner"
+                  v-if="canManageProjectSettings(project) || isAdmin"
                   :project-id="project.id"
                 />
                 <UButton

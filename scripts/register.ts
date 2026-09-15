@@ -23,7 +23,7 @@ const rl = readline.createInterface({
   output: process.stdout,
 })
 
-const ROLES = [UserRole.ADMIN, UserRole.USER, UserRole.GUEST] as const
+const ROLES = [UserRole.ADMIN, UserRole.USER] as const
 
 function resolveDatabaseUrl(raw: string): string {
   if (!raw.startsWith('file:')) return raw
@@ -156,9 +156,8 @@ function readHiddenLine(prompt: string): Promise<string> {
 
 async function askRole(): Promise<(typeof ROLES)[number]> {
   console.log('请选择角色：')
-  for (let i = 0; i < ROLES.length; i++) {
-    console.log(`${i + 1}. ${ROLES[i]}`)
-  }
+  console.log('1. ADMIN（平台管理员：开户、建 Team）')
+  console.log('2. USER（普通账号）')
   const answer = await askQuestion('请输入角色编号：')
   const roleIndex = Number.parseInt(answer, 10) - 1
   const role = ROLES[roleIndex]

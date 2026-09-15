@@ -142,21 +142,6 @@ describe('createTeamInviteNotification', () => {
     ).rejects.toMatchObject({ statusCode: 404 })
   })
 
-  it('rejects a GUEST', async () => {
-    db.invitee = { id: 2, role: UserRole.GUEST, username: 'guest' }
-    await expect(
-      createTeamInviteNotification({
-        teamId: 7,
-        invitedBy: 1,
-        username: 'guest',
-        role: TeamRole.MEMBER,
-      })
-    ).rejects.toMatchObject({
-      statusCode: 400,
-      message: 'GUEST cannot join a team',
-    })
-  })
-
   it('rejects someone already on the team', async () => {
     db.membership = { role: TeamRole.OWNER }
     await expect(
