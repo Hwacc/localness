@@ -2,6 +2,11 @@ import prisma from '#server/libs/prisma'
 import { readZodBody } from '#server/helper/validate'
 import { numericID } from '#server/helper/id'
 import { requireTeamMember } from '#server/helper/access'
+import {
+  assertReleaseIdsInProject,
+  setEntryReleases,
+  throwReleaseHttp,
+} from '#server/helper/release'
 
 /**
  * @route POST /api/page
@@ -9,7 +14,7 @@ import { requireTeamMember } from '#server/helper/access'
  * @access Private
  */
 export default defineEventHandler(async (event) => {
-  const { projectID, name, image, settings } = await readZodBody(
+  const { projectID, name, image, settings, releaseIds } = await readZodBody(
     event,
     zPage.extend({
       projectID: zID,
@@ -39,6 +44,18 @@ export default defineEventHandler(async (event) => {
     })
   }
 
+  // Checked before the page is written: a bad label id should not leave a
+  // half-created page behind.
+  let attachReleaseIds: number[] = []
+  try {
+    attachReleaseIds = await assertReleaseIdsInProject({
+      projectId: nProjectID,
+      releaseIds: releaseIds ?? [],
+    })
+  } catch (error) {
+    throwReleaseHttp(error)
+  }
+
   const createdPage = await prisma.page.create({
     data: {
       name,
@@ -59,12 +76,22 @@ export default defineEventHandler(async (event) => {
     },
   })
 
-  return await prisma.page.findUnique({
+  if (attachReleaseIds.length) {
+    await setEntryReleases({
+      projectId: nProjectID,
+      kind: 'page',
+      id: createdPage.id,
+      releaseIds: attachReleaseIds,
+    })
+  }
+
+  const created = await prisma.page.findUnique({
     where: {
       id: createdPage.id,
     },
     include: {
       tags: true,
+      releases: { select: { releaseId: true } },
       settings: {
         omit: {
           id: true,
@@ -75,4 +102,12 @@ export default defineEventHandler(async (event) => {
       },
     },
   })
+  if (!created) return null
+  /*
+   * Returned as `releaseIds`, matching the project payload: the client puts this
+   * page straight into `curProject.pages`, and without the labels a page created
+   * while viewing one release would vanish from the filtered list until a reload.
+   */
+  const { releases, ...page } = created
+  return { ...page, releaseIds: releases.map((row) => row.releaseId) }
 })

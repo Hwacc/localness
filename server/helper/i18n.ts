@@ -50,6 +50,11 @@ export const projectDetailInclude = {
           updatedAt: true,
         },
       },
+      // Just the ids: the client filters pages by label locally, and the label
+      // list itself comes from the project (below).
+      releases: {
+        select: { releaseId: true },
+      },
     },
     orderBy: {
       updatedAt: 'desc' as const,
@@ -83,6 +88,12 @@ export const projectDetailInclude = {
         },
       },
     },
+  },
+  // Release labels for the project, in their display order. Picked down to the
+  // three fields the client needs: the dates and projectId would only be noise.
+  releases: {
+    select: { id: true, name: true, sort: true },
+    orderBy: [{ sort: 'asc' as const }, { id: 'asc' as const }],
   },
 }
 
@@ -140,6 +151,7 @@ export function shapeI18nKeyRow(row: {
   }>
   _count?: { tags: number }
   tagCount?: number
+  releases?: Array<{ releaseId: number }>
 }) {
   const locales = row.locales.map((locale) => ({
     locale: locale.locale,
@@ -155,6 +167,8 @@ export function shapeI18nKeyRow(row: {
     tagCount: row.tagCount ?? row._count?.tags ?? 0,
     dirty: isI18nKeyDraft(locales),
     locales,
+    /** Labels as plain ids, for the same reason pages carry them that way. */
+    releaseIds: (row.releases ?? []).map((release) => release.releaseId),
   }
 }
 
@@ -187,6 +201,11 @@ export function shapeProject<
       userId: number
       user?: { username?: string | null; nickname?: string | null }
     }[]
+    /*
+     * `unknown[]` rather than the page shape: callers that include pages without
+     * their release joins are legitimate, and the narrowing happens below.
+     */
+    pages?: unknown[]
   },
 >(project: T, viewerUserId?: number) {
   const users = project.team?.members?.map((m) => m.user) ?? []
@@ -196,8 +215,23 @@ export function shapeProject<
     username: o.user?.username,
     nickname: o.user?.nickname,
   }))
+  /*
+   * Pages carry their release labels as plain ids — the editor sider filters them
+   * locally, so it should not have to walk join rows on every render. The join
+   * rows themselves are dropped rather than shipped alongside the ids.
+   */
+  const pages = project.pages?.map((page) => {
+    const { releases, ...rest } = page as {
+      releases?: { releaseId: number }[]
+    }
+    return {
+      ...rest,
+      releaseIds: (releases ?? []).map((row) => row.releaseId),
+    }
+  })
   return {
     ...project,
+    ...(pages ? { pages } : {}),
     users,
     owners,
     isSteward:

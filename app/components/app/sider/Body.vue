@@ -6,7 +6,27 @@ import { isEmpty } from 'lodash-es'
 import { injectEditorContext } from '~/providers/EditorProvider.vue'
 
 const projectStore = useProjectStore()
-const pageList = computed(() => projectStore.curProject?.pages || [])
+/*
+ * The store's list, not `curProject.pages`: release filtering lives there, and a
+ * second computed here would silently disagree with the rest of the workspace
+ * about which pages are in view.
+ */
+const { pageList } = storeToRefs(projectStore)
+
+/** True when a release filter is hiding pages, rather than their not existing. */
+const releaseFilterHidesPages = computed(
+  () =>
+    projectStore.curReleaseFilter !== 'all' &&
+    pageList.value.length === 0 &&
+    (projectStore.curProject.pages ?? []).length > 0
+)
+
+const releaseFilterName = computed(() =>
+  releaseFilterLabel(
+    projectStore.curReleaseFilter,
+    projectStore.curProject.releases
+  )
+)
 
 const { autoSave } = injectEditorContext()
 const pageStore = usePageStore()
@@ -106,7 +126,28 @@ function showDeleteAlertModal() {
       v-if="pageList.length === 0"
       class="size-full flex items-center justify-center"
     >
+      <!--
+        "This release has no pages" is not "this project has none": showing the
+        drop zone here would invite creating a page that already exists.
+      -->
       <div
+        v-if="releaseFilterHidesPages"
+        class="w-[80%] flex flex-col gap-2 items-center justify-center text-center"
+      >
+        <UIcon name="i-lucide:tag" size="32" class="text-muted" />
+        <p class="text-sm text-muted">
+          No pages in “{{ releaseFilterName }}”.
+        </p>
+        <UButton
+          size="xs"
+          color="neutral"
+          variant="outline"
+          label="Show all pages"
+          @click="projectStore.setReleaseFilter('all')"
+        />
+      </div>
+      <div
+        v-else
         class="w-[80%] aspect-square border-2 border-dashed border-muted p-4 flex flex-col gap-2 items-center justify-center text-center"
         @click="showCreatePageModal"
       >

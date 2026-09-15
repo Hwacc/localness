@@ -1,6 +1,9 @@
+import type { ReleaseFilterValue } from '#shared/utils/release'
+
 export const WORKSPACE_TEAM_KEY = 'workspace:teamId'
 export const WORKSPACE_PROJECT_KEY = 'workspace:projectId'
 export const WORKSPACE_PAGES_KEY = 'workspace:pageByProject'
+export const WORKSPACE_RELEASE_KEY = 'workspace:releaseByProject'
 
 export function emptyProject(partial: Partial<IProject> = {}): IProject {
   return {
@@ -63,6 +66,43 @@ export function writePageForProject(projectId: ID, pageId: ID) {
   if (!import.meta.client || !validID(projectId) || !validID(pageId)) return
   const next = { ...readPageByProject(), [String(projectId)]: pageId }
   localStorage.setItem(WORKSPACE_PAGES_KEY, JSON.stringify(next))
+}
+
+/** Storage holds strings; anything unreadable falls back to All. */
+function parseReleaseFilterValue(raw: unknown): ReleaseFilterValue {
+  if (raw === 'unassigned') return 'unassigned'
+  const value = Number(raw)
+  return Number.isInteger(value) && value > 0 ? value : 'all'
+}
+
+export function readReleaseFilterByProject(): Record<string, ReleaseFilterValue> {
+  if (!import.meta.client) return {}
+  try {
+    const raw = localStorage.getItem(WORKSPACE_RELEASE_KEY)
+    if (!raw) return {}
+    const parsed = JSON.parse(raw) as Record<string, unknown>
+    if (!parsed || typeof parsed !== 'object') return {}
+    const out: Record<string, ReleaseFilterValue> = {}
+    for (const [projectId, value] of Object.entries(parsed)) {
+      out[projectId] = parseReleaseFilterValue(value)
+    }
+    return out
+  } catch {
+    return {}
+  }
+}
+
+export function readReleaseFilterForProject(projectId: ID): ReleaseFilterValue {
+  return readReleaseFilterByProject()[String(projectId)] ?? 'all'
+}
+
+export function writeReleaseFilterForProject(
+  projectId: ID,
+  filter: ReleaseFilterValue
+) {
+  if (!import.meta.client || !validID(projectId)) return
+  const next = { ...readReleaseFilterByProject(), [String(projectId)]: filter }
+  localStorage.setItem(WORKSPACE_RELEASE_KEY, JSON.stringify(next))
 }
 
 export function canCreateProject(team?: ITeam | null) {

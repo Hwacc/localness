@@ -29,6 +29,17 @@ const previewUrl = computed(() => {
 })
 
 const projectStore = useProjectStore()
+
+const releaseItems = computed(() =>
+  projectStore.curReleases.map((release) => ({
+    label: release.name,
+    value: Number(release.id),
+  }))
+)
+
+/** A page created while one release is being viewed starts on that release. */
+const defaultReleaseId = defaultReleaseIdForFilter(projectStore.curReleaseFilter)
+
 const state = reactive<ZPage>({
   name: page.name,
   image: page.image,
@@ -43,6 +54,12 @@ const state = reactive<ZPage>({
       1,
     prompt: page.settings?.prompt ?? '',
   },
+  releaseIds:
+    mode === 'create'
+      ? defaultReleaseId
+        ? [defaultReleaseId]
+        : []
+      : (page.releaseIds ?? []).map(Number),
 })
 watch(
   () => state.settings.ocrLanguage,
@@ -157,6 +174,17 @@ async function onSubmit(_: FormSubmitEvent<ZPage>) {
                     @delete="emit('delete')"
                   />
                 </div>
+              </UFormField>
+              <UFormField label="Releases" name="releaseIds">
+                <USelectMenu
+                  v-model="state.releaseIds"
+                  class="w-full"
+                  multiple
+                  :items="releaseItems"
+                  value-key="value"
+                  :disabled="mode === 'view' || isLoading"
+                  placeholder="Not in any release"
+                />
               </UFormField>
             </div>
           </template>

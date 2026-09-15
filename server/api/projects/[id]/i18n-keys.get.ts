@@ -2,6 +2,7 @@ import prisma from '#server/libs/prisma'
 import { numericID } from '#server/helper/id'
 import { requireTeamMember } from '#server/helper/access'
 import { shapeI18nKeyRow } from '#server/helper/i18n'
+import { parseReleaseFilter, releaseWhereFragment } from '#server/helper/release'
 import { I18nKeyStatusFilter } from '#shared/constants'
 import { DRAFT_KEY_PREFIX } from '#shared/utils'
 
@@ -46,13 +47,14 @@ function idList(raw: unknown): number[] {
 
 /**
  * @route GET /api/projects/:id/i18n-keys
- * @query q, status, from, to, pageIds, includeDraftKeys, idsOnly, page, limit
+ * @query q, status, from, to, pageIds, releaseId, unassigned, includeDraftKeys, idsOnly, page, limit
  * `from`/`to` are ISO instants bounding `updatedAt`; the client sends the
  * local day boundaries so the range means what the user picked on screen.
  * `pageIds` scopes to keys tagged on those pages, plus keys with no tag at all
  * (a plain translation entry is still exportable); `tagCount` is then counted
- * within that scope. `idsOnly=1` returns every matching id without paging, for
- * a "select all matching" action.
+ * within that scope. `releaseId` / `unassigned=1` scope to release labels the
+ * same way `idsOnly=1` returns every matching id without paging, so the export
+ * picker can "select all matching" for one release.
  */
 export default defineEventHandler(async (event) => {
   const id = getRouterParam(event, 'id')
@@ -75,6 +77,7 @@ export default defineEventHandler(async (event) => {
   const from = isoBound(query.from)
   const to = isoBound(query.to)
   const pageIds = idList(query.pageIds)
+  const releaseFilter = parseReleaseFilter(query)
   const includeDraftKeys =
     query.includeDraftKeys === 'true' || query.includeDraftKeys === '1'
   const idsOnly = query.idsOnly === 'true' || query.idsOnly === '1'
@@ -100,6 +103,7 @@ export default defineEventHandler(async (event) => {
 
   const where = {
     projectId: nID,
+    ...releaseWhereFragment(releaseFilter),
     ...(statusIds ? { id: { in: statusIds } } : {}),
     ...(includeDraftKeys ? {} : { NOT: { key: { startsWith: DRAFT_KEY_PREFIX } } }),
     ...(from || to
@@ -146,6 +150,7 @@ export default defineEventHandler(async (event) => {
       orderBy: { updatedAt: 'desc' },
       include: {
         locales: true,
+        releases: { select: { releaseId: true } },
         _count: {
           select: {
             tags: pageIds.length

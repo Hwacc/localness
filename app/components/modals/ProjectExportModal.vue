@@ -126,6 +126,53 @@ const curStep = ref(0)
 const stepper = useTemplateRef<any>('stepper')
 const exporter = useProjectExport()
 
+/*
+ * The release being viewed, if any. Resolving it turns "export this release"
+ * into the selection the export already takes — pages and key ids — so the
+ * export endpoint and its row rules stay untouched.
+ */
+const releaseScoped = computed(() => projectStore.curReleaseFilter !== 'all')
+const releaseLabel = computed(() =>
+  releaseFilterLabel(projectStore.curReleaseFilter, projectStore.curReleases)
+)
+
+const applyingRelease = ref(false)
+
+async function applyReleaseScope() {
+  const filter = projectStore.curReleaseFilter
+  const projectId = projectStore.curProject.id
+  if (!releaseScoped.value || !validID(projectId)) return
+  applyingRelease.value = true
+  try {
+    state.selectedPages = (projectStore.curProject.pages ?? [])
+      .filter((page) => pageMatchesReleaseFilter(page, filter))
+      .map((page) => page.id + '')
+    // `idsOnly` is the endpoint's "select all matching" mode, which is exactly
+    // what taking a whole release is.
+    const res = await useApi<{ ids: number[] }>(
+      `/api/projects/${projectId}/i18n-keys`,
+      {
+        query: {
+          idsOnly: '1',
+          ...(filter === 'unassigned'
+            ? { unassigned: '1' }
+            : { releaseId: String(filter) }),
+        },
+      }
+    )
+    state.selectedKeyIds = res?.ids ?? []
+    await loadSummary()
+  } finally {
+    applyingRelease.value = false
+  }
+}
+
+onMounted(() => {
+  // The overlay remounts this modal per open, so opening the export while a
+  // release is in view always starts from that release.
+  if (releaseScoped.value) void applyReleaseScope()
+})
+
 const emit = defineEmits<{
   close: [boolean]
 }>()
@@ -316,6 +363,17 @@ const canExport = computed(
         <template #step1>
           <div class="flex items-center gap-2 p-3.5 bg-muted mb-2 rounded">
             <UCheckbox v-model="selectAllPages" label="Select All" />
+            <UButton
+              v-if="releaseScoped"
+              class="ml-auto"
+              size="xs"
+              color="neutral"
+              variant="outline"
+              icon="i-lucide:tag"
+              :label="`Use all of “${releaseLabel}”`"
+              :loading="applyingRelease"
+              @click="applyReleaseScope"
+            />
           </div>
           <div class="overflow-auto" style="max-height: 31.25rem">
             <UCheckboxGroup
@@ -363,6 +421,7 @@ const canExport = computed(
               v-model="state.selectedKeyIds"
               :project-id="projectStore.curProject.id"
               :page-ids="selectedPageIds"
+              :release-filter="projectStore.curReleaseFilter"
             />
 
             <div

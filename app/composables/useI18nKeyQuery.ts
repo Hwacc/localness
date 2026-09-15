@@ -15,6 +15,8 @@ export function useI18nKeyQuery(options: {
   projectId: Ref<ID>
   /** Restrict to keys tagged on these pages (plus keys with no tag at all). */
   pageIds?: Ref<number[]>
+  /** Restrict to one release label, or to the unlabelled entries. */
+  releaseFilter?: Ref<ReleaseFilterValue>
   limit?: number
 }) {
   const { $dayjs } = useNuxtApp()
@@ -61,6 +63,12 @@ export function useI18nKeyQuery(options: {
     if (includeDraftKeys.value) params.set('includeDraftKeys', '1')
     const pageIds = options.pageIds?.value ?? []
     if (pageIds.length) params.set('pageIds', pageIds.join(','))
+    const releaseFilter = options.releaseFilter?.value
+    if (releaseFilter === 'unassigned') {
+      params.set('unassigned', '1')
+    } else if (typeof releaseFilter === 'number') {
+      params.set('releaseId', String(releaseFilter))
+    }
     return params
   }
 

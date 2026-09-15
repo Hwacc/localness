@@ -16,6 +16,8 @@ export interface II18nKeyRow {
   tagCount: number
   dirty: boolean
   locales: ILocaleValue[]
+  /** Release labels on this entry. Empty means Unassigned. */
+  releaseIds?: ID[]
 }
 
 export interface II18nKeyRefTag {

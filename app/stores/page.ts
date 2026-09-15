@@ -7,7 +7,9 @@ export const usePageStore = defineStore('page', () => {
 
   const tagList = ref<ITag[]>([])
 
-  async function createPage(page: Pick<IPage, 'name' | 'image' | 'settings'>) {
+  async function createPage(
+    page: Pick<IPage, 'name' | 'image' | 'settings' | 'releaseIds'>
+  ) {
     if (!projectStore.curProject.id) {
       if (import.meta.client) {
         toast.add({
@@ -45,7 +47,7 @@ export const usePageStore = defineStore('page', () => {
 
   async function updatePage(
     id: ID,
-    page: Partial<Pick<IPage, 'name' | 'image' | 'settings'>>
+    page: Partial<Pick<IPage, 'name' | 'image' | 'settings' | 'releaseIds'>>
   ) {
     if (!validID(id)) return
     const updatedPage = await useApi<IPage>(`/api/page/${id}`, {
@@ -58,6 +60,9 @@ export const usePageStore = defineStore('page', () => {
           p.name = updatedPage.name
           p.image = updatedPage.image
           p.settings = updatedPage.settings
+          // Copied like the rest: the sider filters on this, so a stale set
+          // would show a page under the release it was just removed from.
+          p.releaseIds = updatedPage.releaseIds
         }
         return p
       })

@@ -21,10 +21,19 @@ const toast = useToast()
 const loading = ref(false)
 const isCreate = computed(() => !props.row)
 
+const projectStore = useProjectStore()
+const releaseItems = computed(() =>
+  projectStore.curReleases.map((release) => ({
+    label: release.name,
+    value: Number(release.id),
+  }))
+)
+
 const state = reactive({
   key: '',
   origin: '',
   locales: {} as Record<string, string>,
+  releaseIds: [] as number[],
 })
 
 const localeCodes = computed(() =>
@@ -40,6 +49,15 @@ function fillFromRow(row: II18nKeyRow | null | undefined) {
       row?.locales.find((locale) => locale.locale === code)?.draftText ?? ''
   }
   state.locales = next
+  // A new entry created while one release is being viewed starts on that one.
+  const defaultReleaseId = defaultReleaseIdForFilter(
+    projectStore.curReleaseFilter
+  )
+  state.releaseIds = row
+    ? (row.releaseIds ?? []).map(Number)
+    : defaultReleaseId
+      ? [defaultReleaseId]
+      : []
 }
 
 fillFromRow(props.row)
@@ -92,6 +110,7 @@ async function onSave() {
           key,
           origin,
           vue: state.locales,
+          releaseIds: state.releaseIds,
         },
       })
     } else {
@@ -110,6 +129,9 @@ async function onSave() {
         body: {
           origin,
           vue: state.locales,
+          // Always sent, so clearing every label saves as "Unassigned" rather
+          // than being read as "leave them alone".
+          releaseIds: state.releaseIds,
         },
       })
     }
@@ -155,6 +177,17 @@ async function onSave() {
             class="w-full"
             :rows="3"
             :disabled="readonly"
+          />
+        </UFormField>
+        <UFormField label="Releases">
+          <USelectMenu
+            v-model="state.releaseIds"
+            class="w-full"
+            multiple
+            :items="releaseItems"
+            value-key="value"
+            :disabled="readonly"
+            placeholder="Not in any release"
           />
         </UFormField>
         <UFormField

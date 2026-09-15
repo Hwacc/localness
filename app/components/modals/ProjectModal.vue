@@ -1,11 +1,29 @@
 <script setup lang="ts">
 import type { FormSubmitEvent } from '@nuxt/ui'
+import { AlertModal } from '#components'
 
 type Mode = 'edit' | 'create'
-const { mode, project = new Project('') } = defineProps<{
+const {
+  mode,
+  project = new Project(''),
+  tab,
+} = defineProps<{
   mode: Mode
   project?: IProject
+  /** Which tab to open on. */
+  tab?: ProjectSettingsTab
 }>()
+
+const projectStore = useProjectStore()
+const overlay = useOverlay()
+const confirmModal = overlay.create(AlertModal)
+
+/*
+ * Setup runs per open — the overlay unmounts its component when it closes — so
+ * reading `tab` once here is enough, and "Manage releases…" always lands on
+ * Releases even when the previous visit ended on another tab.
+ */
+const activeTab = ref<ProjectSettingsTab>(tab ?? 'basic')
 
 const teams = ref<ITeam[]>([])
 const ownedTeams = computed(() =>
@@ -25,9 +43,98 @@ const state = reactive({
   },
 })
 
+/*
+ * Releases are project config, so the same gate as the rest of Project Settings:
+ * a ProjectOwner row, not a team role.
+ */
+const canManageReleases = computed(
+  () => mode === 'edit' && canManageProjectSettings(project)
+)
+
+const releases = ref<IProjectRelease[]>([])
+const releasesLoading = ref(false)
+const newReleaseName = ref('')
+const addingRelease = ref(false)
+const renamingId = ref<ID | null>(null)
+const renameValue = ref('')
+
+async function loadReleases() {
+  if (mode !== 'edit' || !validID(project.id)) return
+  releasesLoading.value = true
+  try {
+    releases.value =
+      (await useApi<IProjectRelease[]>(
+        `/api/projects/${project.id}/releases`
+      )) ?? []
+  } finally {
+    releasesLoading.value = false
+  }
+}
+
+/** Labels live on the project payload too, so the bar's filter refreshes. */
+async function refreshProject() {
+  await loadReleases()
+  await projectStore.getProjects()
+}
+
+async function addRelease() {
+  const name = newReleaseName.value.trim()
+  if (!name || !validID(project.id)) return
+  addingRelease.value = true
+  try {
+    await useApi(`/api/projects/${project.id}/releases`, {
+      method: 'POST',
+      body: { name },
+    })
+    newReleaseName.value = ''
+    await refreshProject()
+  } finally {
+    addingRelease.value = false
+  }
+}
+
+function startRename(release: IProjectRelease) {
+  renamingId.value = release.id
+  renameValue.value = release.name
+}
+
+async function commitRename(release: IProjectRelease) {
+  const name = renameValue.value.trim()
+  renamingId.value = null
+  if (!name || name === release.name) return
+  await useApi(`/api/projects/${project.id}/releases/${release.id}`, {
+    method: 'PATCH',
+    body: { name },
+  })
+  await refreshProject()
+}
+
+function confirmRemoveRelease(release: IProjectRelease) {
+  confirmModal.open({
+    mode: 'delete',
+    title: 'Delete release',
+    // The label is all that goes; the copy says so because deleting content is
+    // what a reader would fear here.
+    message: `Delete “${release.name}”? Pages and translations are not deleted — they simply stop being filterable by this release.`,
+    okText: 'Delete',
+    onOk: async (_mode, { close }) => {
+      await useApi(`/api/projects/${project.id}/releases/${release.id}`, {
+        method: 'DELETE',
+      })
+      await refreshProject()
+      close()
+    },
+  })
+}
+
 onMounted(async () => {
-  if (mode !== 'create') return
-  teams.value = (await useApi<ITeam[]>('/api/teams')) ?? []
+  if (mode !== 'edit') {
+    if (mode === 'create') {
+      teams.value = (await useApi<ITeam[]>('/api/teams')) ?? []
+    }
+    return
+  }
+  await loadReleases()
 })
 
 watch(
@@ -57,17 +164,32 @@ const tabsItems = computed(() => [
     label: 'Basic',
     icon: 'i-lucide:info',
     slot: 'basic',
+    value: 'basic',
   },
   {
     label: 'Prompt',
     icon: 'i-mage:stars-c',
     slot: 'prompt',
+    value: 'prompt',
   },
   {
     label: 'Settings',
     icon: 'i-lucide:settings',
     slot: 'settings',
+    value: 'settings',
   },
+  // Only for an existing project (a new one has no id yet) and only for a
+  // Project Owner — everyone else gets the list read-only via the bar's filter.
+  ...(canManageReleases.value
+    ? [
+        {
+          label: 'Releases',
+          icon: 'i-lucide:tag',
+          slot: 'releases',
+          value: 'releases',
+        },
+      ]
+    : []),
 ])
 
 const emit = defineEmits<{
@@ -106,7 +228,12 @@ async function onSubmit(_: FormSubmitEvent<ZProject>) {
         :state="state"
         @submit="onSubmit"
       >
-        <UTabs :items="tabsItems" variant="link" :ui="{ trigger: 'grow' }">
+        <UTabs
+          v-model="activeTab"
+          :items="tabsItems"
+          variant="link"
+          :ui="{ trigger: 'grow' }"
+        >
           <template #basic>
             <div class="flex flex-col gap-2.5">
               <UFormField label="Name" name="name">
@@ -179,6 +306,73 @@ async function onSubmit(_: FormSubmitEvent<ZProject>) {
                 title="Warning"
                 description="Auto language detection is only supported by Engine 2."
               />
+            </div>
+          </template>
+          <template #releases>
+            <div class="flex flex-col gap-2.5">
+              <p v-if="releasesLoading" class="text-xs text-muted">
+                Loading…
+              </p>
+              <p v-else-if="releases.length === 0" class="text-xs text-muted">
+                No releases yet. Create one to group pages and translations by
+                the version they shipped in.
+              </p>
+              <ul v-else class="flex flex-col gap-1">
+                <li
+                  v-for="release in releases"
+                  :key="release.id"
+                  class="flex items-center gap-2"
+                >
+                  <UInput
+                    v-if="renamingId === release.id"
+                    v-model="renameValue"
+                    class="min-w-0 flex-1"
+                    size="sm"
+                    autofocus
+                    @blur="commitRename(release)"
+                    @keydown.enter.prevent="commitRename(release)"
+                    @keydown.esc="renamingId = null"
+                  />
+                  <button
+                    v-else
+                    type="button"
+                    class="min-w-0 flex-1 truncate rounded px-2 py-1 text-left text-sm hover:bg-elevated"
+                    @click="startRename(release)"
+                  >
+                    {{ release.name }}
+                  </button>
+                  <UButton
+                    size="xs"
+                    color="error"
+                    variant="ghost"
+                    icon="i-lucide:trash-2"
+                    square
+                    :aria-label="`Delete ${release.name}`"
+                    @click="confirmRemoveRelease(release)"
+                  />
+                </li>
+              </ul>
+              <div class="flex items-center gap-2">
+                <UInput
+                  v-model="newReleaseName"
+                  class="min-w-0 flex-1"
+                  size="sm"
+                  placeholder="New release name"
+                  @keydown.enter.prevent="addRelease"
+                />
+                <UButton
+                  size="sm"
+                  label="Add"
+                  icon="i-lucide:plus"
+                  :loading="addingRelease"
+                  :disabled="!newReleaseName.trim()"
+                  @click="addRelease"
+                />
+              </div>
+              <p class="text-xs text-muted">
+                Renaming or deleting a release never touches the pages and
+                translations on it.
+              </p>
             </div>
           </template>
         </UTabs>

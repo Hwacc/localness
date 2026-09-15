@@ -45,10 +45,22 @@ async function applyEditorDeepLink() {
   const pageId = Number(Array.isArray(pageIdRaw) ? pageIdRaw[0] : pageIdRaw)
   const tagId = Number(Array.isArray(tagIdRaw) ? tagIdRaw[0] : tagIdRaw)
   if (validID(pageId)) {
-    const page = projectStore.pageList.find(
+    /*
+     * Searched among *all* pages, not `pageList`: the deep link names a page
+     * explicitly, so a release filter hiding it must not make the link silently
+     * do nothing. When it is hidden, the filter is widened so the sider shows
+     * the page being edited instead of no selection at all.
+     */
+    const page = (projectStore.curProject.pages ?? []).find(
       (p) => String(p.id) === String(pageId)
     )
-    if (page) await pageStore.setCurrentPage(page)
+    if (page) {
+      const visible = projectStore.pageList.some(
+        (p) => String(p.id) === String(page.id)
+      )
+      if (!visible) projectStore.setReleaseFilter('all')
+      await pageStore.setCurrentPage(page)
+    }
   }
   pendingTagId.value = validID(tagId) ? tagId : undefined
   if (pageIdRaw != null || tagIdRaw != null) {

@@ -15,6 +15,8 @@ export interface IPage {
     ocrEngine: number
     prompt?: string | null
   }
+  /** Release labels on this page. Empty means Unassigned. */
+  releaseIds?: ID[]
 }
 
 export class Page implements IPage {
@@ -22,6 +24,7 @@ export class Page implements IPage {
   name: string
   tags: ITag[] = []
   image: string = ''
+  releaseIds?: ID[]
   settings: {
     ocrLanguage: string
     ocrEngine: number
