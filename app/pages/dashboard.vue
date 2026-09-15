@@ -150,26 +150,22 @@ function selectProject(project: IProject) {
           Recently updated
         </p>
         <div class="mt-2 flex flex-wrap gap-2">
-          <div
+          <UButton
             v-for="project in recentProjects"
             :key="project.id"
-            class="inline-flex max-w-full items-center gap-1"
+            color="neutral"
+            variant="outline"
+            size="sm"
+            class="min-w-0 max-w-full"
+            @click="selectProject(project)"
           >
-            <UButton
-              color="neutral"
-              variant="outline"
-              size="sm"
-              class="min-w-0"
-              @click="selectProject(project)"
-            >
-              <span class="min-w-0 truncate">{{ project.name }}</span>
-            </UButton>
+            <span class="min-w-0 truncate">{{ project.name }}</span>
             <ProjectOwnerBadge
               :project="project"
               :visible="Boolean(project.isSteward)"
               compact
             />
-          </div>
+          </UButton>
         </div>
       </div>
 
