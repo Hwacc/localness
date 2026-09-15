@@ -17,6 +17,8 @@ const props = defineProps<{
   projectId: ID
   /** Page scope from step 1: keys tagged there, plus keys with no tag at all. */
   pageIds: number[]
+  /** Release scope, so the list matches the release being viewed. */
+  releaseFilter?: ReleaseFilterValue
 }>()
 
 const selected = defineModel<number[]>({ default: () => [] })
@@ -24,7 +26,8 @@ const selected = defineModel<number[]>({ default: () => [] })
 const { $dayjs } = useNuxtApp()
 const pageIds = computed(() => props.pageIds)
 const projectId = computed(() => props.projectId)
-const query = useI18nKeyQuery({ projectId, pageIds, limit: 10 })
+const releaseFilter = computed(() => props.releaseFilter ?? 'all')
+const query = useI18nKeyQuery({ projectId, pageIds, releaseFilter, limit: 10 })
 const {
   q,
   status,
@@ -140,6 +143,7 @@ watch(
   () => query.reload()
 )
 watch(() => props.pageIds, () => query.reload(), { deep: true })
+watch(() => props.releaseFilter, () => query.reload())
 watch(page, () => query.load())
 
 onMounted(() => query.load())

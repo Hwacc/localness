@@ -123,8 +123,48 @@ model Project {
   gitSyncPreviews  GitSyncPreview[]
   gitSyncLogs      GitSyncLog[]
   owners           ProjectOwner[]
+  releases         ProjectRelease[]
 
   @@index([teamId])
+}
+
+/// A release label on a Project. Filters Pages and I18nKeys into "what shipped
+/// in this version" — it is not a copy of the copy, a Git boundary, or a
+/// publish unit: one key still has one set of texts.
+model ProjectRelease {
+  id        Int              @id @default(autoincrement())
+  createdAt DateTime         @default(now()) @map("created_at")
+  updatedAt DateTime         @updatedAt @map("updated_at")
+  projectId Int              @map("project_id")
+  name      String
+  /// Explicit order, so a later drag-to-reorder only has to move values.
+  sort      Int              @default(0)
+  project   Project          @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  pages     PageRelease[]
+  i18nKeys  I18nKeyRelease[]
+
+  @@unique([projectId, name])
+  @@index([projectId])
+}
+
+model PageRelease {
+  pageId    Int            @map("page_id")
+  releaseId Int            @map("release_id")
+  page      Page           @relation(fields: [pageId], references: [id], onDelete: Cascade)
+  release   ProjectRelease @relation(fields: [releaseId], references: [id], onDelete: Cascade)
+
+  @@id([pageId, releaseId])
+  @@index([releaseId])
+}
+
+model I18nKeyRelease {
+  i18nKeyId Int            @map("i18n_key_id")
+  releaseId Int            @map("release_id")
+  i18nKey   I18nKey        @relation(fields: [i18nKeyId], references: [id], onDelete: Cascade)
+  release   ProjectRelease @relation(fields: [releaseId], references: [id], onDelete: Cascade)
+
+  @@id([i18nKeyId, releaseId])
+  @@index([releaseId])
 }
 
 model ProjectOwner {
@@ -268,6 +308,7 @@ model Page {
   settings  PageSettings?
   tags      Tag[]
   pageLogs  PageLog[]
+  releases  PageRelease[]
 }
 
 model PageSettings {
@@ -358,6 +399,7 @@ model I18nKey {
   locales      LocaleValue[]
   tags         Tag[]
   logs         TranslationLog[]
+  releases     I18nKeyRelease[]
 
   @@unique([projectId, key])
   @@index([fingerprint])

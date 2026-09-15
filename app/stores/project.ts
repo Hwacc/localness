@@ -6,9 +6,21 @@ export const useProjectStore = defineStore('project', () => {
   const teams = ref<ITeam[]>([])
   const curProject = ref<IProject>(emptyProject())
   const curTeamId = ref<ID | undefined>()
+  const curReleaseFilter = ref<ReleaseFilterValue>('all')
   const pageStore = usePageStore()
 
-  const pageList = computed(() => curProject.value.pages ?? [])
+  /** The project's release labels, in display order. */
+  const curReleases = computed(() => curProject.value.releases ?? [])
+
+  /**
+   * Pages the current release filter admits. The editor sider reads this, so a
+   * filter applies everywhere at once rather than in one view.
+   */
+  const pageList = computed(() =>
+    (curProject.value.pages ?? []).filter((page) =>
+      pageMatchesReleaseFilter(page, curReleaseFilter.value)
+    )
+  )
 
   const curTeam = computed(
     () => teams.value.find((t) => String(t.id) === String(curTeamId.value)) ?? null
@@ -33,7 +45,9 @@ export const useProjectStore = defineStore('project', () => {
   }
 
   function applyPageForProject(project: IProject) {
-    const pages = project.pages ?? []
+    const pages = (project.pages ?? []).filter((page) =>
+      pageMatchesReleaseFilter(page, curReleaseFilter.value)
+    )
     if (isEmpty(pages)) {
       pageStore.setCurrentPage(emptyPage())
       return
@@ -41,6 +55,23 @@ export const useProjectStore = defineStore('project', () => {
     const remembered = readPageByProject()[String(project.id)]
     const match = pages.find((p) => String(p.id) === String(remembered))
     pageStore.setCurrentPage(match ?? pages[0]!)
+  }
+
+  /**
+   * Switch the release filter for the current project.
+   *
+   * Remembered per project in the browser, and a page outside the new filter
+   * cannot stay selected — the sider would show no selected row at all.
+   */
+  function setReleaseFilter(value: ReleaseFilterValue) {
+    curReleaseFilter.value = value
+    writeReleaseFilterForProject(curProject.value.id, value)
+    const visible = pageList.value
+    if (
+      !visible.some((page) => String(page.id) === String(pageStore.curPage.id))
+    ) {
+      pageStore.setCurrentPage(visible[0] ?? emptyPage())
+    }
   }
 
   function setCurrentProject(proj: IProject | ID) {
@@ -54,6 +85,11 @@ export const useProjectStore = defineStore('project', () => {
     if (validID(curProject.value.teamId)) {
       curTeamId.value = curProject.value.teamId
     }
+    // Loaded before the page is picked, so the picker already sees the filter.
+    curReleaseFilter.value = resolveReleaseFilterValue(
+      readReleaseFilterForProject(curProject.value.id),
+      curProject.value.releases
+    )
     persistWorkspace()
     applyPageForProject(curProject.value)
   }
@@ -117,8 +153,13 @@ export const useProjectStore = defineStore('project', () => {
       if (fresh) {
         curProject.value = fresh
         if (validID(fresh.teamId)) curTeamId.value = fresh.teamId
+        // The label this filter pointed at may have just been deleted.
+        curReleaseFilter.value = resolveReleaseFilterValue(
+          curReleaseFilter.value,
+          fresh.releases
+        )
         persistWorkspace()
-        const pageStillThere = (fresh.pages ?? []).some(
+        const pageStillThere = pageList.value.some(
           (p) => String(p.id) === String(pageStore.curPage.id)
         )
         if (!pageStillThere) applyPageForProject(fresh)
@@ -179,6 +220,8 @@ export const useProjectStore = defineStore('project', () => {
     curProject,
     curTeamId,
     curTeam,
+    curReleases,
+    curReleaseFilter,
     pageList,
     projectsByTeam,
     getProjects,
@@ -187,6 +230,7 @@ export const useProjectStore = defineStore('project', () => {
     updateProject,
     setCurrentProject,
     setCurrentTeam,
+    setReleaseFilter,
   }
 })
 

@@ -17,6 +17,21 @@ export interface IProjectOwner {
   nickname?: string
 }
 
+/**
+ * A release label. Filter-only: it groups a project's pages and entries by the
+ * version they shipped in, and never carries a second copy of any text.
+ */
+export interface IProjectRelease {
+  id: ID
+  name: string
+  sort: number
+  createdAt?: string
+  updatedAt?: string
+}
+
+/** Which Project Settings tab to open on. */
+export type ProjectSettingsTab = 'basic' | 'prompt' | 'settings' | 'releases'
+
 export interface IProject {
   id: ID
   name: string
@@ -29,6 +44,7 @@ export interface IProject {
   team?: ITeam
   settings?: IProjectSetting
   owners?: IProjectOwner[]
+  releases?: IProjectRelease[]
   isSteward?: boolean
 }
 

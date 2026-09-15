@@ -2,6 +2,7 @@ import prisma from '#server/libs/prisma'
 import { numericID } from '#server/helper/id'
 import { readZodBody } from '#server/helper/validate'
 import { requirePageTeamMember } from '#server/helper/access'
+import { setEntryReleases, throwReleaseHttp } from '#server/helper/release'
 import { z } from 'zod/v4'
 
 /**
@@ -19,8 +20,8 @@ export default defineEventHandler(async (event) => {
     })
   }
   const nID = numericID(id)
-  await requirePageTeamMember(event, nID)
-  const { name, image, settings } = await readZodBody(
+  const access = await requirePageTeamMember(event, nID)
+  const { name, image, settings, releaseIds } = await readZodBody(
     event,
     zPage.extend({
       image: z.string().optional(),
@@ -31,6 +32,20 @@ export default defineEventHandler(async (event) => {
       statusCode: 400,
       statusMessage: 'Missing name',
     })
+  }
+
+  // Absent means "leave the labels alone"; an empty array means "clear them".
+  if (releaseIds) {
+    try {
+      await setEntryReleases({
+        projectId: access.project.id,
+        kind: 'page',
+        id: nID,
+        releaseIds,
+      })
+    } catch (error) {
+      throwReleaseHttp(error)
+    }
   }
 
   const data = image ? { name, image } : { name }
@@ -58,6 +73,7 @@ export default defineEventHandler(async (event) => {
       name: true,
       image: true,
       updatedAt: true,
+      releases: { select: { releaseId: true } },
       settings: {
         omit: {
           id: true,
@@ -69,5 +85,8 @@ export default defineEventHandler(async (event) => {
     },
   })
 
-  return updatedProject
+  // `releaseIds`, matching the project payload, so the client can update its
+  // cached page in place instead of refetching the project.
+  const { releases, ...page } = updatedProject
+  return { ...page, releaseIds: releases.map((row) => row.releaseId) }
 })

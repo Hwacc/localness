@@ -5,6 +5,7 @@ import { readZodBody } from '#server/helper/validate'
 import { LogAction, LogStatus } from '#shared/constants/log'
 import { requireI18nKeyTeamMember } from '#server/helper/access'
 import { shapeI18nKey, upsertLocaleDrafts, assertI18nKeyWritable } from '#server/helper/i18n'
+import { setEntryReleases, throwReleaseHttp } from '#server/helper/release'
 import { fpTranslation } from '#shared/utils'
 
 /**
@@ -50,6 +51,9 @@ export default defineEventHandler(async (event) => {
       'projectId',
       'key',
       'force',
+      // Labels are relations, not a column: they are written below, and letting
+      // this through would hand Prisma an unknown field.
+      'releaseIds',
     ])
     const origin = safeData.origin as string
     const updated = await prisma.i18nKey.update({
@@ -66,6 +70,19 @@ export default defineEventHandler(async (event) => {
         nID,
         content as Record<string, string | null | undefined>
       )
+    }
+    // Absent means "leave the labels alone"; an empty array means "clear them".
+    if (body.releaseIds) {
+      try {
+        await setEntryReleases({
+          projectId: existing.projectId,
+          kind: 'key',
+          id: nID,
+          releaseIds: body.releaseIds,
+        })
+      } catch (error) {
+        throwReleaseHttp(error)
+      }
     }
     const loaded = await prisma.i18nKey.findUnique({
       where: { id: nID },

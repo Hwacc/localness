@@ -7,7 +7,16 @@ import {
   TRANSLATION_LANGUAGES,
 } from '#shared/constants'
 import { formatI18nKeyDisplay } from '#shared/utils'
-import { UBadge, UButton, UCheckbox, UIcon, UInput, UTooltip, AlertModal, I18nKeyModal } from '#components'
+import {
+  UBadge,
+  UButton,
+  UCheckbox,
+  UIcon,
+  UInput,
+  UTooltip,
+  AlertModal,
+  I18nKeyModal,
+} from '#components'
 import { useDebounceFn } from '@vueuse/core'
 import {
   getLocalTimeZone,
@@ -23,7 +32,7 @@ definePageMeta({
 const { $dayjs } = useNuxtApp()
 const projectStore = useProjectStore()
 const pageStore = usePageStore()
-const { curProject } = storeToRefs(projectStore)
+const { curProject, curReleases, curReleaseFilter } = storeToRefs(projectStore)
 const { loggedIn } = useUserSession()
 const toast = useToast()
 const table = useTemplateRef('table')
@@ -61,7 +70,7 @@ function asDate(value: unknown) {
 }
 
 const hasDateRange = computed(() =>
-  Boolean(dateRange.value.start || dateRange.value.end)
+  Boolean(dateRange.value.start || dateRange.value.end),
 )
 
 function formatRangeDay(value: DateValue) {
@@ -88,13 +97,13 @@ const statusItems = [
 
 /** Selected rows split by status — bulk actions only apply to one side each. */
 const selectedRows = computed(() =>
-  rows.value.filter((r) => rowSelection.value[String(r.id)])
+  rows.value.filter((r) => rowSelection.value[String(r.id)]),
 )
 const selectedDraftIds = computed(() =>
-  selectedRows.value.filter((r) => r.dirty).map((r) => Number(r.id))
+  selectedRows.value.filter((r) => r.dirty).map((r) => Number(r.id)),
 )
 const selectedPublishedIds = computed(() =>
-  selectedRows.value.filter((r) => !r.dirty).map((r) => Number(r.id))
+  selectedRows.value.filter((r) => !r.dirty).map((r) => Number(r.id)),
 )
 
 function parseLocales(raw: unknown): string[] {
@@ -113,7 +122,7 @@ function parseLocales(raw: unknown): string[] {
 }
 
 const localeCodes = computed(() =>
-  parseLocales(curProject.value.settings?.locales)
+  parseLocales(curProject.value.settings?.locales),
 )
 
 function localeMeta(code: string) {
@@ -135,7 +144,6 @@ function cellDraft(row: II18nKeyRow, locale: string) {
 function setCellDraft(row: II18nKeyRow, locale: string, value: string) {
   drafts.value = { ...drafts.value, [cellKey(row.id, locale)]: value }
 }
-
 
 const columnPinning = ref({
   left: ['select', 'key'],
@@ -186,11 +194,90 @@ function openUnpublish(row: II18nKeyRow) {
   })
 }
 
+const bulkReleaseId = ref<number | undefined>(undefined)
+const bulkReleasing = ref(false)
+
+const bulkReleaseItems = computed(() =>
+  curReleases.value.map((release) => ({
+    label: release.name,
+    value: Number(release.id),
+  })),
+)
+
+// Defaults to the release being viewed, so tagging the obvious one is one click.
+watch(
+  () => curReleaseFilter.value,
+  (value) => {
+    bulkReleaseId.value = defaultReleaseIdForFilter(value)
+  },
+  { immediate: true },
+)
+
+/**
+ * Add or remove one release across every selected row.
+ *
+ * Unlike Publish / Revert / Delete this ignores draft-vs-published: a label sits
+ * beside the copy rather than on one side of it, so a single call covers the
+ * whole selection instead of splitting it by status.
+ */
+async function setBulkRelease(mode: 'add' | 'remove') {
+  const releaseId = bulkReleaseId.value
+  if (!releaseId || !validID(curProject.value.id)) return
+  const ids = selectedRows.value.map((row) => Number(row.id))
+  if (!ids.length) return
+  bulkReleasing.value = true
+  try {
+    await useApi(`/api/projects/${curProject.value.id}/release-membership`, {
+      method: 'POST',
+      body: { releaseId, kind: 'key', ids, mode },
+    })
+    toast.add({
+      title: mode === 'add' ? 'Added to release' : 'Removed from release',
+      color: 'success',
+      icon: 'i-lucide:check',
+    })
+    rowSelection.value = {}
+    await loadKeys()
+  } finally {
+    bulkReleasing.value = false
+  }
+}
+
+/**
+ * Everything that is not the primary action. Publish stays a button on the bar
+ * (it is what a selection usually leads to); the rest is grouped here so the bar
+ * carries four controls instead of seven.
+ */
+const bulkMenuItems = computed<DropdownMenuItem[][]>(() => [
+  [
+    {
+      label: selectedPublishedIds.value.length
+        ? `Revert ${selectedPublishedIds.value.length} published`
+        : 'Revert published',
+      icon: 'i-lucide:undo-2',
+      disabled: !selectedPublishedIds.value.length || publishing.value,
+      onSelect: () => openBulkUnpublish(),
+    },
+  ],
+  [
+    {
+      label: selectedDraftIds.value.length
+        ? `Delete ${selectedDraftIds.value.length} draft`
+        : 'Delete draft',
+      icon: 'i-lucide:trash-2',
+      color: 'error',
+      disabled: !selectedDraftIds.value.length,
+      onSelect: () => openBulkDelete(),
+    },
+  ],
+])
+
 function openBulkDelete() {
   const targets = selectedRows.value.filter((r) => r.dirty)
   if (!targets.length) return
   const tagTotal = targets.reduce((sum, r) => sum + (r.tagCount ?? 0), 0)
-  const tagHint = tagTotal > 0 ? ` This will also delete ${tagTotal} bound tag(s).` : ''
+  const tagHint =
+    tagTotal > 0 ? ` This will also delete ${tagTotal} bound tag(s).` : ''
   deleteModal.open({
     mode: 'delete',
     title: 'Delete translations',
@@ -202,20 +289,20 @@ function openBulkDelete() {
         // did land rather than silently rolling the toast into a success.
         const results = await Promise.allSettled(
           targets.map((row) =>
-            useApi(`/api/translation/${row.id}`, { method: 'DELETE' })
-          )
+            useApi(`/api/translation/${row.id}`, { method: 'DELETE' }),
+          ),
         )
         const failed = results.filter((r) => r.status === 'rejected').length
         const deletedIds = new Set(
           targets
             .filter((_, i) => results[i]!.status === 'fulfilled')
-            .map((r) => String(r.id))
+            .map((r) => String(r.id)),
         )
         pageStore.setTags(
           pageStore.tagList.filter((tag) => {
             const boundId = tag.translationID ?? tag.i18nKeyId
             return !deletedIds.has(String(boundId))
-          })
+          }),
         )
         toast.add({
           title: failed ? 'Partially deleted' : 'Deleted',
@@ -271,7 +358,7 @@ function openDelete(row: II18nKeyRow) {
           pageStore.tagList.filter((tag) => {
             const boundId = tag.translationID ?? tag.i18nKeyId
             return String(boundId) !== String(row.id)
-          })
+          }),
         )
         toast.add({
           title: 'Deleted',
@@ -299,7 +386,7 @@ function openTagRefs(row: II18nKeyRow) {
 function pinHeader(
   column: Column<II18nKeyRow, unknown>,
   label: string,
-  position: 'left' | 'right' = 'left'
+  position: 'left' | 'right' = 'left',
 ) {
   const isPinned = column.getIsPinned()
   return (
@@ -314,6 +401,21 @@ function pinHeader(
         onClick={() => column.pin(isPinned === position ? false : position)}
       />
     </div>
+  )
+}
+
+/** Badges shown inline before the column collapses into a `+N`. */
+const RELEASE_BADGE_LIMIT = 2
+
+/**
+ * A row carries label ids only, so the names come from the project's list.
+ * Ordered the way the project lists them, not the way the ids came back.
+ */
+function releaseLabelsOf(row: II18nKeyRow) {
+  const ids = row.releaseIds ?? []
+  if (!ids.length) return []
+  return curReleases.value.filter((release) =>
+    ids.some((id) => String(id) === String(release.id)),
   )
 }
 
@@ -361,10 +463,7 @@ const columns = computed<TableColumn<II18nKeyRow>[]>(() => [
       },
     },
     cell: ({ row }: { row: TableRow<II18nKeyRow> }) => (
-      <code
-        class="text-xs font-mono break-all"
-        title={row.original.key}
-      >
+      <code class="text-xs font-mono break-all" title={row.original.key}>
         {formatI18nKeyDisplay(row.original.key)}
       </code>
     ),
@@ -414,6 +513,48 @@ const columns = computed<TableColumn<II18nKeyRow>[]>(() => [
       </UBadge>
     ),
   },
+  // Only when the project uses labels at all, so a project with none does not
+  // get a column of dashes.
+  ...(curReleases.value.length
+    ? [
+        {
+          id: 'releases',
+          header: ({ column }: { column: Column<II18nKeyRow, unknown> }) =>
+            pinHeader(column, 'Releases'),
+          size: 140,
+          cell: ({ row }: { row: TableRow<II18nKeyRow> }) => {
+            const labels = releaseLabelsOf(row.original)
+            if (!labels.length) {
+              return <span class="text-xs text-muted">—</span>
+            }
+            const overflow = labels.slice(RELEASE_BADGE_LIMIT)
+            return (
+              <div class="flex flex-wrap items-center gap-1">
+                {labels.slice(0, RELEASE_BADGE_LIMIT).map((release) => (
+                  <UBadge
+                    key={release.id}
+                    color="primary"
+                    variant="subtle"
+                    size="sm"
+                  >
+                    {release.name}
+                  </UBadge>
+                ))}
+                {overflow.length ? (
+                  <UTooltip
+                    text={overflow.map((release) => release.name).join(', ')}
+                  >
+                    <UBadge color="neutral" variant="subtle" size="sm">
+                      +{overflow.length}
+                    </UBadge>
+                  </UTooltip>
+                ) : null}
+              </div>
+            )
+          },
+        },
+      ]
+    : []),
   ...localeCodes.value.map((code) => {
     const meta = localeMeta(code)
     return {
@@ -569,13 +710,19 @@ async function loadKeys() {
       params.set('status', statusFilter.value)
     }
     if (includeDraftKeys.value) params.set('includeDraftKeys', '1')
+    // Release is a project-wide view filter, so it rides along with the rest.
+    if (curReleaseFilter.value === 'unassigned') {
+      params.set('unassigned', '1')
+    } else if (typeof curReleaseFilter.value === 'number') {
+      params.set('releaseId', String(curReleaseFilter.value))
+    }
     // Whole local days, so a single picked day covers that day end to end.
     const start = asDate(dateRange.value.start)
     const end = asDate(dateRange.value.end)
     if (start) {
       params.set(
         'from',
-        $dayjs(start.toDate(getLocalTimeZone())).startOf('day').toISOString()
+        $dayjs(start.toDate(getLocalTimeZone())).startOf('day').toISOString(),
       )
     }
     if (end || start) {
@@ -583,11 +730,11 @@ async function loadKeys() {
         'to',
         $dayjs((end ?? start)!.toDate(getLocalTimeZone()))
           .endOf('day')
-          .toISOString()
+          .toISOString(),
       )
     }
     const res = await useApi<IPagination<II18nKeyRow[]>>(
-      `/api/projects/${curProject.value.id}/i18n-keys?${params.toString()}`
+      `/api/projects/${curProject.value.id}/i18n-keys?${params.toString()}`,
     )
     if (!res) return
     rows.value = res.data ?? []
@@ -627,7 +774,7 @@ watch(
   () => {
     page.value = 1
     loadKeys()
-  }
+  },
 )
 
 watch(
@@ -635,8 +782,15 @@ watch(
   () => {
     page.value = 1
     loadKeys()
-  }
+  },
 )
+
+// The release filter is chosen in the workspace bar, so an open tab has to
+// follow it rather than only applying it on the next navigation.
+watch(curReleaseFilter, () => {
+  page.value = 1
+  loadKeys()
+})
 
 async function saveDraft(row: II18nKeyRow, locale: string, value: string) {
   if (!row.dirty) return
@@ -670,7 +824,7 @@ async function publishKeys(keyIds: number[]) {
       {
         method: 'POST',
         body: { keyIds },
-      }
+      },
     )
     toast.add({
       title: 'Published',
@@ -693,7 +847,7 @@ async function unpublishKeys(keyIds: number[]) {
       {
         method: 'POST',
         body: { keyIds },
-      }
+      },
     )
     toast.add({
       title: 'Reverted to draft',
@@ -827,20 +981,20 @@ onMounted(async () => {
         v-if="selectedRows.length"
         class="shrink-0 flex flex-wrap items-center gap-3 rounded-xl border border-primary/40 bg-default px-4 py-3"
       >
-        <span class="text-sm font-medium">
-          {{ selectedRows.length }} selected
-        </span>
-        <span
-          v-if="selectedDraftIds.length && selectedPublishedIds.length"
-          class="text-xs text-muted"
-        >
-          {{ selectedDraftIds.length }} draft ·
-          {{ selectedPublishedIds.length }} published
-        </span>
-        <div class="ml-auto flex flex-wrap items-center gap-2">
+        <div class="min-w-0">
+          <p class="text-sm font-medium">{{ selectedRows.length }} selected</p>
+          <p
+            v-if="selectedDraftIds.length && selectedPublishedIds.length"
+            class="text-xs text-muted"
+          >
+            {{ selectedDraftIds.length }} draft ·
+            {{ selectedPublishedIds.length }} published
+          </p>
+        </div>
+        <div class="ml-auto flex flex-wrap items-center justify-end gap-2">
+          <!-- The one action a selection usually leads to. -->
           <UButton
-            color="neutral"
-            variant="outline"
+            color="primary"
             icon="i-lucide:check-check"
             :loading="publishing"
             :disabled="selectedDraftIds.length === 0"
@@ -848,31 +1002,76 @@ onMounted(async () => {
           >
             Publish {{ selectedDraftIds.length || '' }}
           </UButton>
-          <UButton
-            color="neutral"
-            variant="outline"
-            icon="i-lucide:undo-2"
-            :loading="publishing"
-            :disabled="selectedPublishedIds.length === 0"
-            @click="openBulkUnpublish"
-          >
-            Revert {{ selectedPublishedIds.length || '' }}
-          </UButton>
-          <UButton
-            color="error"
-            variant="outline"
-            icon="i-lucide:trash-2"
-            :disabled="selectedDraftIds.length === 0"
-            @click="openBulkDelete"
-          >
-            Delete {{ selectedDraftIds.length || '' }}
-          </UButton>
-          <UButton
-            color="neutral"
-            variant="ghost"
-            label="Clear"
-            @click="rowSelection = {}"
-          />
+          <!--
+            Labelling stays on the bar instead of moving into the menu: tagging
+            is half of why a bulk selection exists. Collapsed into one popover so
+            it costs one control rather than the select + add + remove it was.
+          -->
+          <UPopover v-if="curReleases.length">
+            <UButton
+              color="neutral"
+              variant="outline"
+              icon="i-lucide:tag"
+              :loading="bulkReleasing"
+            >
+              Release
+            </UButton>
+            <template #content>
+              <div class="w-64 p-3 flex flex-col gap-3">
+                <p class="text-sm font-medium">Release labels</p>
+                <USelectMenu
+                  v-model="bulkReleaseId"
+                  class="w-full"
+                  :items="bulkReleaseItems"
+                  value-key="value"
+                  placeholder="Pick a release"
+                />
+                <div class="flex items-center gap-2">
+                  <UButton
+                    class="flex-1 justify-center"
+                    size="xs"
+                    icon="i-lucide:tag"
+                    label="Add"
+                    :loading="bulkReleasing"
+                    :disabled="!bulkReleaseId"
+                    @click="setBulkRelease('add')"
+                  />
+                  <UButton
+                    class="flex-1"
+                    size="xs"
+                    color="neutral"
+                    variant="outline"
+                    icon="i-lucide:tag-off"
+                    label="Remove"
+                    :disabled="!bulkReleaseId || bulkReleasing"
+                    @click="setBulkRelease('remove')"
+                  />
+                </div>
+                <p class="text-xs text-muted">
+                  Applies to all {{ selectedRows.length }} selected.
+                </p>
+              </div>
+            </template>
+          </UPopover>
+          <UDropdownMenu :items="bulkMenuItems">
+            <UButton
+              color="neutral"
+              variant="outline"
+              icon="i-lucide:ellipsis"
+              square
+              aria-label="More actions"
+            />
+          </UDropdownMenu>
+          <UTooltip text="Clear selection">
+            <UButton
+              color="neutral"
+              variant="ghost"
+              icon="i-lucide:x"
+              square
+              aria-label="Clear selection"
+              @click="rowSelection = {}"
+            />
+          </UTooltip>
         </div>
       </div>
 

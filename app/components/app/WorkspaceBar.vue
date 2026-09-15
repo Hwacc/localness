@@ -2,9 +2,13 @@
 import { TeamRole } from '#shared/constants'
 
 const projectStore = useProjectStore()
-const { curProject, curTeam, teams, projects } = storeToRefs(projectStore)
+const { curProject, curTeam, teams, projects, curReleases, curReleaseFilter } =
+  storeToRefs(projectStore)
 const { open: openCreateProject } = useCreateProjectModal()
 const { openSettings, openExport } = useProjectActions()
+
+/** Sentinel for the dropdown's action row, which must not change the filter. */
+const MANAGE_RELEASES = 'manage'
 
 const teamProjects = computed(() =>
   projects.value.filter(
@@ -23,6 +27,27 @@ const teamItems = computed(() =>
 const canCreate = computed(() => canCreateProject(curTeam.value))
 const canSettings = computed(() => canManageProjectSettings(curProject.value))
 
+/**
+ * Shown once labels exist, and always for a steward — they are the one who can
+ * create the first one, so hiding the dropdown from them would hide the only
+ * route to it from here.
+ */
+const showReleaseFilter = computed(
+  () => curReleases.value.length > 0 || canSettings.value
+)
+
+const releaseItems = computed(() => [
+  { label: 'All releases', value: 'all' },
+  ...curReleases.value.map((release) => ({
+    label: release.name,
+    value: Number(release.id),
+  })),
+  { label: 'Unassigned', value: 'unassigned' },
+  ...(canSettings.value
+    ? [{ label: 'Manage releases…', value: MANAGE_RELEASES }]
+    : []),
+])
+
 function isCurrent(project: IProject) {
   return String(project.id) === String(curProject.value.id)
 }
@@ -34,6 +59,14 @@ function selectProject(project: IProject) {
 function onTeamChange(id: ID | undefined) {
   if (id == null) return
   projectStore.setCurrentTeam(id)
+}
+
+function onReleaseChange(value: string | number) {
+  if (value === MANAGE_RELEASES) {
+    openSettings(undefined, 'releases')
+    return
+  }
+  projectStore.setReleaseFilter(value as ReleaseFilterValue)
 }
 </script>
 
@@ -93,6 +126,15 @@ function onTeamChange(id: ID | undefined) {
         @click="openCreateProject(curTeam?.id)"
       />
     </div>
+    <USelect
+      v-if="showReleaseFilter"
+      class="w-36 shrink-0"
+      size="sm"
+      :model-value="curReleaseFilter"
+      :items="releaseItems"
+      :disabled="!validID(curProject.id)"
+      @update:model-value="onReleaseChange"
+    />
     <div class="flex items-center gap-2 shrink-0">
       <UButton
         color="neutral"

@@ -47,6 +47,8 @@ export const zPage = z.object({
     ocrEngine: z.number(),
     prompt: zNilable(z.string()),
   }),
+  /** Release labels to attach. Omitted leaves them untouched on update. */
+  releaseIds: z.array(z.number().int().positive()).optional(),
 })
 export type ZPage = z.infer<typeof zPage>
 
@@ -162,8 +164,30 @@ export const zTranslation = z.looseObject({
   force: z.boolean().optional(),
   vue: zNilable(zTranslationContent).optional(),
   react: zNilable(zTranslationContent).optional(),
+  /** Release labels to attach. Omitted leaves them untouched on update. */
+  releaseIds: z.array(z.number().int().positive()).optional(),
 })
 export type ZTranslation = z.infer<typeof zTranslation>
+
+/**
+ * Release labels. The name's *content* is judged by `releaseNameRejectReason`
+ * in the server helper rather than by zod, so an empty name reports the rule's
+ * message instead of a schema path error.
+ */
+export const zReleaseCreate = z.object({ name: z.string() })
+export type ZReleaseCreate = z.infer<typeof zReleaseCreate>
+
+export const zReleaseRename = z.object({ name: z.string() })
+export type ZReleaseRename = z.infer<typeof zReleaseRename>
+
+/** One call covers one kind, so a rejected id is unambiguous to report. */
+export const zReleaseMembership = z.object({
+  releaseId: z.number().int().positive(),
+  kind: z.enum(['page', 'key']),
+  ids: z.array(z.number().int().positive()),
+  mode: z.enum(['add', 'remove']),
+})
+export type ZReleaseMembership = z.infer<typeof zReleaseMembership>
 
 /**
  * Export takes an explicit selection, not filters: the user picks keys in the

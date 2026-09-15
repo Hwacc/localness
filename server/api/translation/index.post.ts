@@ -4,6 +4,11 @@ import prisma from '#server/libs/prisma'
 import { LogAction, LogStatus } from '#shared/constants/log'
 import { requireTeamMember } from '#server/helper/access'
 import { shapeI18nKey, upsertLocaleDrafts } from '#server/helper/i18n'
+import {
+  assertReleaseIdsInProject,
+  setEntryReleases,
+  throwReleaseHttp,
+} from '#server/helper/release'
 
 /**
  * @route POST /api/translation
@@ -26,6 +31,18 @@ export default defineEventHandler(async (event) => {
     })
   }
   await requireTeamMember(event, body.projectId)
+
+  // Checked before the key is written: a bad label id should not leave a
+  // half-created translation behind.
+  let attachReleaseIds: number[] = []
+  try {
+    attachReleaseIds = await assertReleaseIdsInProject({
+      projectId: body.projectId,
+      releaseIds: body.releaseIds ?? [],
+    })
+  } catch (error) {
+    throwReleaseHttp(error)
+  }
 
   let fingerprint = body.fingerprint || fpTranslation(body.origin)
   const key = (body.key && String(body.key).trim()) || `__draft_${fingerprint}`
@@ -81,6 +98,14 @@ export default defineEventHandler(async (event) => {
     const content = body.vue || body.react
     if (content) {
       await upsertLocaleDrafts(record.id, content as Record<string, string | null | undefined>)
+    }
+    if (attachReleaseIds.length) {
+      await setEntryReleases({
+        projectId: body.projectId,
+        kind: 'key',
+        id: record.id,
+        releaseIds: attachReleaseIds,
+      })
     }
     const loaded = await prisma.i18nKey.findUnique({
       where: { id: record.id },

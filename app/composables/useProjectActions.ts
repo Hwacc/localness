@@ -13,7 +13,7 @@ export function useProjectActions() {
     props: {},
   })
 
-  function openSettings(project?: IProject) {
+  function openSettings(project?: IProject, tab?: ProjectSettingsTab) {
     const target = project ?? projectStore.curProject
     if (!validID(target.id)) return
     if (String(target.id) !== String(projectStore.curProject.id)) {
@@ -22,6 +22,9 @@ export function useProjectActions() {
     settingsModal.open({
       mode: 'edit',
       project: projectStore.curProject,
+      // Always passed: the modal resets to it on close, so naming the same tab
+      // twice in a row still lands on it.
+      tab: tab ?? 'basic',
       onSave: async (
         payload: Pick<IProject, 'name' | 'description' | 'settings' | 'teamId'>,
         { close }: { close: () => void }
