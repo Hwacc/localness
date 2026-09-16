@@ -25,11 +25,6 @@ class Lister {
     this.localeColumns = localeColumns ?? []
   }
 
-  public async generateJson() {
-    //TODO: generate json
-    return Promise.resolve(null)
-  }
-
   public async generateXlsx() {
     return new Promise((resolve, reject) => {
       try {

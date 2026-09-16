@@ -60,6 +60,21 @@ export function releaseFilterLabel(
 }
 
 /**
+ * The release that should label an export, or null for the whole project.
+ *
+ * `All` is not a release, so it contributes no name — an export of everything
+ * should not claim to be an export of "All releases". Used by both the exporter
+ * (which names the file) and the modal (which shows the name before you start),
+ * so the two cannot disagree.
+ */
+export function releaseNameForExport(
+  filter: ReleaseFilterValue,
+  releases: IProjectRelease[] | undefined
+): string | null {
+  return filter === 'all' ? null : releaseFilterLabel(filter, releases)
+}
+
+/**
  * A remembered label can be deleted between sessions, and a filter pointing at
  * nothing would empty every list with no explanation. That reads as All.
  */

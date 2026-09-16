@@ -2,6 +2,8 @@
 import type { CheckboxGroupItem } from '@nuxt/ui'
 import { compact } from 'lodash-es'
 import { DEFAULT_LOCALES, TRANSLATION_LANGUAGES } from '#shared/constants'
+import { exportBundleName } from '#shared/utils/file'
+import { releaseNameForExport } from '#shared/utils/release'
 import { TaskState } from '~/libs/task-queue/types'
 import { useDebounceFn } from '@vueuse/core'
 
@@ -245,19 +247,36 @@ const fileItems = [
     label: 'XLSX',
     value: 'xlsx',
     icon: 'i-vscode-icons:file-type-excel',
+    hint: 'A sheet with one row per tag, plus one annotated screenshot per page',
   },
   {
     label: 'JSON',
     value: 'json',
     icon: 'i-vscode-icons:file-type-json',
+    hint: 'Flat { key: text } per locale, published text only, no screenshots',
   },
 ] as const
 
+/** The summary describes a sheet, so its numbers only apply when XLSX is on. */
+const wantsXlsx = computed(() => state.fileFormat.includes('xlsx'))
+
+/**
+ * What the download will be called, shown before starting so the release it was
+ * scoped to is visible rather than a surprise in the downloads folder. Same rule
+ * the exporter names the file with.
+ */
+const exportFileName = computed(
+  () =>
+    `${exportBundleName({
+      projectName: projectStore.curProject.name,
+      releaseName: releaseNameForExport(
+        projectStore.curReleaseFilter,
+        projectStore.curReleases,
+      ),
+    })}.zip`,
+)
+
 function onFileFormatClick(val: 'xlsx' | 'json') {
-  if (val === 'json') {
-    // TODO: not supported export json yet
-    return
-  }
   const index = state.fileFormat.findIndex((f) => f === val)
   if (index > -1) {
     state.fileFormat.splice(index, 1)
@@ -331,7 +350,9 @@ const showNextButton = computed(() => {
 
 /** Each step guards its own requirement, so Next explains itself in place. */
 const nextDisabled = computed(() => {
-  if (curStep.value === 0) return !state.selectedPages.length
+  // Pages only scope screenshots and tag rows, so a JSON-only export does not
+  // have to pick any.
+  if (curStep.value === 0) return wantsXlsx.value && !state.selectedPages.length
   if (curStep.value === 1) {
     return !state.selectedKeyIds.length || !localeColumns.value.length
   }
@@ -340,7 +361,8 @@ const nextDisabled = computed(() => {
 
 const canExport = computed(
   () =>
-    exporter.ready &&
+    // The worker renders screenshots and encodes the sheet; JSON needs neither.
+    (!wantsXlsx.value || exporter.ready) &&
     state.selectedKeyIds.length > 0 &&
     localeColumns.value.length > 0 &&
     (summary.value ? summary.value.rows > 0 : true)
@@ -431,16 +453,20 @@ const canExport = computed(
                 Pick at least one key. Export ships published text only.
               </p>
               <template v-else-if="summary">
-                <p>
+                <p v-if="wantsXlsx">
                   <span class="font-medium">{{ summary.rows }}</span> row(s) ·
                   {{ summary.tags }} tag(s) on {{ summary.pages }} page(s) ·
                   {{ summary.locales.length }} locale column(s)
+                </p>
+                <p v-else>
+                  <span class="font-medium">{{ summary.keys }}</span> key(s)
+                  across up to {{ summary.locales.length }} locale file(s)
                 </p>
                 <p v-if="summary.skipped['no-published-text']" class="text-amber-400">
                   {{ summary.skipped['no-published-text'] }} selected key(s)
                   have no published text — they are skipped.
                 </p>
-                <p v-if="summary.keysWithoutTag" class="text-muted">
+                <p v-if="wantsXlsx && summary.keysWithoutTag" class="text-muted">
                   {{ summary.keysWithoutTag }} key(s) have no tag on these
                   pages — exported with an empty pic.
                 </p>
@@ -453,45 +479,43 @@ const canExport = computed(
         </template>
 
         <template #step3>
-          <div class="w-full flex items-center justify-center gap-8">
-            <UTooltip
-              v-for="item in fileItems"
-              :key="item.value"
-              :text="item.value === 'json' ? 'Coming soon' : ''"
-              :disabled="item.value !== 'json'"
-            >
-              <div
-                :class="[
-                  'relative border border-default rounded p-3.5',
-                  item.value === 'json'
-                    ? 'opacity-50 cursor-not-allowed grayscale'
-                    : 'hover:border-green-300 cursor-pointer',
-                  state.fileFormat.includes(item.value)
-                    ? 'border-green-400'
-                    : 'grayscale',
-                ]"
-                @click="() => onFileFormatClick(item.value)"
+          <div class="w-full flex flex-col items-center gap-3">
+            <div class="flex items-center justify-center gap-8">
+              <UTooltip
+                v-for="item in fileItems"
+                :key="item.value"
+                :text="item.hint"
               >
-                <div class="flex flex-col items-center gap-2.5">
-                  <UIcon size="64" :name="item.icon" />
-                  {{ item.label }}
-                </div>
-                <UBadge
-                  v-if="item.value === 'json'"
-                  class="absolute -top-2 left-1/2 -translate-x-1/2 whitespace-nowrap"
-                  size="sm"
-                  color="neutral"
-                  variant="subtle"
+                <div
+                  :class="[
+                    'relative border border-default rounded p-3.5 cursor-pointer hover:border-green-300',
+                    state.fileFormat.includes(item.value)
+                      ? 'border-green-400'
+                      : 'grayscale',
+                  ]"
+                  @click="() => onFileFormatClick(item.value)"
                 >
-                  Coming soon
-                </UBadge>
-              </div>
-            </UTooltip>
+                  <div class="flex flex-col items-center gap-2.5">
+                    <UIcon size="64" :name="item.icon" />
+                    {{ item.label }}
+                  </div>
+                </div>
+              </UTooltip>
+            </div>
+            <p class="text-xs text-muted text-center max-w-md">
+              XLSX carries the screenshots; JSON is text only, one flat file per
+              locale, and both ship published text. Picking both puts them in one
+              zip.
+            </p>
           </div>
         </template>
 
         <template #step4>
           <div class="flex flex-col gap-2 py-2.5 px-10">
+            <p class="text-sm">
+              <span class="text-muted">File name: </span>
+              <span class="font-medium">{{ exportFileName }}</span>
+            </p>
             <div
               v-for="task in exportTasks"
               :key="task.id"
