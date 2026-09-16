@@ -1,5 +1,12 @@
 import { isEmpty } from 'lodash-es'
 import JSZip from 'jszip'
+import {
+  buildExportJson,
+  serializeExportJson,
+  type ExportJsonSourceRow,
+} from '#shared/utils/export-json'
+import { exportBundleName } from '#shared/utils/file'
+import { releaseNameForExport } from '#shared/utils/release'
 import { ExportWorkerBells } from '~/assets/workers/export/types'
 import TaskQueue, { Task } from '~/libs/task-queue'
 
@@ -56,7 +63,23 @@ export function useProjectExport() {
   }
 
   function exportProject(params: ZExport) {
-    if (!ready.value) return null
+    const wantsXlsx = params.fileFormat.includes('xlsx')
+    const wantsJson = params.fileFormat.includes('json')
+    /*
+     * The worker exists for canvas rendering and xlsx encoding. A JSON export
+     * needs neither — it is string assembly from the rows the server sends — so
+     * it must not wait for the worker to boot, let alone paint screenshots.
+     */
+    if (wantsXlsx && !ready.value) return null
+    /*
+     * Read once, when the export starts: the release filter can change while a
+     * long export runs, and the file should be named for what was on screen when
+     * it began. Null means the whole project.
+     */
+    const releaseName = releaseNameForExport(
+      projectStore.curReleaseFilter,
+      projectStore.curReleases,
+    )
     const queue = new TaskQueue({
       concurrency: 1,
       explosive: true,
@@ -73,7 +96,7 @@ export function useProjectExport() {
         context.project = project
         context.rows = project.rows ?? []
         context.localeColumns = project.localeColumns ?? []
-        if (!isEmpty(project.pages)) {
+        if (wantsXlsx && !isEmpty(project.pages)) {
           const pageTasks = project.pages.map((page) => {
             const pageQueue = new TaskQueue({
               concurrency: 1,
@@ -164,6 +187,29 @@ export function useProjectExport() {
         description: 'Generating xlsx...',
       }
     )
+    const generateJsonTask = new Task(
+      async (_, context) => {
+        /*
+         * Built here rather than in the worker: it is string assembly, and the
+         * rows it reads are the same ones the sheet uses, so the two formats
+         * cannot disagree about which keys are in the export.
+         */
+        context.jsonFiles = buildExportJson({
+          rows: context.rows as ExportJsonSourceRow[],
+          localeColumns: context.localeColumns as string[],
+        }).map((file) => ({
+          name: `${file.locale}.json`,
+          data: new Blob([serializeExportJson(file)], {
+            type: 'application/json',
+          }),
+        }))
+        return { status: 'ok' }
+      },
+      {
+        name: 'Generate JSON',
+        description: 'Generating JSON...',
+      }
+    )
     const generateZipTask = new Task(
       async (_, context) => {
         const zip = new JSZip()
@@ -172,7 +218,18 @@ export function useProjectExport() {
             zip.file(image.name, image.data)
           })
         }
-        context.xlsx && zip.file(`${context.project.name}.xlsx`, context.xlsx)
+        const bundleName = exportBundleName({
+          projectName: context.project.name,
+          releaseName,
+        })
+        // Named like the zip: extracting two releases into one folder would
+        // otherwise collide on `<project>.xlsx`.
+        context.xlsx && zip.file(`${bundleName}.xlsx`, context.xlsx)
+        // One file per locale that had published text; a locale with none is
+        // absent rather than shipped empty.
+        context.jsonFiles?.forEach(
+          (file: { name: string; data: Blob }) => zip.file(file.name, file.data)
+        )
         const buffer = await zip.generateAsync({ type: 'blob' })
         context.zip = buffer
         return { status: 'ok' }
@@ -188,7 +245,10 @@ export function useProjectExport() {
         const url = URL.createObjectURL(blob)
         const a = document.createElement('a')
         a.href = url
-        a.download = `${context.project.name}.zip`
+        a.download = `${exportBundleName({
+          projectName: context.project.name,
+          releaseName,
+        })}.zip`
         a.click()
         URL.revokeObjectURL(url)
         return { status: 'ok' }
@@ -199,7 +259,10 @@ export function useProjectExport() {
       }
     )
     queue.push(requestTask)
-    queue.push(generateXlsxTask)
+    // Only the formats that were asked for: a JSON export skips the screenshot
+    // pass and the sheet entirely.
+    if (wantsXlsx) queue.push(generateXlsxTask)
+    if (wantsJson) queue.push(generateJsonTask)
     queue.push(generateZipTask)
     queue.push(downloadTask)
     return queue
