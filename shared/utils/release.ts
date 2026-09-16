@@ -3,18 +3,11 @@ import type { IPage } from '../types/Page'
 import type { IProjectRelease } from '../types/Project'
 
 /**
- * Which release the workspace is looking at. `'all'` is unfiltered,
- * `'unassigned'` is the entries carrying no label at all, and a number is one
- * release's id.
- *
- * Lives in `shared/` because the same three states exist on both sides: the
- * server keeps them in `release.ts` (`ReleaseFilter` / `parseReleaseFilter` /
- * `releaseWhereFragment`), and these are the client's twins for matching rows it
- * already has in memory.
+ * Which release the workspace is looking at: `'all'`, `'unassigned'`, or one
+ * release's id. The client twin of the server's `ReleaseFilter`.
  */
 export type ReleaseFilterValue = 'all' | 'unassigned' | number
 
-/** Whether an entry's labels put it in the filtered release. */
 export function entryMatchesReleaseFilter(
   releaseIds: ID[] | undefined,
   filter: ReleaseFilterValue
@@ -25,12 +18,6 @@ export function entryMatchesReleaseFilter(
   return ids.some((releaseId) => String(releaseId) === String(filter))
 }
 
-/**
- * Whether a page belongs to the release the workspace is viewing.
- *
- * The editor sider and the store's `pageList` must agree on this, which is why
- * it lives here rather than inline in one of them.
- */
 export function pageMatchesReleaseFilter(
   page: IPage,
   filter: ReleaseFilterValue
@@ -38,14 +25,12 @@ export function pageMatchesReleaseFilter(
   return entryMatchesReleaseFilter(page.releaseIds, filter)
 }
 
-/** The label a new page or translation should default to, if any. */
 export function defaultReleaseIdForFilter(
   filter: ReleaseFilterValue
 ): number | undefined {
   return typeof filter === 'number' ? filter : undefined
 }
 
-/** Display name of a filter, for buttons and empty states. */
 export function releaseFilterLabel(
   filter: ReleaseFilterValue,
   releases: IProjectRelease[] | undefined
@@ -59,14 +44,7 @@ export function releaseFilterLabel(
   )
 }
 
-/**
- * The release that should label an export, or null for the whole project.
- *
- * `All` is not a release, so it contributes no name — an export of everything
- * should not claim to be an export of "All releases". Used by both the exporter
- * (which names the file) and the modal (which shows the name before you start),
- * so the two cannot disagree.
- */
+/** `All` is not a release, so an export of everything carries no release name. */
 export function releaseNameForExport(
   filter: ReleaseFilterValue,
   releases: IProjectRelease[] | undefined
@@ -74,10 +52,7 @@ export function releaseNameForExport(
   return filter === 'all' ? null : releaseFilterLabel(filter, releases)
 }
 
-/**
- * A remembered label can be deleted between sessions, and a filter pointing at
- * nothing would empty every list with no explanation. That reads as All.
- */
+/** Parses a stored value: anything unreadable falls back to All. */
 export function resolveReleaseFilterValue(
   stored: ReleaseFilterValue,
   releases: IProjectRelease[] | undefined

@@ -12,10 +12,7 @@ export const useProjectStore = defineStore('project', () => {
   /** The project's release labels, in display order. */
   const curReleases = computed(() => curProject.value.releases ?? [])
 
-  /**
-   * Pages the current release filter admits. The editor sider reads this, so a
-   * filter applies everywhere at once rather than in one view.
-   */
+  /** The release filter applies everywhere at once, from the editor sider's list outward. */
   const pageList = computed(() =>
     (curProject.value.pages ?? []).filter((page) =>
       pageMatchesReleaseFilter(page, curReleaseFilter.value)
@@ -57,12 +54,7 @@ export const useProjectStore = defineStore('project', () => {
     pageStore.setCurrentPage(match ?? pages[0]!)
   }
 
-  /**
-   * Switch the release filter for the current project.
-   *
-   * Remembered per project in the browser, and a page outside the new filter
-   * cannot stay selected — the sider would show no selected row at all.
-   */
+  /** Remembered per project; a page outside the new filter cannot stay selected. */
   function setReleaseFilter(value: ReleaseFilterValue) {
     curReleaseFilter.value = value
     writeReleaseFilterForProject(curProject.value.id, value)

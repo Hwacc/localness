@@ -2,16 +2,9 @@ import prisma from '#server/libs/prisma'
 import type { IProjectRelease } from '#shared/types/Project'
 
 /**
- * Release labels: grouping a Project's Pages and I18nKeys by the version they
- * shipped in, so a project with hundreds of entries can be read and exported one
- * version at a time.
- *
- * A label is only ever an association. Deleting one never deletes content, and no
- * text is duplicated per release — a key keeps its one set of `LocaleValue` rows.
- *
- * The rules live here rather than in the route files for the usual reason: the
- * unit-test h3 stub only has `createError`, so anything left in a `.ts` endpoint
- * is untestable by construction.
+ * Release labels: a Project's Pages and I18nKeys grouped by the version they
+ * shipped in. Only ever an association — deleting a label never deletes content,
+ * and no text is duplicated per release.
  */
 
 export class ReleaseError extends Error {
@@ -42,12 +35,8 @@ export const RELEASE_NAME_MESSAGES: Record<ReleaseNameRejection, string> = {
 }
 
 /**
- * Why the name is unusable, or null.
- *
- * `takenNames` must exclude the row being renamed, or saving a release under its
- * own name would read as a duplicate. The comparison is case-insensitive because
- * "v1" and "V1" are indistinguishable in a filter dropdown — SQLite's unique
- * index is case-sensitive, so it only catches the exact-collision backstop.
+ * Case-insensitive on purpose: "v1" and "V1" are indistinguishable in the
+ * picker, while SQLite's unique index only catches the exact collision.
  */
 export function releaseNameRejectReason(input: {
   name: string
@@ -66,12 +55,7 @@ export function releaseNameStatus(reason: ReleaseNameRejection): 400 | 409 {
   return reason === 'duplicate' ? 409 : 400
 }
 
-/**
- * Requested release ids that do not belong to this Project.
- *
- * A join row only knows two ids, so nothing in the schema stops a page from
- * being attached to another project's release; this is the check that does.
- */
+/** A join row only knows two ids, so nothing in the schema stops a cross-project attach. */
 export function foreignReleaseIds(input: {
   releaseIds: number[]
   projectReleaseIds: number[]
@@ -85,13 +69,7 @@ export type ReleaseMemberKind = 'page' | 'key'
 /** Which release a listing should show. null is "All". */
 export type ReleaseFilter = { releaseId: number } | 'unassigned' | null
 
-/**
- * Parse the `releaseId` / `unassigned` query pair into one filter.
- *
- * `releaseId` wins when both are present: they are mutually exclusive, and a
- * stale `unassigned=1` riding along with an explicit id should not silently
- * empty the list.
- */
+/** `releaseId` wins when both are present: a stale `unassigned=1` must not silently empty the list. */
 export function parseReleaseFilter(query: {
   releaseId?: unknown
   unassigned?: unknown
@@ -104,10 +82,7 @@ export function parseReleaseFilter(query: {
   return null
 }
 
-/**
- * Prisma fragment for one entry's release state. Both `Page` and `I18nKey` name
- * their back-relation `releases`, so the same fragment serves either.
- */
+/** `Page` and `I18nKey` both name their back-relation `releases`, so this serves either. */
 export function releaseWhereFragment(filter: ReleaseFilter) {
   if (filter === null) return {}
   if (filter === 'unassigned') return { releases: { none: {} } }
@@ -212,13 +187,7 @@ export async function renameRelease(params: {
   return shapeRelease(row)
 }
 
-/**
- * Drop the label and its associations.
- *
- * Pages and keys are untouched — they fall back to Unassigned — so this is one
- * delete, never a cascade into content. The join rows go with it through the
- * schema's `onDelete: Cascade`.
- */
+/** Drops the label and its join rows; content falls back to Unassigned. */
 export async function deleteRelease(params: {
   projectId: number
   releaseId: number
@@ -233,14 +202,7 @@ function distinctIds(ids: number[]): number[] {
   return ids.filter((id, index) => ids.indexOf(id) === index)
 }
 
-/**
- * Ensure every id names a release in this project, and hand back the distinct
- * list.
- *
- * Exported so a create path can validate *before* it inserts: attaching labels is
- * the last step of creating a page or a translation, and a bad id there should
- * not leave the new row behind.
- */
+/** Exported so a create path can validate before it inserts. */
 export async function assertReleaseIdsInProject(params: {
   projectId: number
   releaseIds: number[]
@@ -292,11 +254,7 @@ async function assertEntriesInProject(params: {
   return ids
 }
 
-/**
- * Whether a single entry exists in the project. Separate from
- * `assertEntriesInProject` because one entry that is missing is a 404 — the
- * caller named it directly — while a bulk list with strays is a 400.
- */
+/** One missing entry the caller named directly is a 404; strays in a bulk list are a 400. */
 async function entryExistsInProject(params: {
   projectId: number
   kind: ReleaseMemberKind
@@ -373,13 +331,8 @@ async function unlinkEntries(params: {
 }
 
 /**
- * Add or remove one label across many entries — what the translations page's
- * bulk action needs.
- *
- * Both modes are set operations, so repeating an add is a no-op rather than an
- * error, and removing something that was never attached is silently fine.
- * `skipDuplicates` is unavailable on SQLite, hence filtering to the missing ids
- * first.
+ * Set operations, so repeating an add is a no-op. `skipDuplicates` is
+ * unavailable on SQLite, hence filtering to the missing ids first.
  */
 export async function setReleaseMembership(params: {
   projectId: number
@@ -411,11 +364,7 @@ export async function setReleaseMembership(params: {
   return { ok: true, changed: missing.length }
 }
 
-/**
- * Replace one entry's whole label set — what a Page / translation modal saves.
- * Unknown ids are rejected rather than ignored, so a stale checkbox cannot
- * silently attach a label from another project.
- */
+/** Replaces the whole set; a foreign id is rejected, never silently dropped. */
 export async function setEntryReleases(params: {
   projectId: number
   kind: ReleaseMemberKind

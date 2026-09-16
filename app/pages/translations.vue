@@ -6,7 +6,7 @@ import {
   I18nKeyStatusFilter,
   TRANSLATION_LANGUAGES,
 } from '#shared/constants'
-import { formatI18nKeyDisplay } from '#shared/utils'
+import { formatI18nKeyDisplay, resolveEditedKey } from '#shared/utils'
 import {
   UBadge,
   UButton,
@@ -55,6 +55,9 @@ const publishing = ref(false)
 const drafts = ref<Record<string, string>>({})
 const rowSelection = ref<Record<string, boolean>>({})
 
+const editingKeyId = ref<ID | null>(null)
+const keyDraft = ref('')
+
 /**
  * Filters `updatedAt`, the column the table is already sorted by. A `ref`, not
  * `reactive`: the range calendar replaces the whole object on every click, so
@@ -102,10 +105,7 @@ const selectedRows = computed<II18nKeyRow[]>(() =>
 const selectedDraftIds = computed<number[]>(() =>
   selectedRows.value.filter((r) => r.dirty).map((r) => Number(r.id)),
 )
-/**
- * Selected drafts that actually have something to publish. The rest would only
- * make the endpoint report zero, so they are not counted here.
- */
+/** Selected drafts the endpoint would actually change; the rest report zero. */
 const selectedPublishableIds = computed<number[]>(() =>
   selectedRows.value
     .filter((r) => r.dirty && canPublish(r))
@@ -223,11 +223,8 @@ watch(
 )
 
 /**
- * Add or remove one release across every selected row.
- *
- * Unlike Publish / Revert / Delete this ignores draft-vs-published: a label sits
- * beside the copy rather than on one side of it, so a single call covers the
- * whole selection instead of splitting it by status.
+ * Ignores draft-vs-published: a label sits beside the copy, not on one side of
+ * it, so one call covers the whole selection.
  */
 async function setBulkRelease(mode: 'add' | 'remove') {
   const releaseId = bulkReleaseId.value
@@ -252,11 +249,7 @@ async function setBulkRelease(mode: 'add' | 'remove') {
   }
 }
 
-/**
- * Everything that is not the primary action. Publish stays a button on the bar
- * (it is what a selection usually leads to); the rest is grouped here so the bar
- * carries four controls instead of seven.
- */
+/** Everything but the primary action, so the bar carries four controls instead of seven. */
 const bulkMenuItems = computed<DropdownMenuItem[][]>(() => [
   [
     {
@@ -396,11 +389,20 @@ function pinHeader(
   column: Column<II18nKeyRow, unknown>,
   label: string,
   position: 'left' | 'right' = 'left',
+  hint?: string,
 ) {
   const isPinned = column.getIsPinned()
   return (
     <div class="flex items-center gap-1">
       <span>{label}</span>
+      {hint ? (
+        <UTooltip text={hint}>
+          <UIcon
+            name="i-lucide:info"
+            class="size-3.5 shrink-0 cursor-help text-muted"
+          />
+        </UTooltip>
+      ) : null}
       <UButton
         color="neutral"
         variant="ghost"
@@ -416,10 +418,7 @@ function pinHeader(
 /** Badges shown inline before the column collapses into a `+N`. */
 const RELEASE_BADGE_LIMIT = 2
 
-/**
- * A row carries label ids only, so the names come from the project's list.
- * Ordered the way the project lists them, not the way the ids came back.
- */
+/** Rows carry label ids only, so the names come from the project's own order. */
 function releaseLabelsOf(row: II18nKeyRow) {
   const ids = row.releaseIds ?? []
   if (!ids.length) return []
@@ -461,7 +460,13 @@ const columns = computed<TableColumn<II18nKeyRow>[]>(() => [
   {
     id: 'key',
     accessorKey: 'key',
-    header: ({ column }) => pinHeader(column, 'Key'),
+    header: ({ column }) =>
+      pinHeader(
+        column,
+        'Key',
+        'left',
+        'A draft key can still be renamed: click it, or use the pencil. A published key keeps its name — revert it to draft first.',
+      ),
     enableHiding: false,
     size: 200,
     // Pinned: width must match `size` exactly (see the select column).
@@ -471,11 +476,67 @@ const columns = computed<TableColumn<II18nKeyRow>[]>(() => [
         td: 'w-[200px] min-w-[200px] max-w-[200px]',
       },
     },
-    cell: ({ row }: { row: TableRow<II18nKeyRow> }) => (
-      <code class="text-xs font-mono break-all" title={row.original.key}>
-        {formatI18nKeyDisplay(row.original.key)}
-      </code>
-    ),
+    cell: ({ row }: { row: TableRow<II18nKeyRow> }) => {
+      const original = row.original
+      if (String(editingKeyId.value) === String(original.id)) {
+        return (
+          <UInput
+            class="w-full"
+            size="sm"
+            autofocus
+            modelValue={keyDraft.value}
+            onUpdate:modelValue={(value: string | number) => {
+              keyDraft.value = String(value ?? '')
+            }}
+            onKeydown={(event: KeyboardEvent) => {
+              if (event.key === 'Enter') {
+                event.preventDefault()
+                commitKeyEdit(original)
+              } else if (event.key === 'Escape') {
+                event.preventDefault()
+                editingKeyId.value = null
+              }
+            }}
+            onBlur={() => commitKeyEdit(original)}
+          />
+        )
+      }
+      // Only a draft is offered the affordance, matching what the server allows.
+      if (!original.dirty) {
+        return (
+          <code class="text-xs font-mono break-all" title={original.key}>
+            {formatI18nKeyDisplay(original.key)}
+          </code>
+        )
+      }
+      /**
+       * The pencil is always rendered, not hover-only: a draft key looked like
+       * plain text, so nobody discovered it could be renamed.
+       */
+      return (
+        <div class="flex items-start gap-1">
+          <code
+            class="min-w-0 rounded px-1 -ml-1 text-xs font-mono break-all cursor-text hover:bg-elevated"
+            title={original.key}
+            onClick={() => startKeyEdit(original)}
+          >
+            {formatI18nKeyDisplay(original.key)}
+          </code>
+          <UTooltip text="Rename this draft key">
+            <UButton
+              class="shrink-0 text-muted"
+              size="xs"
+              variant="ghost"
+              color="neutral"
+              square
+              icon="i-lucide:pencil"
+              aria-label="Rename key"
+              onClick={() => startKeyEdit(original)}
+            />
+          </UTooltip>
+        </div>
+      )
+    },
   },
   {
     id: 'origin',
@@ -715,6 +776,8 @@ async function loadKeys() {
   }
   loading.value = true
   rowSelection.value = {}
+  // A reload can reorder rows, and the bare id would then match whatever landed here.
+  editingKeyId.value = null
   try {
     const params = new URLSearchParams({
       page: String(page.value),
@@ -800,19 +863,13 @@ watch(
   },
 )
 
-// The release filter is chosen in the workspace bar, so an open tab has to
-// follow it rather than only applying it on the next navigation.
+// The filter lives in the workspace bar, so this tab has to follow it.
 watch(curReleaseFilter, () => {
   page.value = 1
   loadKeys()
 })
 
-/**
- * A row has something to publish only when some locale's draft differs from what
- * is published. A key with no locale rows yet, or one whose drafts are all empty,
- * cannot be published — the server's "changed only" clause skips it and reports
- * zero, which used to look like a publish that silently did nothing.
- */
+/** The server's "changed only" clause skips a row whose drafts are all empty or already published. */
 function canPublish(row: II18nKeyRow) {
   return row.locales.some(
     (locale) => (locale.draftText ?? '') !== (locale.publishedText ?? ''),
@@ -820,9 +877,8 @@ function canPublish(row: II18nKeyRow) {
 }
 
 /**
- * Cell edits are saved on blur, without the caller awaiting them. A publish
- * clicked straight after typing would otherwise race that save and copy the
- * previous draft, leaving the row dirty again.
+ * Cell edits save on blur without the caller awaiting them, so a publish right
+ * after typing would race that save and copy the previous draft.
  */
 const pendingSaves = new Set<Promise<unknown>>()
 
@@ -856,6 +912,42 @@ async function saveDraft(row: II18nKeyRow, locale: string, value: string) {
     })
   }
   row.dirty = isI18nKeyDraft(row.locales)
+}
+
+/**
+ * Drafts only: the server refuses to rename a published key, and a published
+ * key's identity is what consumers and the Git batches look up.
+ */
+function startKeyEdit(row: II18nKeyRow) {
+  if (!row.dirty) return
+  editingKeyId.value = row.id
+  keyDraft.value = formatI18nKeyDisplay(row.key)
+}
+
+async function commitKeyEdit(row: II18nKeyRow) {
+  // Enter commits and unmounts the input, which blurs it too; dropping the id
+  // first makes that second call a no-op rather than a duplicate request.
+  if (String(editingKeyId.value) !== String(row.id)) return
+  editingKeyId.value = null
+  const next = resolveEditedKey(row.key, keyDraft.value)
+  if (next === null || next === row.key) return
+  if (!next) {
+    toast.add({
+      title: 'Key is required',
+      color: 'error',
+      icon: 'i-lucide:circle-alert',
+    })
+    return
+  }
+  const updated = await useApi<II18nKeyRow>(
+    `/api/projects/${curProject.value.id}/i18n-keys/${row.id}`,
+    { method: 'PATCH', body: { key: next } },
+  )
+  if (!updated) return
+  // In place: a rename bumps `updatedAt`, so reloading would re-sort the row away.
+  rows.value = rows.value.map((candidate) =>
+    String(candidate.id) === String(updated.id) ? updated : candidate,
+  )
 }
 
 // Always scoped to explicit keys. The endpoint also accepts an empty body to
@@ -1085,11 +1177,7 @@ onMounted(async () => {
               Publish {{ selectedPublishableIds.length || '' }}
             </UButton>
           </UTooltip>
-          <!--
-            Labelling stays on the bar instead of moving into the menu: tagging
-            is half of why a bulk selection exists. Collapsed into one popover so
-            it costs one control rather than the select + add + remove it was.
-          -->
+          <!-- One popover rather than the select + add + remove it replaced. -->
           <UPopover v-if="curReleases.length">
             <UButton
               color="neutral"

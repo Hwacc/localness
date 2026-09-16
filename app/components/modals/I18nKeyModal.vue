@@ -3,7 +3,7 @@ import {
   DEFAULT_LOCALES,
   TRANSLATION_LANGUAGES,
 } from '#shared/constants'
-import { formatI18nKeyDisplay } from '#shared/utils'
+import { formatI18nKeyDisplay, resolveEditedKey } from '#shared/utils'
 
 const props = defineProps<{
   row?: II18nKeyRow | null
@@ -74,8 +74,10 @@ function localeMeta(code: string) {
 const keyDisplay = computed({
   get: () => formatI18nKeyDisplay(state.key),
   set: (value: string) => {
-    const next = value.trim()
-    if (next === formatI18nKeyDisplay(state.key)) return
+    // Same rule the table's inline rename uses, so neither can write a
+    // shortened `__draft_…` display form back as the key.
+    const next = resolveEditedKey(state.key, value)
+    if (next === null) return
     state.key = next
   },
 })
