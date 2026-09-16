@@ -42,6 +42,24 @@ export const DEFAULT_LOCALES = [
 
 export const DEFAULT_LOCALE_FALLBACK = 'en'
 
+/**
+ * What a public API token may do. Read-only for v1: the delivery endpoints exist
+ * so a consumer can fetch published copy, and nothing in the platform merges or
+ * writes through this path.
+ */
+export enum ApiTokenScope {
+  READ = 'read',
+}
+
+/** Prefix on every generated token, so one is recognisable in a log or a diff. */
+export const API_TOKEN_PREFIX = 'lns_'
+
+/** Bytes of entropy behind a token. Well past guessing; the hash is sha256. */
+export const API_TOKEN_BYTES = 32
+
+/** How many leading characters the UI keeps to tell two tokens apart. */
+export const API_TOKEN_DISPLAY_PREFIX = 12
+
 export enum GitSyncAdapter {
   LILT_SWBU = 'lilt-swbu',
 }

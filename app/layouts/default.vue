@@ -43,6 +43,12 @@ const navItems = [
     to: '/agent',
   },
   {
+    icon: 'i-lucide:code',
+    label: 'API',
+    name: 'api',
+    to: '/api',
+  },
+  {
     icon: 'i-lucide:users',
     label: 'Teams',
     name: 'teams',
