@@ -66,16 +66,11 @@ export function useProjectExport() {
     const wantsXlsx = params.fileFormat.includes('xlsx')
     const wantsJson = params.fileFormat.includes('json')
     /*
-     * The worker exists for canvas rendering and xlsx encoding. A JSON export
-     * needs neither — it is string assembly from the rows the server sends — so
-     * it must not wait for the worker to boot, let alone paint screenshots.
+     * The worker is for canvas and xlsx encoding. JSON is string assembly, so it
+     * must not wait for the worker to boot.
      */
     if (wantsXlsx && !ready.value) return null
-    /*
-     * Read once, when the export starts: the release filter can change while a
-     * long export runs, and the file should be named for what was on screen when
-     * it began. Null means the whole project.
-     */
+    /* Read once at the start: the filter can change mid-export. */
     const releaseName = releaseNameForExport(
       projectStore.curReleaseFilter,
       projectStore.curReleases,
@@ -189,11 +184,7 @@ export function useProjectExport() {
     )
     const generateJsonTask = new Task(
       async (_, context) => {
-        /*
-         * Built here rather than in the worker: it is string assembly, and the
-         * rows it reads are the same ones the sheet uses, so the two formats
-         * cannot disagree about which keys are in the export.
-         */
+        /* Built here, not in the worker: same rows as the sheet, so the two formats cannot disagree. */
         context.jsonFiles = buildExportJson({
           rows: context.rows as ExportJsonSourceRow[],
           localeColumns: context.localeColumns as string[],
@@ -222,11 +213,8 @@ export function useProjectExport() {
           projectName: context.project.name,
           releaseName,
         })
-        // Named like the zip: extracting two releases into one folder would
-        // otherwise collide on `<project>.xlsx`.
+        // Named like the zip, so extracting two releases cannot collide on the sheet.
         context.xlsx && zip.file(`${bundleName}.xlsx`, context.xlsx)
-        // One file per locale that had published text; a locale with none is
-        // absent rather than shipped empty.
         context.jsonFiles?.forEach(
           (file: { name: string; data: Blob }) => zip.file(file.name, file.data)
         )
@@ -259,8 +247,7 @@ export function useProjectExport() {
       }
     )
     queue.push(requestTask)
-    // Only the formats that were asked for: a JSON export skips the screenshot
-    // pass and the sheet entirely.
+    // Only what was asked for: JSON skips the screenshot pass and the sheet.
     if (wantsXlsx) queue.push(generateXlsxTask)
     if (wantsJson) queue.push(generateJsonTask)
     queue.push(generateZipTask)

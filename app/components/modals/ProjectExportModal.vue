@@ -128,11 +128,7 @@ const curStep = ref(0)
 const stepper = useTemplateRef<any>('stepper')
 const exporter = useProjectExport()
 
-/*
- * The release being viewed, if any. Resolving it turns "export this release"
- * into the selection the export already takes — pages and key ids — so the
- * export endpoint and its row rules stay untouched.
- */
+/* A release is resolved into the selection the export already takes, so no export rule changes. */
 const releaseScoped = computed(() => projectStore.curReleaseFilter !== 'all')
 const releaseLabel = computed(() =>
   releaseFilterLabel(projectStore.curReleaseFilter, projectStore.curReleases)
@@ -149,8 +145,7 @@ async function applyReleaseScope() {
     state.selectedPages = (projectStore.curProject.pages ?? [])
       .filter((page) => pageMatchesReleaseFilter(page, filter))
       .map((page) => page.id + '')
-    // `idsOnly` is the endpoint's "select all matching" mode, which is exactly
-    // what taking a whole release is.
+    // `idsOnly` is the endpoint's "select all matching".
     const res = await useApi<{ ids: number[] }>(
       `/api/projects/${projectId}/i18n-keys`,
       {
@@ -170,8 +165,7 @@ async function applyReleaseScope() {
 }
 
 onMounted(() => {
-  // The overlay remounts this modal per open, so opening the export while a
-  // release is in view always starts from that release.
+  // The overlay remounts per open, so this always starts from the current release.
   if (releaseScoped.value) void applyReleaseScope()
 })
 
@@ -260,11 +254,7 @@ const fileItems = [
 /** The summary describes a sheet, so its numbers only apply when XLSX is on. */
 const wantsXlsx = computed(() => state.fileFormat.includes('xlsx'))
 
-/**
- * What the download will be called, shown before starting so the release it was
- * scoped to is visible rather than a surprise in the downloads folder. Same rule
- * the exporter names the file with.
- */
+/* Named by the same rule the exporter uses, so the two cannot drift. */
 const exportFileName = computed(
   () =>
     `${exportBundleName({

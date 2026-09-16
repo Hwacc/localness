@@ -44,8 +44,7 @@ export default defineEventHandler(async (event) => {
     })
   }
 
-  // Checked before the page is written: a bad label id should not leave a
-  // half-created page behind.
+  // Before the write: a bad label id must not leave a half-created page behind.
   let attachReleaseIds: number[] = []
   try {
     attachReleaseIds = await assertReleaseIdsInProject({
@@ -104,9 +103,8 @@ export default defineEventHandler(async (event) => {
   })
   if (!created) return null
   /*
-   * Returned as `releaseIds`, matching the project payload: the client puts this
-   * page straight into `curProject.pages`, and without the labels a page created
-   * while viewing one release would vanish from the filtered list until a reload.
+   * Without the labels, a page created while viewing one release would vanish
+   * from the filtered list until a reload.
    */
   const { releases, ...page } = created
   return { ...page, releaseIds: releases.map((row) => row.releaseId) }

@@ -85,8 +85,7 @@ export default defineEventHandler(async (event) => {
     },
   })
 
-  // `releaseIds`, matching the project payload, so the client can update its
-  // cached page in place instead of refetching the project.
+  // Shaped like the project payload, so the client can patch its cached page.
   const { releases, ...page } = updatedProject
   return { ...page, releaseIds: releases.map((row) => row.releaseId) }
 })

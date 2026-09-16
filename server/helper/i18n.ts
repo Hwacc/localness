@@ -50,8 +50,7 @@ export const projectDetailInclude = {
           updatedAt: true,
         },
       },
-      // Just the ids: the client filters pages by label locally, and the label
-      // list itself comes from the project (below).
+      // Just ids: the client filters pages by label locally; the list below has names.
       releases: {
         select: { releaseId: true },
       },
@@ -89,8 +88,7 @@ export const projectDetailInclude = {
       },
     },
   },
-  // Release labels for the project, in their display order. Picked down to the
-  // three fields the client needs: the dates and projectId would only be noise.
+  // Release labels for the project, in display order.
   releases: {
     select: { id: true, name: true, sort: true },
     orderBy: [{ sort: 'asc' as const }, { id: 'asc' as const }],

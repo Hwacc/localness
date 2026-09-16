@@ -1,13 +1,8 @@
 /**
- * Per-locale JSON files.
- *
- * The shape is not invented here: it is what the runtime endpoint
- * (`GET /projects/:id/translations/:locale?version=published`) serves and what a
- * Git batch file holds — a flat `{ key: text }` map, one file per locale, tab
- * indented with a trailing newline.
- *
- * Built from the same rows the sheet uses, so the two formats cannot disagree
- * about which keys are in the export.
+ * Per-locale JSON files, built from the same rows the sheet uses so the two
+ * formats cannot disagree about which keys are in the export. The shape is the
+ * one the runtime endpoint and the Git batches already use: flat `{ key: text }`,
+ * one file per locale.
  */
 
 export type ExportJsonSourceRow = {
@@ -29,16 +24,14 @@ export function buildExportJson(params: {
   for (const locale of params.localeColumns) {
     const entries: Record<string, string> = {}
     for (const row of params.rows) {
-      // A key with several tags has several rows; first one wins, and their
-      // `texts` are identical anyway.
+      // A key with several tags has several rows; they carry the same texts.
       if (row.key in entries) continue
       const text = row.texts?.[locale] ?? ''
-      // Omitted rather than written as "": an empty string in a locale file
-      // would override whatever fallback the consumer has.
+      // An empty string would override whatever fallback the consumer has.
       if (!text) continue
       entries[row.key] = text
     }
-    // A locale with nothing published is left out rather than shipped as `{}`.
+    // No file for a locale with nothing published, rather than an empty one.
     if (Object.keys(entries).length) files.push({ locale, entries })
   }
   return files

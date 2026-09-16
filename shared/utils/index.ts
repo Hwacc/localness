@@ -39,6 +39,21 @@ export function formatI18nKeyDisplay(key: string | null | undefined) {
   return `${DRAFT_KEY_PREFIX}${hash.slice(0, 5)}`
 }
 
+/**
+ * The key to save when it was typed into a field showing the display form, or
+ * null when nothing changed. Without it, saving an untouched `__draft_…` field
+ * would write its five-character preview over the full fingerprint.
+ */
+export function resolveEditedKey(
+  currentKey: string,
+  typedValue: string,
+): string | null {
+  const next = typedValue.trim()
+  if (next === currentKey.trim()) return null
+  if (next === formatI18nKeyDisplay(currentKey)) return null
+  return next
+}
+
 /** Draft = never published, or any locale draft differs from published. */
 export function isI18nKeyDraft(
   locales: Array<{ draftText: string | null; publishedText: string | null }>

@@ -22,11 +22,7 @@ export function localOssPublicPath(key: string, baseUrl?: string | null) {
   return joinURL(withTrailingSlash(base), filename)
 }
 
-/**
- * Strips what a filesystem rejects (Windows is the strictest) and what looks
- * like a path. Replaced with a space rather than dropped, so "v2/beta" reads as
- * "v2 beta" instead of "v2beta".
- */
+/** What a filesystem rejects becomes a space, so "v2/beta" reads as "v2 beta". */
 function safeFileNamePart(value: string) {
   return value
     .replace(/[\\/:*?"<>|]/g, ' ')
@@ -35,12 +31,9 @@ function safeFileNamePart(value: string) {
 }
 
 /**
- * Name of a downloaded export, without extension: the project, plus the release
- * being viewed when there is one.
- *
- * That second part is the whole point — two exports of the same project land in
- * a downloads folder as `MyProject.zip` and `MyProject (1).zip`, which says
- * nothing about which one is v2.
+ * Name of a downloaded export: the project, plus the release being viewed.
+ * Without the second part, two exports of one project land as `X.zip` and
+ * `X (1).zip`, which says nothing about which one is v2.
  */
 export function exportBundleName(params: {
   projectName: string
