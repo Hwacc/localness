@@ -96,22 +96,22 @@ const statusItems = [
 ]
 
 /** Selected rows split by status — bulk actions only apply to one side each. */
-const selectedRows = computed(() =>
+const selectedRows = computed<II18nKeyRow[]>(() =>
   rows.value.filter((r) => rowSelection.value[String(r.id)]),
 )
-const selectedDraftIds = computed(() =>
+const selectedDraftIds = computed<number[]>(() =>
   selectedRows.value.filter((r) => r.dirty).map((r) => Number(r.id)),
 )
 /**
  * Selected drafts that actually have something to publish. The rest would only
  * make the endpoint report zero, so they are not counted here.
  */
-const selectedPublishableIds = computed(() =>
+const selectedPublishableIds = computed<number[]>(() =>
   selectedRows.value
     .filter((r) => r.dirty && canPublish(r))
     .map((r) => Number(r.id)),
 )
-const selectedPublishedIds = computed(() =>
+const selectedPublishedIds = computed<number[]>(() =>
   selectedRows.value.filter((r) => !r.dirty).map((r) => Number(r.id)),
 )
 
