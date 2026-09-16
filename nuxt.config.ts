@@ -162,6 +162,8 @@ export default defineNuxtConfig({
       compilerOptions: {
         experimentalDecorators: true,
         emitDecoratorMetadata: true,
+        // Nuxt defaults to module: "preserve", which rejects import() and import.meta.
+        module: 'ESNext',
       },
     },
   },

@@ -1,7 +1,7 @@
 import { isEmpty } from 'lodash-es'
+import JSZip from 'jszip'
 import { ExportWorkerBells } from '~/assets/workers/export/types'
 import TaskQueue, { Task } from '~/libs/task-queue'
-import JSZip from 'jszip'
 
 interface WorkerEx extends Worker {
   postAsyncMessage: (
