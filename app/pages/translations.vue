@@ -102,6 +102,15 @@ const selectedRows = computed(() =>
 const selectedDraftIds = computed(() =>
   selectedRows.value.filter((r) => r.dirty).map((r) => Number(r.id)),
 )
+/**
+ * Selected drafts that actually have something to publish. The rest would only
+ * make the endpoint report zero, so they are not counted here.
+ */
+const selectedPublishableIds = computed(() =>
+  selectedRows.value
+    .filter((r) => r.dirty && canPublish(r))
+    .map((r) => Number(r.id)),
+)
 const selectedPublishedIds = computed(() =>
   selectedRows.value.filter((r) => !r.dirty).map((r) => Number(r.id)),
 )
@@ -628,14 +637,20 @@ const columns = computed<TableColumn<II18nKeyRow>[]>(() => [
             />
           </UTooltip>
           {isDraft ? (
-            <UTooltip text="Publish">
+            <UTooltip
+              text={
+                canPublish(original)
+                  ? 'Publish'
+                  : 'Nothing to publish — no draft text on this entry'
+              }
+            >
               <UButton
                 size="xs"
                 variant="ghost"
                 color="neutral"
                 square
                 icon="i-lucide:upload"
-                disabled={publishing.value}
+                disabled={publishing.value || !canPublish(original)}
                 onClick={() => publishKeys([Number(original.id)])}
               />
             </UTooltip>
@@ -792,14 +807,44 @@ watch(curReleaseFilter, () => {
   loadKeys()
 })
 
+/**
+ * A row has something to publish only when some locale's draft differs from what
+ * is published. A key with no locale rows yet, or one whose drafts are all empty,
+ * cannot be published — the server's "changed only" clause skips it and reports
+ * zero, which used to look like a publish that silently did nothing.
+ */
+function canPublish(row: II18nKeyRow) {
+  return row.locales.some(
+    (locale) => (locale.draftText ?? '') !== (locale.publishedText ?? ''),
+  )
+}
+
+/**
+ * Cell edits are saved on blur, without the caller awaiting them. A publish
+ * clicked straight after typing would otherwise race that save and copy the
+ * previous draft, leaving the row dirty again.
+ */
+const pendingSaves = new Set<Promise<unknown>>()
+
+async function flushPendingSaves() {
+  if (!pendingSaves.size) return
+  await Promise.allSettled([...pendingSaves])
+}
+
 async function saveDraft(row: II18nKeyRow, locale: string, value: string) {
   if (!row.dirty) return
   const previous = draftOf(row, locale)
   if (previous === value) return
-  await useApi(`/api/translation/${row.id}/vue`, {
+  const request = useApi(`/api/translation/${row.id}/vue`, {
     method: 'POST',
     body: { [locale]: value },
   })
+  pendingSaves.add(request)
+  try {
+    await request
+  } finally {
+    pendingSaves.delete(request)
+  }
   const localeRow = row.locales.find((l) => l.locale === locale)
   if (localeRow) {
     localeRow.draftText = value
@@ -819,6 +864,7 @@ async function publishKeys(keyIds: number[]) {
   if (!validID(curProject.value.id) || keyIds.length === 0) return
   publishing.value = true
   try {
+    await flushPendingSaves()
     const res = await useApi<{ updated: number }>(
       `/api/projects/${curProject.value.id}/publish`,
       {
@@ -826,12 +872,30 @@ async function publishKeys(keyIds: number[]) {
         body: { keyIds },
       },
     )
-    toast.add({
-      title: 'Published',
-      description: `${res?.updated ?? 0} locale row(s) published`,
-      color: 'success',
-      icon: 'i-lucide:check',
-    })
+    // `useApi` has already reported a failed request.
+    if (!res) return
+    if (res.updated === 0) {
+      /*
+       * The server only touches rows whose draft differs from what is published,
+       * so zero is a real answer for a key with no draft text (or none at all).
+       * Reporting that as success is what made this look like a publish that
+       * quietly did nothing.
+       */
+      toast.add({
+        title: 'Nothing to publish',
+        description:
+          'No draft text on the selected rows differs from what is already published.',
+        color: 'warning',
+        icon: 'i-lucide:circle-alert',
+      })
+    } else {
+      toast.add({
+        title: 'Published',
+        description: `${res.updated} locale row(s) published`,
+        color: 'success',
+        icon: 'i-lucide:check',
+      })
+    }
     await loadKeys()
   } finally {
     publishing.value = false
@@ -842,6 +906,7 @@ async function unpublishKeys(keyIds: number[]) {
   if (!validID(curProject.value.id) || keyIds.length === 0) return
   publishing.value = true
   try {
+    await flushPendingSaves()
     const res = await useApi<{ updated: number }>(
       `/api/projects/${curProject.value.id}/unpublish`,
       {
@@ -849,12 +914,22 @@ async function unpublishKeys(keyIds: number[]) {
         body: { keyIds },
       },
     )
-    toast.add({
-      title: 'Reverted to draft',
-      description: `${res?.updated ?? 0} locale row(s) unpublished`,
-      color: 'success',
-      icon: 'i-lucide:undo-2',
-    })
+    if (!res) return
+    if (res.updated === 0) {
+      toast.add({
+        title: 'Nothing to revert',
+        description: 'The selected rows have no published text to withdraw.',
+        color: 'warning',
+        icon: 'i-lucide:circle-alert',
+      })
+    } else {
+      toast.add({
+        title: 'Reverted to draft',
+        description: `${res.updated} locale row(s) unpublished`,
+        color: 'success',
+        icon: 'i-lucide:undo-2',
+      })
+    }
     await loadKeys()
   } finally {
     publishing.value = false
@@ -993,15 +1068,23 @@ onMounted(async () => {
         </div>
         <div class="ml-auto flex flex-wrap items-center justify-end gap-2">
           <!-- The one action a selection usually leads to. -->
-          <UButton
-            color="primary"
-            icon="i-lucide:check-check"
-            :loading="publishing"
-            :disabled="selectedDraftIds.length === 0"
-            @click="publishKeys(selectedDraftIds)"
+          <UTooltip
+            :text="
+              selectedPublishableIds.length
+                ? 'Publish the selected drafts'
+                : 'Nothing to publish — no draft text differs from what is published'
+            "
           >
-            Publish {{ selectedDraftIds.length || '' }}
-          </UButton>
+            <UButton
+              color="primary"
+              icon="i-lucide:check-check"
+              :loading="publishing"
+              :disabled="selectedPublishableIds.length === 0"
+              @click="publishKeys(selectedPublishableIds)"
+            >
+              Publish {{ selectedPublishableIds.length || '' }}
+            </UButton>
+          </UTooltip>
           <!--
             Labelling stays on the bar instead of moving into the menu: tagging
             is half of why a bulk selection exists. Collapsed into one popover so
