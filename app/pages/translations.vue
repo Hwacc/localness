@@ -524,10 +524,10 @@ const columns = computed<TableColumn<II18nKeyRow>[]>(() => [
           </code>
           <UTooltip text="Rename this draft key">
             <UButton
-              class="shrink-0 text-muted"
-              size="xs"
+              class="shrink-0 text-muted size-4 p-0 justify-center"
               variant="ghost"
               color="neutral"
+              ui={{ leadingIcon: 'size-3' }}
               square
               icon="i-lucide:pencil"
               aria-label="Rename key"
