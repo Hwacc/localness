@@ -1,0 +1,11 @@
+# Local image only. Does not push.
+#   docker compose -f docker-compose.yml -f docker-compose.build.yml up -d --build
+services:
+  localness:
+    build:
+      context: .
+      args:
+        # Must match the value the running instance was built with — password
+        # hashes depend on it.
+        NUXT_SALT_SIZE: ${NUXT_SALT_SIZE:-10}
+    image: localness:local
