@@ -1,6 +1,6 @@
 # Publish a public Docker Hub image when a semver tag is pushed.
 # Tag format: vMAJOR.MINOR.PATCH (optional -rc.N / -beta.N).
-# Image tags drop the leading v: v1.2.0 → hwacc/localness:1.2.0
+# Image tags drop the leading v: v1.2.0 → huacc/localness:1.2.0
 # Pre-release tags do not move :latest.
 name: Release
 
@@ -10,7 +10,7 @@ on:
       - 'v*.*.*'
 
 env:
-  IMAGE: hwacc/localness
+  IMAGE: huacc/localness
   NUXT_SALT_SIZE: '10'
 
 jobs:
