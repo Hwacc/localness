@@ -20,6 +20,9 @@ const db = vi.hoisted(() => ({
   releaseIdByName: new Map<string, number>(),
   keys: [] as KeyRow[],
   values: [] as ValueRow[],
+  /** Counts reads, so "one query for every locale" is a test and not a hope. */
+  keyQueries: 0,
+  groupQueries: 0,
 }))
 
 function matchRelease(row: { releaseIds: number[] }, where: any): boolean {
@@ -58,38 +61,51 @@ vi.mock('#server/libs/prisma', () => ({
     },
     i18nKey: {
       count: async ({ where }: { where: any }) => filterKeys(where).length,
-      findMany: async ({ where, select }: any) =>
-        filterKeys(where)
+      findMany: async ({ where, select }: any) => {
+        db.keyQueries++
+        return filterKeys(where)
           .map((row) => ({
             key: row.key,
             locales: db.values
-              .filter(
-                (value) =>
-                  value.keyId === row.id &&
-                  (!select?.locales?.where?.locale ||
-                    value.locale === select.locales.where.locale)
-              )
-              .map((value) => ({ publishedText: value.publishedText })),
+              .filter((value) => {
+                if (value.keyId !== row.id) return false
+                const wanted = select?.locales?.where?.locale
+                if (!wanted) return true
+                // The helper asks for locales with `in`, so one query can serve
+                // both the single-locale and the whole-bundle read.
+                const allowed = Array.isArray(wanted.in) ? wanted.in : [wanted]
+                return allowed.includes(value.locale)
+              })
+              .map((value) => ({
+                locale: value.locale,
+                publishedText: value.publishedText,
+              })),
           }))
-          .sort((a, b) => a.key.localeCompare(b.key)),
+          .sort((a, b) => a.key.localeCompare(b.key))
+      },
     },
     localeValue: {
-      count: async ({ where }: any) => {
+      groupBy: async ({ where }: any) => {
+        db.groupQueries++
         const scoped = new Set(
           filterKeys(where.i18nKey ?? {}).map((row) => row.id)
         )
-        const textRequired = Boolean(
-          where.publishedText || where.AND
+        const allowed = new Set<string>(
+          Array.isArray(where.locale?.in) ? where.locale.in : [where.locale]
         )
         const skipEmpty = excludesEmpty(where)
-        return db.values.filter(
-          (value) =>
-            value.locale === where.locale &&
-            scoped.has(value.keyId) &&
-            (!textRequired ||
-              (value.publishedText !== null &&
-                (!skipEmpty || isPublished(value.publishedText))))
-        ).length
+        const counts = new Map<string, number>()
+        for (const value of db.values) {
+          if (!allowed.has(value.locale)) continue
+          if (!scoped.has(value.keyId)) continue
+          if (value.publishedText === null) continue
+          if (skipEmpty && !isPublished(value.publishedText)) continue
+          counts.set(value.locale, (counts.get(value.locale) ?? 0) + 1)
+        }
+        return [...counts].map(([locale, count]) => ({
+          locale,
+          _count: { _all: count },
+        }))
       },
     },
   },
@@ -102,7 +118,6 @@ const {
   projectLocales,
   resolveReleaseParam,
 } = await import('#server/helper/api-delivery')
-const { ApiTokenError } = await import('#server/helper/api-token')
 const { DEFAULT_LOCALE_FALLBACK } = await import('#shared/constants')
 
 const at = new Date('2026-09-16T00:00:00.000Z')
@@ -124,6 +139,8 @@ beforeEach(() => {
   ])
   db.keys = []
   db.values = []
+  db.keyQueries = 0
+  db.groupQueries = 0
 })
 
 describe('resolveReleaseParam', () => {
@@ -146,7 +163,6 @@ describe('resolveReleaseParam', () => {
 
   it('rejects an unknown name instead of quietly returning everything', async () => {
     // Returning the whole project would look filtered and not be.
-    await expect(resolveReleaseParam(1, 'nope')).rejects.toThrow(ApiTokenError)
     await expect(resolveReleaseParam(1, 'nope')).rejects.toMatchObject({
       statusCode: 404,
     })
@@ -228,6 +244,22 @@ describe('deliveryMeta', () => {
     db.project = null
     expect(await deliveryMeta(1, null)).toBeNull()
   })
+
+  it('counts every locale in one grouped query, not one per locale', async () => {
+    // `meta` is a diagnostic call, not the hot path, but it is one query per
+    // locale per request the moment this becomes a loop again.
+    await deliveryMeta(1, null)
+    expect(db.groupQueries).toBe(1)
+  })
+
+  it('reports 0 for a locale with nothing published rather than omitting it', async () => {
+    db.settings = { locales: ['en', 'ja', 'fr'] }
+    expect((await deliveryMeta(1, null))?.coverage.publishedPerLocale).toEqual({
+      en: 2,
+      ja: 1,
+      fr: 0,
+    })
+  })
 })
 
 describe('deliveryLocale', () => {
@@ -301,5 +333,38 @@ describe('deliveryRuntime', () => {
     expect(await deliveryRuntime(1, null, ['en', 'ja'])).toEqual({
       ja: { a: 'A' },
     })
+  })
+
+  it('reads every locale in one query, not one per locale', async () => {
+    // This is the endpoint a runtime consumer hits on every load.
+    db.keys = [
+      { id: 1, key: 'a', releaseIds: [] },
+      { id: 2, key: 'b', releaseIds: [] },
+    ]
+    db.values = [
+      { locale: 'en', keyId: 1, publishedText: 'A' },
+      { locale: 'ja', keyId: 1, publishedText: 'ア' },
+      { locale: 'ja', keyId: 2, publishedText: 'イ' },
+    ]
+    const bundle = await deliveryRuntime(1, null, ['en', 'ja'])
+    expect(db.keyQueries).toBe(1)
+    expect(bundle).toEqual({ en: { a: 'A' }, ja: { a: 'ア', b: 'イ' } })
+  })
+
+  it('emits locales in the project order and keys in key order', async () => {
+    db.keys = [
+      { id: 1, key: 'b', releaseIds: [] },
+      { id: 2, key: 'a', releaseIds: [] },
+    ]
+    db.values = [
+      { locale: 'zh', keyId: 1, publishedText: '乙' },
+      { locale: 'en', keyId: 2, publishedText: 'A' },
+    ]
+    // Byte-stable, so a consumer that hashes the bundle for its own cache gets
+    // one answer rather than a reshuffle per request.
+    const bundle = await deliveryRuntime(1, null, ['en', 'zh'])
+    expect(JSON.stringify(bundle)).toBe(
+      JSON.stringify({ en: { a: 'A' }, zh: { b: '乙' } })
+    )
   })
 })

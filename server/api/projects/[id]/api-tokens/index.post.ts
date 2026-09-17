@@ -6,7 +6,6 @@ import {
   apiTokenPrefix,
   generateApiToken,
   hashApiToken,
-  throwPublicError,
 } from '#server/helper/api-token'
 
 /**
@@ -43,23 +42,18 @@ export default defineEventHandler(async (event) => {
   const access = await requireProjectOwner(event, projectId)
 
   const body = await readBody(event)
+  const name = apiTokenName(body?.name)
+  const plaintext = generateApiToken()
 
-  try {
-    const name = apiTokenName(body?.name)
-    const plaintext = generateApiToken()
+  const created = await prisma.apiToken.create({
+    data: {
+      projectId,
+      createdBy: numericID(access.userId),
+      name,
+      tokenHash: hashApiToken(plaintext),
+      prefix: apiTokenPrefix(plaintext),
+    },
+  })
 
-    const created = await prisma.apiToken.create({
-      data: {
-        projectId,
-        createdBy: numericID(access.userId),
-        name,
-        tokenHash: hashApiToken(plaintext),
-        prefix: apiTokenPrefix(plaintext),
-      },
-    })
-
-    return { token: plaintext, ...shapeToken(created) }
-  } catch (error) {
-    throwPublicError(error)
-  }
+  return { token: plaintext, ...shapeToken(created) }
 })

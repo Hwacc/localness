@@ -51,6 +51,13 @@ export const API_TOKEN_BYTES = 32
 /** How many leading characters the UI keeps to tell two tokens apart. */
 export const API_TOKEN_DISPLAY_PREFIX = 12
 
+/**
+ * How stale `lastUsedAt` may get before a delivery read refreshes it. Writing on
+ * every request would put each read behind SQLite's single writer to maintain a
+ * field whose only reader is a human deciding whether a token is still in use.
+ */
+export const API_TOKEN_TOUCH_INTERVAL_MS = 60 * 1000
+
 export enum GitSyncAdapter {
   LILT_SWBU = 'lilt-swbu',
 }
