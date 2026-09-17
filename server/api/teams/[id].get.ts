@@ -1,6 +1,6 @@
 import prisma from '#server/libs/prisma'
 import { numericID } from '#server/helper/id'
-import { requireTeamAccess } from '#server/helper/access'
+import { requireTeamMembership } from '#server/helper/access'
 
 /**
  * @route GET /api/teams/:id
@@ -14,7 +14,7 @@ export default defineEventHandler(async (event) => {
     })
   }
   const teamId = numericID(id)
-  const { userId } = await requireTeamAccess(event, teamId)
+  const { userId } = await requireTeamMembership(event, teamId)
   const team = await prisma.team.findUnique({
     where: { id: teamId },
     include: {

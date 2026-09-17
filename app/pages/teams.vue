@@ -63,8 +63,8 @@ const teamProjects = computed(() =>
 const isAdmin = computed(() => user.value.role === UserRole.ADMIN)
 const myRole = computed(() => detail.value?.role)
 const isOwner = computed(() => myRole.value === TeamRole.OWNER)
-// An Admin sees every team through `GET /api/teams`, including ones they are not
-// on, so "has a role here" is not the same as "is an admin".
+// `GET /api/teams` only lists teams you belong to, so a team that loaded at all
+// has a role for you — an Admin included. Platform role no longer widens this.
 const isMember = computed(() => Boolean(myRole.value))
 
 const members = computed(() => detail.value?.members ?? [])
@@ -734,13 +734,12 @@ onMounted(async () => {
                 <TeamOwnerBadge :visible="isOwner" />
                 <TeamMemberBadge :visible="isMember && !isOwner" />
                 <UBadge
-                  v-if="!isMember && isAdmin"
+                  v-if="isAdmin"
                   color="neutral"
                   variant="subtle"
                   size="xs"
                   label="Admin"
                 />
-                <span v-if="!isMember && !isAdmin">—</span>
               </p>
             </div>
             <form

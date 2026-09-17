@@ -1,25 +1,17 @@
 import prisma from '#server/libs/prisma'
 import { numericID } from '#server/helper/id'
-import { UserRole } from '#shared/constants'
 
 /**
  * @route GET /api/teams
- * @description List teams the user belongs to (ADMIN sees all)
+ * @description List teams the user belongs to
  */
 export default defineEventHandler(async (event) => {
   const session = await requireUserSession(event)
   const userId = numericID(session.user.id)
-  const user = await prisma.user.findUnique({
-    where: { id: userId },
-    select: { role: true },
-  })
   const teams = await prisma.team.findMany({
-    where:
-      user?.role === UserRole.ADMIN
-        ? undefined
-        : {
-            members: { some: { userId } },
-          },
+    where: {
+      members: { some: { userId } },
+    },
     include: {
       members: {
         include: {

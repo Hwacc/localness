@@ -87,30 +87,6 @@ export async function requireProjectOwner(event: H3Event, projectId: number) {
   return access
 }
 
-export async function requireTeamAccess(event: H3Event, teamId: number) {
-  const session = await requireUserSession(event)
-  const userId = numericID(session.user.id)
-  const user = await prisma.user.findUnique({
-    where: { id: userId },
-    select: { id: true, role: true },
-  })
-  if (user?.role === UserRole.ADMIN) {
-    return { session, userId, membership: null as null, isAdmin: true }
-  }
-  const membership = await prisma.userTeam.findUnique({
-    where: {
-      userId_teamId: { userId, teamId },
-    },
-  })
-  if (!membership) {
-    throw createError({
-      statusCode: 403,
-      statusMessage: 'Forbidden',
-    })
-  }
-  return { session, userId, membership, isAdmin: false }
-}
-
 export async function requireTeamMember(event: H3Event, projectId: number) {
   const session = await requireUserSession(event)
   const userId = numericID(session.user.id)
@@ -138,40 +114,22 @@ export async function requireTeamMember(event: H3Event, projectId: number) {
   return { session, project, membership, userId, isAdmin: false }
 }
 
-/** Team member or platform Admin. Admin may be off the team (roster break-glass only). */
+/**
+ * Team membership plus whether this user is a platform Admin. The flag is not a
+ * way in — an Admin off the team is refused like anyone else — it only lets a
+ * route admit an actor who holds no `ProjectOwner` row. Roster edits need
+ * membership first, like every other kind of data access.
+ */
 export async function requireProjectRosterAccess(
   event: H3Event,
   projectId: number
 ) {
-  const session = await requireUserSession(event)
-  const userId = numericID(session.user.id)
+  const access = await requireTeamMember(event, projectId)
   const user = await prisma.user.findUnique({
-    where: { id: userId },
+    where: { id: access.userId },
     select: { role: true },
   })
-  const project = await prisma.project.findUnique({
-    where: { id: projectId },
-    select: { id: true, teamId: true },
-  })
-  if (!project) {
-    throw createError({
-      statusCode: 404,
-      statusMessage: 'Project not found',
-    })
-  }
-  const membership = await prisma.userTeam.findUnique({
-    where: {
-      userId_teamId: { userId, teamId: project.teamId },
-    },
-  })
-  const isAdmin = user?.role === UserRole.ADMIN
-  if (!membership && !isAdmin) {
-    throw createError({
-      statusCode: 403,
-      statusMessage: 'Forbidden',
-    })
-  }
-  return { session, project, membership, userId, isAdmin }
+  return { ...access, isAdmin: user?.role === UserRole.ADMIN }
 }
 
 export async function requirePageTeamMember(event: H3Event, pageId: number) {
