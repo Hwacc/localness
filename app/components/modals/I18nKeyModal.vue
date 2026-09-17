@@ -22,12 +22,6 @@ const loading = ref(false)
 const isCreate = computed(() => !props.row)
 
 const projectStore = useProjectStore()
-const releaseItems = computed(() =>
-  projectStore.curReleases.map((release) => ({
-    label: release.name,
-    value: Number(release.id),
-  }))
-)
 
 const state = reactive({
   key: '',
@@ -182,14 +176,9 @@ async function onSave() {
           />
         </UFormField>
         <UFormField label="Releases">
-          <USelectMenu
+          <ReleaseSelect
             v-model="state.releaseIds"
-            class="w-full"
-            multiple
-            :items="releaseItems"
-            value-key="value"
             :disabled="readonly"
-            placeholder="Not in any release"
           />
         </UFormField>
         <UFormField

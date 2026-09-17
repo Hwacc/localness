@@ -30,13 +30,6 @@ const previewUrl = computed(() => {
 
 const projectStore = useProjectStore()
 
-const releaseItems = computed(() =>
-  projectStore.curReleases.map((release) => ({
-    label: release.name,
-    value: Number(release.id),
-  }))
-)
-
 /** A page created while one release is being viewed starts on that release. */
 const defaultReleaseId = defaultReleaseIdForFilter(projectStore.curReleaseFilter)
 
@@ -176,14 +169,9 @@ async function onSubmit(_: FormSubmitEvent<ZPage>) {
                 </div>
               </UFormField>
               <UFormField label="Releases" name="releaseIds">
-                <USelectMenu
+                <ReleaseSelect
                   v-model="state.releaseIds"
-                  class="w-full"
-                  multiple
-                  :items="releaseItems"
-                  value-key="value"
                   :disabled="mode === 'view' || isLoading"
-                  placeholder="Not in any release"
                 />
               </UFormField>
             </div>
