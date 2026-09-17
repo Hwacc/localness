@@ -1,7 +1,17 @@
 {
-  "name": "nuxt-app",
+  "name": "localness",
+  "version": "0.1.0",
   "private": true,
+  "description": "CMS for UI screenshots, tags, and i18n keys.",
   "type": "module",
+  "license": "UNLICENSED",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Hwacc/localness.git"
+  },
+  "engines": {
+    "node": ">=22"
+  },
   "scripts": {
     "build": "nuxt build",
     "typecheck": "nuxt typecheck",

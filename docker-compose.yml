@@ -1,12 +1,10 @@
 services:
   localness:
-    build:
-      context: .
-      args:
-        # Must match the value the running instance was built with — password
-        # hashes depend on it.
-        NUXT_SALT_SIZE: ${NUXT_SALT_SIZE:-10}
-    image: localness:latest
+    # Hub image published by the v* tag workflow. Pin a version:
+    #   LOCALNESS_IMAGE=hwacc/localness:1.2.0 docker compose up -d
+    # Compose interpolates this from the shell or a project `.env`, not from
+    # env_file. To build locally instead, see docker-compose.build.yml.
+    image: ${LOCALNESS_IMAGE:-hwacc/localness:latest}
     container_name: localness
     restart: unless-stopped
     ports:

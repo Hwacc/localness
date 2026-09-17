@@ -6,11 +6,33 @@ database and, with the `LOCAL` storage engine, the uploaded screenshots —
 
 ## First run
 
+Copy `.env.docker.example` to `.env.docker` next to `docker-compose.yml` and
+fill in `NUXT_SESSION_PASSWORD` (32+ chars). Keep
+`NUXT_PUBLIC_OSS_BASE_URL=/upload/` for LOCAL storage. Then pull the published
+image (do not `--build` on the server):
+
 ```bash
 cp .env.docker.example .env.docker
-# fill in NUXT_SESSION_PASSWORD (32+ chars); keep NUXT_PUBLIC_OSS_BASE_URL=/upload/ for LOCAL
-docker compose up -d --build
+# fill in NUXT_SESSION_PASSWORD
+docker compose pull
+docker compose up -d
 docker compose logs -f localness      # migrations run before the server starts
+```
+
+Pin a version instead of `latest`:
+
+```bash
+LOCALNESS_IMAGE=hwacc/localness:1.2.0 docker compose pull
+LOCALNESS_IMAGE=hwacc/localness:1.2.0 docker compose up -d
+```
+
+`LOCALNESS_IMAGE` is compose interpolation (shell or a project `.env`). It is
+not read from `.env.docker`.
+
+To build a local image instead of pulling Hub:
+
+```bash
+docker compose -f docker-compose.yml -f docker-compose.build.yml up -d --build
 ```
 
 Then create the first account — there is no public signup:
@@ -82,14 +104,35 @@ NUXT_ATLASSIAN_ALLOWED_EMAIL_DOMAINS=example.com,example.org
 
 ## Upgrades
 
+Pull a newer tag and recreate the container. **Do not** pass `-v` (that
+deletes the volume and the database).
+
 ```bash
-docker compose up -d --build      # rebuild, restart, migrations re-run
+LOCALNESS_IMAGE=hwacc/localness:1.3.0 docker compose pull
+LOCALNESS_IMAGE=hwacc/localness:1.3.0 docker compose up -d
 ```
 
 Migrations are applied by the entrypoint on every boot (`prisma migrate
 deploy`), which is idempotent. `I18nKey_FTS*` is declared external in
 `prisma.config.ts`, so migrations never drop the search index; the FTS tables
 are created by the `init-fts` nitro plugin on first boot.
+
+## Publishing an image
+
+GitHub Actions publishes `hwacc/localness` on a **semver git tag**, not on
+merge to `main`.
+
+```bash
+git tag v1.2.0
+git push origin v1.2.0
+```
+
+Hub tags: `1.2.0`, `1.2`, and `latest`. Pre-release tags (`v1.3.0-rc.1`) push
+only `1.3.0-rc.1` and leave `latest` / `1.3` alone.
+
+Repo secrets (Actions → Secrets): `DOCKERHUB_USERNAME`, `DOCKERHUB_TOKEN`.
+`NUXT_SALT_SIZE` is fixed at `10` in the release workflow; do not change it
+after go-live.
 
 ## Backup and restore
 
