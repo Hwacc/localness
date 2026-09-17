@@ -1,7 +1,7 @@
 import prisma from '#server/libs/prisma'
 import { numericID } from '#server/helper/id'
 import { requireProjectOwner } from '#server/helper/access'
-import { assertApiTokenPurgeable, throwPublicError } from '#server/helper/api-token'
+import { assertApiTokenPurgeable } from '#server/helper/api-token'
 
 /**
  * @route DELETE /api/projects/:id/api-tokens/:tokenId/purge
@@ -27,11 +27,7 @@ export default defineEventHandler(async (event) => {
     throw createError({ statusCode: 404, statusMessage: 'Token not found' })
   }
 
-  try {
-    assertApiTokenPurgeable(existing)
-  } catch (error) {
-    throwPublicError(error)
-  }
+  assertApiTokenPurgeable(existing)
 
   await prisma.apiToken.delete({ where: { id: nTokenId } })
   return { ok: true }

@@ -9,6 +9,8 @@ const db = vi.hoisted(() => ({
     prefix: string
     revokedAt?: Date | null
   }>,
+  updates: [] as Array<{ id: number; lastUsedAt: Date }>,
+  failUpdate: false,
   nextId: 1,
 }))
 
@@ -17,25 +19,40 @@ vi.mock('#server/libs/prisma', () => ({
     apiToken: {
       findUnique: async ({ where }: { where: { tokenHash: string } }) =>
         db.tokens.find((row) => row.tokenHash === where.tokenHash) ?? null,
+      update: async ({
+        where,
+        data,
+      }: {
+        where: { id: number }
+        data: { lastUsedAt: Date }
+      }) => {
+        if (db.failUpdate) throw new Error('write failed')
+        db.updates.push({ id: where.id, lastUsedAt: data.lastUsedAt })
+        return db.tokens.find((row) => row.id === where.id) ?? null
+      },
     },
   },
 }))
 
 const {
-  ApiTokenError,
   apiTokenName,
   apiTokenPrefix,
   assertApiTokenPurgeable,
   assertTokenCoversProject,
   authenticateApiToken,
+  authenticateDeliveryRequest,
   bearerToken,
   generateApiToken,
   hashApiToken,
   isApiTokenUsable,
+  touchApiToken,
 } = await import('#server/helper/api-token')
+const { API_TOKEN_TOUCH_INTERVAL_MS } = await import('#shared/constants')
 
 beforeEach(() => {
   db.tokens = []
+  db.updates = []
+  db.failUpdate = false
   db.nextId = 1
 })
 
@@ -54,6 +71,16 @@ function seed(overrides: Partial<{
   }
   db.tokens.push(row)
   return { plaintext, row }
+}
+
+/** The helpers throw h3 `createError` results; the stub shapes them as Error. */
+function thrownStatus(fn: () => unknown): number | undefined {
+  try {
+    fn()
+  } catch (error) {
+    return (error as { statusCode?: number }).statusCode
+  }
+  throw new Error('expected the call to throw')
 }
 
 describe('generateApiToken', () => {
@@ -149,9 +176,9 @@ describe('authenticateApiToken', () => {
 
   it('401s an unknown token', async () => {
     seed()
-    await expect(authenticateApiToken('lns_nope')).rejects.toBeInstanceOf(
-      ApiTokenError
-    )
+    await expect(authenticateApiToken('lns_nope')).rejects.toMatchObject({
+      statusCode: 401,
+    })
   })
 
   it('401s a revoked token', async () => {
@@ -162,31 +189,74 @@ describe('authenticateApiToken', () => {
   })
 })
 
-describe('assertTokenCoversProject', () => {
-  it('admits the project the token names', () => {
-    expect(() =>
-      assertTokenCoversProject({ projectId: 7 }, 7)
-    ).not.toThrow()
+describe('authenticateDeliveryRequest', () => {
+  it('resolves the token when it covers the project in the URL', async () => {
+    const { plaintext, row } = seed({ projectId: 7 })
+    const token = await authenticateDeliveryRequest(`Bearer ${plaintext}`, 7)
+    expect(token.id).toBe(row.id)
   })
 
-  it('compares ids by value, not by type', () => {
+  it('403s a valid token aimed at another project, rather than 404', async () => {
+    // The credential is real; the target simply is not its own.
+    const { plaintext } = seed({ projectId: 7 })
+    await expect(
+      authenticateDeliveryRequest(`Bearer ${plaintext}`, 8)
+    ).rejects.toMatchObject({ statusCode: 403 })
+  })
+
+  it('401s a header that is missing or is not a bearer', async () => {
+    seed()
+    await expect(
+      authenticateDeliveryRequest(undefined, 1)
+    ).rejects.toMatchObject({ statusCode: 401 })
+    await expect(
+      authenticateDeliveryRequest('Basic bG5zX2FiYw==', 1)
+    ).rejects.toMatchObject({ statusCode: 401 })
+  })
+})
+
+describe('touchApiToken', () => {
+  const now = Date.now()
+
+  it('stamps a token that has never been used', async () => {
+    await touchApiToken({ id: 1, lastUsedAt: null })
+    expect(db.updates.map((row) => row.id)).toEqual([1])
+  })
+
+  it('skips the write while the stamp is still fresh', async () => {
+    // A write per request would put every read behind SQLite's single writer.
+    await touchApiToken({ id: 1, lastUsedAt: new Date(now - 1000) })
+    expect(db.updates).toEqual([])
+  })
+
+  it('refreshes once the stamp is older than the interval', async () => {
+    await touchApiToken({
+      id: 1,
+      lastUsedAt: new Date(now - API_TOKEN_TOUCH_INTERVAL_MS - 1000),
+    })
+    expect(db.updates.map((row) => row.id)).toEqual([1])
+  })
+
+  it('swallows a failed write, because the read must not fail on bookkeeping', async () => {
+    db.failUpdate = true
+    await expect(
+      touchApiToken({ id: 1, lastUsedAt: null })
+    ).resolves.toBeUndefined()
+  })
+})
+
+describe('assertTokenCoversProject', () => {
+  it('admits the project the token names, comparing ids by value', () => {
+    expect(() => assertTokenCoversProject({ projectId: 7 }, 7)).not.toThrow()
     expect(() =>
       assertTokenCoversProject({ projectId: 7 }, Number('7'))
     ).not.toThrow()
   })
 
   it('403s any other project, so one token never widens into a team', () => {
-    expect(() => assertTokenCoversProject({ projectId: 7 }, 8)).toThrow(
-      ApiTokenError
+    expect(thrownStatus(() => assertTokenCoversProject({ projectId: 7 }, 8))).toBe(
+      403
     )
-  })
-
-  it('reports 403 rather than 404: the credential is valid, the target is not', () => {
-    try {
-      assertTokenCoversProject({ projectId: 7 }, 8)
-    } catch (error) {
-      expect((error as ApiTokenError).statusCode).toBe(403)
-    }
   })
 })
 
@@ -195,16 +265,13 @@ describe('apiTokenName', () => {
     expect(apiTokenName('  CI pipeline  ')).toBe('CI pipeline')
   })
 
-  it('rejects an empty name', () => {
-    expect(() => apiTokenName('   ')).toThrow(ApiTokenError)
-    expect(() => apiTokenName(undefined)).toThrow(ApiTokenError)
+  it('rejects an empty or missing name as a 400', () => {
+    expect(thrownStatus(() => apiTokenName('   '))).toBe(400)
+    expect(thrownStatus(() => apiTokenName(undefined))).toBe(400)
   })
 
-  it('rejects an over-long name', () => {
-    expect(() => apiTokenName('x'.repeat(61))).toThrow(ApiTokenError)
-  })
-
-  it('accepts a name at the limit', () => {
+  it('rejects an over-long name, and accepts one at the limit', () => {
+    expect(thrownStatus(() => apiTokenName('x'.repeat(61)))).toBe(400)
     expect(apiTokenName('x'.repeat(60)).length).toBe(60)
   })
 })
@@ -216,20 +283,12 @@ describe('assertApiTokenPurgeable', () => {
     ).not.toThrow()
   })
 
-  it('refuses a live token, so delete can never stand in for revoke', () => {
+  it('409s a live token, so delete can never stand in for revoke', () => {
     // Deleting a live token would drop the consumer with nothing recorded;
     // revoking first is what leaves the trail explaining the outage.
-    expect(() => assertApiTokenPurgeable({ revokedAt: null })).toThrow(
-      ApiTokenError
+    expect(thrownStatus(() => assertApiTokenPurgeable({ revokedAt: null }))).toBe(
+      409
     )
-    expect(() => assertApiTokenPurgeable({})).toThrow(ApiTokenError)
-  })
-
-  it('reports 409: the row exists, the state is wrong', () => {
-    try {
-      assertApiTokenPurgeable({ revokedAt: null })
-    } catch (error) {
-      expect((error as ApiTokenError).statusCode).toBe(409)
-    }
+    expect(thrownStatus(() => assertApiTokenPurgeable({}))).toBe(409)
   })
 })

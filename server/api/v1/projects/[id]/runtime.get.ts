@@ -1,9 +1,6 @@
 import { numericID } from '#server/helper/id'
 import {
-  assertTokenCoversProject,
-  authenticateApiToken,
-  bearerToken,
-  throwPublicError,
+  authenticateDeliveryRequest,
   touchApiToken,
 } from '#server/helper/api-token'
 import {
@@ -25,28 +22,16 @@ export default defineEventHandler(async (event) => {
   }
   const projectId = numericID(id)
 
-  const presented = bearerToken(getRequestHeader(event, 'authorization'))
-  let token
-  try {
-    token = await authenticateApiToken(presented)
-    assertTokenCoversProject(token, projectId)
-  } catch (error) {
-    throwPublicError(error)
-  }
-
-  let releaseId: number | null = null
-  try {
-    releaseId = await resolveReleaseParam(
-      projectId,
-      getQuery(event).release
-    )
-  } catch (error) {
-    throwPublicError(error)
-  }
-
+  const token = await authenticateDeliveryRequest(
+    getRequestHeader(event, 'authorization'),
+    projectId
+  )
+  const releaseId = await resolveReleaseParam(
+    projectId,
+    getQuery(event).release
+  )
   const locales = await projectLocales(projectId)
-  const bundle = await deliveryRuntime(projectId, releaseId, locales)
 
-  await touchApiToken(token.id)
-  return bundle
+  await touchApiToken(token)
+  return deliveryRuntime(projectId, releaseId, locales)
 })
