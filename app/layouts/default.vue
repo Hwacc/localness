@@ -49,6 +49,12 @@ const navItems = [
     to: '/api',
   },
   {
+    icon: 'i-lucide:book-open',
+    label: 'Skills',
+    name: 'skills',
+    to: '/skills',
+  },
+  {
     icon: 'i-lucide:users',
     label: 'Teams',
     name: 'teams',

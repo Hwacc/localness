@@ -1,5 +1,6 @@
 import * as qiniu from 'qiniu-js'
 import { OSSEngine } from '#shared/constants'
+import { timestampFilename } from '#shared/utils'
 
 interface UploadResult {
   key: string
@@ -9,11 +10,28 @@ interface UploadResult {
   hash?: string
 }
 
+function failToast(
+  toast: ReturnType<typeof useToast>,
+  description: string
+) {
+  if (!import.meta.client) return
+  toast.add({
+    title: 'Error',
+    description,
+    icon: 'i-lucide:circle-x',
+    color: 'error',
+  })
+}
+
 export function useOSSUpload() {
   const toast = useToast()
   const { ossEngine } = useRuntimeConfig().public
 
-  async function upload(file: File): Promise<UploadResult> {
+  async function upload(
+    file: File,
+    objectKey?: string
+  ): Promise<UploadResult> {
+    const storedKey = objectKey || timestampFilename(file)
     if (ossEngine === OSSEngine.QINIU) {
       const token = await useApi<string>('/upload/token')
       if (!token) {
@@ -33,7 +51,7 @@ export function useOSSUpload() {
         qiniu
           .upload(
             file,
-            timestampFilename(file),
+            storedKey,
             token,
             {
               customVars: {
@@ -48,14 +66,7 @@ export function useOSSUpload() {
           .subscribe({
             error(err) {
               console.error('upload error', err)
-              if (import.meta.client) {
-                toast.add({
-                  title: 'Error',
-                  description: 'Failed to upload image',
-                  icon: 'i-lucide:circle-x',
-                  color: 'error',
-                })
-              }
+              failToast(toast, 'Failed to upload file')
               reject(err)
             },
             complete(res) {
@@ -68,21 +79,16 @@ export function useOSSUpload() {
     if (ossEngine === OSSEngine.LOCAL) {
       const form = new FormData()
       form.append('file', file)
+      if (objectKey) form.append('key', objectKey)
       try {
         const res = await $fetch<string[]>('/upload', {
           method: 'POST',
           body: form,
         })
         if (!res || res.length === 0) {
-          toast.add({
-            title: 'Error',
-            description: 'Failed to upload image',
-            icon: 'i-lucide:circle-x',
-            color: 'error',
-          })
-          throw new Error('Failed to upload image')
+          failToast(toast, 'Failed to upload file')
+          throw new Error('Failed to upload file')
         }
-        console.log('upload complete', res)
         return {
           key: res[0]!,
           fsize: file.size,
@@ -90,13 +96,8 @@ export function useOSSUpload() {
         }
       } catch (error) {
         console.error('upload error', error)
-        toast.add({
-          title: 'Error',
-          description: 'Failed to upload image',
-          icon: 'i-lucide:circle-x',
-          color: 'error',
-        })
-        throw new Error('Failed to upload image', { cause: error })
+        failToast(toast, 'Failed to upload file')
+        throw new Error('Failed to upload file', { cause: error })
       }
     }
     return Promise.reject(new Error('Unsupported OSS engine'))

@@ -1,3 +1,6 @@
+import { assertSkillStorageKey } from '#server/helper/project-skill'
+import { getFileKey, uuidFilename } from '#shared/utils/file'
+
 /**
  * @route POST /upload
  * @description Upload a file
@@ -13,6 +16,16 @@ export default defineEventHandler(async (event) => {
       statusMessage: 'Missing file',
     })
   }
+  const requestedKeyField = form.find(
+    (item) => item.name === 'key' && !item.filename
+  )
+  const requestedKey = requestedKeyField
+    ? Buffer.from(requestedKeyField.data).toString('utf8').trim()
+    : ''
+  if (requestedKey) {
+    assertSkillStorageKey(requestedKey)
+  }
+
   const allFiles = form.filter((item) => item.type)
   const uploadedFiles = await Promise.all(
     allFiles.map(async (item) => {
@@ -24,8 +37,9 @@ export default defineEventHandler(async (event) => {
       }
       try {
         const uidFilename = uuidFilename(item.filename)
-        await ossStorage.setItemRaw(getFileKey(uidFilename), item.data)
-        return uidFilename
+        const storedKey = requestedKey || getFileKey(uidFilename)
+        await ossStorage.setItemRaw(storedKey, item.data)
+        return storedKey
       } catch (error) {
         console.error(error)
         throw createError({
@@ -36,5 +50,5 @@ export default defineEventHandler(async (event) => {
     })
   )
 
-  return uploadedFiles.map((item) => getFileKey(item))
+  return uploadedFiles
 })

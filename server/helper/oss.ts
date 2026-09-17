@@ -25,7 +25,7 @@ export function createOSSStorage() {
         domain: process.env.NUXT_PUBLIC_OSS_DOMAIN || '',
         accessKey: process.env.NUXT_OSS_ACCESS_KEY || '',
         secretKey: process.env.NUXT_OSS_SCRERT_KEY || '',
-        bucket: 'coze-i18n'
+        bucket: 'localness'
       })
       break
   }

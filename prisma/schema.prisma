@@ -31,6 +31,7 @@ model User {
   authIdentities AuthIdentity[]
   projectOwners  ProjectOwner[]
   apiTokens      ApiToken[]
+  projectSkills  ProjectSkill[]
 
   @@unique([username, id])
 }
@@ -126,6 +127,7 @@ model Project {
   owners           ProjectOwner[]
   releases         ProjectRelease[]
   apiTokens        ApiToken[]
+  skills           ProjectSkill[]
 
   @@index([teamId])
 }
@@ -199,6 +201,27 @@ model ApiToken {
   project    Project   @relation(fields: [projectId], references: [id], onDelete: Cascade)
   user       User      @relation(fields: [createdBy], references: [id], onDelete: Cascade)
 
+  @@index([projectId])
+  @@index([createdBy])
+}
+
+/// A Skill package shared inside one Project. The blob lives in OSS; this row
+/// is the catalog (name, description, who to ask). Not an MCP tool and not a
+/// git remote — members download the zip and drop it into their agent skills dir.
+model ProjectSkill {
+  id           Int      @id @default(autoincrement())
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+  projectId    Int      @map("project_id")
+  createdBy    Int      @map("created_by")
+  name         String
+  description  String
+  storageKey   String   @map("storage_key")
+  originalName String   @map("original_name")
+  project      Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  user         User     @relation(fields: [createdBy], references: [id], onDelete: Cascade)
+
+  @@unique([projectId, name])
   @@index([projectId])
   @@index([createdBy])
 }
