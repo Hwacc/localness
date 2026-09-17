@@ -138,7 +138,7 @@ function onReleaseChange(value: string | number) {
     <div class="flex items-center gap-2 shrink-0">
       <UButton
         color="neutral"
-        variant="ghost"
+        variant="outline"
         size="sm"
         icon="i-tabler:package-export"
         label="Export"
