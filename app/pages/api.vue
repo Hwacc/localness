@@ -28,9 +28,7 @@ type ApiTokenRow = {
   id: number
   name: string
   prefix: string
-  scope: string
   createdAt: string
-  expiresAt: string | null
   revokedAt: string | null
   lastUsedAt: string | null
 }
