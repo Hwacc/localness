@@ -1,6 +1,6 @@
 import prisma from '#server/libs/prisma'
 import { numericID } from '#server/helper/id'
-import { requireProjectOwner } from '#server/helper/access'
+import { requireProjectAccess } from '#server/helper/access'
 import {
   apiTokenName,
   apiTokenPrefix,
@@ -10,7 +10,9 @@ import {
 
 /**
  * @route POST /api/projects/:id/api-tokens
- * @description Create a token. Steward-gated, like the releases roster.
+ * @description Create a token. Any team member may — the credential only ever
+ * returns published copy, which is strictly less than a member already reads and
+ * writes in the UI, and members already hold Git credentials for this project.
  * The plaintext is returned only here; no read path ever returns it.
  */
 
@@ -39,7 +41,7 @@ export default defineEventHandler(async (event) => {
     throw createError({ statusCode: 400, statusMessage: 'Missing project id' })
   }
   const projectId = numericID(id)
-  const access = await requireProjectOwner(event, projectId)
+  const access = await requireProjectAccess(event, projectId)
 
   const body = await readBody(event)
   const name = apiTokenName(body?.name)

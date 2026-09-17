@@ -55,7 +55,13 @@ export async function requireTeamMembership(event: H3Event, teamId: number) {
   return { session, userId, membership, isAdmin: false }
 }
 
-export async function requireProjectOwner(event: H3Event, projectId: number) {
+/**
+ * Team membership plus whether this user is a steward of the project. Unlike
+ * `requireProjectOwner` it does not refuse a non-steward: some endpoints need the
+ * answer rather than a gate, because a member and a steward get different *views*
+ * of the same resource (the API token list is the one so far).
+ */
+export async function requireProjectAccess(event: H3Event, projectId: number) {
   const access = await requireTeamMember(event, projectId)
   const ownerRow = await prisma.projectOwner.findUnique({
     where: {
@@ -63,18 +69,22 @@ export async function requireProjectOwner(event: H3Event, projectId: number) {
     },
     select: { userId: true },
   })
-  if (
-    !isProjectSteward({
-      userId: access.userId,
-      ownerUserIds: ownerRow ? [ownerRow.userId] : [],
-    })
-  ) {
+  const isSteward = isProjectSteward({
+    userId: access.userId,
+    ownerUserIds: ownerRow ? [ownerRow.userId] : [],
+  })
+  return { ...access, isSteward }
+}
+
+export async function requireProjectOwner(event: H3Event, projectId: number) {
+  const access = await requireProjectAccess(event, projectId)
+  if (!access.isSteward) {
     throw createError({
       statusCode: 403,
       statusMessage: 'Forbidden',
     })
   }
-  return { ...access, isSteward: true }
+  return access
 }
 
 export async function requireTeamAccess(event: H3Event, teamId: number) {

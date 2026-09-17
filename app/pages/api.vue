@@ -6,9 +6,8 @@ definePageMeta({
 
 /**
  * The public API surface, for anyone who consumes it rather than stewards the
- * project. Documentation and examples are visible to every team member; issuing
- * a token is project configuration, so it sits behind a steward-only slideover —
- * `canManageProjectSettings`, the same gate the Releases roster uses.
+ * project. Documentation is visible to every team member, and so is the token
+ * slideover — a member may mint their own credential.
  */
 
 const toast = useToast()
@@ -17,7 +16,6 @@ const store = useProjectStore()
 const { curProject, curReleases } = storeToRefs(store)
 
 const projectId = computed(() => curProject.value?.id)
-const canManage = computed(() => canManageProjectSettings(curProject.value))
 
 const baseUrl = computed(() =>
   typeof window === 'undefined' ? '' : window.location.origin
@@ -34,36 +32,32 @@ const examples = computed(() => [
   {
     title: 'Project metadata',
     description:
-      'Locales, fallback, the releases you can filter by, and how many keys are published per locale.',
-    code: curlExample(`/api/v1/projects/${projectId.value ?? ':id'}/meta`),
+      'Locales, fallback, the releases you can filter by, and how many keys are published per locale. A consumer that holds nothing but a token starts here — this is where it learns which project it serves.',
+    code: curlExample('/api/v1/meta'),
   },
   {
     title: 'One locale',
     description:
       'Flat { key: text } map of published copy. Missing keys stay missing on purpose.',
-    code: curlExample(
-      `/api/v1/projects/${projectId.value ?? ':id'}/locales/en`
-    ),
+    code: curlExample('/api/v1/locales/en'),
   },
   {
     title: 'Filtered to a release',
     description:
       'Narrow to the keys labelled with one release. Accepts the id or the name.',
-    code: curlExample(
-      `/api/v1/projects/${projectId.value ?? ':id'}/locales/en?release=${releaseExample.value}`
-    ),
+    code: curlExample(`/api/v1/locales/en?release=${releaseExample.value}`),
   },
   {
     title: 'Every locale in one bundle',
     description:
       'All locales in a single round trip. Same shape, keyed by locale.',
-    code: curlExample(`/api/v1/projects/${projectId.value ?? ':id'}/bundle`),
+    code: curlExample('/api/v1/bundle'),
   },
 ])
 
 const fetchExample = computed(
   () => `const res = await fetch(
-  '${baseUrl.value}/api/v1/projects/${projectId.value ?? ':id'}/locales/en',
+  '${baseUrl.value}/api/v1/locales/en',
   { headers: { Authorization: 'Bearer ' + process.env.LOCALNESS_API_TOKEN } }
 )
 const messages = await res.json()`
@@ -91,10 +85,7 @@ async function copy(value: string, label: string) {
         </p>
       </header>
 
-      <ApiTokensSlideover
-        v-if="canManage"
-        :project-id="projectId"
-      />
+      <ApiTokensSlideover :project-id="projectId" />
 
       <section class="flex flex-col gap-3">
         <h2 class="text-sm font-semibold">Authentication</h2>
@@ -102,14 +93,9 @@ async function copy(value: string, label: string) {
           class="rounded-lg border border-default p-3 flex flex-col gap-2 text-sm"
         >
           <p class="text-muted">
-            Send a token as a bearer credential. A token names exactly one
-            project, so it cannot read any other.
-          </p>
-          <p
-            v-if="!canManage"
-            class="text-xs text-muted"
-          >
-            No token yet? Ask a project steward to issue one for this project.
+            Send a token as a bearer credential. The token picks the project and
+            the URL names none, so a consumer holding nothing but a token can
+            start at <code class="text-xs">/meta</code> to learn what it serves.
           </p>
           <pre
             class="rounded bg-elevated/50 p-2 text-xs overflow-x-auto"

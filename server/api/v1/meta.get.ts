@@ -1,4 +1,3 @@
-import { numericID } from '#server/helper/id'
 import {
   authenticateDeliveryRequest,
   touchApiToken,
@@ -7,27 +6,24 @@ import { deliveryMeta, resolveReleaseParam } from '#server/helper/api-delivery'
 
 /**
  * Public read-only delivery API. Kept in `/api/v1` rather than reusing the UI
- * routes, which are session-scoped and must stay free to change without
- * breaking an external caller. Published copy only: `version` is deliberately
- * absent, so a draft is never reachable with a token.
+ * routes, which are session-scoped, draft-aware, and paginated — those must stay
+ * free to change without breaking an external caller.
+ *
+ * Token-scoped: the credential names the project, so the URL does not. That is
+ * why `meta` below is the entry point a fresh consumer starts from — it is how a
+ * caller that holds nothing but a token learns which project it is serving.
+ * Published copy only: a draft is never reachable with a token.
  */
 export default defineEventHandler(async (event) => {
-  const id = getRouterParam(event, 'id')
-  if (!id) {
-    throw createError({ statusCode: 400, statusMessage: 'Missing project id' })
-  }
-  const projectId = numericID(id)
-
   const token = await authenticateDeliveryRequest(
-    getRequestHeader(event, 'authorization'),
-    projectId
+    getRequestHeader(event, 'authorization')
   )
   const releaseId = await resolveReleaseParam(
-    projectId,
+    token.projectId,
     getQuery(event).release
   )
 
-  const result = await deliveryMeta(projectId, releaseId)
+  const result = await deliveryMeta(token.projectId, releaseId)
   if (!result) {
     throw createError({ statusCode: 404, statusMessage: 'Project not found' })
   }
