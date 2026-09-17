@@ -21,6 +21,15 @@ async function main() {
       role: 'USER',
     },
   })
+  // Deliberately kept off the team: an Admin has to join like anyone else
+  // before this team's projects become visible to them.
+  await prisma.user.create({
+    data: {
+      username: FIXTURES.admin.username,
+      password: await bcrypt.hash(FIXTURES.admin.password, 4),
+      role: 'ADMIN',
+    },
+  })
   const team = await prisma.team.create({ data: { name: 'Git Sync Test Team' } })
   await prisma.userTeam.create({
     data: { userId: owner.id, teamId: team.id, role: 'OWNER' },
