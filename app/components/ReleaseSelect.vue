@@ -28,6 +28,15 @@ const releaseItems = computed(() =>
     value: Number(release.id),
   }))
 )
+
+/**
+ * Shown only while nothing is tagged. In tags mode the placeholder belongs to
+ * the text input, so it keeps rendering next to the tags — and "Not in any
+ * release" sitting beside a release reads as a contradiction.
+ */
+const placeholder = computed(() =>
+  model.value?.length ? undefined : 'Not in any release'
+)
 </script>
 
 <template>
@@ -38,6 +47,6 @@ const releaseItems = computed(() =>
     :items="releaseItems"
     value-key="value"
     :disabled="props.disabled"
-    placeholder="Not in any release"
+    :placeholder="placeholder"
   />
 </template>
