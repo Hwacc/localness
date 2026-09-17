@@ -80,6 +80,7 @@ export default defineNuxtConfig({
     '/editor': { ssr: false },
     '/translations': { ssr: false },
     '/git': { ssr: false },
+    '/skills': { ssr: false },
     '/api': { ssr: false },
     '/teams': { ssr: false },
   },

@@ -157,6 +157,10 @@ export enum OSSEngine {
   QINIU = 'QINIU',
 }
 
+/** Skill packages are small instruction trees, not installers. */
+export const SKILL_MAX_BYTES = 5 * 1024 * 1024
+export const SKILL_KEY_PREFIX = 'skills/'
+
 export const SCALE_OPTIONS = [
   {
     label: '100%',
