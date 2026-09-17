@@ -157,6 +157,10 @@ export const useProjectStore = defineStore('project', () => {
         if (!pageStillThere) applyPageForProject(fresh)
         return projects.value
       }
+      // The selected project is not in the list any more — usually because its
+      // Team stopped being visible. Drop it and its page so the fallbacks below
+      // repick, rather than leave an id for the next request to be refused.
+      setCurrentProject(emptyProject())
     }
     restoreWorkspace()
     return projects.value
