@@ -22,8 +22,8 @@ docker compose logs -f localness      # migrations run before the server starts
 Pin a version instead of `latest`:
 
 ```bash
-LOCALNESS_IMAGE=hwacc/localness:1.2.0 docker compose pull
-LOCALNESS_IMAGE=hwacc/localness:1.2.0 docker compose up -d
+LOCALNESS_IMAGE=huacc/localness:1.2.0 docker compose pull
+LOCALNESS_IMAGE=huacc/localness:1.2.0 docker compose up -d
 ```
 
 `LOCALNESS_IMAGE` is compose interpolation (shell or a project `.env`). It is
@@ -108,8 +108,8 @@ Pull a newer tag and recreate the container. **Do not** pass `-v` (that
 deletes the volume and the database).
 
 ```bash
-LOCALNESS_IMAGE=hwacc/localness:1.3.0 docker compose pull
-LOCALNESS_IMAGE=hwacc/localness:1.3.0 docker compose up -d
+LOCALNESS_IMAGE=huacc/localness:1.3.0 docker compose pull
+LOCALNESS_IMAGE=huacc/localness:1.3.0 docker compose up -d
 ```
 
 Migrations are applied by the entrypoint on every boot (`prisma migrate
@@ -119,7 +119,7 @@ are created by the `init-fts` nitro plugin on first boot.
 
 ## Publishing an image
 
-GitHub Actions publishes `hwacc/localness` on a **semver git tag**, not on
+GitHub Actions publishes `huacc/localness` on a **semver git tag**, not on
 merge to `main`.
 
 ```bash

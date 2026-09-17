@@ -1,10 +1,10 @@
 services:
   localness:
     # Hub image published by the v* tag workflow. Pin a version:
-    #   LOCALNESS_IMAGE=hwacc/localness:1.2.0 docker compose up -d
+    #   LOCALNESS_IMAGE=huacc/localness:1.2.0 docker compose up -d
     # Compose interpolates this from the shell or a project `.env`, not from
     # env_file. To build locally instead, see docker-compose.build.yml.
-    image: ${LOCALNESS_IMAGE:-hwacc/localness:latest}
+    image: ${LOCALNESS_IMAGE:-huacc/localness:latest}
     container_name: localness
     restart: unless-stopped
     ports:
