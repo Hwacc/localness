@@ -197,11 +197,12 @@ const memberColumns = computed<TableColumn<ITeamMember>[]>(() => {
 
 async function loadTeams() {
   await projectStore.getProjects()
-  if (
-    teams.value.length > 0 &&
-    !teams.value.some((t) => String(t.id) === String(selectedId.value))
-  ) {
-    selectedId.value = teams.value[0]!.id
+  // `curTeamId` is restored from localStorage, so it can outlive the membership —
+  // left the team, or a team the user could only ever reach as an Admin. With a
+  // non-empty list the first team takes over; with an empty one the stale id has
+  // to be dropped outright, or `loadDetail` asks for a team the server refuses.
+  if (!teams.value.some((t) => String(t.id) === String(selectedId.value))) {
+    selectedId.value = teams.value[0]?.id
   }
 }
 
