@@ -7,8 +7,6 @@ const db = vi.hoisted(() => ({
     name: string
     tokenHash: string
     prefix: string
-    scope: string
-    expiresAt?: Date | null
     revokedAt?: Date | null
   }>,
   nextId: 1,
@@ -25,7 +23,6 @@ vi.mock('#server/libs/prisma', () => ({
 
 const {
   ApiTokenError,
-  apiTokenAllows,
   apiTokenName,
   apiTokenPrefix,
   assertApiTokenPurgeable,
@@ -35,7 +32,6 @@ const {
   generateApiToken,
   hashApiToken,
   isApiTokenUsable,
-  tokenHashMatches,
 } = await import('#server/helper/api-token')
 
 beforeEach(() => {
@@ -45,8 +41,6 @@ beforeEach(() => {
 
 function seed(overrides: Partial<{
   projectId: number
-  scope: string
-  expiresAt: Date | null
   revokedAt: Date | null
 }> = {}) {
   const plaintext = generateApiToken()
@@ -56,8 +50,6 @@ function seed(overrides: Partial<{
     name: 'ci',
     tokenHash: hashApiToken(plaintext),
     prefix: apiTokenPrefix(plaintext),
-    scope: overrides.scope ?? 'read',
-    expiresAt: overrides.expiresAt ?? null,
     revokedAt: overrides.revokedAt ?? null,
   }
   db.tokens.push(row)
@@ -92,22 +84,6 @@ describe('hashApiToken', () => {
   it('never stores the plaintext', () => {
     const token = generateApiToken()
     expect(hashApiToken(token)).not.toContain(token)
-  })
-})
-
-describe('tokenHashMatches', () => {
-  it('accepts the same digest', () => {
-    const hash = hashApiToken('lns_x')
-    expect(tokenHashMatches(hash, hash)).toBe(true)
-  })
-
-  it('rejects a different digest', () => {
-    expect(tokenHashMatches(hashApiToken('a'), hashApiToken('b'))).toBe(false)
-  })
-
-  it('rejects a length mismatch instead of throwing', () => {
-    // timingSafeEqual throws on unequal lengths, so the guard must come first.
-    expect(tokenHashMatches('short', hashApiToken('a'))).toBe(false)
   })
 })
 
@@ -148,40 +124,13 @@ describe('bearerToken', () => {
 })
 
 describe('isApiTokenUsable', () => {
-  const now = new Date('2026-09-16T00:00:00Z')
-
-  it('accepts a plain token', () => {
-    expect(isApiTokenUsable({}, now)).toBe(true)
+  it('accepts a live token', () => {
+    expect(isApiTokenUsable({})).toBe(true)
+    expect(isApiTokenUsable({ revokedAt: null })).toBe(true)
   })
 
   it('rejects a revoked token', () => {
-    expect(isApiTokenUsable({ revokedAt: now }, now)).toBe(false)
-  })
-
-  it('rejects an expired token', () => {
-    expect(
-      isApiTokenUsable({ expiresAt: new Date('2026-09-15T00:00:00Z') }, now)
-    ).toBe(false)
-  })
-
-  it('treats the expiry instant itself as expired', () => {
-    expect(isApiTokenUsable({ expiresAt: now }, now)).toBe(false)
-  })
-
-  it('accepts a token that expires later', () => {
-    expect(
-      isApiTokenUsable({ expiresAt: new Date('2026-09-17T00:00:00Z') }, now)
-    ).toBe(true)
-  })
-})
-
-describe('apiTokenAllows', () => {
-  it('admits the matching scope', () => {
-    expect(apiTokenAllows('read', 'read')).toBe(true)
-  })
-
-  it('refuses anything else, so a read token cannot write', () => {
-    expect(apiTokenAllows('read', 'write')).toBe(false)
+    expect(isApiTokenUsable({ revokedAt: new Date() })).toBe(false)
   })
 })
 
@@ -210,20 +159,6 @@ describe('authenticateApiToken', () => {
     await expect(authenticateApiToken(plaintext)).rejects.toMatchObject({
       statusCode: 401,
     })
-  })
-
-  it('401s an expired token', async () => {
-    const { plaintext } = seed({ expiresAt: new Date('2020-01-01') })
-    await expect(authenticateApiToken(plaintext)).rejects.toMatchObject({
-      statusCode: 401,
-    })
-  })
-
-  it('403s a token whose scope does not cover the operation', async () => {
-    const { plaintext } = seed({ scope: 'read' })
-    await expect(authenticateApiToken(plaintext, 'write')).rejects.toMatchObject(
-      { statusCode: 403 }
-    )
   })
 })
 

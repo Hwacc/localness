@@ -8,7 +8,6 @@ import {
   hashApiToken,
   throwPublicError,
 } from '#server/helper/api-token'
-import { ApiTokenScope } from '#shared/constants'
 
 /**
  * @route POST /api/projects/:id/api-tokens
@@ -21,9 +20,7 @@ function shapeToken(row: {
   id: number
   name: string
   prefix: string
-  scope: string
   createdAt: Date
-  expiresAt: Date | null
   revokedAt: Date | null
   lastUsedAt: Date | null
 }) {
@@ -31,9 +28,7 @@ function shapeToken(row: {
     id: row.id,
     name: row.name,
     prefix: row.prefix,
-    scope: row.scope,
     createdAt: row.createdAt,
-    expiresAt: row.expiresAt,
     revokedAt: row.revokedAt,
     lastUsedAt: row.lastUsedAt,
   }
@@ -60,7 +55,6 @@ export default defineEventHandler(async (event) => {
         name,
         tokenHash: hashApiToken(plaintext),
         prefix: apiTokenPrefix(plaintext),
-        scope: ApiTokenScope.READ,
       },
     })
 

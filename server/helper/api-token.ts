@@ -1,10 +1,9 @@
-import { createHash, randomBytes, timingSafeEqual } from 'node:crypto'
+import { createHash, randomBytes } from 'node:crypto'
 import prisma from '#server/libs/prisma'
 import {
   API_TOKEN_BYTES,
   API_TOKEN_DISPLAY_PREFIX,
   API_TOKEN_PREFIX,
-  ApiTokenScope,
 } from '#shared/constants'
 
 /**
@@ -43,50 +42,33 @@ export function generateApiToken(): string {
   return API_TOKEN_PREFIX + randomBytes(API_TOKEN_BYTES).toString('hex')
 }
 
-/** `timingSafeEqual` throws on a length mismatch, so the guard has to come first. */
-export function tokenHashMatches(a: string, b: string): boolean {
-  if (a.length !== b.length) return false
-  return timingSafeEqual(Buffer.from(a, 'utf8'), Buffer.from(b, 'utf8'))
-}
-
 export function bearerToken(header: unknown): string | null {
   if (typeof header !== 'string') return null
   const match = /^Bearer\s+(\S+)$/i.exec(header.trim())
   return match?.[1] ?? null
 }
 
-/** Revoked and expired both read as gone. */
-export function isApiTokenUsable(
-  row: { revokedAt?: Date | null; expiresAt?: Date | null },
-  now: Date = new Date()
-): boolean {
-  if (row.revokedAt) return false
-  if (row.expiresAt && row.expiresAt.getTime() <= now.getTime()) return false
-  return true
+/** Revoked is gone. Revocation is the only way a token stops working. */
+export function isApiTokenUsable(row: { revokedAt?: Date | null }): boolean {
+  return !row.revokedAt
 }
 
-export function apiTokenAllows(scope: string, required: string): boolean {
-  return scope === required
-}
-
-/** One indexed lookup by hash, so a wrong token costs the same as a near miss. */
-export async function authenticateApiToken(
-  plaintext: string | null,
-  requiredScope: string = ApiTokenScope.READ
-) {
+/**
+ * One indexed lookup by hash, so a wrong token costs the same as a near miss.
+ * The row found by that unique index *is* the match, so there is nothing left
+ * to compare: a byte-wise re-check of the digest would only ever re-confirm it.
+ */
+export async function authenticateApiToken(plaintext: string | null) {
   if (!plaintext) {
     throw new ApiTokenError(401, 'Missing API token')
   }
   const hash = hashApiToken(plaintext)
   const row = await prisma.apiToken.findUnique({ where: { tokenHash: hash } })
-  if (!row || !tokenHashMatches(row.tokenHash, hash)) {
+  if (!row) {
     throw new ApiTokenError(401, 'Invalid API token')
   }
   if (!isApiTokenUsable(row)) {
-    throw new ApiTokenError(401, 'API token revoked or expired')
-  }
-  if (!apiTokenAllows(row.scope, requiredScope)) {
-    throw new ApiTokenError(403, 'API token lacks the required scope')
+    throw new ApiTokenError(401, 'API token revoked')
   }
   return row
 }
