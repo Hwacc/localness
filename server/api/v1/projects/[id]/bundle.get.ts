@@ -4,7 +4,7 @@ import {
   touchApiToken,
 } from '#server/helper/api-token'
 import {
-  deliveryRuntime,
+  deliveryBundle,
   projectLocales,
   resolveReleaseParam,
 } from '#server/helper/api-delivery'
@@ -33,5 +33,5 @@ export default defineEventHandler(async (event) => {
   const locales = await projectLocales(projectId)
 
   await touchApiToken(token)
-  return deliveryRuntime(projectId, releaseId, locales)
+  return deliveryBundle(projectId, releaseId, locales)
 })
