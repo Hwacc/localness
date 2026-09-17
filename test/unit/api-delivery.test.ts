@@ -33,8 +33,61 @@ function matchRelease(row: { releaseIds: number[] }, where: any): boolean {
   return true
 }
 
+function localeFilter(wanted: any): string[] | null {
+  if (!wanted) return null
+  if (Array.isArray(wanted.in)) return wanted.in
+  if (Array.isArray(wanted)) return wanted
+  return [wanted]
+}
+
+function matchesPublishedClause(value: ValueRow, clause: any): boolean {
+  const parts = [clause, ...(clause.AND ?? [])]
+  for (const part of parts) {
+    if (!part) continue
+    if (part.locale && value.locale !== part.locale) return false
+    if (typeof part.publishedText === 'string') {
+      if (value.publishedText !== part.publishedText) return false
+    }
+    if (part.publishedText?.contains) {
+      if (
+        value.publishedText == null ||
+        !value.publishedText.includes(part.publishedText.contains)
+      ) {
+        return false
+      }
+    }
+    if (part.publishedText?.not === null && value.publishedText == null) {
+      return false
+    }
+    if (part.publishedText?.not === '' && !isPublished(value.publishedText)) {
+      return false
+    }
+  }
+  return true
+}
+
+function someLocale(row: KeyRow, some: any): boolean {
+  return db.values.some(
+    (value) => value.keyId === row.id && matchesPublishedClause(value, some)
+  )
+}
+
 function filterKeys(where: any): KeyRow[] {
-  return db.keys.filter((row) => matchRelease(row, where))
+  return db.keys.filter((row) => {
+    if (!matchRelease(row, where)) return false
+    // `deliveryKey` asks for an exact key; `searchDeliveryKeys` for a substring.
+    if (typeof where.key === 'string' && row.key !== where.key) return false
+    if (where.key?.contains && !row.key.includes(where.key.contains)) {
+      return false
+    }
+    if (where.locales?.some && !someLocale(row, where.locales.some)) {
+      return false
+    }
+    if (where.NOT?.locales?.some && someLocale(row, where.NOT.locales.some)) {
+      return false
+    }
+    return true
+  })
 }
 
 // Mirrors the helper's rule on purpose, so a change to it fails this test.
@@ -61,20 +114,34 @@ vi.mock('#server/libs/prisma', () => ({
     },
     i18nKey: {
       count: async ({ where }: { where: any }) => filterKeys(where).length,
-      findMany: async ({ where, select }: any) => {
+      findFirst: async ({ where, select }: any) => {
+        const row = filterKeys(where)[0]
+        if (!row) return null
+        const allowed = localeFilter(select?.locales?.where?.locale)
+        return {
+          key: row.key,
+          locales: db.values
+            .filter(
+              (value) =>
+                value.keyId === row.id &&
+                (!allowed || allowed.includes(value.locale))
+            )
+            .map((value) => ({
+              locale: value.locale,
+              publishedText: value.publishedText,
+            })),
+        }
+      },
+      findMany: async ({ where, select, skip, take }: any) => {
         db.keyQueries++
-        return filterKeys(where)
+        const rows = filterKeys(where)
           .map((row) => ({
             key: row.key,
             locales: db.values
               .filter((value) => {
                 if (value.keyId !== row.id) return false
-                const wanted = select?.locales?.where?.locale
-                if (!wanted) return true
-                // The helper asks for locales with `in`, so one query can serve
-                // both the single-locale and the whole-bundle read.
-                const allowed = Array.isArray(wanted.in) ? wanted.in : [wanted]
-                return allowed.includes(value.locale)
+                const allowed = localeFilter(select?.locales?.where?.locale)
+                return !allowed || allowed.includes(value.locale)
               })
               .map((value) => ({
                 locale: value.locale,
@@ -82,6 +149,8 @@ vi.mock('#server/libs/prisma', () => ({
               })),
           }))
           .sort((a, b) => a.key.localeCompare(b.key))
+        const from = skip ?? 0
+        return take == null ? rows.slice(from) : rows.slice(from, from + take)
       },
     },
     localeValue: {
@@ -112,11 +181,18 @@ vi.mock('#server/libs/prisma', () => ({
 }))
 
 const {
+  deliveryKey,
+  deliveryKeyLocales,
   deliveryLocale,
   deliveryMeta,
   deliveryBundle,
+  listDeliveryKeys,
+  listUnpublishedDeliveryKeys,
+  LIST_KEYS_DEFAULT_LIMIT,
   projectLocales,
   resolveReleaseParam,
+  searchDeliveryKeys,
+  searchDeliveryKeysByText,
 } = await import('#server/helper/api-delivery')
 const { DEFAULT_LOCALE_FALLBACK } = await import('#shared/constants')
 
@@ -366,5 +442,241 @@ describe('deliveryBundle', () => {
     expect(JSON.stringify(bundle)).toBe(
       JSON.stringify({ en: { a: 'A' }, zh: { b: '乙' } })
     )
+  })
+})
+
+describe('deliveryKey', () => {
+  beforeEach(() => {
+    db.keys = [
+      { id: 1, key: 'a', releaseIds: [4] },
+      { id: 2, key: 'b', releaseIds: [] },
+    ]
+    db.values = [
+      { locale: 'en', keyId: 1, publishedText: 'A' },
+      { locale: 'en', keyId: 2, publishedText: '' },
+      { locale: 'ja', keyId: 1, publishedText: 'ア' },
+    ]
+  })
+
+  it('returns the published text', async () => {
+    expect(await deliveryKey(1, 'a', 'en', null)).toEqual({
+      state: 'published',
+      text: 'A',
+    })
+  })
+
+  it('tells an untranslated key apart from one that is not there', async () => {
+    // An empty string for both would let a consumer render a blank where it
+    // should fall back or report the gap.
+    expect(await deliveryKey(1, 'b', 'en', null)).toEqual({
+      state: 'unpublished',
+    })
+    expect(await deliveryKey(1, 'nope', 'en', null)).toEqual({ state: 'missing' })
+  })
+
+  it('calls a locale the key was never translated into unpublished', async () => {
+    expect(await deliveryKey(1, 'a', 'fr', null)).toEqual({
+      state: 'unpublished',
+    })
+  })
+
+  it('honours the release scope', async () => {
+    expect(await deliveryKey(1, 'a', 'en', 4)).toEqual({
+      state: 'published',
+      text: 'A',
+    })
+    // 'b' carries no release, so it is out of scope rather than merely empty.
+    expect(await deliveryKey(1, 'b', 'en', 4)).toEqual({ state: 'missing' })
+  })
+})
+
+describe('searchDeliveryKeys', () => {
+  beforeEach(() => {
+    db.keys = [
+      { id: 1, key: 'login.title', releaseIds: [] },
+      { id: 2, key: 'login.body', releaseIds: [] },
+      { id: 3, key: 'logout', releaseIds: [] },
+      { id: 4, key: 'login.footer', releaseIds: [] },
+    ]
+    db.values = [
+      { locale: 'en', keyId: 1, publishedText: 'Sign in' },
+      { locale: 'en', keyId: 2, publishedText: 'Welcome' },
+      // Nothing published anywhere, so the rest of the API never names it.
+      { locale: 'en', keyId: 3, publishedText: null },
+      { locale: 'en', keyId: 4, publishedText: '' },
+    ]
+  })
+
+  it('matches a substring of the key, in key order', async () => {
+    expect(await searchDeliveryKeys(1, 'login', null)).toEqual([
+      'login.body',
+      'login.title',
+    ])
+  })
+
+  it('leaves out keys with nothing published', async () => {
+    // `logout` (no text) and `login.footer` (blank text) both drop out, so a
+    // search can never name a key the bundle shapes would not.
+    expect(await searchDeliveryKeys(1, 'log', null)).toEqual([
+      'login.body',
+      'login.title',
+    ])
+  })
+
+  it('honours the release scope', async () => {
+    db.keys = [{ id: 1, key: 'login.title', releaseIds: [4] }]
+    expect(await searchDeliveryKeys(1, 'login', 4)).toEqual(['login.title'])
+    expect(await searchDeliveryKeys(1, 'login', 5)).toEqual([])
+  })
+})
+
+describe('listDeliveryKeys', () => {
+  beforeEach(() => {
+    db.keys = [
+      { id: 1, key: 'b', releaseIds: [4] },
+      { id: 2, key: 'a', releaseIds: [] },
+      { id: 3, key: 'c', releaseIds: [] },
+    ]
+    db.values = [
+      { locale: 'en', keyId: 1, publishedText: 'B' },
+      { locale: 'en', keyId: 2, publishedText: 'A' },
+      { locale: 'en', keyId: 3, publishedText: '' },
+    ]
+  })
+
+  it('lists catalog keys in order and skips draft-only and blank text', async () => {
+    expect(await listDeliveryKeys(1, null)).toMatchObject({
+      keys: ['a', 'b'],
+      total: 2,
+      offset: 0,
+      limit: LIST_KEYS_DEFAULT_LIMIT,
+    })
+  })
+
+  it('pages by offset and reports the unpaged total', async () => {
+    expect(await listDeliveryKeys(1, null, 1, 1)).toEqual({
+      keys: ['b'],
+      total: 2,
+      offset: 1,
+      limit: 1,
+    })
+  })
+
+  it('honours the release scope', async () => {
+    expect(await listDeliveryKeys(1, 4)).toMatchObject({
+      keys: ['b'],
+      total: 1,
+    })
+  })
+})
+
+describe('deliveryKeyLocales', () => {
+  beforeEach(() => {
+    db.keys = [
+      { id: 1, key: 'a', releaseIds: [4] },
+      { id: 2, key: 'b', releaseIds: [] },
+    ]
+    db.values = [
+      { locale: 'en', keyId: 1, publishedText: 'A' },
+      { locale: 'ja', keyId: 1, publishedText: '' },
+      { locale: 'en', keyId: 2, publishedText: 'B' },
+    ]
+  })
+
+  it('keeps unpublished locales in the map instead of omitting them', async () => {
+    expect(await deliveryKeyLocales(1, 'a', null)).toEqual({
+      state: 'found',
+      key: 'a',
+      locales: {
+        en: { published: true, text: 'A' },
+        ja: { published: false },
+      },
+    })
+  })
+
+  it('treats a blank published string as unpublished', async () => {
+    const found = await deliveryKeyLocales(1, 'a', null)
+    if (found.state !== 'found') throw new Error('expected found')
+    expect(found.locales.ja).toEqual({ published: false })
+  })
+
+  it('is missing when the key is out of release scope, not unpublished', async () => {
+    expect(await deliveryKeyLocales(1, 'b', 4)).toEqual({ state: 'missing' })
+    expect(await deliveryKeyLocales(1, 'nope', null)).toEqual({
+      state: 'missing',
+    })
+  })
+})
+
+describe('listUnpublishedDeliveryKeys', () => {
+  beforeEach(() => {
+    db.keys = [
+      { id: 1, key: 'a', releaseIds: [] },
+      { id: 2, key: 'b', releaseIds: [] },
+      { id: 3, key: 'draft', releaseIds: [] },
+    ]
+    db.values = [
+      { locale: 'en', keyId: 1, publishedText: 'A' },
+      { locale: 'ja', keyId: 1, publishedText: 'ア' },
+      { locale: 'en', keyId: 2, publishedText: 'B' },
+      { locale: 'ja', keyId: 2, publishedText: '' },
+      { locale: 'en', keyId: 3, publishedText: null },
+    ]
+  })
+
+  it('names catalog keys that have no published text in that locale', async () => {
+    expect(await listUnpublishedDeliveryKeys(1, 'ja', null)).toMatchObject({
+      keys: ['b'],
+      total: 1,
+    })
+  })
+
+  it('does not list keys that were never published anywhere', async () => {
+    const page = await listUnpublishedDeliveryKeys(1, 'en', null)
+    expect(page.keys).not.toContain('draft')
+    expect(page.keys).toEqual([])
+  })
+})
+
+describe('searchDeliveryKeysByText', () => {
+  beforeEach(() => {
+    db.keys = [
+      { id: 1, key: 'save', releaseIds: [] },
+      { id: 2, key: 'save.as', releaseIds: [] },
+      { id: 3, key: 'draft', releaseIds: [] },
+    ]
+    db.values = [
+      { locale: 'en', keyId: 1, publishedText: 'Save' },
+      { locale: 'en', keyId: 2, publishedText: 'Save as' },
+      { locale: 'ja', keyId: 1, publishedText: '保存' },
+      { locale: 'en', keyId: 3, publishedText: null },
+    ]
+  })
+
+  it('matches exact published text in one locale', async () => {
+    expect(await searchDeliveryKeysByText(1, 'en', 'Save', 'exact', null)).toEqual(
+      ['save']
+    )
+  })
+
+  it('matches a substring when asked', async () => {
+    expect(
+      await searchDeliveryKeysByText(1, 'en', 'Save', 'contains', null)
+    ).toEqual(['save', 'save.as'])
+  })
+
+  it('does not search other locales', async () => {
+    expect(
+      await searchDeliveryKeysByText(1, 'ja', 'Save', 'exact', null)
+    ).toEqual([])
+    expect(
+      await searchDeliveryKeysByText(1, 'ja', '保存', 'exact', null)
+    ).toEqual(['save'])
+  })
+
+  it('rejects an empty query', async () => {
+    await expect(
+      searchDeliveryKeysByText(1, 'en', '   ', 'exact', null)
+    ).rejects.toMatchObject({ statusCode: 400 })
   })
 })

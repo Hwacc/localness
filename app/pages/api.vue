@@ -63,6 +63,18 @@ const fetchExample = computed(
 const messages = await res.json()`
 )
 
+/** Same token, same copy, spoken as MCP so an agent can read it directly. */
+const mcpConfig = computed(
+  () => `{
+  "mcpServers": {
+    "localness": {
+      "url": "${baseUrl.value}/mcp",
+      "headers": { "Authorization": "Bearer <token>" }
+    }
+  }
+}`
+)
+
 async function copy(value: string, label: string) {
   try {
     await navigator.clipboard.writeText(value)
@@ -147,6 +159,41 @@ async function copy(value: string, label: string) {
         <pre
           class="rounded-lg border border-default bg-elevated/50 p-3 text-xs overflow-x-auto"
         ><code>{{ fetchExample }}</code></pre>
+      </section>
+
+      <section class="flex flex-col gap-3">
+        <div class="flex items-center justify-between">
+          <h2 class="text-sm font-semibold">MCP</h2>
+          <UButton
+            size="xs"
+            color="neutral"
+            variant="ghost"
+            icon="i-lucide:copy"
+            @click="copy(mcpConfig, 'Config')"
+          />
+        </div>
+        <p class="text-sm text-muted">
+          An agent can read the same published copy over MCP instead of you
+          writing a client. It takes the same token and sits on the same
+          endpoints, exposed as
+          <code class="text-xs">get_project_info</code>,
+          <code class="text-xs">get_translations</code>,
+          <code class="text-xs">get_all_translations</code>,
+          <code class="text-xs">get_translation</code>,
+          <code class="text-xs">get_key</code>,
+          <code class="text-xs">list_keys</code>,
+          <code class="text-xs">list_unpublished_keys</code>,
+          <code class="text-xs">search_keys</code>
+          and
+          <code class="text-xs">search_by_text</code>. None of them takes a project —
+          the token already says which one. Every tool except the first can also
+          be narrowed to a single release, the same way
+          <code class="text-xs">?release=</code> does above. Omit release when
+          proofreading a product locale folder against the full catalog.
+        </p>
+        <pre
+          class="rounded-lg border border-default bg-elevated/50 p-3 text-xs overflow-x-auto"
+        ><code>{{ mcpConfig }}</code></pre>
       </section>
     </div>
   </div>

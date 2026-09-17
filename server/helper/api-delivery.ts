@@ -26,6 +26,48 @@ const PUBLISHED_TEXT = {
   AND: [{ publishedText: { not: null } }, { publishedText: { not: '' } }],
 }
 
+/** Names-only lists are cheap; these caps keep a 10k-key project from dumping at once. */
+export const LIST_KEYS_DEFAULT_LIMIT = 1000
+export const LIST_KEYS_MAX_LIMIT = 5000
+export const SEARCH_TEXT_DEFAULT_LIMIT = 25
+
+export type SearchTextMode = 'exact' | 'contains'
+
+export type DeliveryKeyPage = {
+  keys: string[]
+  total: number
+  offset: number
+  limit: number
+}
+
+function clampOffset(offset: number | undefined): number {
+  if (offset == null || !Number.isFinite(offset) || offset < 0) return 0
+  return Math.floor(offset)
+}
+
+function clampListLimit(limit: number | undefined): number {
+  if (limit == null || !Number.isFinite(limit) || limit < 1) {
+    return LIST_KEYS_DEFAULT_LIMIT
+  }
+  return Math.min(Math.floor(limit), LIST_KEYS_MAX_LIMIT)
+}
+
+function clampSearchLimit(limit: number | undefined): number {
+  if (limit == null || !Number.isFinite(limit) || limit < 1) {
+    return SEARCH_TEXT_DEFAULT_LIMIT
+  }
+  return Math.min(Math.floor(limit), SEARCH_TEXT_DEFAULT_LIMIT)
+}
+
+/** The published-copy catalog the dictionary tools share with `searchDeliveryKeys`. */
+function catalogWhere(projectId: number, releaseId: number | null) {
+  return {
+    projectId,
+    locales: { some: PUBLISHED_TEXT },
+    ...releaseWhere(releaseId),
+  }
+}
+
 /** Locales the project publishes, in the project's own order. */
 export async function projectLocales(projectId: number): Promise<string[]> {
   const settings = await prisma.projectSettings.findUnique({
@@ -198,4 +240,220 @@ export async function deliveryBundle(
     if (entries) bundle[locale] = entries
   }
   return bundle
+}
+
+/**
+ * A single key's published text. `missing` and `unpublished` are different
+ * answers on purpose: the first is a caller mistake, the second is a real state
+ * of the project, and a consumer that cannot tell them apart renders a blank
+ * where it should fall back or report the gap.
+ */
+export type DeliveryKeyResult =
+  | { state: 'published'; text: string }
+  | { state: 'unpublished' }
+  | { state: 'missing' }
+
+export async function deliveryKey(
+  projectId: number,
+  key: string,
+  locale: string,
+  releaseId: number | null
+): Promise<DeliveryKeyResult> {
+  const row = await prisma.i18nKey.findFirst({
+    where: { projectId, key, ...releaseWhere(releaseId) },
+    select: {
+      locales: { where: { locale }, select: { publishedText: true } },
+    },
+  })
+  if (!row) return { state: 'missing' }
+
+  const value = row.locales[0]?.publishedText
+  return hasPublishedText(value)
+    ? { state: 'published', text: value }
+    : { state: 'unpublished' }
+}
+
+/**
+ * Keys whose name contains `query`, within scope. Names only — the text is one
+ * `deliveryKey` call away, and returning it here would make this the second way
+ * to fetch copy.
+ *
+ * The `locales.some` clause keeps this to keys that have published text
+ * somewhere, which is the same set the bundle and per-locale shapes can expose.
+ * Without it, search would name keys the rest of the API never mentions.
+ */
+export async function searchDeliveryKeys(
+  projectId: number,
+  query: string,
+  releaseId: number | null,
+  limit = 25
+): Promise<string[]> {
+  const rows = await prisma.i18nKey.findMany({
+    where: {
+      projectId,
+      key: { contains: query },
+      locales: { some: PUBLISHED_TEXT },
+      ...releaseWhere(releaseId),
+    },
+    orderBy: { key: 'asc' },
+    take: limit,
+    select: { key: true },
+  })
+  return rows.map((row) => row.key)
+}
+
+export type DeliveryLocaleState =
+  | { published: true; text: string }
+  | { published: false }
+
+export type DeliveryKeyLocalesResult =
+  | { state: 'missing' }
+  | { state: 'found'; key: string; locales: Record<string, DeliveryLocaleState> }
+
+/**
+ * One key across every project locale. Unpublished locales stay in the map
+ * as `{ published: false }` so a proofreader can tell absence from omission.
+ * Fallback is not merged — the caller already has `localeFallback` from meta.
+ */
+export async function deliveryKeyLocales(
+  projectId: number,
+  key: string,
+  releaseId: number | null
+): Promise<DeliveryKeyLocalesResult> {
+  const locales = await projectLocales(projectId)
+  const row = await prisma.i18nKey.findFirst({
+    where: { projectId, key, ...releaseWhere(releaseId) },
+    select: {
+      key: true,
+      locales: {
+        where: { locale: { in: locales } },
+        select: { locale: true, publishedText: true },
+      },
+    },
+  })
+  if (!row) return { state: 'missing' }
+
+  const byLocale = new Map(
+    row.locales.map((value) => [value.locale, value.publishedText])
+  )
+  const result: Record<string, DeliveryLocaleState> = {}
+  for (const locale of locales) {
+    const text = byLocale.get(locale)
+    result[locale] = hasPublishedText(text)
+      ? { published: true, text }
+      : { published: false }
+  }
+  return { state: 'found', key: row.key, locales: result }
+}
+
+/** Official catalog key names, paginated. Draft-only keys are not in the catalog. */
+export async function listDeliveryKeys(
+  projectId: number,
+  releaseId: number | null,
+  offset?: number,
+  limit?: number
+): Promise<DeliveryKeyPage> {
+  const skip = clampOffset(offset)
+  const take = clampListLimit(limit)
+  const where = catalogWhere(projectId, releaseId)
+  const [total, rows] = await Promise.all([
+    prisma.i18nKey.count({ where }),
+    prisma.i18nKey.findMany({
+      where,
+      orderBy: { key: 'asc' },
+      skip,
+      take,
+      select: { key: true },
+    }),
+  ])
+  return { keys: rows.map((row) => row.key), total, offset: skip, limit: take }
+}
+
+/**
+ * Keys that are in the official catalog but have no published text in `locale`.
+ * "Unpublished" is not "missing": missing means the key is not in scope.
+ */
+export async function listUnpublishedDeliveryKeys(
+  projectId: number,
+  locale: string,
+  releaseId: number | null,
+  offset?: number,
+  limit?: number
+): Promise<DeliveryKeyPage> {
+  const skip = clampOffset(offset)
+  const take = clampListLimit(limit)
+  const where = {
+    ...catalogWhere(projectId, releaseId),
+    NOT: {
+      locales: {
+        some: {
+          locale,
+          ...PUBLISHED_TEXT,
+        },
+      },
+    },
+  }
+  const [total, rows] = await Promise.all([
+    prisma.i18nKey.count({ where }),
+    prisma.i18nKey.findMany({
+      where,
+      orderBy: { key: 'asc' },
+      skip,
+      take,
+      select: { key: true },
+    }),
+  ])
+  return { keys: rows.map((row) => row.key), total, offset: skip, limit: take }
+}
+
+function publishedTextMatch(mode: SearchTextMode, query: string) {
+  switch (mode) {
+    case 'exact':
+      return { publishedText: query }
+    case 'contains':
+      return { publishedText: { contains: query } }
+    default: {
+      const exhaustive: never = mode
+      throw new Error(`Unhandled search mode: ${exhaustive}`)
+    }
+  }
+}
+
+/**
+ * Keys whose published text in `locale` matches `query`. Names only — the
+ * text is `deliveryKey` / `deliveryKeyLocales`, so this does not become a
+ * second way to fetch copy.
+ */
+export async function searchDeliveryKeysByText(
+  projectId: number,
+  locale: string,
+  query: string,
+  mode: SearchTextMode,
+  releaseId: number | null,
+  limit?: number
+): Promise<string[]> {
+  const needle = query.trim()
+  if (!needle) {
+    throw createError({
+      statusCode: 400,
+      statusMessage: 'Search text must not be empty',
+    })
+  }
+
+  const rows = await prisma.i18nKey.findMany({
+    where: {
+      projectId,
+      ...releaseWhere(releaseId),
+      locales: {
+        some: {
+          locale,
+          AND: [...PUBLISHED_TEXT.AND, publishedTextMatch(mode, needle)],
+        },
+      },
+    },
+    orderBy: { key: 'asc' },
+    take: clampSearchLimit(limit),
+    select: { key: true },
+  })
+  return rows.map((row) => row.key)
 }
