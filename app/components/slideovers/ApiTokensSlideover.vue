@@ -3,9 +3,14 @@ import { AlertModal, ApiTokenRevealModal } from '#components'
 
 /**
  * Token management for one project. A slideover rather than page content:
- * issuing and revoking a credential is a one-off configuration task, while the
- * documentation on `/api` is what a consumer is there to read. The page renders
- * this only for a steward, so nothing here has to re-check that.
+ * issuing a credential is a one-off configuration task, while the documentation
+ * on `/api` is what a consumer is there to read.
+ *
+ * Any team member may mint one. The server already narrows the list to your own
+ * when you are not a steward, so every row shown is revocable by whoever is
+ * looking — no per-row check needed. Erasing a row outright is different: purge
+ * destroys the audit record rather than stopping the token, so it stays a
+ * steward action, and a member looking at a revoked row has reached the end.
  *
  * No plaintext lives in this component. A new token goes straight into
  * `ApiTokenRevealModal`, whose Dismiss is the only way out, so closing this
@@ -16,6 +21,8 @@ type ApiTokenRow = {
   id: number
   name: string
   prefix: string
+  createdBy: number
+  creatorName: string
   createdAt: string
   revokedAt: string | null
   lastUsedAt: string | null
@@ -23,6 +30,9 @@ type ApiTokenRow = {
 
 /** The page derives this from the store, so it can be an id-less project. */
 const props = defineProps<{ projectId: ID | undefined }>()
+
+const store = useProjectStore()
+const isSteward = computed(() => canManageProjectSettings(store.curProject))
 
 const { $dayjs } = useNuxtApp()
 const overlay = useOverlay()
@@ -208,6 +218,7 @@ watch(
               <span class="text-xs text-muted">
                 Created {{ formatDate(row.createdAt) }} · Last used
                 {{ formatDate(row.lastUsedAt) }}
+                <template v-if="isSteward"> · {{ row.creatorName }}</template>
               </span>
             </div>
             <UButton
@@ -221,7 +232,7 @@ watch(
               Revoke
             </UButton>
             <UButton
-              v-else
+              v-else-if="isSteward"
               size="xs"
               color="error"
               variant="ghost"

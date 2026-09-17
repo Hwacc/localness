@@ -38,10 +38,11 @@ const {
   apiTokenName,
   apiTokenPrefix,
   assertApiTokenPurgeable,
-  assertTokenCoversProject,
+  assertApiTokenRevocable,
   authenticateApiToken,
   authenticateDeliveryRequest,
   bearerToken,
+  canRevokeApiToken,
   generateApiToken,
   hashApiToken,
   isApiTokenUsable,
@@ -190,27 +191,22 @@ describe('authenticateApiToken', () => {
 })
 
 describe('authenticateDeliveryRequest', () => {
-  it('resolves the token when it covers the project in the URL', async () => {
+  it('resolves the token to a row that carries the project', async () => {
+    // The URL names no project, so this row is the only place the endpoint can
+    // get one from.
     const { plaintext, row } = seed({ projectId: 7 })
-    const token = await authenticateDeliveryRequest(`Bearer ${plaintext}`, 7)
+    const token = await authenticateDeliveryRequest(`Bearer ${plaintext}`)
     expect(token.id).toBe(row.id)
-  })
-
-  it('403s a valid token aimed at another project, rather than 404', async () => {
-    // The credential is real; the target simply is not its own.
-    const { plaintext } = seed({ projectId: 7 })
-    await expect(
-      authenticateDeliveryRequest(`Bearer ${plaintext}`, 8)
-    ).rejects.toMatchObject({ statusCode: 403 })
+    expect(token.projectId).toBe(7)
   })
 
   it('401s a header that is missing or is not a bearer', async () => {
     seed()
+    await expect(authenticateDeliveryRequest(undefined)).rejects.toMatchObject({
+      statusCode: 401,
+    })
     await expect(
-      authenticateDeliveryRequest(undefined, 1)
-    ).rejects.toMatchObject({ statusCode: 401 })
-    await expect(
-      authenticateDeliveryRequest('Basic bG5zX2FiYw==', 1)
+      authenticateDeliveryRequest('Basic bG5zX2FiYw==')
     ).rejects.toMatchObject({ statusCode: 401 })
   })
 })
@@ -245,18 +241,45 @@ describe('touchApiToken', () => {
   })
 })
 
-describe('assertTokenCoversProject', () => {
-  it('admits the project the token names, comparing ids by value', () => {
-    expect(() => assertTokenCoversProject({ projectId: 7 }, 7)).not.toThrow()
+describe('canRevokeApiToken', () => {
+  const member = (userId: number, isSteward = false) => ({ userId, isSteward })
+
+  it('lets a member stop the credential they minted', () => {
+    expect(canRevokeApiToken({ createdBy: 3 }, member(3))).toBe(true)
+  })
+
+  it('compares ids by value, not by type', () => {
+    expect(canRevokeApiToken({ createdBy: 3 }, member(Number('3')))).toBe(true)
+  })
+
+  it('refuses a token someone else minted', () => {
+    expect(canRevokeApiToken({ createdBy: 3 }, member(4))).toBe(false)
+  })
+
+  it('lets a steward stop any token on the project', () => {
+    expect(canRevokeApiToken({ createdBy: 3 }, member(4, true))).toBe(true)
+  })
+})
+
+describe('assertApiTokenRevocable', () => {
+  it('passes a member acting on their own token', () => {
     expect(() =>
-      assertTokenCoversProject({ projectId: 7 }, Number('7'))
+      assertApiTokenRevocable(
+        { createdBy: 3 },
+        { userId: 3, isSteward: false }
+      )
     ).not.toThrow()
   })
 
-  it('403s any other project, so one token never widens into a team', () => {
-    expect(thrownStatus(() => assertTokenCoversProject({ projectId: 7 }, 8))).toBe(
-      403
-    )
+  it('403s a member reaching for another member token', () => {
+    expect(
+      thrownStatus(() =>
+        assertApiTokenRevocable(
+          { createdBy: 3 },
+          { userId: 4, isSteward: false }
+        )
+      )
+    ).toBe(403)
   })
 })
 

@@ -68,30 +68,13 @@ export async function authenticateApiToken(plaintext: string | null) {
 }
 
 /**
- * The whole v1 credential path in one call: bearer header to a token that
- * provably covers the project named in the URL. Endpoints call this rather than
- * assembling the steps, so the 401 and 403 shapes live in one place.
+ * The v1 credential path in one call: bearer header to the token row. That row
+ * carries `projectId`, and it is where every delivery endpoint gets its project
+ * from — the URL names no project, so there is no second answer that could
+ * disagree with the credential.
  */
-export async function authenticateDeliveryRequest(
-  header: unknown,
-  projectId: number
-) {
-  const token = await authenticateApiToken(bearerToken(header))
-  assertTokenCoversProject(token, projectId)
-  return token
-}
-
-/** A mismatch is a 403, not a 404: the credential is valid, just aimed elsewhere. */
-export function assertTokenCoversProject(
-  token: { projectId: number },
-  projectId: number
-): void {
-  if (Number(token.projectId) !== Number(projectId)) {
-    throw createError({
-      statusCode: 403,
-      statusMessage: 'API token does not cover this project',
-    })
-  }
+export async function authenticateDeliveryRequest(header: unknown) {
+  return authenticateApiToken(bearerToken(header))
 }
 
 /**
@@ -135,6 +118,30 @@ export function assertApiTokenPurgeable(row: { revokedAt?: Date | null }): void 
     throw createError({
       statusCode: 409,
       statusMessage: 'Revoke the token before deleting it',
+    })
+  }
+}
+
+/**
+ * Who may stop a credential. A member may revoke what they minted; a steward may
+ * revoke anyone's. Erasing the row outright is a steward action and stays gated
+ * in the route, because that destroys the record rather than stopping the token.
+ */
+export function canRevokeApiToken(
+  row: { createdBy: number },
+  actor: { userId: number; isSteward: boolean }
+): boolean {
+  return actor.isSteward || Number(row.createdBy) === Number(actor.userId)
+}
+
+export function assertApiTokenRevocable(
+  row: { createdBy: number },
+  actor: { userId: number; isSteward: boolean }
+): void {
+  if (!canRevokeApiToken(row, actor)) {
+    throw createError({
+      statusCode: 403,
+      statusMessage: 'Only the token creator or a project steward can revoke it',
     })
   }
 }
