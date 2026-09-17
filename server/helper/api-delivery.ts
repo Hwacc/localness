@@ -77,8 +77,8 @@ export function releaseWhere(releaseId: number | null) {
  * shapes come from here, so a key can never appear in one and not the other.
  *
  * `locale: { in: [...] }` rather than a filter per locale: the bundle needs every
- * locale anyway, and one query beats one per locale for what is the hot path of
- * a runtime consumer.
+ * locale anyway, and one query beats one per locale on the path a consumer that
+ * pulls the whole bundle on every load will hit hardest.
  */
 function publishedKeyRows(
   projectId: number,
@@ -175,7 +175,7 @@ export async function deliveryLocale(
  * Locales are emitted in the project's own order and, within each, in key order,
  * so the bundle is byte-stable across calls for a consumer that wants to hash it.
  */
-export async function deliveryRuntime(
+export async function deliveryBundle(
   projectId: number,
   releaseId: number | null,
   locales: string[]

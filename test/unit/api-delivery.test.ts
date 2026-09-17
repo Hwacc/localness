@@ -114,7 +114,7 @@ vi.mock('#server/libs/prisma', () => ({
 const {
   deliveryLocale,
   deliveryMeta,
-  deliveryRuntime,
+  deliveryBundle,
   projectLocales,
   resolveReleaseParam,
 } = await import('#server/helper/api-delivery')
@@ -290,7 +290,7 @@ describe('deliveryLocale', () => {
   })
 })
 
-describe('deliveryRuntime', () => {
+describe('deliveryBundle', () => {
   beforeEach(() => {
     db.keys = [
       { id: 1, key: 'a', releaseIds: [4] },
@@ -300,15 +300,15 @@ describe('deliveryRuntime', () => {
   })
 
   it('keys the bundle by locale', async () => {
-    const bundle = await deliveryRuntime(1, null, ['en', 'ja'])
+    const bundle = await deliveryBundle(1, null, ['en', 'ja'])
     // Only `ja` has published text in this fixture.
     expect(bundle).toEqual({ ja: { b: 'B' } })
   })
 
   it('omits a locale that has nothing, so absent means absent', async () => {
-    const bundle = await deliveryRuntime(1, null, ['en'])
+    const bundle = await deliveryBundle(1, null, ['en'])
     expect(bundle).toEqual({})
-    expect(await deliveryRuntime(1, null, ['ja'])).toEqual({
+    expect(await deliveryBundle(1, null, ['ja'])).toEqual({
       ja: { b: 'B' },
     })
   })
@@ -318,7 +318,7 @@ describe('deliveryRuntime', () => {
       { locale: 'en', keyId: 1, publishedText: 'A' },
       { locale: 'ja', keyId: 1, publishedText: 'A' },
     ]
-    expect(await deliveryRuntime(1, 4, ['en', 'ja'])).toEqual({
+    expect(await deliveryBundle(1, 4, ['en', 'ja'])).toEqual({
       en: { a: 'A' },
       ja: { a: 'A' },
     })
@@ -330,13 +330,13 @@ describe('deliveryRuntime', () => {
       { locale: 'ja', keyId: 1, publishedText: 'A' },
     ]
     // An empty value must not override the consumer's fallback.
-    expect(await deliveryRuntime(1, null, ['en', 'ja'])).toEqual({
+    expect(await deliveryBundle(1, null, ['en', 'ja'])).toEqual({
       ja: { a: 'A' },
     })
   })
 
   it('reads every locale in one query, not one per locale', async () => {
-    // This is the endpoint a runtime consumer hits on every load.
+    // This is the endpoint a consumer hits on every page load.
     db.keys = [
       { id: 1, key: 'a', releaseIds: [] },
       { id: 2, key: 'b', releaseIds: [] },
@@ -346,7 +346,7 @@ describe('deliveryRuntime', () => {
       { locale: 'ja', keyId: 1, publishedText: 'ア' },
       { locale: 'ja', keyId: 2, publishedText: 'イ' },
     ]
-    const bundle = await deliveryRuntime(1, null, ['en', 'ja'])
+    const bundle = await deliveryBundle(1, null, ['en', 'ja'])
     expect(db.keyQueries).toBe(1)
     expect(bundle).toEqual({ en: { a: 'A' }, ja: { a: 'ア', b: 'イ' } })
   })
@@ -362,7 +362,7 @@ describe('deliveryRuntime', () => {
     ]
     // Byte-stable, so a consumer that hashes the bundle for its own cache gets
     // one answer rather than a reshuffle per request.
-    const bundle = await deliveryRuntime(1, null, ['en', 'zh'])
+    const bundle = await deliveryBundle(1, null, ['en', 'zh'])
     expect(JSON.stringify(bundle)).toBe(
       JSON.stringify({ en: { a: 'A' }, zh: { b: '乙' } })
     )

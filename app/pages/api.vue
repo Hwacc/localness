@@ -78,10 +78,10 @@ const examples = computed(() => [
     ),
   },
   {
-    title: 'Every locale at once',
+    title: 'Every locale in one bundle',
     description:
-      'One round trip for a runtime bundle. Same shape, keyed by locale.',
-    code: curlExample(`/api/v1/projects/${projectId.value ?? ':id'}/runtime`),
+      'All locales in a single round trip. Same shape, keyed by locale.',
+    code: curlExample(`/api/v1/projects/${projectId.value ?? ':id'}/bundle`),
   },
 ])
 
