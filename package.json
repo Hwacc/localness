@@ -29,6 +29,7 @@
     "@leafer-in/viewport": "^1.8.0",
     "@leafer/core": "^1.8.0",
     "@leafer/worker": "^1.8.0",
+    "@modelcontextprotocol/server": "^2.0.0",
     "@nuxt/fonts": "^0.14.0",
     "@nuxt/icon": "^2.5.1",
     "@nuxt/image": "^2.1.0",

@@ -1,0 +1,11 @@
+{
+  "mcpServers": {
+    "localness-test-mcp": {
+      "url": "http://[::1]:3000/mcp",
+      "enabled": true,
+      "headers": {
+        "Authorization": "Bearer lns_533267d7443ec4b53604c1029cc6127e58d316112783ad1ba32ff9ef336fcf30"
+      }
+    }
+  }
+}
