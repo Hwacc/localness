@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import { copyTextToClipboard } from '~/utils/clipboard'
+
 const props = defineProps<{
   token: string
   name: string
@@ -30,7 +32,7 @@ function dismiss() {
 
 async function copy() {
   try {
-    await navigator.clipboard.writeText(props.token)
+    await copyTextToClipboard(props.token)
     toast.add({
       title: 'Token copied',
       color: 'success',
