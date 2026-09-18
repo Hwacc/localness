@@ -4,6 +4,7 @@ export const WORKSPACE_TEAM_KEY = 'workspace:teamId'
 export const WORKSPACE_PROJECT_KEY = 'workspace:projectId'
 export const WORKSPACE_PAGES_KEY = 'workspace:pageByProject'
 export const WORKSPACE_RELEASE_KEY = 'workspace:releaseByProject'
+export const WORKSPACE_PROJECT_ORDER_KEY = 'workspace:projectOrder'
 
 export function emptyProject(partial: Partial<IProject> = {}): IProject {
   return {
@@ -103,6 +104,57 @@ export function writeReleaseFilterForProject(
   if (!import.meta.client || !validID(projectId)) return
   const next = { ...readReleaseFilterByProject(), [String(projectId)]: filter }
   localStorage.setItem(WORKSPACE_RELEASE_KEY, JSON.stringify(next))
+}
+
+/**
+ * The card order per Team, layered by userId — unlike the keys above, which are
+ * shared by whoever last used the browser. Shape:
+ * `{ "<userId>": { "<teamId>": [projectId, ...] } }`.
+ */
+function readProjectOrderAll(): Record<string, Record<string, ID[]>> {
+  if (!import.meta.client) return {}
+  try {
+    const raw = localStorage.getItem(WORKSPACE_PROJECT_ORDER_KEY)
+    if (!raw) return {}
+    const parsed = JSON.parse(raw) as Record<string, unknown>
+    if (!parsed || typeof parsed !== 'object') return {}
+    const out: Record<string, Record<string, ID[]>> = {}
+    for (const [userId, teams] of Object.entries(parsed)) {
+      if (!teams || typeof teams !== 'object') continue
+      const byTeam: Record<string, ID[]> = {}
+      for (const [teamId, ids] of Object.entries(
+        teams as Record<string, unknown>
+      )) {
+        if (!Array.isArray(ids)) continue
+        const kept = ids.filter((id) => validID(id as ID))
+        if (kept.length) byTeam[teamId] = kept
+      }
+      out[userId] = byTeam
+    }
+    return out
+  } catch {
+    return {}
+  }
+}
+
+/** Hand-edited or truncated storage degrades to "no custom order", not a throw. */
+export function readProjectOrderByTeam(userId: ID): Record<string, ID[]> {
+  if (!import.meta.client || !validID(userId)) return {}
+  return readProjectOrderAll()[String(userId)] ?? {}
+}
+
+export function writeProjectOrderForTeam(
+  userId: ID,
+  teamId: ID,
+  projectIds: ID[]
+) {
+  if (!import.meta.client || !validID(userId) || !validID(teamId)) return
+  const all = readProjectOrderAll()
+  const mine = { ...(all[String(userId)] ?? {}), [String(teamId)]: projectIds }
+  localStorage.setItem(
+    WORKSPACE_PROJECT_ORDER_KEY,
+    JSON.stringify({ ...all, [String(userId)]: mine })
+  )
 }
 
 export function canCreateProject(team?: ITeam | null) {

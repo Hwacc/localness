@@ -2,11 +2,14 @@ import { isEmpty, merge } from 'lodash-es'
 
 export const useProjectStore = defineStore('project', () => {
   const toast = useToast()
+  const { user } = useUserSession()
   const projects = ref<IProject[]>([])
   const teams = ref<ITeam[]>([])
   const curProject = ref<IProject>(emptyProject())
   const curTeamId = ref<ID | undefined>()
   const curReleaseFilter = ref<ReleaseFilterValue>('all')
+  /** teamId -> this user's card order. Mirrors storage so both surfaces react. */
+  const projectOrder = ref<Record<string, ID[]>>({})
   const pageStore = usePageStore()
 
   /** The project's release labels, in display order. */
@@ -23,13 +26,39 @@ export const useProjectStore = defineStore('project', () => {
     () => teams.value.find((t) => String(t.id) === String(curTeamId.value)) ?? null
   )
 
+  function loadProjectOrder() {
+    const userId = user.value?.id
+    projectOrder.value = validID(userId) ? readProjectOrderByTeam(userId) : {}
+  }
+  // Not a one-shot read: on an `ssr: false` page the session resolves a tick
+  // after setup, so a hard load has no user yet.
+  watch(() => user.value?.id, loadProjectOrder, { immediate: true })
+
+  /**
+   * The one ordering seam. Keyed on `String(teamId)` rather than `validID`,
+   * which rejects 0 and would quietly change which projects a surface lists.
+   */
+  function orderedTeamProjects(teamId: ID | undefined): IProject[] {
+    const key = String(teamId)
+    return applyProjectOrder(
+      projects.value.filter((p) => String(p.teamId) === key),
+      projectOrder.value[key]
+    )
+  }
+
   const projectsByTeam = computed(() =>
     teams.value.map((team) => ({
       team,
-      projects: projects.value.filter(
-        (p) => String(p.teamId) === String(team.id)
-      ),
+      projects: orderedTeamProjects(team.id),
     }))
+  )
+
+  /**
+   * The strip's list: the current Team, or the current project's Team. Follows
+   * the card order set on the dashboard; the strip itself is not draggable.
+   */
+  const curTeamProjects = computed(() =>
+    orderedTeamProjects(curTeam.value?.id ?? curProject.value.teamId)
   )
 
   async function getTeams() {
@@ -95,6 +124,21 @@ export const useProjectStore = defineStore('project', () => {
       (p) => String(p.teamId) === String(teamId)
     )
     if (inTeam[0]) setCurrentProject(inTeam[0])
+  }
+
+  /**
+   * Moves one project to a new slot within its own Team, then persists the whole
+   * resulting order — so an id this user never ordered stays where it was.
+   */
+  function moveProject(teamId: ID, projectId: ID, toIndex: number) {
+    if (!validID(teamId) || !validID(projectId)) return
+    const current = orderedTeamProjects(teamId).map((p) => p.id)
+    if (current.length < 2) return
+    const next = moveProjectInOrder(current, projectId, toIndex)
+    if (next.length !== current.length) return
+    projectOrder.value = { ...projectOrder.value, [String(teamId)]: next }
+    const userId = user.value?.id
+    if (validID(userId)) writeProjectOrderForTeam(userId, teamId, next)
   }
 
   function restoreWorkspace() {
@@ -220,6 +264,7 @@ export const useProjectStore = defineStore('project', () => {
     curReleaseFilter,
     pageList,
     projectsByTeam,
+    curTeamProjects,
     getProjects,
     getTeams,
     createProject,
@@ -227,6 +272,7 @@ export const useProjectStore = defineStore('project', () => {
     setCurrentProject,
     setCurrentTeam,
     setReleaseFilter,
+    moveProject,
   }
 })
 

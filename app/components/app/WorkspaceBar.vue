@@ -2,20 +2,19 @@
 import { TeamRole } from '#shared/constants'
 
 const projectStore = useProjectStore()
-const { curProject, curTeam, teams, projects, curReleases, curReleaseFilter } =
-  storeToRefs(projectStore)
+const {
+  curProject,
+  curTeam,
+  teams,
+  curReleases,
+  curTeamProjects,
+  curReleaseFilter,
+} = storeToRefs(projectStore)
 const { open: openCreateProject } = useCreateProjectModal()
 const { openSettings, openExport } = useProjectActions()
 
 /** Sentinel for the dropdown's action row, which must not change the filter. */
 const MANAGE_RELEASES = 'manage'
-
-const teamProjects = computed(() =>
-  projects.value.filter(
-    (p) =>
-      String(p.teamId) === String(curTeam.value?.id ?? curProject.value.teamId)
-  )
-)
 
 const teamItems = computed(() =>
   teams.value.map((t) => ({
@@ -91,7 +90,7 @@ function onReleaseChange(value: string | number) {
         class="min-w-0 flex-1 flex items-center gap-1 overflow-x-auto"
       >
         <button
-          v-for="project in teamProjects"
+          v-for="project in curTeamProjects"
           :key="project.id"
           type="button"
           class="shrink-0 max-w-56 inline-flex items-center gap-1 rounded-md px-2.5 py-1 text-sm transition-colors"
@@ -110,7 +109,7 @@ function onReleaseChange(value: string | number) {
           />
         </button>
         <p
-          v-if="teamProjects.length === 0"
+          v-if="curTeamProjects.length === 0"
           class="px-2 text-sm text-muted truncate"
         >
           No project in this team
