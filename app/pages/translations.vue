@@ -16,6 +16,7 @@ import {
   UTooltip,
   AlertModal,
   I18nKeyModal,
+  TransferKeysModal,
 } from '#components'
 import { useDebounceFn } from '@vueuse/core'
 import {
@@ -163,6 +164,7 @@ const overlay = useOverlay()
 const editModal = overlay.create(I18nKeyModal)
 const deleteModal = overlay.create(AlertModal)
 const unpublishModal = overlay.create(AlertModal)
+const transferModal = overlay.create(TransferKeysModal)
 
 function openCreate() {
   if (!validID(curProject.value.id)) return
@@ -253,6 +255,24 @@ async function setBulkRelease(mode: 'add' | 'remove') {
 const bulkMenuItems = computed<DropdownMenuItem[][]>(() => [
   [
     {
+      label: selectedRows.value.length
+        ? `Copy ${selectedRows.value.length} to another project`
+        : 'Copy to another project',
+      icon: 'i-lucide:copy',
+      disabled: !canTransfer.value || transferring.value,
+      onSelect: () => openTransfer('copy'),
+    },
+    {
+      label: selectedRows.value.length
+        ? `Move ${selectedRows.value.length} to another project`
+        : 'Move to another project',
+      icon: 'i-lucide:folder-output',
+      disabled: !canTransfer.value || transferring.value,
+      onSelect: () => openTransfer('move'),
+    },
+  ],
+  [
+    {
       label: selectedPublishedIds.value.length
         ? `Revert ${selectedPublishedIds.value.length} published`
         : 'Revert published',
@@ -339,6 +359,126 @@ function openBulkUnpublish() {
         unpublishModal.patch({ loading: false })
       }
     },
+  })
+}
+
+const transferring = ref(false)
+
+/**
+ * Destinations: every project the user can see except this one. `projectStore`
+ * only holds projects from Teams they belong to, so this is the client half of
+ * the server's 403, not a substitute for it.
+ */
+const transferableProjects = computed(() =>
+  projectStore.projects
+    .filter((project) => String(project.id) !== String(curProject.value.id))
+    .map((project) => ({ label: project.name, value: Number(project.id) }))
+)
+
+/** A copy of a published key lands published, so the confirmation says so. */
+const selectionHasPublished = computed(() =>
+  selectedRows.value.some((row) => !row.dirty)
+)
+
+/** Both modes act on the whole selection — drafts and published alike. */
+const canTransfer = computed(
+  () =>
+    Boolean(selectedRows.value.length) &&
+    Boolean(transferableProjects.value.length)
+)
+
+function openTransfer(mode: 'copy' | 'move') {
+  if (!canTransfer.value) return
+  // Freeze the batch. `loadKeys()` clears the row selection, so re-reading it
+  // inside the modal would let a filter or page change shrink the request
+  // between opening this dialog and confirming it.
+  const keyIds = selectedRows.value.map((row) => Number(row.id))
+  transferModal.open({
+    mode,
+    keyIds,
+    targetProjects: transferableProjects.value,
+    sourceProjectName: curProject.value.name,
+    hasPublished: selectionHasPublished.value,
+    onOk: async ({ targetProjectId, close }) => {
+      transferring.value = true
+      transferModal.patch({ loading: true })
+      try {
+        const result = await useApi<II18nTransferResult>(
+          `/api/projects/${curProject.value.id}/i18n-keys/transfer`,
+          { method: 'POST', body: { mode, targetProjectId, keyIds } }
+        )
+        if (!result) return
+        if (mode === 'move' && result.movedIds.length) {
+          // Drop the binding but keep the box: a move relocates text, it does
+          // not dismantle the screenshot. Leaving the binding would let the
+          // next tag save post the old key name back and re-create it.
+          const moved = new Set(result.movedIds.map(String))
+          pageStore.setTags(
+            pageStore.tagList.map((tag) => {
+              const boundId = tag.translationID ?? tag.i18nKeyId
+              if (boundId === undefined || !moved.has(String(boundId))) {
+                return tag
+              }
+              return {
+                ...tag,
+                translationID: undefined,
+                i18nKeyId: undefined,
+                i18nKey: undefined,
+              }
+            })
+          )
+        }
+        reportTransfer(result, mode)
+        close()
+        rowSelection.value = {}
+        await loadKeys()
+      } finally {
+        transferring.value = false
+        transferModal.patch({ loading: false })
+      }
+    },
+  })
+}
+
+function reportTransfer(result: II18nTransferResult, mode: 'copy' | 'move') {
+  const verb = mode === 'move' ? 'moved' : 'copied'
+  const done = mode === 'move' ? result.removed : result.copied
+  const target =
+    transferableProjects.value.find(
+      (project) => project.value === Number(result.targetProjectId)
+    )?.label ?? 'the target project'
+
+  if (!done) {
+    toast.add({
+      title: `Nothing ${verb}`,
+      description: result.failed.length
+        ? `${result.failed.length} key(s) could not be transferred.`
+        : `Every selected key already exists in ${target}.`,
+      color: 'warning',
+      icon: 'i-lucide:triangle-alert',
+    })
+    return
+  }
+
+  const parts = [`${done} ${verb} to ${target}`]
+  if (result.skipped.length) {
+    const names = result.skipped.map((row) => formatI18nKeyDisplay(row.key))
+    const named =
+      names.length <= 3
+        ? names.join(', ')
+        : `${names.slice(0, 3).join(', ')} +${names.length - 3} more`
+    parts.push(`${result.skipped.length} skipped, already there: ${named}`)
+  }
+  if (result.failed.length) parts.push(`${result.failed.length} failed`)
+
+  const problems = result.skipped.length + result.failed.length
+  toast.add({
+    title: problems
+      ? `Partially ${verb}`
+      : verb.charAt(0).toUpperCase() + verb.slice(1),
+    description: parts.join(', '),
+    color: problems ? 'warning' : 'success',
+    icon: problems ? 'i-lucide:triangle-alert' : 'i-lucide:check',
   })
 }
 

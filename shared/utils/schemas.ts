@@ -245,6 +245,14 @@ export const zI18nKeyPatch = z.object({
 })
 export type ZI18nKeyPatch = z.infer<typeof zI18nKeyPatch>
 
+/** `.max` is a guard for hand-rolled callers: the UI can never select this many. */
+export const zI18nTransfer = z.object({
+  mode: z.enum(['copy', 'move']),
+  targetProjectId: z.number().int().positive(),
+  keyIds: z.array(z.number().int().positive()).min(1).max(200),
+})
+export type ZI18nTransfer = z.infer<typeof zI18nTransfer>
+
 export const zGenI18nKey = z.object({
   projectPrompt: zNilable(z.string()),
   pagePrompt: zNilable(z.string()),
