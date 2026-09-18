@@ -104,8 +104,16 @@ NUXT_ATLASSIAN_ALLOWED_EMAIL_DOMAINS=example.com,example.org
 
 ## Upgrades
 
-Pull a newer tag and recreate the container. **Do not** pass `-v` (that
-deletes the volume and the database).
+From the compose directory (`/home/rcddev/localness` on the intranet host):
+
+```bash
+./update.sh 0.1.2    # pin a version
+./update.sh          # latest
+```
+
+The script pulls Hub, recreates the container, and **does not** pass `-v`.
+`sudo` is required if your user is not in the `docker` group. Equivalent by
+hand:
 
 ```bash
 LOCALNESS_IMAGE=huacc/localness:1.3.0 docker compose pull

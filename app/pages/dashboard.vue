@@ -102,6 +102,14 @@ function isCurrent(project: IProject) {
 function selectProject(project: IProject) {
   projectStore.setCurrentProject(project)
 }
+/** Reordering stays inside one Team — `group` is unique per section. */
+function projectSortable(teamId: ID) {
+  return {
+    group: `team-${teamId}`,
+    onEnd: (projectId: string, toIndex: number) =>
+      projectStore.moveProject(teamId, projectId, toIndex),
+  }
+}
 </script>
 
 <template>
@@ -111,7 +119,8 @@ function selectProject(project: IProject) {
     >
       <h1 class="text-xl font-semibold tracking-tight">Dashboard</h1>
       <p class="mt-1 text-sm text-muted">
-        Your teams and projects. Open Editor or Translations from a card.
+        Your teams and projects. Open Editor or Translations from a card, or
+        drag it to reorder within its team.
       </p>
     </header>
 
@@ -224,13 +233,15 @@ function selectProject(project: IProject) {
         </div>
         <div
           v-else
+          v-sortable="projectSortable(team.id)"
           class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3"
         >
           <button
             v-for="project in teamProjects"
             :key="project.id"
             type="button"
-            class="text-left rounded-xl border bg-default p-4 transition-colors"
+            :data-project-id="project.id"
+            class="text-left rounded-xl border bg-default p-4 transition-colors cursor-grab active:cursor-grabbing"
             :class="
               isCurrent(project)
                 ? 'border-primary'
@@ -254,7 +265,7 @@ function selectProject(project: IProject) {
                 · {{ $dayjs(project.updatedAt).format('YYYY-MM-DD HH:mm') }}
               </span>
             </p>
-            <div class="mt-3 flex flex-wrap gap-2" @click.stop>
+            <div class="mt-3 flex flex-wrap gap-2" data-no-drag @click.stop>
               <UButton
                 size="xs"
                 color="neutral"
