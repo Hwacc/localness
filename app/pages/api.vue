@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import { copyTextToClipboard } from '~/utils/clipboard'
+
 definePageMeta({
   middleware: ['protected'],
   ssr: false,
@@ -77,7 +79,7 @@ const mcpConfig = computed(
 
 async function copy(value: string, label: string) {
   try {
-    await navigator.clipboard.writeText(value)
+    await copyTextToClipboard(value)
     toast.add({ title: `${label} copied`, color: 'success' })
   } catch {
     toast.add({ title: 'Copy failed', color: 'error' })

@@ -340,9 +340,9 @@ const showNextButton = computed(() => {
 
 /** Each step guards its own requirement, so Next explains itself in place. */
 const nextDisabled = computed(() => {
-  // Pages only scope screenshots and tag rows, so a JSON-only export does not
-  // have to pick any.
-  if (curStep.value === 0) return wantsXlsx.value && !state.selectedPages.length
+  // Pages only scope screenshots and tag rows. Zero pages is a valid keys-only
+  // export: XLSX still writes pic-less rows, JSON never needed pages.
+  if (curStep.value === 0) return false
   if (curStep.value === 1) {
     return !state.selectedKeyIds.length || !localeColumns.value.length
   }
@@ -374,7 +374,17 @@ const canExport = computed(
       <UStepper ref="stepper" v-model="curStep" :items="steps" disabled>
         <template #step1>
           <div class="flex items-center gap-2 p-3.5 bg-muted mb-2 rounded">
-            <UCheckbox v-model="selectAllPages" label="Select All" />
+            <UCheckbox
+              v-if="pageItems.length"
+              v-model="selectAllPages"
+              label="Select All"
+            />
+            <span
+              v-else
+              class="text-sm text-muted"
+            >
+              No pages to select
+            </span>
             <UButton
               v-if="releaseScoped"
               class="ml-auto"
@@ -388,12 +398,26 @@ const canExport = computed(
             />
           </div>
           <div class="overflow-auto" style="max-height: 31.25rem">
+            <div
+              v-if="!pageItems.length"
+              class="rounded-lg border border-default p-3 text-sm text-muted"
+            >
+              This project has no pages. Continue to pick keys — published text
+              still exports. XLSX will skip screenshots.
+            </div>
             <UCheckboxGroup
+              v-else
               v-model="state.selectedPages"
               :items="pageItems"
               variant="card"
             />
           </div>
+          <p
+            v-if="pageItems.length && wantsXlsx && !state.selectedPages.length"
+            class="mt-2 text-xs text-muted"
+          >
+            No pages selected — the sheet will have no screenshots.
+          </p>
         </template>
 
         <template #step2>

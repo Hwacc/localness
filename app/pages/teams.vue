@@ -3,6 +3,7 @@ import type { TableColumn, TableRow } from '@nuxt/ui'
 import { useDebounceFn } from '@vueuse/core'
 import { TeamRole, UserRole } from '#shared/constants'
 import { AlertModal, ProjectOwnerBadge, TeamMemberBadge, TeamOwnerBadge, UBadge, UButton, UTooltip, UserAvatar } from '#components'
+import { copyTextToClipboard } from '~/utils/clipboard'
 
 definePageMeta({
   middleware: ['protected'],
@@ -468,7 +469,7 @@ async function createInviteCode() {
 }
 
 async function copyInviteCode(code: string) {
-  await navigator.clipboard.writeText(code)
+  await copyTextToClipboard(code)
   toast.add({
     title: 'Copied',
     description: code,
