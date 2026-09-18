@@ -40,3 +40,26 @@ export interface II18nKeyRefs {
   key: string
   pages: II18nKeyRefPage[]
 }
+
+export type I18nTransferMode = 'copy' | 'move'
+
+export type I18nTransferSkipReason = 'key-exists'
+
+/**
+ * What one copy/move batch did. Lives here rather than beside the server
+ * helper because `app/` may not import from `#server`.
+ */
+export interface II18nTransferResult {
+  mode: I18nTransferMode
+  sourceProjectId: ID
+  targetProjectId: ID
+  copied: number
+  /** Keys deleted from the source. Always 0 for a copy. */
+  removed: number
+  /** Refused by a rule — the target already has that key. */
+  skipped: Array<{ key: string; reason: I18nTransferSkipReason }>
+  /** The write threw; the batch carried on past it. */
+  failed: Array<{ key: string }>
+  /** Source key ids a move actually removed, for the client to drop local bindings. */
+  movedIds: ID[]
+}
