@@ -4,6 +4,8 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import {
   buildSourceFilename,
+  liltBatchId,
+  liltBatchInstant,
   liltBatchSortKey,
   parseLiltFilename,
   parseSeenFiles,
@@ -51,6 +53,16 @@ describe('parseLiltFilename', () => {
     })
   })
 
+  it('accepts production LILT names without a time segment', () => {
+    expect(
+      parseLiltFilename('20260910-5dbd3ccd8d999fc715de9a79_en-US.json')
+    ).toEqual({
+      date: '20260910',
+      batchId: '5dbd3ccd8d999fc715de9a79',
+      remoteLocale: 'en-US',
+    })
+  })
+
   it('rejects names that are not LILT batches', () => {
     expect(parseLiltFilename('README.md')).toBeNull()
     expect(parseLiltFilename('en-US.json')).toBeNull()
@@ -58,20 +70,52 @@ describe('parseLiltFilename', () => {
 })
 
 describe('buildSourceFilename', () => {
-  it('produces a parseable name for the source locale', () => {
-    const name = buildSourceFilename('en-US')
+  it('matches LILT `<YYYYMMDD>-<batch id>_<source locale>.json`', () => {
+    const now = new Date(Date.UTC(2026, 8, 10, 8, 37, 2))
+    const name = buildSourceFilename('en-US', now)
+    expect(name).toMatch(/^20260910-[0-9a-f]{24}_en-US\.json$/)
+    expect(name).not.toMatch(/^\d{8}-\d{6}-/)
     const parsed = parseLiltFilename(name)
-    expect(parsed?.remoteLocale).toBe('en-US')
-    expect(parsed?.date).toMatch(/^\d{8}$/)
+    expect(parsed).toEqual({
+      date: '20260910',
+      batchId: name.slice('20260910-'.length, -'_en-US.json'.length),
+      remoteLocale: 'en-US',
+    })
+    expect(parsed?.batchId).toHaveLength(24)
   })
 
   it('does not collide across calls in the same second', () => {
-    expect(buildSourceFilename('en-US')).not.toBe(buildSourceFilename('en-US'))
+    const now = new Date(Date.UTC(2026, 8, 10, 8, 37, 2))
+    expect(buildSourceFilename('en-US', now)).not.toBe(
+      buildSourceFilename('en-US', now)
+    )
+  })
+})
+
+describe('liltBatchInstant', () => {
+  it('treats an older production source id as opaque (embedded day ≠ filename day)', () => {
+    expect(
+      liltBatchInstant('20260910', '5dbd3ccd8d999fc715de9a79')
+    ).toBeNull()
+  })
+
+  it('reads unix seconds from a same-day 24-hex ObjectId', () => {
+    const at = new Date(Date.UTC(2026, 8, 10, 8, 37, 2))
+    const id = liltBatchId(at)
+    expect(liltBatchInstant('20260910', id)).toBe(
+      Math.floor(at.getTime() / 1000)
+    )
+  })
+
+  it('reads unix seconds from a legacy HHMMSS-hex id', () => {
+    expect(liltBatchInstant('20260910', '083702-aa')).toBe(
+      Math.floor(Date.UTC(2026, 8, 10, 8, 37, 2) / 1000)
+    )
   })
 })
 
 describe('liltBatchSortKey', () => {
-  it('lets a same-day Localness push win over a connector uuid batch', () => {
+  it('lets a same-day legacy Localness push win over an older production source batch', () => {
     const connector = liltBatchSortKey(
       '20260910',
       '5dbd3ccd8d999fc715de9a79'
@@ -80,10 +124,54 @@ describe('liltBatchSortKey', () => {
     expect(localness > connector).toBe(true)
   })
 
+  it('lets a same-day 24-hex ObjectId sort after an opaque production source batch', () => {
+    const connector = liltBatchSortKey(
+      '20260910',
+      '5dbd3ccd8d999fc715de9a79'
+    )
+    const localness = liltBatchSortKey(
+      '20260910',
+      liltBatchId(new Date(Date.UTC(2026, 8, 10, 8, 37, 2)))
+    )
+    expect(localness > connector).toBe(true)
+  })
+
   it('still orders two Localness batches by time', () => {
     const earlier = liltBatchSortKey('20260910', '081602-aa')
     const later = liltBatchSortKey('20260910', '090000-bb')
     expect(later > earlier).toBe(true)
+  })
+
+  it('orders a later ObjectId after an earlier same-day legacy file', () => {
+    const legacyMorning = liltBatchSortKey('20260910', '081602-aa')
+    const objectIdAfternoon = liltBatchSortKey(
+      '20260910',
+      liltBatchId(new Date(Date.UTC(2026, 8, 10, 12, 0, 0)))
+    )
+    expect(objectIdAfternoon > legacyMorning).toBe(true)
+  })
+
+  it('orders two same-day ObjectId batches by their embedded seconds', () => {
+    const early = liltBatchSortKey(
+      '20260910',
+      liltBatchId(new Date(Date.UTC(2026, 8, 10, 8, 37, 2)))
+    )
+    const late = liltBatchSortKey(
+      '20260910',
+      liltBatchId(new Date(Date.UTC(2026, 8, 10, 18, 40, 0)))
+    )
+    expect(late > early).toBe(true)
+  })
+
+  it('drops a prefix re-dated away from its embedded day to opaque', () => {
+    const id = liltBatchId(new Date(Date.UTC(2026, 8, 8, 9, 0, 0)))
+    expect(liltBatchInstant('20260910', id)).toBeNull()
+    const redated = liltBatchSortKey('20260910', id)
+    const sameDayPush = liltBatchSortKey(
+      '20260910',
+      liltBatchId(new Date(Date.UTC(2026, 8, 10, 8, 0, 0)))
+    )
+    expect(sameDayPush > redated).toBe(true)
   })
 
   it('still orders by calendar date first', () => {
