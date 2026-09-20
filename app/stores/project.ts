@@ -83,16 +83,27 @@ export const useProjectStore = defineStore('project', () => {
     pageStore.setCurrentPage(match ?? pages[0]!)
   }
 
+  /**
+   * The current page has to be one the release filter shows. Everything that can
+   * move either side of that — the filter itself, a page's own labels — goes
+   * through here, so the two cannot drift apart and leave the editor drawing on
+   * a page the sider no longer lists.
+   */
+  function ensureCurrentPageVisible() {
+    const visible = pageList.value
+    if (
+      visible.some((page) => String(page.id) === String(pageStore.curPage.id))
+    ) {
+      return
+    }
+    pageStore.setCurrentPage(visible[0] ?? emptyPage())
+  }
+
   /** Remembered per project; a page outside the new filter cannot stay selected. */
   function setReleaseFilter(value: ReleaseFilterValue) {
     curReleaseFilter.value = value
     writeReleaseFilterForProject(curProject.value.id, value)
-    const visible = pageList.value
-    if (
-      !visible.some((page) => String(page.id) === String(pageStore.curPage.id))
-    ) {
-      pageStore.setCurrentPage(visible[0] ?? emptyPage())
-    }
+    ensureCurrentPageVisible()
   }
 
   function setCurrentProject(proj: IProject | ID) {
@@ -272,6 +283,7 @@ export const useProjectStore = defineStore('project', () => {
     setCurrentProject,
     setCurrentTeam,
     setReleaseFilter,
+    ensureCurrentPageVisible,
     moveProject,
   }
 })

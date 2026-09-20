@@ -18,12 +18,16 @@ echo
 if [ -n "$prev" ]; then
   echo "Changes since ${prev}:"
   echo
-  git log --no-merges --pretty=format:'- %s (%h)' "${prev}..${tag}"
+  git log --no-merges \
+    --invert-grep --grep='^chore: set package.json version' \
+    --pretty=format:'- %s (%h)' "${prev}..${tag}"
   echo
 else
   echo "First tagged release."
   echo
-  git log --no-merges --pretty=format:'- %s (%h)' "$tag"
+  git log --no-merges \
+    --invert-grep --grep='^chore: set package.json version' \
+    --pretty=format:'- %s (%h)' "$tag"
   echo
 fi
 echo

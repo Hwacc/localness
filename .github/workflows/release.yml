@@ -85,6 +85,35 @@ jobs:
           short-description: Screenshot tagging + i18n key store
           readme-filepath: hub.md
 
+  # Tag is the version source. Do not bump package.json by hand before tagging.
+  # The tagged commit may still show the previous number; this follow-up commit
+  # on the default branch is what the next checkout sees.
+  version:
+    needs: check
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+
+      - name: Set package.json from tag
+        run: sh .github/scripts/set-package-version.sh "${GITHUB_REF_NAME}"
+
+      - name: Commit version on default branch
+        run: |
+          git add package.json
+          if git diff --staged --quiet; then
+            echo "package.json already at ${GITHUB_REF_NAME#v}"
+            exit 0
+          fi
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git commit -m "chore: set package.json version to ${GITHUB_REF_NAME#v}"
+          git push
+
   image:
     needs: check
     runs-on: ubuntu-latest
@@ -94,6 +123,9 @@ jobs:
       actions: write
     steps:
       - uses: actions/checkout@v5
+
+      - name: Set package.json from tag
+        run: sh .github/scripts/set-package-version.sh "${GITHUB_REF_NAME}"
 
       - uses: docker/setup-buildx-action@v3
 
