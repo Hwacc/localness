@@ -245,6 +245,18 @@ export const zI18nKeyPatch = z.object({
 })
 export type ZI18nKeyPatch = z.infer<typeof zI18nKeyPatch>
 
+export const zI18nGitSyncToggle = z.object({
+  enabled: z.boolean(),
+})
+export type ZI18nGitSyncToggle = z.infer<typeof zI18nGitSyncToggle>
+
+/** `.max` is headroom, not a limit the UI can reach: selection is page-scoped. */
+export const zI18nGitSyncBulk = z.object({
+  enabled: z.boolean(),
+  keyIds: z.array(z.number().int().positive()).min(1).max(500),
+})
+export type ZI18nGitSyncBulk = z.infer<typeof zI18nGitSyncBulk>
+
 /** `.max` is a guard for hand-rolled callers: the UI can never select this many. */
 export const zI18nTransfer = z.object({
   mode: z.enum(['copy', 'move']),
@@ -368,8 +380,11 @@ export const zGitSyncConflictResolve = z.object({
     GitSyncConflictStatus.OURS,
     GitSyncConflictStatus.THEIRS,
     GitSyncConflictStatus.MERGED,
+    GitSyncConflictStatus.RENAMED,
   ]),
   text: z.string().optional(),
+  /** Only for `renamed`: the name the platform's key moves to. */
+  newKey: z.string().trim().min(1).optional(),
 })
 export type ZGitSyncConflictResolve = z.infer<typeof zGitSyncConflictResolve>
 

@@ -72,6 +72,7 @@ export enum GitSyncConflictStatus {
   OURS = 'ours',
   THEIRS = 'theirs',
   MERGED = 'merged',
+  RENAMED = 'renamed',
 }
 
 export enum GitSyncPreviewKind {

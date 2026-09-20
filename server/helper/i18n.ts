@@ -142,6 +142,7 @@ export function shapeI18nKeyRow(row: {
   origin: string
   description: string | null
   updatedAt: Date
+  gitSyncEnabled?: boolean
   locales: Array<{
     locale: string
     draftText: string | null
@@ -167,6 +168,8 @@ export function shapeI18nKeyRow(row: {
     locales,
     /** Labels as plain ids, for the same reason pages carry them that way. */
     releaseIds: (row.releases ?? []).map((release) => release.releaseId),
+    /** Older callers build the row by hand; absent means the default, true. */
+    gitSyncEnabled: row.gitSyncEnabled ?? true,
   }
 }
 

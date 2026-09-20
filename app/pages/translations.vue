@@ -257,6 +257,26 @@ async function setBulkRelease(mode: 'add' | 'remove') {
 const bulkMenuItems = computed<DropdownMenuItem[][]>(() => [
   [
     {
+      label: 'Include in Git sync',
+      icon: 'i-lucide:git-branch',
+      disabled:
+        !selectedRows.value.length ||
+        gitSyncBulkPending.value ||
+        bulkGitSyncState.value === 'on',
+      onSelect: () => setBulkGitSync(true),
+    },
+    {
+      label: 'Exclude from Git sync',
+      icon: 'i-lucide:git-branch',
+      disabled:
+        !selectedRows.value.length ||
+        gitSyncBulkPending.value ||
+        bulkGitSyncState.value === 'off',
+      onSelect: () => setBulkGitSync(false),
+    },
+  ],
+  [
+    {
       label: selectedRows.value.length
         ? `Copy ${selectedRows.value.length} to another project`
         : 'Copy to another project',
@@ -365,6 +385,62 @@ function openBulkUnpublish() {
 }
 
 const transferring = ref(false)
+
+/** The row whose Git sync switch is in flight, so only it shows a spinner. */
+const gitSyncPending = ref<ID | null>(null)
+const gitSyncBulkPending = ref(false)
+
+/**
+ * Patches the row in place rather than reloading: `loadKeys` clears the row
+ * selection, and toggling sync is exactly the thing you do across several rows
+ * in a row.
+ */
+async function setGitSync(row: II18nKeyRow, enabled: boolean) {
+  gitSyncPending.value = row.id
+  try {
+    await useApi(
+      `/api/projects/${curProject.value.id}/i18n-keys/${row.id}/git-sync`,
+      { method: 'POST', body: { enabled } }
+    )
+    row.gitSyncEnabled = enabled
+  } finally {
+    gitSyncPending.value = null
+  }
+}
+
+/**
+ * What the selection already is, so the no-op half of the pair can be disabled
+ * instead of quietly succeeding without changing anything.
+ */
+const bulkGitSyncState = computed<'on' | 'off' | 'mixed'>(() => {
+  const rows = selectedRows.value
+  if (!rows.length) return 'mixed'
+  const on = rows.filter((row) => row.gitSyncEnabled).length
+  if (on === rows.length) return 'on'
+  return on === 0 ? 'off' : 'mixed'
+})
+
+async function setBulkGitSync(enabled: boolean) {
+  const ids = selectedRows.value.map((row) => Number(row.id))
+  if (!ids.length) return
+  gitSyncBulkPending.value = true
+  try {
+    await useApi(`/api/projects/${curProject.value.id}/i18n-keys/git-sync`, {
+      method: 'POST',
+      body: { enabled, keyIds: ids },
+    })
+    toast.add({
+      title: enabled ? 'Included in Git sync' : 'Kept out of Git sync',
+      description: `${ids.length} translation(s) updated`,
+      color: 'success',
+      icon: 'i-lucide:check',
+    })
+    rowSelection.value = {}
+    await loadKeys()
+  } finally {
+    gitSyncBulkPending.value = false
+  }
+}
 
 /**
  * Destinations: every project the user can see except this one. `projectStore`
@@ -815,13 +891,13 @@ const columns = computed<TableColumn<II18nKeyRow>[]>(() => [
     id: 'actions',
     header: ({ column }) => pinHeader(column, '', 'right'),
     enableHiding: false,
-    size: 148,
+    size: 176,
     // Pinned right: `getAfter('right')` uses `size`, so the rendered width has
     // to match it (see the select column).
     meta: {
       class: {
-        th: 'w-[148px] min-w-[148px] max-w-[148px]',
-        td: 'w-[148px] min-w-[148px] max-w-[148px]',
+        th: 'w-[176px] min-w-[176px] max-w-[176px]',
+        td: 'w-[176px] min-w-[176px] max-w-[176px]',
       },
     },
     cell: ({ row }: { row: TableRow<II18nKeyRow> }) => {
@@ -829,6 +905,25 @@ const columns = computed<TableColumn<II18nKeyRow>[]>(() => [
       const isDraft = original.dirty
       return (
         <div class="flex items-center gap-0.5">
+          {/* First, so it keeps one position: the buttons after it come and go
+              with the key's status. */}
+          <UTooltip
+            text={
+              original.gitSyncEnabled
+                ? 'In Git sync — click to keep it out'
+                : 'Kept out of Git sync — click to include it'
+            }
+          >
+            <UButton
+              size="xs"
+              variant="ghost"
+              color={original.gitSyncEnabled ? 'neutral' : 'error'}
+              square
+              icon="i-lucide:git-branch"
+              loading={gitSyncPending.value === original.id}
+              onClick={() => setGitSync(original, !original.gitSyncEnabled)}
+            />
+          </UTooltip>
           <UTooltip text={isDraft ? 'Edit' : 'View'}>
             <UButton
               size="xs"

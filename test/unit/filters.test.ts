@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
   classifyFile,
+  classifyPull,
   classifyPush,
   isPullProposed,
   isPushEligible,
@@ -71,6 +72,63 @@ describe('classifyPush', () => {
     expect(isPushSelectable(GitSyncPushReason.REMOTE_CHANGED)).toBe(true)
     expect(isPushSelectable(GitSyncPushReason.NEW_KEY)).toBe(true)
     expect(isPushSelectable(GitSyncPushReason.CONFLICT)).toBe(false)
+  })
+})
+
+describe('classifyPull', () => {
+  const synced = { gitSyncEnabled: true }
+
+  it('defers to three-way when the key syncs', () => {
+    expect(classifyPull({ ...synced, base: 'a', ours: 'b', theirs: 'c' })).toBe(
+      'conflict'
+    )
+    expect(classifyPull({ ...synced, base: 'a', ours: 'b', theirs: 'a' })).toBe(
+      'keep-ours'
+    )
+    expect(classifyPull({ ...synced, base: 'a', ours: 'a', theirs: 'b' })).toBe(
+      'apply-theirs'
+    )
+    expect(classifyPull({ ...synced, base: 'a', ours: 'b', theirs: 'b' })).toBe(
+      'align'
+    )
+  })
+
+  describe('a key kept out of Git sync', () => {
+    const excluded = { gitSyncEnabled: false }
+
+    it('produces no candidate at all when the texts agree', () => {
+      // Not even `align`: aligning writes a base, which would sync half of it.
+      expect(
+        classifyPull({ ...excluded, base: null, ours: 'a', theirs: 'a' })
+      ).toBeNull()
+      expect(
+        classifyPull({ ...excluded, base: 'a', ours: 'a', theirs: 'a' })
+      ).toBeNull()
+    })
+
+    it('produces no candidate when neither side has text', () => {
+      expect(
+        classifyPull({ ...excluded, base: null, ours: null, theirs: '' })
+      ).toBeNull()
+    })
+
+    it('surfaces a real disagreement as a conflict, never apply-theirs', () => {
+      expect(
+        classifyPull({ ...excluded, base: null, ours: 'a', theirs: 'b' })
+      ).toBe('conflict')
+    })
+
+    it('still conflicts when this side has no text for the locale', () => {
+      // Three-way alone reads `ours = ''` against an empty base as
+      // `apply-theirs`, which would write the remote text into a key that
+      // opted out. Forcing the conflict is what stops that.
+      expect(
+        classifyPull({ ...excluded, base: null, ours: null, theirs: 'b' })
+      ).toBe('conflict')
+      expect(
+        classifyPull({ ...excluded, base: '', ours: '', theirs: 'b' })
+      ).toBe('conflict')
+    })
   })
 })
 

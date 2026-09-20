@@ -14,8 +14,9 @@ import {
   GitSyncPushReason,
 } from '#shared/constants'
 import { countSkipReasons, writeGitSyncLog } from './log'
-import { decideThreeWay, type ThreeWayDecision } from './three-way'
+import type { ThreeWayDecision } from './three-way'
 import {
+  classifyPull,
   classifyPush,
   emptyPushCounts,
   isPushEligible,
@@ -372,6 +373,14 @@ async function buildPullCandidates(
       const loc = row?.locales.find((l) => l.locale === locale)
       const ours = loc?.draftText ?? null
       const base = baseMap.get(`${key}\0${locale}`) ?? null
+      const decision = classifyPull({
+        ours,
+        theirs,
+        base,
+        gitSyncEnabled: row?.gitSyncEnabled ?? true,
+      })
+      // A key kept out of Git sync takes no part at all.
+      if (decision === null) continue
       out.push({
         key,
         locale,
@@ -380,7 +389,7 @@ async function buildPullCandidates(
         oursText: ours ?? '',
         theirsText: theirs,
         publishedText: loc?.publishedText ?? null,
-        decision: decideThreeWay(base, ours, theirs),
+        decision,
       })
     }
   }
@@ -614,8 +623,11 @@ export async function previewPush(
     include: { settings: true },
   })
   const sourceLocal = project?.settings?.localeFallback || 'en'
+  // Keys kept out of Git sync never enter the candidate loop. Filtering the
+  // query rather than adding a push reason keeps the reason counts, the
+  // eligibility rules and the UI's reason filters untouched.
   const keys = await prisma.i18nKey.findMany({
-    where: { projectId },
+    where: { projectId, gitSyncEnabled: true },
     include: { locales: true },
   })
   const bases = await prisma.gitSyncBase.findMany({
@@ -734,8 +746,10 @@ export async function applyPush(params: {
   const override = localeOverride(binding.localeMap)
   const sourceRemote = localeToRemote(sourceLocal, override)
   const selected = new Set(params.selectedKeys)
+  // Same filter as the preview: a key switched off between preview and apply
+  // simply drops out of the overlay instead of being pushed anyway.
   const rows = await prisma.i18nKey.findMany({
-    where: { projectId },
+    where: { projectId, gitSyncEnabled: true },
     include: { locales: { where: { locale: sourceLocal } } },
   })
   const bases = await prisma.gitSyncBase.findMany({
@@ -1008,11 +1022,71 @@ async function recordPushLanding(params: {
   })
 }
 
+/**
+ * Moves the platform's copy of a conflicted key to `newKey` and takes it out of
+ * Git sync, leaving the remote's copy of the old name exactly where it is.
+ *
+ * The `Tag.i18nKey` follow-up is not optional: the drawn boxes render from that
+ * denormalised column, and saving one of them would post the old name back
+ * through `resolveTagI18n`, which upserts by name — re-creating the very key
+ * this just moved away from.
+ */
+async function renameKeyOutOfSync(params: {
+  projectId: number
+  key: string
+  newKey?: string
+}): Promise<string> {
+  const newKey = params.newKey?.trim()
+  if (!newKey) {
+    throw createError({
+      statusCode: 400,
+      statusMessage: 'renamed action requires newKey',
+    })
+  }
+  const row = await prisma.i18nKey.findFirst({
+    where: { projectId: params.projectId, key: params.key },
+    select: { id: true },
+  })
+  // The platform side can already be gone — a key deleted after the conflict
+  // was raised. Nothing to move then, but the conflict still has to close, and
+  // the caller's `setBase` is what keeps the remote name from coming back.
+  if (!row) return newKey
+
+  const clash = await prisma.i18nKey.findFirst({
+    where: {
+      projectId: params.projectId,
+      key: newKey,
+      id: { not: row.id },
+    },
+    select: { id: true },
+  })
+  if (clash) {
+    throw createError({
+      statusCode: 400,
+      statusMessage: `"${newKey}" is already used in this project`,
+    })
+  }
+
+  await prisma.$transaction(async (tx) => {
+    await tx.i18nKey.update({
+      where: { id: row.id },
+      data: { key: newKey, gitSyncEnabled: false },
+    })
+    await tx.tag.updateMany({
+      where: { i18nKeyId: row.id },
+      data: { i18nKey: newKey },
+    })
+  })
+  return newKey
+}
+
 export async function resolveConflict(params: {
   projectId: number
   conflictId: number
-  action: 'ours' | 'theirs' | 'merged'
+  action: 'ours' | 'theirs' | 'merged' | 'renamed'
   text?: string
+  /** Only for `renamed`: the name the platform's key moves to. */
+  newKey?: string
   commitSha?: string
   userId?: number | null
 }) {
@@ -1032,36 +1106,51 @@ export async function resolveConflict(params: {
     })
   }
   let chosen: string
-  switch (params.action) {
-    case 'ours':
-      chosen = conflict.oursText
-      break
-    case 'theirs':
-      chosen = conflict.theirsText
-      break
-    case 'merged':
-      if (params.text == null) {
-        throw createError({
-          statusCode: 400,
-          statusMessage: 'merged action requires text',
-        })
+  if (params.action === 'renamed') {
+    // The remote is append-only, so only this side can step aside. Note this
+    // writes no draft under `conflict.key` — doing so would re-create the very
+    // key the rename just moved away from.
+    chosen = await renameKeyOutOfSync({
+      projectId: params.projectId,
+      key: conflict.key,
+      newKey: params.newKey,
+    })
+  } else {
+    switch (params.action) {
+      case 'ours':
+        chosen = conflict.oursText
+        break
+      case 'theirs':
+        chosen = conflict.theirsText
+        break
+      case 'merged':
+        if (params.text == null) {
+          throw createError({
+            statusCode: 400,
+            statusMessage: 'merged action requires text',
+          })
+        }
+        chosen = params.text
+        break
+      default: {
+        const _exhaustive: never = params.action
+        return _exhaustive
       }
-      chosen = params.text
-      break
-    default: {
-      const _exhaustive: never = params.action
-      return _exhaustive
     }
+    await upsertDraft({
+      projectId: params.projectId,
+      key: conflict.key,
+      locale: conflict.locale,
+      text: chosen,
+      commitSha: params.commitSha ?? '',
+    })
   }
-  await upsertDraft({
-    projectId: params.projectId,
-    key: conflict.key,
-    locale: conflict.locale,
-    text: chosen,
-    commitSha: params.commitSha ?? '',
-  })
   // Last seen Git stays the remote side. Use platform must not move base
   // onto ours, or the next Pull classifies the same key as apply-theirs.
+  //
+  // Runs for `renamed` too, and deliberately under the *vacated* name: it is
+  // what makes that name read as `keep-ours` and be filtered out, instead of
+  // `apply-theirs`, which would pull the key straight back.
   await setBase({
     projectId: params.projectId,
     key: conflict.key,

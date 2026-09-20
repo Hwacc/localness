@@ -107,6 +107,8 @@ const resolvingId = ref<number | null>(null)
 const showSettings = ref(false)
 const editingId = ref<number | null>(null)
 const editText = ref('')
+const renamingId = ref<number | null>(null)
+const renameText = ref('')
 
 const status = ref<GitSyncStatus | null>(null)
 const conflicts = ref<GitSyncConflictRow[]>([])
@@ -244,6 +246,8 @@ function clearSessionState() {
   pushExpanded.value = {}
   editingId.value = null
   editText.value = ''
+  renamingId.value = null
+  renameText.value = ''
   resolvingId.value = null
 }
 
@@ -881,8 +885,10 @@ async function resolve(
   action:
     | typeof GitSyncConflictStatus.OURS
     | typeof GitSyncConflictStatus.THEIRS
-    | typeof GitSyncConflictStatus.MERGED,
-  text?: string
+    | typeof GitSyncConflictStatus.MERGED
+    | typeof GitSyncConflictStatus.RENAMED,
+  text?: string,
+  newKey?: string
 ) {
   if (!validID(projectId.value)) return
   resolvingId.value = conflict.id
@@ -891,13 +897,20 @@ async function resolve(
       `/api/projects/${projectId.value}/git-sync/conflicts/${conflict.id}/resolve`,
       {
         method: 'POST',
-        body: { action, text },
+        body: { action, text, newKey },
       }
     )
     editingId.value = null
-    const chosen = chosenConflictText(conflict, action, text)
-    markPushCandidateResolved(conflict.key, conflict.locale, chosen)
-    markPullCandidateResolved(conflict.key, conflict.locale)
+    renamingId.value = null
+    if (action === GitSyncConflictStatus.RENAMED) {
+      // The key set changed under the preview, so it now describes a project
+      // that no longer exists — patching one candidate would not fix that.
+      cancelPreview()
+    } else {
+      const chosen = chosenConflictText(conflict, action, text)
+      markPushCandidateResolved(conflict.key, conflict.locale, chosen)
+      markPullCandidateResolved(conflict.key, conflict.locale)
+    }
     await loadAll()
   } finally {
     resolvingId.value = null
@@ -915,6 +928,22 @@ function openHistory() {
 function startEdit(conflict: GitSyncConflictRow) {
   editingId.value = conflict.id
   editText.value = conflict.oursText
+}
+
+/**
+ * "Step aside": only the platform's copy can move, because the remote is an
+ * append-only batch log that cannot express a removal. The name is typed by
+ * hand — a generated one would only be guessing at what the key means now.
+ */
+function startRename(conflict: GitSyncConflictRow) {
+  renamingId.value = conflict.id
+  renameText.value = ''
+}
+
+function confirmRename(conflict: GitSyncConflictRow) {
+  const newKey = renameText.value.trim()
+  if (!newKey) return
+  void resolve(conflict, GitSyncConflictStatus.RENAMED, undefined, newKey)
 }
 </script>
 
@@ -1587,6 +1616,19 @@ function startEdit(conflict: GitSyncConflictRow) {
               class="w-full"
               :rows="4"
             />
+            <template v-if="renamingId === conflict.id">
+              <UInput
+                v-model="renameText"
+                class="w-full font-mono"
+                placeholder="New name for the platform's key"
+              />
+              <p class="text-xs text-muted">
+                The platform's key moves to that name and leaves Git sync. Git's
+                copy of
+                <span class="font-mono">{{ conflict.key }}</span>
+                stays where it is.
+              </p>
+            </template>
             <div class="flex flex-wrap gap-2">
               <UButton
                 size="sm"
@@ -1626,6 +1668,25 @@ function startEdit(conflict: GitSyncConflictRow) {
                 "
               >
                 Save edit
+              </UButton>
+              <UButton
+                v-if="renamingId !== conflict.id"
+                size="sm"
+                color="neutral"
+                variant="ghost"
+                @click="startRename(conflict)"
+              >
+                Rename…
+              </UButton>
+              <UButton
+                v-else
+                size="sm"
+                color="primary"
+                :loading="resolvingId === conflict.id"
+                :disabled="!renameText.trim()"
+                @click="confirmRename(conflict)"
+              >
+                Keep both
               </UButton>
             </div>
           </div>

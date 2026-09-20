@@ -444,6 +444,9 @@ model I18nKey {
   origin       String         @default("")
   fingerprint  String         @default("")
   description  String?
+  /// False keeps the key out of Git sync in both directions. Separate from
+  /// `publishedText`, which decides whether the key is served at all.
+  gitSyncEnabled Boolean      @default(true) @map("git_sync_enabled")
   project      Project        @relation(fields: [projectId], references: [id], onDelete: Cascade)
   locales      LocaleValue[]
   tags         Tag[]
