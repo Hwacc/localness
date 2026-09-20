@@ -1,19 +1,13 @@
 <script setup lang="tsx">
-import type { DropdownMenuItem, TableColumn, TableRow } from '@nuxt/ui'
-import type { Column } from '@tanstack/vue-table'
+import type { DropdownMenuItem } from '@nuxt/ui'
 import {
   DEFAULT_LOCALES,
   I18nKeyStatusFilter,
   TRANSLATION_LANGUAGES,
 } from '#shared/constants'
-import { formatI18nKeyDisplay, resolveEditedKey } from '#shared/utils'
+import { formatI18nKeyDisplay } from '#shared/utils'
+import type { TranslationsTable } from '#components'
 import {
-  UBadge,
-  UButton,
-  UCheckbox,
-  UIcon,
-  UInput,
-  UTooltip,
   AlertModal,
   I18nKeyModal,
   TransferKeysModal,
@@ -37,47 +31,53 @@ const pageStore = usePageStore()
 const { curProject, curReleases, curReleaseFilter } = storeToRefs(projectStore)
 const { loggedIn } = useUserSession()
 const toast = useToast()
-const table = useTemplateRef('table')
+/** Only for the column-visibility menu, which lives in the filter bar. */
+const table = useTemplateRef<InstanceType<typeof TranslationsTable>>('table')
 
-const q = ref('')
-const statusFilter = ref<I18nKeyStatusFilter>(I18nKeyStatusFilter.ALL)
+function parseLocales(raw: unknown): string[] {
+  if (Array.isArray(raw) && raw.every((v) => typeof v === 'string')) {
+    return raw as string[]
+  }
+  if (typeof raw === 'string') {
+    try {
+      const parsed = JSON.parse(raw)
+      if (Array.isArray(parsed)) return parsed
+    } catch {
+      return [...DEFAULT_LOCALES]
+    }
+  }
+  return [...DEFAULT_LOCALES]
+}
+
+const localeCodes = computed(() =>
+  parseLocales(curProject.value.settings?.locales),
+)
+
 /**
- * This is the key table, so auto draft keys (`__draft_…` created by tagging a
- * screenshot) are visible by default — hiding them made a freshly tagged
- * translation unreachable from any status filter. The picker table defaults the
- * other way because there you are choosing keys to export.
+ * The shared query owns the request — filters, paging, rows. What stays here is
+ * everything particular to this page: remembering the filters per project,
+ * clearing the selection on a load, and the dialogs a row action opens.
  */
-const includeDraftKeys = ref(true)
-const page = ref(1)
-const limit = 20
-const total = ref(0)
-const rows = ref<II18nKeyRow[]>([])
-const loading = ref(false)
+const query = useI18nKeyQuery({
+  projectId: computed(() => curProject.value.id),
+  releaseFilter: curReleaseFilter,
+  limit: 20,
+  // The key table shows auto draft keys; see the option's own note.
+  includeDraftKeys: true,
+})
+
+const { q, dateRange, page, total, rows, loading, loadCount, limit } = query
+const statusFilter = query.status
+const includeDraftKeys = query.includeDraftKeys
+const hasDateRange = query.hasDateRange
+
 const publishing = ref(false)
-const drafts = ref<Record<string, string>>({})
 const rowSelection = ref<Record<string, boolean>>({})
 
-const editingKeyId = ref<ID | null>(null)
-const keyDraft = ref('')
-
-/**
- * Filters `updatedAt`, the column the table is already sorted by. A `ref`, not
- * `reactive`: the range calendar replaces the whole object on every click, so
- * `v-model` needs something it can assign to. Left untyped because the
- * calendar's model type comes from reka-ui's own copy of
- * @internationalized/date, and naming any of our copies makes `v-model` a type
- * error. Restoring a stored range goes in through a cast at that one boundary.
- */
-const dateRange = ref({ start: undefined, end: undefined })
-
-/** The calendar writes its own `DateValue` into the untyped range above. */
+/** The calendar writes its own `DateValue` into the query's untyped range. */
 function asDate(value: unknown) {
   return (value ?? undefined) as DateValue | undefined
 }
-
-const hasDateRange = computed(() =>
-  Boolean(dateRange.value.start || dateRange.value.end),
-)
 
 function formatRangeDay(value: DateValue) {
   return $dayjs(value.toDate(getLocalTimeZone())).format('YYYY-MM-DD')
@@ -111,56 +111,12 @@ const selectedDraftIds = computed<number[]>(() =>
 /** Selected drafts the endpoint would actually change; the rest report zero. */
 const selectedPublishableIds = computed<number[]>(() =>
   selectedRows.value
-    .filter((r) => r.dirty && canPublish(r))
+    .filter((r) => r.dirty && hasUnpublishedDraft(r.locales))
     .map((r) => Number(r.id)),
 )
 const selectedPublishedIds = computed<number[]>(() =>
   selectedRows.value.filter((r) => !r.dirty).map((r) => Number(r.id)),
 )
-
-function parseLocales(raw: unknown): string[] {
-  if (Array.isArray(raw) && raw.every((v) => typeof v === 'string')) {
-    return raw as string[]
-  }
-  if (typeof raw === 'string') {
-    try {
-      const parsed = JSON.parse(raw)
-      if (Array.isArray(parsed)) return parsed
-    } catch {
-      return [...DEFAULT_LOCALES]
-    }
-  }
-  return [...DEFAULT_LOCALES]
-}
-
-const localeCodes = computed(() =>
-  parseLocales(curProject.value.settings?.locales),
-)
-
-function localeMeta(code: string) {
-  return TRANSLATION_LANGUAGES.find((l) => l.value === code)
-}
-
-function cellKey(rowId: ID, locale: string) {
-  return `${rowId}:${locale}`
-}
-
-function draftOf(row: II18nKeyRow, locale: string) {
-  return row.locales.find((l) => l.locale === locale)?.draftText ?? ''
-}
-
-function cellDraft(row: II18nKeyRow, locale: string) {
-  return drafts.value[cellKey(row.id, locale)] ?? draftOf(row, locale)
-}
-
-function setCellDraft(row: II18nKeyRow, locale: string, value: string) {
-  drafts.value = { ...drafts.value, [cellKey(row.id, locale)]: value }
-}
-
-const columnPinning = ref({
-  left: ['select', 'key'],
-  right: ['actions'],
-})
 
 const overlay = useOverlay()
 const editModal = overlay.create(I18nKeyModal)
@@ -594,398 +550,10 @@ function openDelete(row: II18nKeyRow) {
   })
 }
 
-const refsOpen = ref(false)
-const refsKeyId = ref<ID | undefined>()
-
-function openTagRefs(row: II18nKeyRow) {
-  if (row.tagCount <= 0) return
-  refsKeyId.value = row.id
-  refsOpen.value = true
-}
-
-function pinHeader(
-  column: Column<II18nKeyRow, unknown>,
-  label: string,
-  position: 'left' | 'right' = 'left',
-  hint?: string,
-) {
-  const isPinned = column.getIsPinned()
-  return (
-    <div class="flex items-center gap-1">
-      <span>{label}</span>
-      {hint ? (
-        <UTooltip text={hint}>
-          <UIcon
-            name="i-lucide:info"
-            class="size-3.5 shrink-0 cursor-help text-muted"
-          />
-        </UTooltip>
-      ) : null}
-      <UButton
-        color="neutral"
-        variant="ghost"
-        size="xs"
-        square
-        icon={isPinned ? 'i-lucide:pin-off' : 'i-lucide:pin'}
-        onClick={() => column.pin(isPinned === position ? false : position)}
-      />
-    </div>
-  )
-}
-
-/** Badges shown inline before the column collapses into a `+N`. */
-const RELEASE_BADGE_LIMIT = 2
-
-/** Rows carry label ids only, so the names come from the project's own order. */
-function releaseLabelsOf(row: II18nKeyRow) {
-  const ids = row.releaseIds ?? []
-  if (!ids.length) return []
-  return curReleases.value.filter((release) =>
-    ids.some((id) => String(id) === String(release.id)),
-  )
-}
-
-const columns = computed<TableColumn<II18nKeyRow>[]>(() => [
-  {
-    id: 'select',
-    header: ({ table }) => (
-      <UCheckbox
-        modelValue={table.getIsAllPageRowsSelected()}
-        indeterminate={table.getIsSomePageRowsSelected()}
-        onUpdate:modelValue={(value: boolean | 'indeterminate') =>
-          table.toggleAllPageRowsSelected(!!value)
-        }
-      />
-    ),
-    cell: ({ row }) => (
-      <UCheckbox
-        modelValue={row.getIsSelected()}
-        onUpdate:modelValue={(value: boolean | 'indeterminate') =>
-          row.toggleSelected(!!value)
-        }
-      />
-    ),
-    enableHiding: false,
-    enableSorting: false,
-    size: 48,
-    meta: {
-      class: {
-        th: 'w-[48px] min-w-[48px] max-w-[48px] px-3',
-        td: 'w-[48px] min-w-[48px] max-w-[48px] px-3',
-      },
-    },
-  },
-  {
-    id: 'key',
-    accessorKey: 'key',
-    header: ({ column }) =>
-      pinHeader(
-        column,
-        'Key',
-        'left',
-        'A draft key can still be renamed: click it, or use the pencil. A published key keeps its name — revert it to draft first.',
-      ),
-    enableHiding: false,
-    size: 200,
-    // Pinned: width must match `size` exactly (see the select column).
-    meta: {
-      class: {
-        th: 'w-[200px] min-w-[200px] max-w-[200px]',
-        td: 'w-[200px] min-w-[200px] max-w-[200px]',
-      },
-    },
-    cell: ({ row }: { row: TableRow<II18nKeyRow> }) => {
-      const original = row.original
-      if (String(editingKeyId.value) === String(original.id)) {
-        return (
-          <UInput
-            class="w-full"
-            size="sm"
-            autofocus
-            modelValue={keyDraft.value}
-            onUpdate:modelValue={(value: string | number) => {
-              keyDraft.value = String(value ?? '')
-            }}
-            onKeydown={(event: KeyboardEvent) => {
-              if (event.key === 'Enter') {
-                event.preventDefault()
-                commitKeyEdit(original)
-              } else if (event.key === 'Escape') {
-                event.preventDefault()
-                editingKeyId.value = null
-              }
-            }}
-            onBlur={() => commitKeyEdit(original)}
-          />
-        )
-      }
-      // Only a draft is offered the affordance, matching what the server allows.
-      if (!original.dirty) {
-        return (
-          <code class="text-xs font-mono break-all" title={original.key}>
-            {formatI18nKeyDisplay(original.key)}
-          </code>
-        )
-      }
-      /**
-       * The pencil is always rendered, not hover-only: a draft key looked like
-       * plain text, so nobody discovered it could be renamed.
-       */
-      return (
-        <div class="flex items-start gap-1">
-          <code
-            class="min-w-0 rounded px-1 -ml-1 text-xs font-mono break-all cursor-text hover:bg-elevated"
-            title={original.key}
-            onClick={() => startKeyEdit(original)}
-          >
-            {formatI18nKeyDisplay(original.key)}
-          </code>
-          <UTooltip text="Rename this draft key">
-            <UButton
-              class="shrink-0 text-muted size-4 p-0 justify-center"
-              variant="ghost"
-              color="neutral"
-              ui={{ leadingIcon: 'size-3' }}
-              square
-              icon="i-lucide:pencil"
-              aria-label="Rename key"
-              onClick={() => startKeyEdit(original)}
-            />
-          </UTooltip>
-        </div>
-      )
-    },
-  },
-  {
-    id: 'origin',
-    accessorKey: 'origin',
-    header: ({ column }) => pinHeader(column, 'Origin'),
-    enableHiding: false,
-    size: 220,
-    cell: ({ row }: { row: TableRow<II18nKeyRow> }) => (
-      <div
-        class="max-w-56 line-clamp-2 text-muted"
-        title={row.original.origin || ''}
-      >
-        {row.original.origin || '—'}
-      </div>
-    ),
-  },
-  {
-    id: 'tagCount',
-    accessorKey: 'tagCount',
-    header: 'Tags',
-    size: 80,
-    cell: ({ row }: { row: TableRow<II18nKeyRow> }) => (
-      <div
-        class={row.original.tagCount > 0 ? 'cursor-pointer' : 'opacity-50'}
-        onClick={() => openTagRefs(row.original)}
-      >
-        <UBadge variant="subtle" color="neutral">
-          {String(row.original.tagCount)}
-        </UBadge>
-      </div>
-    ),
-  },
-  {
-    id: 'status',
-    accessorKey: 'dirty',
-    header: ({ column }) => pinHeader(column, 'Status'),
-    size: 120,
-    cell: ({ row }: { row: TableRow<II18nKeyRow> }) => (
-      <UBadge
-        color={row.original.dirty ? 'warning' : 'success'}
-        variant="subtle"
-      >
-        {row.original.dirty ? 'Draft' : 'Published'}
-      </UBadge>
-    ),
-  },
-  // Only when the project uses labels at all, so a project with none does not
-  // get a column of dashes.
-  ...(curReleases.value.length
-    ? [
-        {
-          id: 'releases',
-          header: ({ column }: { column: Column<II18nKeyRow, unknown> }) =>
-            pinHeader(column, 'Releases'),
-          size: 140,
-          cell: ({ row }: { row: TableRow<II18nKeyRow> }) => {
-            const labels = releaseLabelsOf(row.original)
-            if (!labels.length) {
-              return <span class="text-xs text-muted">—</span>
-            }
-            const overflow = labels.slice(RELEASE_BADGE_LIMIT)
-            return (
-              <div class="flex flex-wrap items-center gap-1">
-                {labels.slice(0, RELEASE_BADGE_LIMIT).map((release) => (
-                  <UBadge
-                    key={release.id}
-                    color="primary"
-                    variant="subtle"
-                    size="sm"
-                  >
-                    {release.name}
-                  </UBadge>
-                ))}
-                {overflow.length ? (
-                  <UTooltip
-                    text={overflow.map((release) => release.name).join(', ')}
-                  >
-                    <UBadge color="neutral" variant="subtle" size="sm">
-                      +{overflow.length}
-                    </UBadge>
-                  </UTooltip>
-                ) : null}
-              </div>
-            )
-          },
-        },
-      ]
-    : []),
-  ...localeCodes.value.map((code) => {
-    const meta = localeMeta(code)
-    return {
-      id: code,
-      header: ({ column }: { column: Column<II18nKeyRow, unknown> }) => (
-        <div class="flex items-center gap-1">
-          {meta ? <UIcon name={meta.icon} size="14" /> : null}
-          <span>{meta?.short || code}</span>
-          <UButton
-            color="neutral"
-            variant="ghost"
-            size="xs"
-            square
-            icon={column.getIsPinned() ? 'i-lucide:pin-off' : 'i-lucide:pin'}
-            onClick={() =>
-              column.pin(column.getIsPinned() === 'left' ? false : 'left')
-            }
-          />
-        </div>
-      ),
-      enableHiding: true,
-      size: 200,
-      cell: ({ row }: { row: TableRow<II18nKeyRow> }) => {
-        const original = row.original
-        const published = !original.dirty
-        return (
-          <UInput
-            modelValue={cellDraft(original, code)}
-            size="sm"
-            class="min-w-44"
-            disabled={published}
-            onUpdate:modelValue={(v: string) => {
-              if (published) return
-              setCellDraft(original, code, v ?? '')
-            }}
-            onBlur={() => {
-              if (published) return
-              saveDraft(original, code, cellDraft(original, code))
-            }}
-          />
-        )
-      },
-    } as TableColumn<II18nKeyRow>
-  }),
-  {
-    id: 'actions',
-    header: ({ column }) => pinHeader(column, '', 'right'),
-    enableHiding: false,
-    size: 176,
-    // Pinned right: `getAfter('right')` uses `size`, so the rendered width has
-    // to match it (see the select column).
-    meta: {
-      class: {
-        th: 'w-[176px] min-w-[176px] max-w-[176px]',
-        td: 'w-[176px] min-w-[176px] max-w-[176px]',
-      },
-    },
-    cell: ({ row }: { row: TableRow<II18nKeyRow> }) => {
-      const original = row.original
-      const isDraft = original.dirty
-      return (
-        <div class="flex items-center gap-0.5">
-          {/* First, so it keeps one position: the buttons after it come and go
-              with the key's status. */}
-          <UTooltip
-            text={
-              original.gitSyncEnabled
-                ? 'In Git sync — click to keep it out'
-                : 'Kept out of Git sync — click to include it'
-            }
-          >
-            <UButton
-              size="xs"
-              variant="ghost"
-              color={original.gitSyncEnabled ? 'neutral' : 'error'}
-              square
-              icon="i-lucide:git-branch"
-              loading={gitSyncPending.value === original.id}
-              onClick={() => setGitSync(original, !original.gitSyncEnabled)}
-            />
-          </UTooltip>
-          <UTooltip text={isDraft ? 'Edit' : 'View'}>
-            <UButton
-              size="xs"
-              variant="ghost"
-              color="neutral"
-              square
-              icon={isDraft ? 'i-lucide:pencil' : 'i-lucide:eye'}
-              onClick={() => openEdit(original)}
-            />
-          </UTooltip>
-          {isDraft ? (
-            <UTooltip
-              text={
-                canPublish(original)
-                  ? 'Publish'
-                  : 'Nothing to publish — no draft text on this entry'
-              }
-            >
-              <UButton
-                size="xs"
-                variant="ghost"
-                color="neutral"
-                square
-                icon="i-lucide:upload"
-                disabled={publishing.value || !canPublish(original)}
-                onClick={() => publishKeys([Number(original.id)])}
-              />
-            </UTooltip>
-          ) : (
-            <UTooltip text="Revert to draft">
-              <UButton
-                size="xs"
-                variant="ghost"
-                color="neutral"
-                square
-                icon="i-lucide:undo-2"
-                disabled={publishing.value}
-                onClick={() => openUnpublish(original)}
-              />
-            </UTooltip>
-          )}
-          {isDraft ? (
-            <UTooltip text="Delete">
-              <UButton
-                size="xs"
-                variant="ghost"
-                color="error"
-                square
-                icon="i-lucide:trash-2"
-                onClick={() => openDelete(original)}
-              />
-            </UTooltip>
-          ) : null}
-        </div>
-      )
-    },
-  },
-])
-
 const columnsDropdownItems = computed<DropdownMenuItem[]>(() => {
-  if (!table.value) return []
-  const allColumns: any[] = table.value.tableApi.getAllColumns()
+  const api = table.value?.tableApi
+  if (!api) return []
+  const allColumns: any[] = api.getAllColumns()
   return allColumns
     .filter((col) => col.getCanHide())
     .map((col) => {
@@ -996,7 +564,7 @@ const columnsDropdownItems = computed<DropdownMenuItem[]>(() => {
         icon: trans?.icon,
         checked: col.getIsVisible(),
         onUpdateChecked(checked: boolean) {
-          table.value?.tableApi.getColumn(col.id)?.toggleVisibility(!!checked)
+          table.value?.tableApi?.getColumn(col.id)?.toggleVisibility(!!checked)
         },
         onSelect(e: Event) {
           e.preventDefault()
@@ -1005,66 +573,34 @@ const columnsDropdownItems = computed<DropdownMenuItem[]>(() => {
     })
 })
 
+/**
+ * Every load drops the selection: the loaded set may no longer hold those ids.
+ * The table clears its own cell overrides and rename input off `loadCount`,
+ * which is bumped only when rows actually land.
+ */
 async function loadKeys() {
-  if (!validID(curProject.value.id)) {
-    rows.value = []
-    total.value = 0
-    return
-  }
-  loading.value = true
   rowSelection.value = {}
-  // A reload can reorder rows, and the bare id would then match whatever landed here.
-  editingKeyId.value = null
-  try {
-    const params = new URLSearchParams({
-      page: String(page.value),
-      limit: String(limit),
-    })
-    if (q.value.trim()) params.set('q', q.value.trim())
-    if (statusFilter.value !== I18nKeyStatusFilter.ALL) {
-      params.set('status', statusFilter.value)
-    }
-    if (includeDraftKeys.value) params.set('includeDraftKeys', '1')
-    // Release is a project-wide view filter, so it rides along with the rest.
-    if (curReleaseFilter.value === 'unassigned') {
-      params.set('unassigned', '1')
-    } else if (typeof curReleaseFilter.value === 'number') {
-      params.set('releaseId', String(curReleaseFilter.value))
-    }
-    // Whole local days, so a single picked day covers that day end to end.
-    const start = asDate(dateRange.value.start)
-    const end = asDate(dateRange.value.end)
-    if (start) {
-      params.set(
-        'from',
-        $dayjs(start.toDate(getLocalTimeZone())).startOf('day').toISOString(),
-      )
-    }
-    if (end || start) {
-      params.set(
-        'to',
-        $dayjs((end ?? start)!.toDate(getLocalTimeZone()))
-          .endOf('day')
-          .toISOString(),
-      )
-    }
-    const res = await useApi<IPagination<II18nKeyRow[]>>(
-      `/api/projects/${curProject.value.id}/i18n-keys?${params.toString()}`,
-    )
-    if (!res) return
-    rows.value = res.data ?? []
-    total.value = res.total
-    page.value = res.page
-    const next: Record<string, string> = {}
-    for (const row of rows.value) {
-      for (const code of localeCodes.value) {
-        next[cellKey(row.id, code)] = draftOf(row, code)
-      }
-    }
-    drafts.value = next
-  } finally {
-    loading.value = false
-  }
+  await query.load()
+}
+
+function onPageChange(next: number) {
+  page.value = next
+  loadKeys()
+}
+
+/** A rename bumps `updatedAt`, so the row is swapped in place, not reloaded. */
+function onRowUpdated(updated: II18nKeyRow) {
+  rows.value = rows.value.map((candidate) =>
+    String(candidate.id) === String(updated.id) ? updated : candidate,
+  )
+}
+
+function onRowPublish(row: II18nKeyRow) {
+  publishKeys([Number(row.id)])
+}
+
+function onRowToggleGitSync(row: II18nKeyRow) {
+  setGitSync(row, !row.gitSyncEnabled)
 }
 
 const searchDebounced = useDebounceFn(() => {
@@ -1127,7 +663,7 @@ function restoreFilters(projectId: ID) {
   dateWatch.ignoreUpdates(() => {
     // `parseDate` hands back our copy's `DateValue`; the calendar's model type
     // is reka-ui's copy — same shape, different type identity. Casting here is
-    // the price of leaving the ref untyped above.
+    // the price of leaving the range untyped, which `v-model` requires.
     dateRange.value = {
       start: saved.from ? parseDate(saved.from) : undefined,
       end: saved.to ? parseDate(saved.to) : undefined,
@@ -1151,94 +687,15 @@ watch(curReleaseFilter, () => {
   loadKeys()
 })
 
-/** The server's "changed only" clause skips a row whose drafts are all empty or already published. */
-function canPublish(row: II18nKeyRow) {
-  return row.locales.some(
-    (locale) => (locale.draftText ?? '') !== (locale.publishedText ?? ''),
-  )
-}
-
-/**
- * Cell edits save on blur without the caller awaiting them, so a publish right
- * after typing would race that save and copy the previous draft.
- */
-const pendingSaves = new Set<Promise<unknown>>()
-
-async function flushPendingSaves() {
-  if (!pendingSaves.size) return
-  await Promise.allSettled([...pendingSaves])
-}
-
-async function saveDraft(row: II18nKeyRow, locale: string, value: string) {
-  if (!row.dirty) return
-  const previous = draftOf(row, locale)
-  if (previous === value) return
-  const request = useApi(`/api/translation/${row.id}/vue`, {
-    method: 'POST',
-    body: { [locale]: value },
-  })
-  pendingSaves.add(request)
-  try {
-    await request
-  } finally {
-    pendingSaves.delete(request)
-  }
-  const localeRow = row.locales.find((l) => l.locale === locale)
-  if (localeRow) {
-    localeRow.draftText = value
-  } else {
-    row.locales.push({
-      locale,
-      draftText: value,
-      publishedText: null,
-    })
-  }
-  row.dirty = isI18nKeyDraft(row.locales)
-}
-
-/**
- * Drafts only: the server refuses to rename a published key, and a published
- * key's identity is what consumers and the Git batches look up.
- */
-function startKeyEdit(row: II18nKeyRow) {
-  if (!row.dirty) return
-  editingKeyId.value = row.id
-  keyDraft.value = formatI18nKeyDisplay(row.key)
-}
-
-async function commitKeyEdit(row: II18nKeyRow) {
-  // Enter commits and unmounts the input, which blurs it too; dropping the id
-  // first makes that second call a no-op rather than a duplicate request.
-  if (String(editingKeyId.value) !== String(row.id)) return
-  editingKeyId.value = null
-  const next = resolveEditedKey(row.key, keyDraft.value)
-  if (next === null || next === row.key) return
-  if (!next) {
-    toast.add({
-      title: 'Key is required',
-      color: 'error',
-      icon: 'i-lucide:circle-alert',
-    })
-    return
-  }
-  const updated = await useApi<II18nKeyRow>(
-    `/api/projects/${curProject.value.id}/i18n-keys/${row.id}`,
-    { method: 'PATCH', body: { key: next } },
-  )
-  if (!updated) return
-  // In place: a rename bumps `updatedAt`, so reloading would re-sort the row away.
-  rows.value = rows.value.map((candidate) =>
-    String(candidate.id) === String(updated.id) ? updated : candidate,
-  )
-}
-
 // Always scoped to explicit keys. The endpoint also accepts an empty body to
 // publish the whole project, but no UI offers that — bulk actions cover it.
 async function publishKeys(keyIds: number[]) {
   if (!validID(curProject.value.id) || keyIds.length === 0) return
   publishing.value = true
   try {
-    await flushPendingSaves()
+    // Cell edits save on blur without being awaited; publishing before they
+    // land would copy the previous draft.
+    await table.value?.flushPendingSaves()
     const res = await useApi<{ updated: number }>(
       `/api/projects/${curProject.value.id}/publish`,
       {
@@ -1280,7 +737,7 @@ async function unpublishKeys(keyIds: number[]) {
   if (!validID(curProject.value.id) || keyIds.length === 0) return
   publishing.value = true
   try {
-    await flushPendingSaves()
+    await table.value?.flushPendingSaves()
     const res = await useApi<{ updated: number }>(
       `/api/projects/${curProject.value.id}/unpublish`,
       {
@@ -1530,63 +987,28 @@ onMounted(async () => {
         </div>
       </div>
 
-      <div
-        class="flex-1 min-h-0 min-w-0 rounded-xl border border-default bg-default overflow-hidden flex flex-col"
-      >
-        <div class="flex-1 min-h-0 min-w-0 overflow-hidden">
-          <UTable
-            ref="table"
-            v-model:row-selection="rowSelection"
-            v-model:column-pinning="columnPinning"
-            sticky="header"
-            class="h-full"
-            :data="rows"
-            :columns="columns"
-            :loading="loading"
-            :get-row-id="(row: II18nKeyRow) => String(row.id)"
-            :ui="{
-              root: 'h-full overflow-auto',
-              base: 'min-w-max',
-              th: 'bg-default',
-              td: 'align-top bg-default',
-            }"
-          >
-            <template #empty>
-              <div class="py-12 text-center text-sm text-muted">
-                {{
-                  validID(curProject.id)
-                    ? 'No keys yet. Create tags in the editor to populate this table.'
-                    : 'Select a project to manage translations.'
-                }}
-              </div>
-            </template>
-          </UTable>
-        </div>
-        <div
-          v-if="total > 0"
-          class="shrink-0 flex items-center justify-between px-4 py-3 border-t border-default"
-        >
-          <p class="text-xs text-muted">
-            Page {{ page }} · {{ rows.length }} of {{ total }}
-          </p>
-          <UPagination
-            :page="page"
-            :items-per-page="limit"
-            :total="total"
-            @update:page="
-              (p: number) => {
-                page = p
-                loadKeys()
-              }
-            "
-          />
-        </div>
-      </div>
+      <TranslationsTable
+        ref="table"
+        v-model:row-selection="rowSelection"
+        :page="page"
+        :project-id="curProject.id"
+        :rows="rows"
+        :loading="loading"
+        :total="total"
+        :limit="limit"
+        :locale-codes="localeCodes"
+        :releases="curReleases"
+        :publishing="publishing"
+        :git-sync-busy-id="gitSyncPending"
+        :load-count="loadCount"
+        @update:page="onPageChange"
+        @row-updated="onRowUpdated"
+        @edit="openEdit"
+        @delete="openDelete"
+        @publish="onRowPublish"
+        @unpublish="openUnpublish"
+        @toggle-git-sync="onRowToggleGitSync"
+      />
     </div>
-    <TagRefsSlideover
-      v-model:open="refsOpen"
-      :project-id="curProject.id"
-      :key-id="refsKeyId"
-    />
   </div>
 </template>
