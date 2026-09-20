@@ -15,7 +15,7 @@ const zRoleChange = z.object({
 
 /**
  * @route PATCH /api/teams/:id/members/:userId
- * @description Promote a MEMBER to OWNER or demote an OWNER (team OWNER).
+ * @description Promote a MEMBER to OWNER or demote an OWNER (Team Owner).
  *
  * Separate from the invite route on purpose: inviting somebody already on the
  * team is a 409 and never changes their role, so role changes need their own

@@ -12,7 +12,7 @@ import {
 
 /**
  * @route DELETE /api/teams/:id/members/:userId
- * @description Remove a member (team OWNER), or leave the team (self).
+ * @description Remove a member (Team Owner), or leave the team (self).
  *
  * One route for both so the "a team must keep at least one OWNER" guard cannot
  * drift between kick and leave. Without the self case a plain MEMBER had no way

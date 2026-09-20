@@ -44,7 +44,7 @@ export type TeamMemberCandidateStatus =
   | 'pending'
 
 /**
- * A user a Team OWNER may invite.
+ * A user a Team Owner may invite.
  *
  * Deliberately has no `email`: it is matched against, but must never be handed
  * back, so the type itself cannot carry one out of the server.

@@ -25,15 +25,15 @@ function roleMeta(kind: AccessRoleKind) {
       }
     case 'team-owner':
       return {
-        label: 'Team OWNER',
-        hint: 'Team OWNER',
+        label: 'Team Owner',
+        hint: 'Team Owner',
         icon: 'i-lucide:crown',
         color: 'primary' as const,
       }
     case 'team-member':
       return {
-        label: 'Team member',
-        hint: 'Team member',
+        label: 'Team Member',
+        hint: 'Team Member',
         icon: 'i-lucide:users',
         color: 'neutral' as const,
       }

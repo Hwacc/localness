@@ -137,7 +137,7 @@ async function removeOwner(userId: ID) {
             v-model="pick"
             class="min-w-0 flex-1"
             size="xs"
-            placeholder="Add Team member"
+            placeholder="Add Team Member"
             :items="candidateItems"
           />
           <UButton

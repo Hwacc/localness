@@ -10,7 +10,7 @@ import type {
 /**
  * Finding someone to invite to a Team.
  *
- * A Team OWNER used to have to type an exact `username`, which meant knowing
+ * A Team Owner used to have to type an exact `username`, which meant knowing
  * something nobody remembers. This searches username, nickname, and email so the
  * page can offer a picker instead.
  *

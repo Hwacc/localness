@@ -10,7 +10,7 @@ import {
 
 /**
  * @route POST /api/projects/:id/api-tokens
- * @description Create a token. Any team member may — the credential only ever
+ * @description Create a token. Any Team Member may — the credential only ever
  * returns published copy, which is strictly less than a member already reads and
  * writes in the UI, and members already hold Git credentials for this project.
  * The plaintext is returned only here; no read path ever returns it.

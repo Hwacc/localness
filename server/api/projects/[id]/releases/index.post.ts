@@ -8,9 +8,9 @@ import { zReleaseCreate } from '#shared/utils/schemas'
  * @route POST /api/projects/:id/releases
  * @description Define a release label.
  *
- * Project Owner, not Team OWNER: deciding which releases exist is project
+ * Project Owner, not Team Owner: deciding which releases exist is project
  * configuration, the same shelf as project settings and the Git binding. Team
- * OWNER is a people-management role and does not qualify.
+ * Owner is a people-management role and does not qualify.
  */
 export default defineEventHandler(async (event) => {
   const id = getRouterParam(event, 'id')

@@ -8,7 +8,7 @@ definePageMeta({
 
 /**
  * The public API surface, for anyone who consumes it rather than stewards the
- * project. Documentation is visible to every team member, and so is the token
+ * project. Documentation is visible to every Team Member, and so is the token
  * slideover — a member may mint their own credential.
  */
 

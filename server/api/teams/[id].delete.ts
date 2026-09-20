@@ -10,7 +10,7 @@ import { NotificationAction, NotificationType } from '#shared/constants'
 
 /**
  * @route DELETE /api/teams/:id
- * @description Delete an empty team (team OWNER).
+ * @description Delete an empty team (Team Owner).
  *
  * The escape hatch for a sole OWNER: they cannot leave (that would leave the
  * team with no OWNER) and have nobody to promote first. Narrow by design — only

@@ -6,7 +6,7 @@ import { DEFAULT_LOCALES, DEFAULT_LOCALE_FALLBACK } from '#shared/constants'
 
 /**
  * @route POST /api/project
- * @description Create a project (any team member). Creator becomes Project Owner.
+ * @description Create a project (any Team Member). Creator becomes Project Owner.
  * @access Private
  */
 export default defineEventHandler(async (event) => {
