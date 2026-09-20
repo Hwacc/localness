@@ -1,4 +1,6 @@
-export type ThreeWayDecision = 'apply-theirs' | 'keep-ours' | 'conflict' | 'align'
+import type { ThreeWayDecision } from '#shared/types/GitSync'
+
+export type { ThreeWayDecision }
 
 export function decideThreeWay(
   base: string | null | undefined,

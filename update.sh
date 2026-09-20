@@ -29,7 +29,43 @@ export LOCALNESS_IMAGE="${IMAGE_REPO}:${tag}"
 port="${LOCALNESS_PORT:-13000}"
 
 echo "Updating to ${LOCALNESS_IMAGE} (data volume is kept)"
-sudo docker compose pull
+
+# Intranet hosts often time out on registry-1.docker.io. Fail the script
+# before `up` so a pull miss does not recreate the container on a stale tag.
+attempt=1
+while :; do
+  if sudo docker compose pull; then
+    break
+  fi
+  if [ "$attempt" -ge "${LOCALNESS_PULL_RETRIES:-3}" ]; then
+    echo "Pull failed: cannot reach Docker Hub for ${LOCALNESS_IMAGE}." >&2
+    echo "The running container was not changed. Retry later, or configure a registry mirror on the host." >&2
+    exit 1
+  fi
+  echo "Pull timed out (attempt ${attempt}/${LOCALNESS_PULL_RETRIES:-3}), retrying in 5s..." >&2
+  attempt=$((attempt + 1))
+  sleep 5
+done
+
 sudo docker compose up -d
+
+# `up -d` returns as soon as the container exists. The entrypoint still has
+# to migrate, then Nitro has to listen — compose start_period is 40s for this.
+url="http://127.0.0.1:${port}/api/health"
+deadline=$(( $(date +%s) + ${LOCALNESS_HEALTH_WAIT:-90} ))
+body=""
+while :; do
+  if body=$(curl -fsS -m 2 "$url" 2>/dev/null); then
+    break
+  fi
+  if [ "$(date +%s)" -ge "$deadline" ]; then
+    echo "Health: failed (no response from ${url} within ${LOCALNESS_HEALTH_WAIT:-90}s)" >&2
+    sudo docker compose ps >&2
+    sudo docker compose logs --tail 80 localness >&2
+    exit 1
+  fi
+  sleep 2
+done
+
 sudo docker compose ps
-echo "Health: $(curl -sS -m 8 "http://127.0.0.1:${port}/api/health" || echo failed)"
+echo "Health: ${body}"

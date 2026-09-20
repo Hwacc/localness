@@ -18,9 +18,10 @@ import {
   I18nKeyModal,
   TransferKeysModal,
 } from '#components'
-import { useDebounceFn } from '@vueuse/core'
+import { useDebounceFn, watchIgnorable } from '@vueuse/core'
 import {
   getLocalTimeZone,
+  parseDate,
   today,
   type DateValue,
 } from '@internationalized/date'
@@ -62,9 +63,10 @@ const keyDraft = ref('')
 /**
  * Filters `updatedAt`, the column the table is already sorted by. A `ref`, not
  * `reactive`: the range calendar replaces the whole object on every click, so
- * `v-model` needs something it can assign to. Left untyped because @nuxt/ui
- * bundles its own copy of @internationalized/date and annotating the value as
- * `DateValue` makes `v-model` a type error.
+ * `v-model` needs something it can assign to. Left untyped because the
+ * calendar's model type comes from reka-ui's own copy of
+ * @internationalized/date, and naming any of our copies makes `v-model` a type
+ * error. Restoring a stored range goes in through a cast at that one boundary.
  */
 const dateRange = ref({ start: undefined, end: undefined })
 
@@ -975,29 +977,74 @@ const searchDebounced = useDebounceFn(() => {
   loadKeys()
 }, 300)
 
-watch(q, () => {
+/**
+ * Filters are remembered per project, so switching away and back restores what
+ * this project looked like. `watchIgnorable` lets `restoreFilters` write all of
+ * them without tripping these watchers — otherwise a single project switch would
+ * fire three extra loads, and `loadKeys` has no ordering guard, so a slow one
+ * landing last would show the wrong project's rows.
+ */
+const qWatch = watchIgnorable(q, () => {
+  persistFilters()
   searchDebounced()
 })
 
 // Status is a discrete choice, not typing — apply it immediately.
-watch([statusFilter, includeDraftKeys], () => {
+const statusWatch = watchIgnorable([statusFilter, includeDraftKeys], () => {
+  persistFilters()
   page.value = 1
   loadKeys()
 })
 
 // Range calendars emit twice (start, then end). Reload on both so a single
 // picked day filters right away instead of waiting for the second click.
-watch(
+const dateWatch = watchIgnorable(
   () => [dateRange.value.start, dateRange.value.end],
   () => {
+    persistFilters()
     page.value = 1
     loadKeys()
   },
 )
 
+function persistFilters() {
+  const start = asDate(dateRange.value.start)
+  const end = asDate(dateRange.value.end)
+  writeTranslationsFilterForProject(curProject.value.id, {
+    q: q.value,
+    status: statusFilter.value,
+    includeDraftKeys: includeDraftKeys.value,
+    from: start ? formatRangeDay(start) : undefined,
+    to: end ? formatRangeDay(end) : undefined,
+  })
+}
+
+function restoreFilters(projectId: ID) {
+  const saved = readTranslationsFilterForProject(projectId)
+  // These do not nest: each watcher counts changes to its own sources only.
+  qWatch.ignoreUpdates(() => {
+    q.value = saved.q
+  })
+  statusWatch.ignoreUpdates(() => {
+    statusFilter.value = saved.status
+    includeDraftKeys.value = saved.includeDraftKeys
+  })
+  dateWatch.ignoreUpdates(() => {
+    // `parseDate` hands back our copy's `DateValue`; the calendar's model type
+    // is reka-ui's copy — same shape, different type identity. Casting here is
+    // the price of leaving the ref untyped above.
+    dateRange.value = {
+      start: saved.from ? parseDate(saved.from) : undefined,
+      end: saved.to ? parseDate(saved.to) : undefined,
+    } as typeof dateRange.value
+  })
+}
+
 watch(
   () => curProject.value.id,
-  () => {
+  (id) => {
+    // The outgoing project is already saved — every filter change writes.
+    restoreFilters(id)
     page.value = 1
     loadKeys()
   },
@@ -1172,6 +1219,8 @@ onMounted(async () => {
   if (loggedIn.value && projectStore.projects.length === 0) {
     await projectStore.getProjects()
   }
+  // Before the first load, so a reload keeps this project's filters too.
+  restoreFilters(curProject.value.id)
   await loadKeys()
 })
 </script>
