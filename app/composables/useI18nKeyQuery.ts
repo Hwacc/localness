@@ -18,19 +18,32 @@ export function useI18nKeyQuery(options: {
   /** Restrict to one release label, or to the unlabelled entries. */
   releaseFilter?: Ref<ReleaseFilterValue>
   limit?: number
+  /**
+   * Auto draft keys (`__draft_…` from tagging a screenshot) start hidden here,
+   * because the picker's job is choosing keys to export. The translations table
+   * needs them visible by default — hiding them made a freshly tagged
+   * translation unreachable from any status filter.
+   */
+  includeDraftKeys?: boolean
 }) {
   const { $dayjs } = useNuxtApp()
   const limit = options.limit ?? 20
 
   const q = ref('')
   const status = ref<I18nKeyStatusFilter>(I18nKeyStatusFilter.ALL)
-  const includeDraftKeys = ref(false)
+  const includeDraftKeys = ref(options.includeDraftKeys ?? false)
   // A ref, not reactive: the range calendar replaces the whole object.
   const dateRange = ref({ start: undefined, end: undefined })
   const page = ref(1)
   const total = ref(0)
   const rows = ref<II18nKeyRow[]>([])
   const loading = ref(false)
+  /**
+   * Bumped when a load actually lands. Callers use it to reset state that must
+   * not survive a reload but must survive an in-place row patch — a rename
+   * reassigns `rows`, so watching the array is not the same signal.
+   */
+  const loadCount = ref(0)
 
   const hasDateRange = computed(() =>
     Boolean(dateRange.value.start || dateRange.value.end)
@@ -90,6 +103,9 @@ export function useI18nKeyQuery(options: {
       rows.value = res.data ?? []
       total.value = res.total
       page.value = res.page
+      // After the `!res` guard on purpose: a failed request must leave whatever
+      // was on screen alone, including anything keyed off `loadCount`.
+      loadCount.value += 1
     } finally {
       loading.value = false
     }
@@ -106,9 +122,10 @@ export function useI18nKeyQuery(options: {
     return res?.ids ?? []
   }
 
+  /** Returns the request so callers can keep a dialog busy until rows land. */
   function reload() {
     page.value = 1
-    load()
+    return load()
   }
 
   return {
@@ -122,6 +139,7 @@ export function useI18nKeyQuery(options: {
     total,
     rows,
     loading,
+    loadCount,
     load,
     reload,
     matchingIds,

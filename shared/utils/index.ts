@@ -67,3 +67,17 @@ export function isI18nKeyDraft(
     (locale) => (locale.draftText ?? '') !== (locale.publishedText ?? '')
   )
 }
+
+/**
+ * Whether publishing this key would change anything — the mirror of the
+ * server's "changed only" clause, which skips a row whose drafts are all empty
+ * or already published. Both the row action and the bulk bar's count read it,
+ * so a drift here would disagree with what the endpoint actually does.
+ */
+export function hasUnpublishedDraft(
+  locales: Array<{ draftText: string | null; publishedText: string | null }>
+): boolean {
+  return locales.some(
+    (locale) => (locale.draftText ?? '') !== (locale.publishedText ?? '')
+  )
+}
