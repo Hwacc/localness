@@ -112,6 +112,10 @@ From the compose directory (`/home/rcddev/localness` on the intranet host):
 ```
 
 The script pulls Hub, recreates the container, and **does not** pass `-v`.
+It then waits up to 90s for `GET /api/health` (migrate runs before listen).
+A Hub timeout (`registry-1.docker.io` Client.Timeout) stops **before** `up`,
+so the running container stays on the last successful image. Retry, or set a
+daemon registry mirror on the host — do not `--build` on the server.
 `sudo` is required if your user is not in the `docker` group. Equivalent by
 hand:
 
@@ -137,6 +141,14 @@ git push origin v1.2.0
 
 Hub tags: `1.2.0`, `1.2`, and `latest`. Pre-release tags (`v1.3.0-rc.1`) push
 only `1.3.0-rc.1` and leave `latest` / `1.3` alone.
+
+A tag also opens a **GitHub Release** whose body is `git log` since the
+previous `v*` tag. Docker Hub's Tags page has no changelog column; the
+repository Overview (stable tags only) is rewritten to that notes block plus
+this README, and the image label
+`org.opencontainers.image.documentation` points at the GitHub Release.
+Pre-release tags (`v1.3.0-rc.1`) still get a GitHub Release, but do not
+overwrite the Hub Overview.
 
 Repo secrets (Actions → Secrets): `DOCKERHUB_USERNAME`, `DOCKERHUB_TOKEN`.
 `NUXT_SALT_SIZE` is fixed at `10` in the release workflow; do not change it

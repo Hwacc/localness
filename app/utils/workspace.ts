@@ -1,10 +1,15 @@
 import type { ReleaseFilterValue } from '#shared/utils/release'
+import { GitSyncPushReason, I18nKeyStatusFilter } from '#shared/constants'
+import type { ThreeWayDecision } from '#shared/types/GitSync'
 
 export const WORKSPACE_TEAM_KEY = 'workspace:teamId'
 export const WORKSPACE_PROJECT_KEY = 'workspace:projectId'
 export const WORKSPACE_PAGES_KEY = 'workspace:pageByProject'
 export const WORKSPACE_RELEASE_KEY = 'workspace:releaseByProject'
 export const WORKSPACE_PROJECT_ORDER_KEY = 'workspace:projectOrder'
+export const WORKSPACE_TRANSLATIONS_FILTER_KEY =
+  'workspace:translationsFilterByProject'
+export const WORKSPACE_GIT_FILTER_KEY = 'workspace:gitFilterByProject'
 
 export function emptyProject(partial: Partial<IProject> = {}): IProject {
   return {
@@ -104,6 +109,167 @@ export function writeReleaseFilterForProject(
   if (!import.meta.client || !validID(projectId)) return
   const next = { ...readReleaseFilterByProject(), [String(projectId)]: filter }
   localStorage.setItem(WORKSPACE_RELEASE_KEY, JSON.stringify(next))
+}
+
+/**
+ * Per-project page filters. Same browser-local, keyed-by-project shape as the
+ * release filter above — the pages these serve treat a stored filter as "what
+ * this project looked like last time", not as a preference to sync.
+ */
+function readFieldsByProject(
+  storageKey: string
+): Record<string, Record<string, unknown>> {
+  if (!import.meta.client) return {}
+  try {
+    const raw = localStorage.getItem(storageKey)
+    if (!raw) return {}
+    const parsed = JSON.parse(raw) as Record<string, unknown>
+    if (!parsed || typeof parsed !== 'object') return {}
+    const out: Record<string, Record<string, unknown>> = {}
+    for (const [projectId, fields] of Object.entries(parsed)) {
+      if (!fields || typeof fields !== 'object' || Array.isArray(fields)) continue
+      out[projectId] = fields as Record<string, unknown>
+    }
+    return out
+  } catch {
+    return {}
+  }
+}
+
+function writeFieldsForProject(
+  storageKey: string,
+  projectId: ID,
+  fields: Record<string, unknown>
+) {
+  if (!import.meta.client || !validID(projectId)) return
+  const next = { ...readFieldsByProject(storageKey), [String(projectId)]: fields }
+  localStorage.setItem(storageKey, JSON.stringify(next))
+}
+
+function pickString(raw: unknown, fallback: string): string {
+  return typeof raw === 'string' ? raw : fallback
+}
+
+function pickBoolean(raw: unknown, fallback: boolean): boolean {
+  return typeof raw === 'boolean' ? raw : fallback
+}
+
+/**
+ * Keeps a stored enum honest. A value the app no longer knows — after a rename,
+ * or from a hand-edited entry — would render as a blank option that cannot be
+ * re-selected, so it falls back instead.
+ */
+function pickEnum<T extends string>(
+  raw: unknown,
+  allowed: readonly T[],
+  fallback: T
+): T {
+  return typeof raw === 'string' && (allowed as readonly string[]).includes(raw)
+    ? (raw as T)
+    : fallback
+}
+
+export interface TranslationsFilterState {
+  q: string
+  status: I18nKeyStatusFilter
+  includeDraftKeys: boolean
+  /** `'YYYY-MM-DD'`. Absent means that end of the range is unbounded. */
+  from?: string
+  to?: string
+}
+
+/**
+ * Mirrors the page's own defaults, including `includeDraftKeys: true` — the key
+ * table shows auto-draft keys unless the user says otherwise.
+ */
+const TRANSLATIONS_FILTER_DEFAULTS: TranslationsFilterState = {
+  q: '',
+  status: I18nKeyStatusFilter.ALL,
+  includeDraftKeys: true,
+}
+
+export function readTranslationsFilterForProject(
+  projectId: ID
+): TranslationsFilterState {
+  const fallback = TRANSLATIONS_FILTER_DEFAULTS
+  const raw =
+    import.meta.client && validID(projectId)
+      ? readFieldsByProject(WORKSPACE_TRANSLATIONS_FILTER_KEY)[String(projectId)]
+      : undefined
+  if (!raw) return { ...fallback }
+  return {
+    q: pickString(raw.q, fallback.q),
+    status: pickEnum(
+      raw.status,
+      Object.values(I18nKeyStatusFilter),
+      fallback.status
+    ),
+    includeDraftKeys: pickBoolean(raw.includeDraftKeys, fallback.includeDraftKeys),
+    from: typeof raw.from === 'string' && raw.from ? raw.from : undefined,
+    to: typeof raw.to === 'string' && raw.to ? raw.to : undefined,
+  }
+}
+
+export function writeTranslationsFilterForProject(
+  projectId: ID,
+  filter: TranslationsFilterState
+) {
+  writeFieldsForProject(WORKSPACE_TRANSLATIONS_FILTER_KEY, projectId, {
+    ...filter,
+  })
+}
+
+export interface GitFilterState {
+  pullQuery: string
+  pushQuery: string
+  pullDecision: ThreeWayDecision | 'all'
+  pushReason: GitSyncPushReason | 'all'
+}
+
+const GIT_FILTER_DEFAULTS: GitFilterState = {
+  pullQuery: '',
+  pushQuery: '',
+  pullDecision: 'all',
+  pushReason: 'all',
+}
+
+/** `ThreeWayDecision` is a union, not an enum, so its values are spelled out. */
+const PULL_DECISION_FILTERS = [
+  'all',
+  'apply-theirs',
+  'keep-ours',
+  'conflict',
+  'align',
+] as const
+
+export function readGitFilterForProject(projectId: ID): GitFilterState {
+  const fallback = GIT_FILTER_DEFAULTS
+  const raw =
+    import.meta.client && validID(projectId)
+      ? readFieldsByProject(WORKSPACE_GIT_FILTER_KEY)[String(projectId)]
+      : undefined
+  if (!raw) return { ...fallback }
+  return {
+    pullQuery: pickString(raw.pullQuery, fallback.pullQuery),
+    pushQuery: pickString(raw.pushQuery, fallback.pushQuery),
+    pullDecision: pickEnum(
+      raw.pullDecision,
+      PULL_DECISION_FILTERS,
+      fallback.pullDecision
+    ),
+    pushReason: pickEnum(
+      raw.pushReason,
+      ['all', ...Object.values(GitSyncPushReason)],
+      fallback.pushReason
+    ),
+  }
+}
+
+export function writeGitFilterForProject(
+  projectId: ID,
+  filter: GitFilterState
+) {
+  writeFieldsForProject(WORKSPACE_GIT_FILTER_KEY, projectId, { ...filter })
 }
 
 /**

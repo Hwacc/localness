@@ -2,6 +2,8 @@
 # Tag format: vMAJOR.MINOR.PATCH (optional -rc.N / -beta.N).
 # Image tags drop the leading v: v1.2.0 → huacc/localness:1.2.0
 # Pre-release tags do not move :latest.
+# Changelog: GitHub Release for every tag; Hub Overview gets the latest
+# stable notes (Hub has no per-tag changelog UI).
 name: Release
 
 on:
@@ -36,6 +38,53 @@ jobs:
       - run: pnpm typecheck
       - run: pnpm test
 
+  changelog:
+    needs: check
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      - name: Generate notes
+        run: sh .github/scripts/release-notes.sh > notes.md
+
+      - uses: softprops/action-gh-release@v2
+        with:
+          body_path: notes.md
+          prerelease: ${{ contains(github.ref_name, '-') }}
+
+      # Hub Tags has no notes column. The Overview is the only markdown
+      # surface; keep it on stable tags so an rc does not overwrite it.
+      - name: Hub overview
+        if: ${{ !contains(github.ref_name, '-') }}
+        run: |
+          {
+            echo "# ${IMAGE}"
+            echo
+            echo "Screenshot tagging + i18n key store. Not a headless CMS."
+            echo
+            echo "Each version's changelog: https://github.com/${GITHUB_REPOSITORY}/releases"
+            echo
+            cat notes.md
+            echo
+            echo "---"
+            echo
+            cat docker/README.md
+          } > hub.md
+
+      - uses: peter-evans/dockerhub-description@v4
+        if: ${{ !contains(github.ref_name, '-') }}
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+          repository: ${{ env.IMAGE }}
+          short-description: Screenshot tagging + i18n key store
+          readme-filepath: hub.md
+
   image:
     needs: check
     runs-on: ubuntu-latest
@@ -61,6 +110,9 @@ jobs:
             type=semver,pattern={{version}}
             type=semver,pattern={{major}}.{{minor}},enable=${{ !contains(github.ref_name, '-') }}
             type=raw,value=latest,enable=${{ github.ref_type == 'tag' && !contains(github.ref_name, '-') }}
+          labels: |
+            org.opencontainers.image.description=Screenshot tagging + i18n key store. Changelog: https://github.com/${{ github.repository }}/releases/tag/${{ github.ref_name }}
+            org.opencontainers.image.documentation=https://github.com/${{ github.repository }}/releases/tag/${{ github.ref_name }}
 
       - uses: docker/build-push-action@v6
         with:

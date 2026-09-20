@@ -6,6 +6,12 @@ import type {
 } from '../constants'
 import type { IUser } from './User'
 
+/**
+ * How a three-way merge resolved one key. Lives here rather than beside the
+ * merge so the client can name it too — `app/` may not import from `#server`.
+ */
+export type ThreeWayDecision = 'apply-theirs' | 'keep-ours' | 'conflict' | 'align'
+
 /** Summary of a landed pull. Counts only — text stays in the value tables. */
 export interface IGitSyncPullLogDetail {
   applied: number

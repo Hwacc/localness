@@ -8,6 +8,7 @@ import {
 } from '#shared/constants'
 import { formatI18nKeyDisplay, validID } from '#shared/utils'
 import { isHttpsRemoteUrl, normalizeGitHttpsRemote } from '#shared/utils/schemas'
+import type { ThreeWayDecision } from '#shared/types/GitSync'
 import { GitSyncHistoryModal } from '#components'
 
 definePageMeta({
@@ -45,8 +46,6 @@ type GitSyncConflictRow = {
   theirsText: string
   publishedText: string | null
 }
-
-type ThreeWayDecision = 'apply-theirs' | 'keep-ours' | 'align' | 'conflict'
 
 type PullFile = {
   relPath: string
@@ -229,14 +228,61 @@ async function loadAll() {
   }
 }
 
+/**
+ * Previews, selections and inline edits describe the project they were made in,
+ * so switching projects drops them rather than restoring them. A surviving pull
+ * or push preview is the worst of the lot: it renders the previous project's key
+ * text under the new project's header.
+ */
+function clearSessionState() {
+  pullPreview.value = null
+  pushPreview.value = null
+  pullFileSel.value = []
+  pullKeySel.value = []
+  pushKeySel.value = []
+  pullExpanded.value = {}
+  pushExpanded.value = {}
+  editingId.value = null
+  editText.value = ''
+  resolvingId.value = null
+}
+
+function restoreGitFilters(id: ID) {
+  const saved = readGitFilterForProject(id)
+  pullQuery.value = saved.pullQuery
+  pushQuery.value = saved.pushQuery
+  pullDecisionFilter.value = saved.pullDecision
+  pushReasonFilter.value = saved.pushReason
+}
+
+function persistGitFilters() {
+  writeGitFilterForProject(projectId.value, {
+    pullQuery: pullQuery.value,
+    pushQuery: pushQuery.value,
+    pullDecision: pullDecisionFilter.value,
+    pushReason: pushReasonFilter.value,
+  })
+}
+
+// These four have no other watcher, so one watch covers "remember on change".
+// The restore below also trips it, harmlessly: by then the project id is the new
+// one, so it writes the values it just restored.
+watch([pullQuery, pushQuery, pullDecisionFilter, pushReasonFilter], () => {
+  persistGitFilters()
+})
+
 watch(
   () => projectId.value,
-  () => {
+  (id) => {
+    clearSessionState()
+    restoreGitFilters(id)
     loadAll()
   }
 )
 
 onMounted(() => {
+  // Before the first load, so a reload keeps this project's filters too.
+  restoreGitFilters(projectId.value)
   loadAll()
 })
 

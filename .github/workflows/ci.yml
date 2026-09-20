@@ -1,3 +1,4 @@
+# PR / main gate: typecheck + unit tests. Does not build or publish images.
 name: CI
 
 on:
