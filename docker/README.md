@@ -146,17 +146,13 @@ Hub tags: `1.2.0`, `1.2`, and `latest`. Pre-release tags (`v1.3.0-rc.1`) push
 only `1.3.0-rc.1` and leave `latest` / `1.3` alone.
 
 A tag also opens a **GitHub Release** whose body is `git log` since the
-previous `v*` tag. Docker Hub's Tags page has no changelog column; the
-repository Overview (stable tags only) is rewritten to that notes block plus
-this README, and the image label
+previous `v*` tag. Docker Hub's Tags page has no changelog column and the
+Overview API rejects a push-only token (`403 Forbidden`), so Overview is
+**not** rewritten in CI. The image label
 `org.opencontainers.image.documentation` points at the GitHub Release.
-Pre-release tags (`v1.3.0-rc.1`) still get a GitHub Release, but do not
-overwrite the Hub Overview.
 
-Repo secrets (Actions → Secrets): `DOCKERHUB_USERNAME`, `DOCKERHUB_TOKEN`.
-The token that can `docker push` is **not** enough to rewrite Hub Overview:
-create a Hub Personal Access Token with **Read, Write, and Delete**, then
-put that in `DOCKERHUB_TOKEN` (push still works with the same token).
+Repo secrets (Actions → Secrets): `DOCKERHUB_USERNAME`, `DOCKERHUB_TOKEN`
+(registry push is enough; Read/Write/Delete is not required).
 `NUXT_SALT_SIZE` is fixed at `10` in the release workflow; do not change it
 after go-live.
 
