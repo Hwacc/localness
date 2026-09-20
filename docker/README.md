@@ -139,6 +139,9 @@ git tag v1.2.0
 git push origin v1.2.0
 ```
 
+Do not edit `package.json` version first. The release workflow writes it from
+the tag (into the image build, then a commit on the default branch).
+
 Hub tags: `1.2.0`, `1.2`, and `latest`. Pre-release tags (`v1.3.0-rc.1`) push
 only `1.3.0-rc.1` and leave `latest` / `1.3` alone.
 

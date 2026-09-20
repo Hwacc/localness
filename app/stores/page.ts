@@ -70,6 +70,10 @@ export const usePageStore = defineStore('page', () => {
       if (curPage.value.id === updatedPage.id) {
         curPage.value = { ...curPage.value, ...updatedPage }
       }
+      // Editing the labels can move this page out of the release the workspace
+      // is filtered to. The editor has to leave it then — otherwise the sider
+      // drops the row while the canvas keeps drawing on it.
+      projectStore.ensureCurrentPageVisible()
       if (import.meta.client) {
         toast.add({
           title: 'Success',
