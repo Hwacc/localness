@@ -57,10 +57,24 @@ jobs:
           body_path: notes.md
           prerelease: ${{ contains(github.ref_name, '-') }}
 
-      # Hub Tags has no notes column. The Overview is the only markdown
-      # surface; keep it on stable tags so an rc does not overwrite it.
-      - name: Hub overview
-        if: ${{ !contains(github.ref_name, '-') }}
+  # Hub Overview PATCH needs a Hub PAT with Read/Write/Delete. A push-only
+  # token (enough for docker/login-action) returns 403. Own job so a 403 does
+  # not mark the GitHub Release as failed. v5 is Node 24; v4 trips the Node 20
+  # deprecation on current runners.
+  hub-overview:
+    needs: changelog
+    if: ${{ !contains(github.ref_name, '-') }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      - name: Generate notes
+        run: sh .github/scripts/release-notes.sh > notes.md
+
+      - name: Hub overview markdown
         run: |
           {
             echo "# ${IMAGE}"
@@ -76,8 +90,7 @@ jobs:
             cat docker/README.md
           } > hub.md
 
-      - uses: peter-evans/dockerhub-description@v4
-        if: ${{ !contains(github.ref_name, '-') }}
+      - uses: peter-evans/dockerhub-description@v5
         with:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
