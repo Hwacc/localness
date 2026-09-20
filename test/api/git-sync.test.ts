@@ -49,7 +49,7 @@ describe('GET /api/projects/:id/git-sync', () => {
     ).rejects.toMatchObject({ statusCode: 403 })
   })
 
-  it('returns the binding state for a team member without leaking the token', async () => {
+  it('returns the binding state for a Team Member without leaking the token', async () => {
     const data = await $fetch(`/api/projects/${FIXTURES.projectId}/git-sync`, {
       headers: { cookie: ownerCookie },
     })

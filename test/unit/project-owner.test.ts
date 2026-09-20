@@ -9,7 +9,7 @@ import {
 } from '#server/helper/project-owner'
 
 describe('isProjectSteward', () => {
-  it('does not treat a Team OWNER as steward without a table row', () => {
+  it('does not treat a Team Owner as steward without a table row', () => {
     expect(
       isProjectSteward({
         userId: 1,
@@ -45,7 +45,7 @@ describe('addProjectOwnerRejectReason', () => {
     ownerUserIds: [1],
   }
 
-  it('adds a team member who is not already a steward', () => {
+  it('adds a Team Member who is not already a steward', () => {
     expect(addProjectOwnerRejectReason(base)).toBeNull()
   })
 

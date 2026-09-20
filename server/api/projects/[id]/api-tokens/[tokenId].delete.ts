@@ -8,7 +8,7 @@ import { assertApiTokenRevocable } from '#server/helper/api-token'
  * @description Revoke a token. The row is kept so `lastUsedAt` survives for
  * audit. Revoking twice is a no-op.
  *
- * Any team member may revoke what they minted; a steward may revoke anyone's.
+ * Any Team Member may revoke what they minted; a steward may revoke anyone's.
  * The ownership check runs before the already-revoked short-circuit, so probing
  * another member's token id cannot report back whether it exists.
  */

@@ -1,5 +1,5 @@
 -- Projects with no ProjectOwner row would have nobody who can configure Git
--- after Team OWNER stops being an implicit steward. Fill those only.
+-- after Team Owner stops being an implicit steward. Fill those only.
 INSERT INTO "ProjectOwner" ("user_id", "project_id")
 SELECT ut."user_id", p."id"
 FROM "Project" p

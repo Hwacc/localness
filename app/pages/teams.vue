@@ -142,7 +142,7 @@ const memberColumns = computed<TableColumn<ITeamMember>[]>(() => {
           row.original.userId
         )
         const removeBlockedReason = isLastOwner
-          ? 'A team must keep at least one Team OWNER'
+          ? 'A team must keep at least one Te am Owner'
           : stranded.length > 0
             ? `Appoint another Project Owner for ${stranded.join(', ')} first`
             : ''
@@ -160,7 +160,7 @@ const memberColumns = computed<TableColumn<ITeamMember>[]>(() => {
               />
             ) : (
               <UTooltip
-                text="A team must keep at least one Team OWNER"
+                text="A team must keep at least one Team Owner"
                 disabled={!isLastOwner}
               >
                 <UButton
@@ -521,7 +521,7 @@ async function setMemberRole(userId: ID, role: TeamRole) {
     body: { role },
   })
   toast.add({
-    title: role === TeamRole.OWNER ? 'Promoted to Team OWNER' : 'Changed to Team member',
+    title: role === TeamRole.OWNER ? 'Promoted to Team Owner' : 'Changed to Team member',
     color: 'success',
     icon: 'i-lucide:check',
   })
@@ -548,13 +548,13 @@ const leaveBlockedReason = computed(() => {
   if (!isOwner.value) return ''
   if (ownerCount(detail.value) > 1) return ''
   return members.value.length > 1
-    ? 'Promote another member to Team OWNER first'
+    ? 'Promote another member to Team Owner first'
     : 'You are the only member — delete the team instead'
 })
 
 /** Mirrors `teamDeleteRejectReason` on the server. */
 const deleteBlockedReason = computed(() => {
-  if (!isOwner.value) return 'Only a Team OWNER can delete a team'
+  if (!isOwner.value) return 'Only a Team Owner can delete a team'
   if (members.value.length > 1) return 'Remove the other members first'
   if (teamProjects.value.length > 0) return 'Delete this team’s projects first'
   return ''
@@ -846,8 +846,8 @@ onMounted(async () => {
                         v-model="newCodeRole"
                         class="w-full"
                         :items="[
-                          { label: 'Team member', value: TeamRole.MEMBER },
-                          { label: 'Team OWNER', value: TeamRole.OWNER },
+                          { label: 'Team Member', value: TeamRole.MEMBER },
+                          { label: 'Team Owner', value: TeamRole.OWNER },
                         ]"
                       />
                     </UFormField>

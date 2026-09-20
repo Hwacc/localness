@@ -6,7 +6,7 @@ import { AlertModal, ApiTokenRevealModal } from '#components'
  * issuing a credential is a one-off configuration task, while the documentation
  * on `/api` is what a consumer is there to read.
  *
- * Any team member may mint one. The server already narrows the list to your own
+ * Any Team Member may mint one. The server already narrows the list to your own
  * when you are not a steward, so every row shown is revocable by whoever is
  * looking — no per-row check needed. Erasing a row outright is different: purge
  * destroys the audit record rather than stopping the token, so it stays a

@@ -6,7 +6,7 @@ import { listReleases } from '#server/helper/release'
  * @route GET /api/projects/:id/releases
  * @description Release labels for a project.
  *
- * Any team member: these are the filter options and the checkbox list on a page
+ * Any Team Member: these are the filter options and the checkbox list on a page
  * or translation, not a privileged roster.
  */
 export default defineEventHandler(async (event) => {
