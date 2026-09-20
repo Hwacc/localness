@@ -109,18 +109,69 @@ export function parseLiltFilename(name: string): {
   }
 }
 
-/** HHMMSS-hex, as written by `buildSourceFilename`. */
-const LOCALNESS_BATCH_ID = /^\d{6}-[0-9a-f]+$/i
+/** Legacy Localness ids: `HHMMSS-hex`. New pushes use a 24-hex batch id. */
+const LEGACY_LOCALNESS_BATCH_ID = /^(\d{2})(\d{2})(\d{2})-([0-9a-f]+)$/i
+const HEX_24_BATCH_ID = /^[0-9a-f]{24}$/i
+
+/** UTC `YYYYMMDD`, the date segment of a LILT batch filename. */
+export function liltDateStamp(now = new Date()): string {
+  const y = now.getUTCFullYear()
+  const m = String(now.getUTCMonth() + 1).padStart(2, '0')
+  const d = String(now.getUTCDate()).padStart(2, '0')
+  return `${y}${m}${d}`
+}
 
 /**
- * Merge order: calendar date, then connector batches, then Localness
- * timed batches (later time wins). Raw string sort is wrong on the same
- * day: a LILT uuid `5dbd…` sorts after `081602-…`, so the older connector
- * file would overwrite a push we just landed.
+ * Unix seconds when `batchId` encodes a clock that falls on `date`.
+ * The id is chosen by whoever writes `source/`; LILT copies the same
+ * `<YYYYMMDD>-<batchId>` prefix into `translated/` and does not mint one.
+ * Legacy `HHMMSS-hex` uses the filename date + those six digits.
+ * 24-hex ObjectIds use the first 4 bytes only if that instant's UTC day
+ * matches `date`. Older production source ids (e.g. `5dbd…`, unix 2019)
+ * do not match and stay opaque.
+ *
+ * That day check is what separates "minted for this file" from "opaque",
+ * and it is the only thing keeping an opaque id from out-sorting a push
+ * on the same day. A prefix rewritten downstream — a `translated/` file
+ * re-dated to the day it finished — loses its clock and drops to the
+ * day's lowest priority, silently, with no way to win a merge.
+ */
+export function liltBatchInstant(date: string, batchId: string): number | null {
+  if (!/^\d{8}$/.test(date)) return null
+  const y = Number(date.slice(0, 4))
+  const month = Number(date.slice(4, 6))
+  const day = Number(date.slice(6, 8))
+
+  const legacy = batchId.match(LEGACY_LOCALNESS_BATCH_ID)
+  if (legacy) {
+    const hh = Number(legacy[1])
+    const mm = Number(legacy[2])
+    const ss = Number(legacy[3])
+    if (hh > 23 || mm > 59 || ss > 59) return null
+    const ms = Date.UTC(y, month - 1, day, hh, mm, ss)
+    if (liltDateStamp(new Date(ms)) !== date) return null
+    return Math.floor(ms / 1000)
+  }
+
+  if (HEX_24_BATCH_ID.test(batchId)) {
+    const ts = Number.parseInt(batchId.slice(0, 8), 16)
+    if (liltDateStamp(new Date(ts * 1000)) !== date) return null
+    return ts
+  }
+
+  return null
+}
+
+/**
+ * Merge order: calendar date, then opaque ids (older source exporters
+ * whose 24-hex is not a same-day clock), then timed batches (later
+ * instant wins). Timed = legacy `HHMMSS-hex` or a 24-hex ObjectId whose
+ * embedded unix day matches `date`.
  */
 export function liltBatchSortKey(date: string, batchId: string): string {
-  const rank = LOCALNESS_BATCH_ID.test(batchId) ? '1' : '0'
-  return `${date}-${rank}-${batchId}`
+  const instant = liltBatchInstant(date, batchId)
+  if (instant === null) return `${date}-0-${batchId}`
+  return `${date}-1-${String(instant).padStart(10, '0')}-${batchId}`
 }
 
 export function validateFlatJson(data: unknown): Record<string, string> {
@@ -143,16 +194,26 @@ export function validateFlatJson(data: unknown): Record<string, string> {
   return out
 }
 
-export function buildSourceFilename(sourceRemoteLocale: string): string {
-  const day = new Date()
-  const y = day.getUTCFullYear()
-  const m = String(day.getUTCMonth() + 1).padStart(2, '0')
-  const d = String(day.getUTCDate()).padStart(2, '0')
-  const hh = String(day.getUTCHours()).padStart(2, '0')
-  const mm = String(day.getUTCMinutes()).padStart(2, '0')
-  const ss = String(day.getUTCSeconds()).padStart(2, '0')
-  const batchId = `${hh}${mm}${ss}-${randomBytes(8).toString('hex')}`
-  return `${y}${m}${d}-${batchId}_${sourceRemoteLocale}.json`
+/**
+ * 24-hex id. First 4 bytes are unix seconds so same-day source pushes
+ * stay ordered. LILT will reuse this id on the matching translated file.
+ */
+export function liltBatchId(now = new Date()): string {
+  const buf = Buffer.alloc(12)
+  buf.writeUInt32BE(Math.floor(now.getTime() / 1000), 0)
+  randomBytes(8).copy(buf, 4)
+  return buf.toString('hex')
+}
+
+/**
+ * `<YYYYMMDD>-<batch id>_<source locale>.json` — LILT source naming.
+ * No `HHMMSS` in the filename; uniqueness lives in the 24-hex batch id.
+ */
+export function buildSourceFilename(
+  sourceRemoteLocale: string,
+  now = new Date()
+): string {
+  return `${liltDateStamp(now)}-${liltBatchId(now)}_${sourceRemoteLocale}.json`
 }
 
 type FileHit = {
