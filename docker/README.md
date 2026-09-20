@@ -154,6 +154,9 @@ Pre-release tags (`v1.3.0-rc.1`) still get a GitHub Release, but do not
 overwrite the Hub Overview.
 
 Repo secrets (Actions → Secrets): `DOCKERHUB_USERNAME`, `DOCKERHUB_TOKEN`.
+The token that can `docker push` is **not** enough to rewrite Hub Overview:
+create a Hub Personal Access Token with **Read, Write, and Delete**, then
+put that in `DOCKERHUB_TOKEN` (push still works with the same token).
 `NUXT_SALT_SIZE` is fixed at `10` in the release workflow; do not change it
 after go-live.
 
