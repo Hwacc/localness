@@ -18,6 +18,11 @@ export interface II18nKeyRow {
   locales: ILocaleValue[]
   /** Release labels on this entry. Empty means Unassigned. */
   releaseIds?: ID[]
+  /**
+   * Whether the key takes part in Git sync, both directions. Independent of
+   * `dirty`: a key is served on the published API either way.
+   */
+  gitSyncEnabled: boolean
 }
 
 export interface II18nKeyRefTag {

@@ -24,6 +24,7 @@ export default defineEventHandler(async (event) => {
     conflictId: numericID(conflictId),
     action: body.action,
     text: body.text,
+    newKey: body.newKey,
     userId,
   })
 })

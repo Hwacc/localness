@@ -34,7 +34,7 @@ export interface IGitSyncPushLogDetail {
 export interface IGitSyncConflictLogDetail {
   key: string
   locale: string
-  action: 'ours' | 'theirs' | 'merged'
+  action: 'ours' | 'theirs' | 'merged' | 'renamed'
 }
 
 export type IGitSyncLogDetail =

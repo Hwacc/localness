@@ -30,9 +30,23 @@ const state = reactive({
   releaseIds: [] as number[],
 })
 
+/**
+ * Git sync is a setting, not content, so it is neither part of `state` nor sent
+ * with Save — the endpoint that writes it does not require a draft, which is
+ * what lets a published key be switched off. That also means it is live on
+ * toggle rather than on Save.
+ */
+const syncEnabled = ref(true)
+const syncSaving = ref(false)
+
 const localeCodes = computed(() =>
   props.locales.length ? props.locales : [...DEFAULT_LOCALES]
 )
+
+const tabsItems = [
+  { label: 'General', icon: 'i-lucide:info', slot: 'general' },
+  { label: 'Translations', icon: 'i-lucide:languages', slot: 'translations' },
+]
 
 function fillFromRow(row: II18nKeyRow | null | undefined) {
   state.key = row?.key ?? ''
@@ -43,6 +57,7 @@ function fillFromRow(row: II18nKeyRow | null | undefined) {
       row?.locales.find((locale) => locale.locale === code)?.draftText ?? ''
   }
   state.locales = next
+  syncEnabled.value = row?.gitSyncEnabled ?? true
   // A new entry created while one release is being viewed starts on that one.
   const defaultReleaseId = defaultReleaseIdForFilter(
     projectStore.curReleaseFilter
@@ -75,6 +90,32 @@ const keyDisplay = computed({
     state.key = next
   },
 })
+
+async function onSyncToggle(enabled: boolean) {
+  const row = props.row
+  if (!row || syncSaving.value) return
+  const previous = syncEnabled.value
+  syncSaving.value = true
+  syncEnabled.value = enabled
+  try {
+    await useApi(
+      `/api/projects/${props.projectId}/i18n-keys/${row.id}/git-sync`,
+      { method: 'POST', body: { enabled } }
+    )
+    toast.add({
+      title: enabled ? 'Included in Git sync' : 'Kept out of Git sync',
+      color: 'success',
+      icon: 'i-lucide:check',
+    })
+    emit('saved')
+  } catch (error) {
+    // `useApi` has already reported it — put the switch back where it was.
+    console.error(error)
+    syncEnabled.value = previous
+  } finally {
+    syncSaving.value = false
+  }
+}
 
 async function onSave() {
   if (props.readonly) return
@@ -159,40 +200,69 @@ async function onSave() {
     @update:open="(open: boolean) => !open && emit('close', false)"
   >
     <template #body>
-      <div class="flex flex-col gap-4">
-        <UFormField label="Key">
-          <UInput
-            v-model="keyDisplay"
-            class="w-full font-mono"
-            :disabled="readonly"
-          />
-        </UFormField>
-        <UFormField label="Origin">
-          <UTextarea
-            v-model="state.origin"
-            class="w-full"
-            :rows="3"
-            :disabled="readonly"
-          />
-        </UFormField>
-        <UFormField label="Releases">
-          <ReleaseSelect
-            v-model="state.releaseIds"
-            :disabled="readonly"
-          />
-        </UFormField>
-        <UFormField
-          v-for="code in localeCodes"
-          :key="code"
-          :label="localeMeta(code)?.label || code"
-        >
-          <UInput
-            v-model="state.locales[code]"
-            class="w-full"
-            :disabled="readonly"
-          />
-        </UFormField>
-      </div>
+      <!--
+        Split rather than one long column: drafts are usually edited inline in
+        the table, so this dialog is mostly opened for the identity fields —
+        the locale texts are the occasional errand. General therefore leads.
+      -->
+      <UTabs :items="tabsItems" variant="link" :ui="{ trigger: 'grow' }">
+        <template #general>
+          <div class="flex flex-col gap-4">
+            <UFormField label="Key">
+              <UInput
+                v-model="keyDisplay"
+                class="w-full font-mono"
+                :disabled="readonly"
+              />
+            </UFormField>
+            <UFormField label="Origin">
+              <UTextarea
+                v-model="state.origin"
+                class="w-full"
+                :rows="3"
+                :disabled="readonly"
+              />
+            </UFormField>
+            <UFormField label="Releases">
+              <ReleaseSelect
+                v-model="state.releaseIds"
+                :disabled="readonly"
+              />
+            </UFormField>
+            <!--
+              Live on toggle, and not disabled by `readonly`: this is a sync
+              setting, so it stays available on the published keys that are
+              otherwise read-only here.
+            -->
+            <UFormField
+              v-if="props.row"
+              label="Git sync"
+              description="Off keeps this key out of pull and push. It is still served on the published API."
+            >
+              <USwitch
+                :model-value="syncEnabled"
+                :loading="syncSaving"
+                @update:model-value="onSyncToggle"
+              />
+            </UFormField>
+          </div>
+        </template>
+        <template #translations>
+          <div class="flex flex-col gap-4">
+            <UFormField
+              v-for="code in localeCodes"
+              :key="code"
+              :label="localeMeta(code)?.label || code"
+            >
+              <UInput
+                v-model="state.locales[code]"
+                class="w-full"
+                :disabled="readonly"
+              />
+            </UFormField>
+          </div>
+        </template>
+      </UTabs>
     </template>
     <template #footer>
       <div class="w-full flex items-center justify-end gap-2">

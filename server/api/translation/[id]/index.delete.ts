@@ -60,6 +60,17 @@ export default defineEventHandler(async (event) => {
         where: { i18nKeyId: nID },
         data: { i18nKeyId: null },
       })
+      // Conflicts are keyed by (projectId, key string), not by the key's id, and
+      // `resolveConflict` upserts the key back **by name** — so an open card left
+      // behind resurrects this key the next time someone resolves it on /git.
+      // Resolved rows are audit and stay.
+      await tx.gitSyncConflict.deleteMany({
+        where: {
+          projectId: existing.projectId,
+          key: existing.key,
+          status: 'open',
+        },
+      })
       await tx.i18nKey.delete({
         where: { id: nID },
       })

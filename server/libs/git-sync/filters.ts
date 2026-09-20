@@ -2,6 +2,7 @@ import {
   GitSyncPullReason,
   GitSyncPushReason,
 } from '#shared/constants'
+import type { ThreeWayDecision } from '#shared/types/GitSync'
 import { DRAFT_KEY_PREFIX } from '#shared/utils'
 import { decideThreeWay } from './three-way'
 
@@ -63,6 +64,27 @@ export function classifyPush(
       return _exhaustive
     }
   }
+}
+
+/**
+ * How a remote key resolves on pull, or `null` when it takes no part at all.
+ *
+ * A key kept out of Git sync is excluded in both directions, and agreement is
+ * not even an `align` — aligning writes a base, which would sync half of it. A
+ * real disagreement still surfaces as a conflict so the user decides, and that
+ * matters most when this side has no text: three-way alone would say
+ * `apply-theirs` and quietly write the remote text into a key that opted out.
+ */
+export function classifyPull(params: {
+  ours: string | null | undefined
+  theirs: string | null | undefined
+  base: string | null | undefined
+  gitSyncEnabled: boolean
+}): ThreeWayDecision | null {
+  if (params.gitSyncEnabled) {
+    return decideThreeWay(params.base, params.ours, params.theirs)
+  }
+  return (params.ours ?? '') === (params.theirs ?? '') ? null : 'conflict'
 }
 
 export function emptyPushCounts(): Record<GitSyncPushReason, number> {
