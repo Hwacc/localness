@@ -2,8 +2,10 @@
 # Tag format: vMAJOR.MINOR.PATCH (optional -rc.N / -beta.N).
 # Image tags drop the leading v: v1.2.0 → huacc/localness:1.2.0
 # Pre-release tags do not move :latest.
-# Changelog: GitHub Release for every tag; Hub Overview gets the latest
-# stable notes (Hub has no per-tag changelog UI).
+# Changelog: GitHub Release for every tag. Hub Overview is not updated here:
+# the Hub metadata API needs a Read/Write/Delete PAT (or Admin on an org
+# repo) and a push-only token returns 403. Tags page has no changelog column
+# anyway; image label documentation points at the GitHub Release.
 name: Release
 
 on:
@@ -56,47 +58,6 @@ jobs:
         with:
           body_path: notes.md
           prerelease: ${{ contains(github.ref_name, '-') }}
-
-  # Hub Overview PATCH needs a Hub PAT with Read/Write/Delete. A push-only
-  # token (enough for docker/login-action) returns 403. Own job so a 403 does
-  # not mark the GitHub Release as failed. v5 is Node 24; v4 trips the Node 20
-  # deprecation on current runners.
-  hub-overview:
-    needs: changelog
-    if: ${{ !contains(github.ref_name, '-') }}
-    runs-on: ubuntu-latest
-    timeout-minutes: 5
-    steps:
-      - uses: actions/checkout@v5
-        with:
-          fetch-depth: 0
-
-      - name: Generate notes
-        run: sh .github/scripts/release-notes.sh > notes.md
-
-      - name: Hub overview markdown
-        run: |
-          {
-            echo "# ${IMAGE}"
-            echo
-            echo "Screenshot tagging + i18n key store. Not a headless CMS."
-            echo
-            echo "Each version's changelog: https://github.com/${GITHUB_REPOSITORY}/releases"
-            echo
-            cat notes.md
-            echo
-            echo "---"
-            echo
-            cat docker/README.md
-          } > hub.md
-
-      - uses: peter-evans/dockerhub-description@v5
-        with:
-          username: ${{ secrets.DOCKERHUB_USERNAME }}
-          password: ${{ secrets.DOCKERHUB_TOKEN }}
-          repository: ${{ env.IMAGE }}
-          short-description: Screenshot tagging + i18n key store
-          readme-filepath: hub.md
 
   # Tag is the version source. Do not bump package.json by hand before tagging.
   # The tagged commit may still show the previous number; this follow-up commit
