@@ -236,6 +236,13 @@ model ProjectSettings {
   prompt         String?  @default("")
   locales        Json     @default("[\"en\",\"zh_cn\",\"zh_tw\",\"ja\",\"ko\",\"ru\",\"fr\",\"de\",\"es\",\"pt\"]")
   localeFallback String   @default("en") @map("locale_fallback")
+  // Naming convention for i18n keys. The prefix default is empty on purpose:
+  // a non-empty default would flag every existing key as non-compliant. New
+  // projects are seeded from a slug of the project name instead.
+  keyPrefix      String   @default("") @map("key_prefix")
+  keySeparator   String   @default("_") @map("key_separator")
+  keyStyle       String   @default("snake_case") @map("key_style")
+  keyMaxDepth    Int      @default(4) @map("key_max_depth")
   project        Project  @relation(fields: [projectID], references: [id], onDelete: Cascade)
 }
 

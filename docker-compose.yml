@@ -14,6 +14,9 @@ services:
     volumes:
       # SQLite database and local uploads. Losing this volume loses the data.
       - localness-runtime:/app/runtime
+      # Optional: replace the AI prompts baked into the image. The mount must be
+      # readable by uid 1000, which is the image's `node` user.
+      # - ./prompts:/app/prompts:ro
     healthcheck:
       test:
         - CMD

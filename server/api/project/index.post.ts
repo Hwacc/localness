@@ -3,6 +3,10 @@ import { readZodBody } from '#server/helper/validate'
 import { requireTeamMembership } from '#server/helper/access'
 import { projectDetailInclude, shapeProject } from '#server/helper/i18n'
 import { DEFAULT_LOCALES, DEFAULT_LOCALE_FALLBACK } from '#shared/constants'
+import {
+  DEFAULT_KEY_CONVENTION,
+  slugKeyPrefix,
+} from '#shared/utils/key-convention'
 
 /**
  * @route POST /api/project
@@ -38,6 +42,15 @@ export default defineEventHandler(async (event) => {
         prompt: settings?.prompt ?? '',
         locales: [...DEFAULT_LOCALES],
         localeFallback: DEFAULT_LOCALE_FALLBACK,
+        // The slug is only a starting point. `Project.name` is free text that
+        // need not be latin, and the value is stored as a snapshot, so renaming
+        // the project later does not move the keys it already produced. An
+        // explicitly sent prefix wins, including an empty one.
+        keyPrefix: settings?.keyPrefix ?? slugKeyPrefix(name),
+        keySeparator:
+          settings?.keySeparator ?? DEFAULT_KEY_CONVENTION.separator,
+        keyStyle: settings?.keyStyle ?? DEFAULT_KEY_CONVENTION.style,
+        keyMaxDepth: settings?.keyMaxDepth ?? DEFAULT_KEY_CONVENTION.maxDepth,
       },
     })
     await tx.projectOwner.create({

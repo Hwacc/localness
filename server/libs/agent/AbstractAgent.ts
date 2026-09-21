@@ -1,33 +1,9 @@
-import fs from 'node:fs'
-import path from 'node:path'
-import type { ZGenI18nKey } from '#shared/utils/schemas'
-
-class SecretAssistant {
-  private filename!: string
-
-  private readSecret() {
-    if (!this.filename) {
-      throw new Error('Secret filename is required')
-    }
-    const secret = fs.readFileSync(
-      path.resolve(process.cwd(), `./server/secrets/${this.filename}.json`),
-      'utf8'
-    )
-    return JSON.parse(secret)
-  }
-
-  public getSecret<T>(filename: string) {
-    this.filename = filename
-    return this.readSecret() as T
-  }
-}
-
 /**
  * Why the agent call failed, so the API layer can pick an HTTP status instead of
  * letting every upstream hiccup surface as an opaque 500.
  * - `quota`: the AI provider refused on billing/credits/rate grounds
- * - `upstream`: the provider is reachable but the run failed
- * - `config`: our own credentials / client setup is broken
+ * - `upstream`: the provider is reachable but the call failed
+ * - `config`: our own credentials, model or prompt files are broken
  * - `bad-params`: the agent was called without usable parameters
  */
 export type AgentErrorKind = 'quota' | 'upstream' | 'config' | 'bad-params'
@@ -42,17 +18,34 @@ export class AgentError extends Error {
   }
 }
 
-export type JWTResult = {
-  token_type: string
-  access_token: string
-  refresh_token: string
-  expires_in: number
+/**
+ * Which feature an agent serves. The slug drives both the per-feature settings
+ * (`NUXT_OPENAI_<SUFFIX>_*`) and the prompt file (`<feature>.md`), so adding a
+ * feature needs a subclass, a slug here and a Markdown file — no new
+ * configuration code.
+ */
+export type AgentFeature = 'i18n-key'
+
+/** `i18n-key` -> `I18N_KEY`. */
+export function featureEnvSuffix(feature: AgentFeature): string {
+  return feature.toUpperCase().replace(/-/g, '_')
 }
+
+/** Read-only view of the environment, so config resolution stays testable. */
+export type Env = Record<string, string | undefined>
+
+/**
+ * Providers report a billing or credit refusal as free text rather than a status
+ * code, so the kind has to be sniffed out of the message.
+ */
+export const QUOTA_MESSAGE = /insufficient|credit|balance|quota|rate limit/i
+
+export function toAgentError(error: unknown, fallback: string): AgentError {
+  if (error instanceof AgentError) return error
+  const message = error instanceof Error ? error.message : String(error)
+  return new AgentError('upstream', message || fallback, { cause: error })
+}
+
 export abstract class AbstractAgent {
-  protected secretAssistant = new SecretAssistant()
-  abstract getJwt(): Promise<JWTResult>
-  abstract isExpired(): boolean
-  abstract generateI18nKey<T>(): Promise<T>
-  // eslint-disable-next-line @typescript-eslint/unified-signatures
-  abstract generateI18nKey<T>(parmas?: ZGenI18nKey): Promise<T>
+  abstract readonly feature: AgentFeature
 }

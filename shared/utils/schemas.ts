@@ -7,6 +7,7 @@ import {
   OCR_LANGUAGES,
   TeamRole,
 } from '#shared/constants'
+import { KEY_STYLE_VALUES } from '#shared/utils/key-convention'
 
 /** Accepts T | null | undefined, including a missing object key (Zod v4). */
 export function zNilable<T extends z.ZodType>(schema: T) {
@@ -35,6 +36,12 @@ export const zProject = z.object({
     ocrLanguage: z.string(),
     ocrEngine: z.number(),
     prompt: zNilable(z.string()),
+    // Optional, not nilable: the columns are NOT NULL, and `null` for "no
+    // prefix" would be ambiguous — the empty string is that.
+    keyPrefix: z.string().optional(),
+    keySeparator: z.string().min(1, 'separator cannot be empty').optional(),
+    keyStyle: z.enum(KEY_STYLE_VALUES).optional(),
+    keyMaxDepth: z.number().int().min(1).max(10).optional(),
   }),
 })
 export type ZProject = z.infer<typeof zProject>

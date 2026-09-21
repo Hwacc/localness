@@ -6,7 +6,6 @@ type TagModalOptions = {
   clip: string
   onSave?: (updatedTag: ITag | undefined) => void
   onCreateTranslation?: (updatedTag: ITag | undefined) => void
-  onCreateI18nKey?: (updatedTag: ITag | undefined) => void
   onClose?: (isOK: boolean) => void
 }
 
@@ -16,9 +15,9 @@ export function useTagModal() {
     props: {
       tag: {} as ITag,
       clip: '',
+      suggestion: null,
       onSave: () => {},
       onCreateTrans: () => {},
-      onCreateI18nKey: () => {},
       onClose: () => {},
     },
   })
@@ -150,45 +149,28 @@ export function useTagModal() {
         }
       },
 
-      onCreateI18nKey: async ({ id, origin, i18nKey, prompt }) => {
+      onCreateI18nKey: async ({ id, origin, prompt }) => {
         try {
-          tagModal.patch({ loading: true })
-          const result = await useApi<{ tagID: ID; i18nKey: string } | null>(
-            '/api/tag/ai/gen-i18n-key',
-            {
-              method: 'POST',
-              body: {
-                projectPrompt: projectStore.curProject.settings?.prompt,
-                pagePrompt: pageStore.curPage.settings?.prompt,
-                tagID: id,
-                tagOrigin: origin,
-                tagI18nKey: i18nKey,
-                tagPrompt: prompt,
-              },
-            }
-          )
-          if (result) {
-            const updatedTag = await tagStore.updateTag(result.tagID, {
-              i18nKey: result.i18nKey,
-            })
-            tagModal.patch({
-              tag: updatedTag,
-            })
-            toast.add({
-              title: 'Success',
-              description: 'Tag updated',
-              color: 'success',
-              icon: 'i-lucide:check',
-            })
-            opt.onCreateI18nKey?.(updatedTag)
-          } else {
-            opt.onCreateI18nKey?.(undefined)
-          }
+          tagModal.patch({ loading: true, suggestion: null })
+          const result = await useApi<
+            ({ tagID: ID } & I18nKeySuggestion) | null
+          >('/api/tag/ai/gen-i18n-key', {
+            method: 'POST',
+            body: {
+              projectPrompt: projectStore.curProject.settings?.prompt,
+              pagePrompt: pageStore.curPage.settings?.prompt,
+              tagID: id,
+              tagOrigin: origin,
+              tagPrompt: prompt,
+            },
+          })
+          // Nothing is written here on purpose: the answer is a suggestion until
+          // Save. Committing it now would create an `I18nKey` row for a key the
+          // user may replace a second later, and leave the first one orphaned.
+          tagModal.patch({ suggestion: result })
         } catch (error) {
           console.error('gen i18n key error', error)
-          // useApi already toasted the reason; tell the caller the run is over
-          // so it does not stay stuck waiting for a key.
-          opt.onCreateI18nKey?.(undefined)
+          // useApi already toasted the reason.
         } finally {
           tagModal.patch({ loading: false })
         }
