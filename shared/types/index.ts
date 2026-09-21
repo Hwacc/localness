@@ -46,7 +46,9 @@ export interface I18nKeySuggestion {
   duplicates: I18nKeyDuplicate[]
 }
 
-/** The agent's half: it knows the convention, not the project's key list. */
-export type AgentI18nKeyResult = Omit<I18nKeySuggestion, 'duplicates'> & {
-  tag_id: number
-}
+/**
+ * The agent's half: it knows the convention, not the project's key list, and
+ * not which tag (if any) the call came from — an entry-scoped call has no tag
+ * at all, so the identity is composed by whoever made the call.
+ */
+export type AgentI18nKeyResult = Omit<I18nKeySuggestion, 'duplicates'>

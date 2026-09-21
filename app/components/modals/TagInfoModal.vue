@@ -16,6 +16,22 @@ const props = defineProps<{
   suggestion?: I18nKeySuggestion | null
 }>()
 const { tag, clip, loading } = toRefs(props)
+
+/*
+ * `suggestion` is a prop the parent patches per generation, so waving the panel
+ * away is a local decision: it hides here, and the parent's copy is replaced the
+ * next time it generates anyway.
+ */
+const suggestionDismissed = ref(false)
+watch(
+  () => props.suggestion,
+  () => {
+    suggestionDismissed.value = false
+  }
+)
+function dismissSuggestion() {
+  suggestionDismissed.value = true
+}
 const tabsItems = [
   {
     label: 'Basic',
@@ -547,10 +563,11 @@ const previewLabelStyle = computed(() => {
                     <AIButton :loading="loading" @click="onCreateI18nKey" />
                   </div>
                   <AIKeySuggestion
-                    v-if="suggestion"
+                    v-if="suggestion && !suggestionDismissed"
                     :suggestion="suggestion"
                     :origin="state.translation?.origin ?? ''"
                     @pick="i18nKeyDisplay = $event"
+                    @cancel="dismissSuggestion"
                   />
                   <KeyDuplicateNote
                     v-if="keyDuplicate"

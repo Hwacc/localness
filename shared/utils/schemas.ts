@@ -293,6 +293,16 @@ export const zGenI18nKey = z.object({
 })
 export type ZGenI18nKey = z.infer<typeof zGenI18nKey>
 
+/**
+ * Naming a key for an entry rather than a tag. No tag id, and no page-level
+ * guidance: an entry's tags can sit on several pages, so the project's own
+ * prompt is the only instruction that is certain to apply.
+ */
+export const zGenI18nKeyForProject = z.object({
+  origin: z.string().min(1),
+})
+export type ZGenI18nKeyForProject = z.infer<typeof zGenI18nKeyForProject>
+
 export function isHttpsRemoteUrl(value: string): boolean {
   return normalizeGitHttpsRemote(value) != null
 }
