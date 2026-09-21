@@ -12,6 +12,8 @@ const props = defineProps<{
   tag: ITag
   clip: string
   loading?: boolean
+  /** The last generation for this tag. Cleared when a new one starts. */
+  suggestion?: I18nKeySuggestion | null
 }>()
 const { tag, clip, loading } = toRefs(props)
 const tabsItems = [
@@ -498,9 +500,17 @@ const previewLabelStyle = computed(() => {
             </div>
             <div v-else class="flex flex-col gap-2.5">
               <UFormField label="I18n Key">
-                <div class="w-full flex items-center gap-2.5">
-                  <UInput v-model="i18nKeyDisplay" class="w-full font-mono" />
-                  <AIButton @click="onCreateI18nKey" />
+                <div class="w-full flex flex-col gap-2">
+                  <div class="w-full flex items-center gap-2.5">
+                    <UInput v-model="i18nKeyDisplay" class="w-full font-mono" />
+                    <AIButton :loading="loading" @click="onCreateI18nKey" />
+                  </div>
+                  <AIKeySuggestion
+                    v-if="suggestion"
+                    :suggestion="suggestion"
+                    :origin="state.translation?.origin ?? ''"
+                    @pick="i18nKeyDisplay = $event"
+                  />
                 </div>
               </UFormField>
               <UFormField label="Text" :ui="{ label: 'w-full' }">

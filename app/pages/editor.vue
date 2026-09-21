@@ -258,7 +258,6 @@ onMounted(async () => {
         clip,
         onSave: (updatedTag) => send(updatedTag),
         onCreateTranslation: (updatedTag) => send(updatedTag),
-        onCreateI18nKey: (updatedTag) => send(updatedTag),
         onClose: (isOK) => {
           !isOK && send(undefined)
           disconnect()
