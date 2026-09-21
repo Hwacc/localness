@@ -37,7 +37,6 @@ const BASE: I18nKeyGenerateParams = {
   projectPrompt: null,
   pagePrompt: null,
   pageImage: null,
-  tagID: 42,
   tagOrigin: 'Sign in',
   tagI18nKey: null,
   tagPrompt: null,
@@ -301,8 +300,7 @@ describe('parseI18nKeyContent', () => {
       { source: 'second line', key: 'demo_other_btn' },
     ])
 
-    expect(parseI18nKeyContent(content, 42, CONVENTION)).toEqual({
-      tag_id: 42,
+    expect(parseI18nKeyContent(content, CONVENTION)).toEqual({
       source: 'Sign in',
       key: 'demo_auth_signin_btn',
       confidence: 0.9,
@@ -316,14 +314,14 @@ describe('parseI18nKeyContent', () => {
     const content =
       'Sure:\n```json\n[{"source":"Sign in","key":"demo_auth_btn"}]\n```\nDone.'
 
-    expect(parseI18nKeyContent(content, 42, CONVENTION).key).toBe(
+    expect(parseI18nKeyContent(content, CONVENTION).key).toBe(
       'demo_auth_btn'
     )
   })
 
   it('accepts a bare object as a one-item answer', () => {
     expect(
-      parseI18nKeyContent('{"source":"Sign in","key":"demo_auth_btn"}', 42, CONVENTION)
+      parseI18nKeyContent('{"source":"Sign in","key":"demo_auth_btn"}', CONVENTION)
         .key
     ).toBe('demo_auth_btn')
   })
@@ -340,8 +338,7 @@ describe('parseI18nKeyContent', () => {
       reason: 'Section heading above a list',
     })
 
-    expect(parseI18nKeyContent(content, 42, CONVENTION)).toEqual({
-      tag_id: 42,
+    expect(parseI18nKeyContent(content, CONVENTION)).toEqual({
       source: 'YOU MIGHT BE INTERESTED IN:',
       key: 'demo_common_interests_title',
       confidence: 0.9,
@@ -356,7 +353,6 @@ describe('parseI18nKeyContent', () => {
     // names a usable key — and anything naming nothing is dropped.
     const alternatives = parseI18nKeyContent(
       '{"key":"demo_a_btn","alternatives":["demo_b_btn",{"key":"demo_c_btn","confidence":0.7},"",42,null]}',
-      42,
       CONVENTION
     ).alternatives
 
@@ -372,7 +368,6 @@ describe('parseI18nKeyContent', () => {
     expect(
       parseI18nKeyContent(
         '{"key":"demo_a_btn","reason":"use [x] and {y} literally"}',
-        42,
         CONVENTION
       ).reason
     ).toBe('use [x] and {y} literally')
@@ -380,25 +375,13 @@ describe('parseI18nKeyContent', () => {
 
   it('trims the key', () => {
     expect(
-      parseI18nKeyContent('{"key":"  demo_auth_btn  "}', 42, CONVENTION).key
+      parseI18nKeyContent('{"key":"  demo_auth_btn  "}', CONVENTION).key
     ).toBe('demo_auth_btn')
-  })
-
-  it('stamps the tag id we asked for, whatever the answer says', () => {
-    // The model is never told which tag it is naming, so an id in its reply is
-    // invented — ours is the only one worth returning.
-    expect(parseI18nKeyContent('{"key":"demo_a"}', 42, CONVENTION).tag_id).toBe(
-      42
-    )
-    expect(
-      parseI18nKeyContent('{"tag_id":7,"key":"demo_a"}', 42, CONVENTION).tag_id
-    ).toBe(42)
   })
 
   it('takes an empty key as the documented answer for an unnameable line', () => {
     const result = parseI18nKeyContent(
       '[{"source":"！！！","key":"","confidence":0,"reason":"symbols only"}]',
-      42,
       CONVENTION
     )
 
@@ -407,11 +390,7 @@ describe('parseI18nKeyContent', () => {
   })
 
   it('reports convention violations instead of rejecting the key', () => {
-    const result = parseI18nKeyContent(
-      '{"key":"auth_Login-Btn"}',
-      42,
-      CONVENTION
-    )
+    const result = parseI18nKeyContent('{"key":"auth_Login-Btn"}', CONVENTION)
 
     expect(result.key).toBe('auth_Login-Btn')
     expect(result.violations).toEqual(
@@ -422,23 +401,23 @@ describe('parseI18nKeyContent', () => {
   it('rejects an answer whose key field is not a string', () => {
     // A missing key is a broken answer; an empty one is a legitimate answer.
     // Reading the two alike would let a malformed reply pass as "cannot name".
-    expect(() => parseI18nKeyContent('{"source":"x"}', 42, CONVENTION)).toThrow(
+    expect(() => parseI18nKeyContent('{"source":"x"}', CONVENTION)).toThrow(
       /answered without a key/
     )
     expect(() =>
-      parseI18nKeyContent('[{"key":null}]', 42, CONVENTION)
+      parseI18nKeyContent('[{"key":null}]', CONVENTION)
     ).toThrow(/answered without a key/)
   })
 
   it('rejects an answer that holds no JSON at all', () => {
     expect(() =>
-      parseI18nKeyContent('I cannot help with that.', 42, CONVENTION)
+      parseI18nKeyContent('I cannot help with that.', CONVENTION)
     ).toThrow(/did not answer with JSON/)
   })
 
   it('rejects an answer that is not valid JSON', () => {
     expect(() =>
-      parseI18nKeyContent('[{"key":"demo_a",}]', 42, CONVENTION)
+      parseI18nKeyContent('[{"key":"demo_a",}]', CONVENTION)
     ).toThrow(/did not answer with JSON/)
   })
 })

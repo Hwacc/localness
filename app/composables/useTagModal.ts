@@ -150,27 +150,22 @@ export function useTagModal() {
       },
 
       onCreateI18nKey: async ({ id, origin, prompt }) => {
+        tagModal.patch({ loading: true, suggestion: null })
         try {
-          tagModal.patch({ loading: true, suggestion: null })
-          const result = await useApi<
-            ({ tagID: ID } & I18nKeySuggestion) | null
-          >('/api/tag/ai/gen-i18n-key', {
-            method: 'POST',
-            body: {
-              projectPrompt: projectStore.curProject.settings?.prompt,
-              pagePrompt: pageStore.curPage.settings?.prompt,
-              tagID: id,
-              tagOrigin: origin,
-              tagPrompt: prompt,
-            },
-          })
           // Nothing is written here on purpose: the answer is a suggestion until
           // Save. Committing it now would create an `I18nKey` row for a key the
           // user may replace a second later, and leave the first one orphaned.
-          tagModal.patch({ suggestion: result })
+          tagModal.patch({
+            suggestion: await requestKeySuggestion({
+              tagID: id,
+              origin,
+              projectPrompt: projectStore.curProject.settings?.prompt,
+              pagePrompt: pageStore.curPage.settings?.prompt,
+              tagPrompt: prompt,
+            }),
+          })
         } catch (error) {
           console.error('gen i18n key error', error)
-          // useApi already toasted the reason.
         } finally {
           tagModal.patch({ loading: false })
         }

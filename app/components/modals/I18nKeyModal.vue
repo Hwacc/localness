@@ -30,6 +30,24 @@ const state = reactive({
   releaseIds: [] as number[],
 })
 
+/*
+ * `generating`, not `loading`: this dialog already has a `loading` for Save, and
+ * the two mean different things — one is "the request is still running", the
+ * other is "the write is in flight".
+ */
+const { loading: generating, suggestion, generate } = useI18nKeyGeneration()
+
+/** Naming needs the text, exactly as the tag dialog does: nothing to name without it. */
+function onGenerate() {
+  if (!state.origin.trim()) return
+  generate({ projectId: props.projectId, origin: state.origin })
+}
+
+/** The panel is only a suggestion until it is taken or waved away. */
+function dismissSuggestion() {
+  suggestion.value = null
+}
+
 /**
  * Git sync is a setting, not content, so it is neither part of `state` nor sent
  * with Save — the endpoint that writes it does not require a draft, which is
@@ -209,11 +227,27 @@ async function onSave() {
         <template #general>
           <div class="flex flex-col gap-4">
             <UFormField label="Key">
-              <UInput
-                v-model="keyDisplay"
-                class="w-full font-mono"
-                :disabled="readonly"
-              />
+              <div class="w-full flex flex-col gap-2">
+                <div class="w-full flex items-center gap-2.5">
+                  <UInput
+                    v-model="keyDisplay"
+                    class="w-full font-mono"
+                    :disabled="readonly"
+                  />
+                  <AIButton
+                    v-if="!readonly"
+                    :loading="generating"
+                    @click="onGenerate"
+                  />
+                </div>
+                <AIKeySuggestion
+                  v-if="suggestion"
+                  :suggestion="suggestion"
+                  :origin="state.origin"
+                  @pick="keyDisplay = $event"
+                  @cancel="dismissSuggestion"
+                />
+              </div>
             </UFormField>
             <UFormField label="Origin">
               <UTextarea

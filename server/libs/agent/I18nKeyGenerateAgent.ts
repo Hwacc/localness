@@ -7,8 +7,14 @@ import { AgentError } from './AbstractAgent'
 import { logAiPayload } from './debug'
 import { OpenAIAgent } from './OpenAIAgent'
 
-/** The convention comes from the project row, never from the request body. */
-export type I18nKeyGenerateParams = ZGenI18nKey & { convention: KeyConvention }
+/**
+ * The convention comes from the settings rows, never from the request body, and
+ * the tag id is absent because naming a key does not depend on it — an entry
+ * scoped call has no tag to give.
+ */
+export type I18nKeyGenerateParams = Omit<ZGenI18nKey, 'tagID'> & {
+  convention: KeyConvention
+}
 
 function guidance(label: string, value: string | null | undefined) {
   const text = value?.trim()
@@ -114,13 +120,9 @@ function toCandidate(value: unknown): I18nKeyCandidate | null {
  * the first item is read here. A bare object is accepted as a one-item array —
  * the shape is the prompt's job to get right, and the validator below is what
  * catches a key that ignores the convention.
- *
- * The tag id is stamped from the request rather than read from the answer: the
- * model was never given one, so an id in its reply could only be invented.
  */
 export function parseI18nKeyContent(
   content: string,
-  tagID: number,
   convention: KeyConvention,
 ): AgentI18nKeyResult {
   let parsed: unknown
@@ -161,7 +163,6 @@ export function parseI18nKeyContent(
         .filter((one): one is I18nKeyCandidate => one !== null)
     : []
   return {
-    tag_id: tagID,
     source: typeof record.source === 'string' ? record.source : '',
     key,
     confidence:
@@ -192,7 +193,7 @@ export class I18nKeyGenerateAgent extends OpenAIAgent {
       thinkingBudget: 512,
       n: 1,
     })
-    const result = parseI18nKeyContent(content, params.tagID, params.convention)
+    const result = parseI18nKeyContent(content, params.convention)
     // What the parser made of the raw answer — including the convention check,
     // which exists nowhere in the model's own output.
     logAiPayload('parsed', result)
