@@ -293,6 +293,12 @@ async function onSubmit(_: FormSubmitEvent<ZProject>) {
           </template>
           <template #settings>
             <div class="flex flex-col gap-2.5">
+              <!--
+                Not `text-sm font-medium`: that is what the field labels below
+                already use, so a heading in those clothes reads as one more
+                label rather than as a section.
+              -->
+              <h3 class="text-xs font-medium text-muted uppercase">OCR</h3>
               <div class="flex items-center gap-4">
                 <UFormField
                   class="flex-1"
@@ -325,6 +331,9 @@ async function onSubmit(_: FormSubmitEvent<ZProject>) {
                 title="Warning"
                 description="Auto language detection is only supported by Engine 2."
               />
+              <h3 class="text-xs font-medium text-muted uppercase">
+                AI key naming
+              </h3>
               <div class="flex items-center gap-4">
                 <UFormField
                   class="flex-1"
@@ -377,7 +386,7 @@ async function onSubmit(_: FormSubmitEvent<ZProject>) {
               <UAlert
                 variant="soft"
                 color="neutral"
-                title="AI key naming"
+                icon="i-lucide:info"
                 description="Used when the AI names a key: what the generated key must look like. Leave the prefix empty for none."
               />
             </div>

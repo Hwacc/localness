@@ -1,9 +1,10 @@
 import type { ChatCompletionMessageParam } from 'openai/resources/chat/completions'
-import type { AgentI18nKeyResult } from '#shared/types'
+import type { AgentI18nKeyResult, I18nKeyCandidate } from '#shared/types'
 import type { ZGenI18nKey } from '#shared/utils/schemas'
 import type { KeyConvention } from '#shared/utils/key-convention'
 import { checkI18nKey } from '#shared/utils/key-convention'
 import { AgentError } from './AbstractAgent'
+import { logAiPayload } from './debug'
 import { OpenAIAgent } from './OpenAIAgent'
 
 /** The convention comes from the project row, never from the request body. */
@@ -86,6 +87,25 @@ export function extractJson(text: string): string | null {
 }
 
 /**
+ * The prompt asks for `{key, confidence}` objects. A model that falls back to
+ * plain strings still names usable keys, so both shapes are read and anything
+ * carrying no key at all is dropped rather than passed on.
+ */
+function toCandidate(value: unknown): I18nKeyCandidate | null {
+  if (typeof value === 'string') {
+    const key = value.trim()
+    return key ? { key } : null
+  }
+  if (!value || typeof value !== 'object') return null
+  const { key, confidence } = value as Partial<I18nKeyCandidate>
+  if (typeof key !== 'string' || !key.trim()) return null
+  return {
+    key: key.trim(),
+    confidence: typeof confidence === 'number' ? confidence : undefined,
+  }
+}
+
+/**
  * The platform guarantees valid JSON but not our fields, and models still wrap
  * the payload in prose or fences often enough to be worth stripping.
  *
@@ -135,17 +155,18 @@ export function parseI18nKeyContent(
     )
   }
   const key = record.key.trim()
+  const alternatives = Array.isArray(record.alternatives)
+    ? record.alternatives
+        .map(toCandidate)
+        .filter((one): one is I18nKeyCandidate => one !== null)
+    : []
   return {
     tag_id: tagID,
     source: typeof record.source === 'string' ? record.source : '',
     key,
     confidence:
       typeof record.confidence === 'number' ? record.confidence : undefined,
-    alternatives: Array.isArray(record.alternatives)
-      ? record.alternatives.filter(
-          (one): one is string => typeof one === 'string',
-        )
-      : undefined,
+    alternatives: alternatives.length ? alternatives : undefined,
     reason: typeof record.reason === 'string' ? record.reason : undefined,
     // An empty key is a documented answer (nothing in the line to name), so it
     // reports no violations — the UI tells that story with its own state.
@@ -167,9 +188,14 @@ export class I18nKeyGenerateAgent extends OpenAIAgent {
       temperature: 0.35,
       topK: 20,
       frequencyPenalty: 0,
-      enableThinking: false,
+      enableThinking: true,
+      thinkingBudget: 512,
       n: 1,
     })
-    return parseI18nKeyContent(content, params.tagID, params.convention)
+    const result = parseI18nKeyContent(content, params.tagID, params.convention)
+    // What the parser made of the raw answer — including the convention check,
+    // which exists nowhere in the model's own output.
+    logAiPayload('parsed', result)
+    return result
   }
 }

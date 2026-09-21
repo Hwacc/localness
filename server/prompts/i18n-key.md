@@ -5,7 +5,7 @@ Answer with a single JSON array holding one object per input line, and nothing
 else — an array even when there is only one line:
 
 [{"source": "<the line, copied exactly>", "key": "<the key>", "confidence": 0.9,
-"alternatives": ["<key>", "<key>"], "reason": "<one short line>"}]
+"alternatives": [{"key": "<key>", "confidence": 0.8}], "reason": "<one short line>"}]
 
 The user message carries the project's key convention — prefix, separator,
 casing and maximum depth. Follow it exactly. **The examples below use `demo` as
@@ -36,9 +36,12 @@ you were given, and add no prefix at all when the convention's prefix is empty.
    empty key, `confidence` 0, no alternatives, and the reason in `reason`. Text
    with no clear owner goes into `common`.
 8. `alternatives` holds equivalent namings of the same line, all following the
-   convention, best first. `confidence` bands: above 0.9 means the type word and
-   the module are both clear; 0.7 to 0.9 means two readings are plausible; below
-   0.7 flags the line for human review.
+   convention, best first, **each with its own `confidence`**. Score every
+   candidate on the same bands as the main key, and keep the order and the
+   scores agreeing — a later candidate must never score higher than an earlier
+   one. `confidence` bands: above 0.9 means the type word and the module are
+   both clear; 0.7 to 0.9 means two readings are plausible; below 0.7 flags the
+   line for human review.
 
 # Input and output
 
@@ -56,23 +59,23 @@ Convention for every example: prefix `demo`, separator `_`, snake_case.
 
 Input: 提交订单
 Output:
-[{"source":"提交订单","key":"demo_checkout_order_btn","confidence":0.94,"alternatives":["demo_checkout_order_submit","demo_order_btn"],"reason":"Button that submits the order, in the checkout flow"}]
+[{"source":"提交订单","key":"demo_checkout_order_btn","confidence":0.94,"alternatives":[{"key":"demo_checkout_order_submit","confidence":0.88},{"key":"demo_order_btn","confidence":0.8}],"reason":"Button that submits the order, in the checkout flow"}]
 
 Input: 加载中，请稍候
 Output:
-[{"source":"加载中，请稍候","key":"demo_common_state_loading","confidence":0.95,"alternatives":["demo_common_loading","demo_common_state_loading_hint"],"reason":"Generic loading state"}]
+[{"source":"加载中，请稍候","key":"demo_common_state_loading","confidence":0.95,"alternatives":[{"key":"demo_common_loading","confidence":0.9},{"key":"demo_common_state_loading_hint","confidence":0.82}],"reason":"Generic loading state"}]
 
 Input: 邮箱地址已被注册，请更换
 Output:
-[{"source":"邮箱地址已被注册，请更换","key":"demo_auth_signup_email_taken","confidence":0.92,"alternatives":["demo_auth_signup_email_exists","demo_auth_error_email_taken"],"reason":"Duplicate-email error during sign-up"}]
+[{"source":"邮箱地址已被注册，请更换","key":"demo_auth_signup_email_taken","confidence":0.92,"alternatives":[{"key":"demo_auth_signup_email_exists","confidence":0.87},{"key":"demo_auth_error_email_taken","confidence":0.78}],"reason":"Duplicate-email error during sign-up"}]
 
 Input: 请输入手机号
 Output:
-[{"source":"请输入手机号","key":"demo_auth_form_phone_placeholder","confidence":0.93,"alternatives":["demo_auth_signin_phone_input","demo_auth_form_phone_label"],"reason":"Placeholder of the phone number field"}]
+[{"source":"请输入手机号","key":"demo_auth_form_phone_placeholder","confidence":0.93,"alternatives":[{"key":"demo_auth_signin_phone_input","confidence":0.89},{"key":"demo_auth_form_phone_label","confidence":0.8}],"reason":"Placeholder of the phone number field"}]
 
 Input: 你好
 Output:
-[{"source":"你好","key":"demo_common_greeting_hello","confidence":0.9,"alternatives":["demo_common_greeting_hi","demo_common_hello"],"reason":"Generic greeting, filed under common"}]
+[{"source":"你好","key":"demo_common_greeting_hello","confidence":0.9,"alternatives":[{"key":"demo_common_greeting_hi","confidence":0.85},{"key":"demo_common_hello","confidence":0.76}],"reason":"Generic greeting, filed under common"}]
 
 Input: ！！！
 Output:

@@ -33,6 +33,11 @@ export function emptyPage(partial: Partial<IPage> = {}): IPage {
       ocrLanguage: 'eng',
       ocrEngine: 1,
       prompt: '',
+      // Null is "inherit the project's convention".
+      keyPrefix: null,
+      keySeparator: null,
+      keyStyle: null,
+      keyMaxDepth: null,
     },
     ...partial,
   }

@@ -53,6 +53,12 @@ export const zPage = z.object({
     ocrLanguage: z.string(),
     ocrEngine: z.number(),
     prompt: zNilable(z.string()),
+    // Nilable, unlike the project's: on a page `null` means "inherit", and the
+    // form writes all four or leaves all four alone.
+    keyPrefix: zNilable(z.string()),
+    keySeparator: zNilable(z.string().min(1, 'separator cannot be empty')),
+    keyStyle: zNilable(z.enum(KEY_STYLE_VALUES)),
+    keyMaxDepth: zNilable(z.number().int().min(1).max(10)),
   }),
   /** Release labels to attach. Omitted leaves them untouched on update. */
   releaseIds: z.array(z.number().int().positive()).optional(),
@@ -144,6 +150,10 @@ export const zPageSetting = z.object(
       })
     ),
     prompt: zNilable(z.string()),
+    keyPrefix: zNilable(z.string()),
+    keySeparator: zNilable(z.string().min(1, 'separator cannot be empty')),
+    keyStyle: zNilable(z.enum(KEY_STYLE_VALUES)),
+    keyMaxDepth: zNilable(z.number().int().min(1).max(10)),
   },
   'Page setting parameters validate failed'
 )

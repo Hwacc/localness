@@ -95,6 +95,47 @@ const i18nKeyDisplay = computed({
   },
 })
 
+/*
+ * A typed key can already be in the project, and the tag save path reuses the
+ * existing entry silently — so this is the only place a user finds out that the
+ * key they typed belongs to a different text.
+ */
+const projectStore = useProjectStore()
+const keyDuplicate = ref<I18nKeyDuplicate | null>(null)
+let duplicateTimer: ReturnType<typeof setTimeout> | undefined
+
+async function lookupDuplicate() {
+  const key = state.i18nKey?.trim()
+  const projectId = projectStore.curProject.id
+  // Nothing to say about the key this tag already carries.
+  if (key === (tag.value.i18nKey ?? '').trim()) {
+    keyDuplicate.value = null
+    return
+  }
+  if (!key || !validID(projectId)) {
+    keyDuplicate.value = null
+    return
+  }
+  const params = new URLSearchParams({
+    origin: state.translation?.origin ?? '',
+  })
+  params.append('keys', key)
+  const res = await useApi<{ duplicates: I18nKeyDuplicate[] }>(
+    `/api/projects/${projectId}/i18n-keys/check?${params}`
+  )
+  keyDuplicate.value = res?.duplicates?.[0] ?? null
+}
+
+watch(
+  () => [state.i18nKey, state.translation?.origin],
+  () => {
+    clearTimeout(duplicateTimer)
+    duplicateTimer = setTimeout(lookupDuplicate, 400)
+  },
+  { immediate: true }
+)
+onBeforeUnmount(() => clearTimeout(duplicateTimer))
+
 const editableTranslationContent = computed<string>({
   get(): string {
     return (
@@ -510,6 +551,10 @@ const previewLabelStyle = computed(() => {
                     :suggestion="suggestion"
                     :origin="state.translation?.origin ?? ''"
                     @pick="i18nKeyDisplay = $event"
+                  />
+                  <KeyDuplicateNote
+                    v-if="keyDuplicate"
+                    :duplicate="keyDuplicate"
                   />
                 </div>
               </UFormField>

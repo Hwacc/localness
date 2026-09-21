@@ -1,7 +1,9 @@
 import { mkdtemp, rm, utimes, writeFile } from 'node:fs/promises'
+import { createServer, type Server } from 'node:http'
+import type { AddressInfo } from 'node:net'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   APIConnectionError,
   AuthenticationError,
@@ -12,6 +14,7 @@ import {
 import type { KeyConvention } from '#shared/utils/key-convention'
 import { DEFAULT_KEY_CONVENTION } from '#shared/utils/key-convention'
 import { AgentError } from '#server/libs/agent/AbstractAgent'
+import { isAiDebug } from '#server/libs/agent/debug'
 import type { I18nKeyGenerateParams } from '#server/libs/agent/I18nKeyGenerateAgent'
 import {
   I18nKeyGenerateAgent,
@@ -55,6 +58,23 @@ function touchLater(file: string) {
   const later = new Date(Date.now() + 5000)
   return utimes(file, later, later)
 }
+
+describe('isAiDebug', () => {
+  it('is off unless asked for', () => {
+    // Payload logs carry the project's own UI text, so the default has to be
+    // silent rather than talkative.
+    expect(isAiDebug({})).toBe(false)
+    expect(isAiDebug({ NUXT_AI_DEBUG: '' })).toBe(false)
+    expect(isAiDebug({ NUXT_AI_DEBUG: '0' })).toBe(false)
+    expect(isAiDebug({ NUXT_AI_DEBUG: 'no' })).toBe(false)
+  })
+
+  it('accepts the usual ways of saying yes', () => {
+    for (const value of ['1', 'true', 'TRUE', ' yes ']) {
+      expect(isAiDebug({ NUXT_AI_DEBUG: value })).toBe(true)
+    }
+  })
+})
 
 describe('resolveModel', () => {
   it("prefers the feature's own model", () => {
@@ -275,7 +295,7 @@ describe('parseI18nKeyContent', () => {
         source: 'Sign in',
         key: 'demo_auth_signin_btn',
         confidence: 0.9,
-        alternatives: ['demo_auth_login_btn'],
+        alternatives: [{ key: 'demo_auth_login_btn', confidence: 0.8 }],
         reason: 'Sign-in button',
       },
       { source: 'second line', key: 'demo_other_btn' },
@@ -286,7 +306,7 @@ describe('parseI18nKeyContent', () => {
       source: 'Sign in',
       key: 'demo_auth_signin_btn',
       confidence: 0.9,
-      alternatives: ['demo_auth_login_btn'],
+      alternatives: [{ key: 'demo_auth_login_btn', confidence: 0.8 }],
       reason: 'Sign-in button',
       violations: [],
     })
@@ -316,7 +336,7 @@ describe('parseI18nKeyContent', () => {
       source: 'YOU MIGHT BE INTERESTED IN:',
       key: 'demo_common_interests_title',
       confidence: 0.9,
-      alternatives: ['demo_common_interests_prompt'],
+      alternatives: [{ key: 'demo_common_interests_prompt', confidence: 0.8 }],
       reason: 'Section heading above a list',
     })
 
@@ -325,10 +345,27 @@ describe('parseI18nKeyContent', () => {
       source: 'YOU MIGHT BE INTERESTED IN:',
       key: 'demo_common_interests_title',
       confidence: 0.9,
-      alternatives: ['demo_common_interests_prompt'],
+      alternatives: [{ key: 'demo_common_interests_prompt', confidence: 0.8 }],
       reason: 'Section heading above a list',
       violations: [],
     })
+  })
+
+  it('reads plain-string alternatives from a model that ignored the shape', () => {
+    // The prompt asks for `{key, confidence}` objects, but a bare string still
+    // names a usable key — and anything naming nothing is dropped.
+    const alternatives = parseI18nKeyContent(
+      '{"key":"demo_a_btn","alternatives":["demo_b_btn",{"key":"demo_c_btn","confidence":0.7},"",42,null]}',
+      42,
+      CONVENTION
+    ).alternatives
+
+    expect(alternatives?.map((one) => one.key)).toEqual([
+      'demo_b_btn',
+      'demo_c_btn',
+    ])
+    expect(alternatives?.[0].confidence).toBeUndefined()
+    expect(alternatives?.[1].confidence).toBe(0.7)
   })
 
   it('is not confused by brackets used inside a value', () => {
@@ -494,6 +531,9 @@ describe('loadAgentPrompt', () => {
     expect(prompt).toContain('"key"')
     expect(prompt).toContain('confidence')
     expect(prompt).toContain('alternatives')
+    // Alternatives are objects now, and the parser reads them that way — the
+    // prompt must not drift back to plain strings.
+    expect(prompt).toContain('{"key"')
     // The word "JSON" is what makes the provider's JSON mode behave.
     expect(prompt).toContain('JSON')
   })
@@ -569,5 +609,101 @@ describe('I18nKeyGenerateAgent', () => {
     await expect(agent.generateI18nKey(BASE)).rejects.toMatchObject({
       kind: 'config',
     })
+  })
+})
+
+/**
+ * The transport is exercised against a local stub rather than described: this
+ * is what proves the provider-only fields really leave the process (the SDK
+ * types do not declare them), and what covers the reasoning-chain branch.
+ */
+describe('I18nKeyGenerateAgent over HTTP', () => {
+  let server: Server
+  let baseURL: string
+  let reply: Record<string, unknown>
+  let sent: Record<string, any>[]
+  let logged: string[]
+
+  beforeEach(async () => {
+    sent = []
+    reply = {
+      content: '[{"source":"Sign in","key":"demo_auth_btn"}]',
+      reasoning_content: 'the text is a sign-in button, so …',
+    }
+    server = createServer((request, response) => {
+      let raw = ''
+      request.on('data', (chunk) => (raw += chunk))
+      request.on('end', () => {
+        sent.push(JSON.parse(raw))
+        response.writeHead(200, { 'content-type': 'application/json' })
+        response.end(
+          JSON.stringify({
+            id: 'stub',
+            object: 'chat.completion',
+            created: 0,
+            model: 'stub',
+            choices: [{ index: 0, finish_reason: 'stop', message: reply }],
+          })
+        )
+      })
+    })
+    await new Promise<void>((done) => server.listen(0, '127.0.0.1', done))
+    baseURL = `http://127.0.0.1:${(server.address() as AddressInfo).port}/v1`
+    vi.stubEnv('NUXT_OPENAI_I18N_KEY_API_KEY', 'stub-key')
+    vi.stubEnv('NUXT_OPENAI_I18N_KEY_BASE_URL', baseURL)
+    // The agent logs a summary line per call; keep it out of the test output
+    // but captured, so its presence is still asserted.
+    logged = []
+    vi.spyOn(console, 'log').mockImplementation((...args) => {
+      logged.push(args.join(' '))
+    })
+  })
+
+  afterEach(async () => {
+    vi.restoreAllMocks()
+    vi.unstubAllEnvs()
+    await new Promise<void>((done) => server.close(() => done()))
+  })
+
+  it('parses a stub answer and logs one summary line', async () => {
+    const result = await new I18nKeyGenerateAgent().generateI18nKey(BASE)
+
+    expect(result.key).toBe('demo_auth_btn')
+    expect(result.source).toBe('Sign in')
+    expect(logged.some((line) => line.startsWith('[agent:i18n-key]'))).toBe(true)
+  })
+
+  it('sends the knobs the OpenAI schema does not declare', async () => {
+    await new I18nKeyGenerateAgent().generateI18nKey(BASE)
+
+    expect(sent).toHaveLength(1)
+    // Presence, not values: the knobs are tuned constantly, and what this test
+    // guards is that the SDK passes fields it does not declare straight through.
+    for (const field of ['enable_thinking', 'thinking_budget', 'top_k']) {
+      expect(sent[0]).toHaveProperty(field)
+    }
+    expect(sent[0].response_format).toEqual({ type: 'json_object' })
+    expect(sent[0].max_tokens).toBeGreaterThan(0)
+  })
+
+  it('sends the user turn with the convention and no tag id', async () => {
+    await new I18nKeyGenerateAgent().generateI18nKey(BASE)
+
+    const userTurn = sent[0].messages[1].content as string
+    expect(userTurn).toContain('Key convention:')
+    expect(userTurn).toContain('prefix: demo')
+    expect(userTurn).toContain('Sign in')
+    expect(userTurn).not.toContain('tag_id')
+  })
+
+  it('says the reasoning arrived when the answer did not', async () => {
+    // The documented way thinking goes wrong: the budget is spent on the chain
+    // of thought and `content` never comes. Calling that an "empty answer"
+    // hides the one fact worth knowing.
+    reply = { content: '', reasoning_content: 'x'.repeat(300) }
+
+    await expect(
+      new I18nKeyGenerateAgent().generateI18nKey(BASE)
+    ).rejects.toThrow(/300 chars of reasoning but no answer/)
   })
 })
