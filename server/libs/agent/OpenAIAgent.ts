@@ -19,6 +19,7 @@ import {
   toAgentError,
 } from './AbstractAgent'
 import { loadAgentPrompt } from './prompt'
+import { logAiPayload } from './debug'
 
 /**
  * SiliconFlow serves an OpenAI-compatible endpoint, so the official SDK works
@@ -206,6 +207,10 @@ export abstract class OpenAIAgent extends AbstractAgent {
   /**
    * The one place that talks to the model. Returns the assistant text; an
    * answer that never arrived is an error, not an empty string.
+   *
+   * Every call logs one summary line — model, knobs, latency, and how much
+   * thinking vs answer came back — because that is what a reasoning budget is
+   * traded against. Payloads are logged only with `NUXT_AI_DEBUG` set.
    */
   protected async complete(
     messages: ChatCompletionMessageParam[],
@@ -215,11 +220,13 @@ export abstract class OpenAIAgent extends AbstractAgent {
     const { jsonMode = true, ...rest } = options
     const maxTokens = rest.maxTokens ?? MAX_TOKENS
     const model = resolveModel(this.feature, env)
+    const knobs = toWireParams({ ...rest, maxTokens })
+    const started = Date.now()
     try {
       const params = {
         model,
         messages,
-        ...toWireParams({ ...rest, maxTokens }),
+        ...knobs,
         ...(jsonMode
           ? { response_format: { type: 'json_object' as const } }
           : {}),
@@ -229,12 +236,30 @@ export abstract class OpenAIAgent extends AbstractAgent {
       )
       const choice = completion.choices[0]
       const content = choice?.message?.content?.trim()
+      // The chain of thought comes back beside `content`; the OpenAI SDK does
+      // not declare the field, so it is read defensively.
+      const reasoning = (
+        choice?.message as { reasoning_content?: string } | undefined
+      )?.reasoning_content?.trim()
+      console.log(
+        `[agent:${this.feature}] ${model} ${Date.now() - started}ms ${JSON.stringify(knobs)}` +
+          ` answer=${content?.length ?? 0}c` +
+          (reasoning ? ` thinking=${reasoning.length}c` : '')
+      )
+      logAiPayload('messages', messages, env)
+      logAiPayload('reasoning', reasoning ?? '(none)', env)
+      logAiPayload('answer', content ?? '(empty)', env)
       if (!content) {
         throw new AgentError(
           'upstream',
           choice?.finish_reason === 'length'
             ? `The model hit max_tokens (${maxTokens}) before answering`
-            : 'The AI service returned an empty answer'
+            : reasoning
+              ? // A known shape when thinking is on: the budget went into the
+                // chain of thought and the answer never came. Saying "empty
+                // answer" here would hide the one fact worth knowing.
+                `The model produced ${reasoning.length} chars of reasoning but no answer`
+              : 'The AI service returned an empty answer'
         )
       }
       return content

@@ -72,6 +72,13 @@ export default defineEventHandler(async (event) => {
       ocrLanguage:
         settings?.ocrLanguage ?? belongProject.settings?.ocrLanguage ?? 'eng',
       ocrEngine: settings?.ocrEngine ?? belongProject.settings?.ocrEngine ?? 1,
+      // Not copied from the project the way the OCR fields above are: a page
+      // inherits the key convention by *staying* null. Copying would freeze
+      // today's values into the page and stop it following the project.
+      keyPrefix: settings?.keyPrefix ?? null,
+      keySeparator: settings?.keySeparator ?? null,
+      keyStyle: settings?.keyStyle ?? null,
+      keyMaxDepth: settings?.keyMaxDepth ?? null,
     },
   })
 

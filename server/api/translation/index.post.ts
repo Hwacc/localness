@@ -9,6 +9,7 @@ import {
   setEntryReleases,
   throwReleaseHttp,
 } from '#server/helper/release'
+import { keyClashMessage } from '#server/helper/key-convention'
 
 /**
  * @route POST /api/translation
@@ -67,7 +68,7 @@ export default defineEventHandler(async (event) => {
     })
     throw createError({
       statusCode: 409,
-      statusMessage: 'Translation already exists',
+      statusMessage: keyClashMessage(existing, body.origin),
     })
   }
 

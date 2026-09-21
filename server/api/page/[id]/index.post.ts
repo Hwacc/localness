@@ -59,6 +59,10 @@ export default defineEventHandler(async (event) => {
         ocrLanguage: settings?.ocrLanguage ?? 'eng',
         ocrEngine: settings?.ocrEngine ?? 1,
         prompt: settings?.prompt ?? '',
+        keyPrefix: settings?.keyPrefix ?? null,
+        keySeparator: settings?.keySeparator ?? null,
+        keyStyle: settings?.keyStyle ?? null,
+        keyMaxDepth: settings?.keyMaxDepth ?? null,
       },
       update: settings,
     })

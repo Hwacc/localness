@@ -5,6 +5,12 @@ import {
   checkI18nKey,
   slugKeyPrefix,
 } from '#shared/utils/key-convention'
+import {
+  keyClashMessage,
+  resolveKeyConvention,
+  shapeKeyDuplicates,
+  toKeyConvention,
+} from '#server/helper/key-convention'
 
 const SNAKE: KeyConvention = { ...DEFAULT_KEY_CONVENTION, prefix: 'demo' }
 const DOTTED: KeyConvention = {
@@ -93,5 +99,170 @@ describe('slugKeyPrefix', () => {
 
   it('is empty for an empty name', () => {
     expect(slugKeyPrefix('')).toBe('')
+  })
+})
+
+describe('toKeyConvention', () => {
+  it('keeps the values it was given', () => {
+    expect(
+      toKeyConvention({
+        keyPrefix: 'cortex',
+        keySeparator: '.',
+        keyStyle: 'camelCase',
+        keyMaxDepth: 3,
+      })
+    ).toEqual({
+      prefix: 'cortex',
+      separator: '.',
+      style: 'camelCase',
+      maxDepth: 3,
+    })
+  })
+
+  it('falls back to the defaults for a project with no settings row', () => {
+    expect(toKeyConvention(null)).toEqual(DEFAULT_KEY_CONVENTION)
+  })
+
+  it('narrows a style written outside the API', () => {
+    // These are plain string columns, so an unknown value has to be caught here
+    // or the model and the validator would be handed different rules.
+    expect(
+      toKeyConvention({
+        keyPrefix: 'a',
+        keySeparator: '_',
+        keyStyle: 'SCREAMING',
+        keyMaxDepth: 4,
+      }).style
+    ).toBe(DEFAULT_KEY_CONVENTION.style)
+  })
+
+  it('refuses an empty separator, which would make segments unparseable', () => {
+    expect(
+      toKeyConvention({
+        keyPrefix: 'a',
+        keySeparator: '',
+        keyStyle: 'snake_case',
+        keyMaxDepth: 4,
+      }).separator
+    ).toBe(DEFAULT_KEY_CONVENTION.separator)
+  })
+})
+
+describe('resolveKeyConvention', () => {
+  const PROJECT = {
+    keyPrefix: 'cortex',
+    keySeparator: '_',
+    keyStyle: 'snake_case',
+    keyMaxDepth: 4,
+  }
+  const NOTHING = {
+    keyPrefix: null,
+    keySeparator: null,
+    keyStyle: null,
+    keyMaxDepth: null,
+  }
+
+  it('uses the project when the page sets nothing', () => {
+    expect(resolveKeyConvention(NOTHING, PROJECT)).toEqual({
+      prefix: 'cortex',
+      separator: '_',
+      style: 'snake_case',
+      maxDepth: 4,
+    })
+  })
+
+  it('lets the page override the project', () => {
+    expect(
+      resolveKeyConvention(
+        {
+          keyPrefix: 'app',
+          keySeparator: '.',
+          keyStyle: 'camelCase',
+          keyMaxDepth: 3,
+        },
+        PROJECT
+      )
+    ).toEqual({
+      prefix: 'app',
+      separator: '.',
+      style: 'camelCase',
+      maxDepth: 3,
+    })
+  })
+
+  it('keeps an empty prefix from the page instead of inheriting', () => {
+    // The whole reason the page columns are nullable: `''` means "no prefix",
+    // so it has to survive as a value rather than falling back to the project's.
+    expect(
+      resolveKeyConvention({ ...NOTHING, keyPrefix: '' }, PROJECT).prefix
+    ).toBe('')
+  })
+
+  it('falls back field by field when a row only sets some', () => {
+    expect(
+      resolveKeyConvention({ ...NOTHING, keyPrefix: 'app' }, PROJECT)
+        .separator
+    ).toBe('_')
+  })
+
+  it('ends at the built-in defaults when neither level has anything', () => {
+    expect(resolveKeyConvention(null, null)).toEqual(DEFAULT_KEY_CONVENTION)
+  })
+
+  it('normalises junk from the project level', () => {
+    expect(
+      resolveKeyConvention(null, {
+        keyPrefix: 'a',
+        keySeparator: '',
+        keyStyle: 'SCREAMING',
+        keyMaxDepth: 0,
+      })
+    ).toEqual({
+      prefix: 'a',
+      separator: DEFAULT_KEY_CONVENTION.separator,
+      style: DEFAULT_KEY_CONVENTION.style,
+      maxDepth: DEFAULT_KEY_CONVENTION.maxDepth,
+    })
+  })
+})
+
+describe('shapeKeyDuplicates', () => {
+  it('calls a hit with the same text a reuse', () => {
+    expect(
+      shapeKeyDuplicates([{ key: 'demo_a_btn', origin: 'Sign in' }], 'Sign in')
+    ).toEqual([{ key: 'demo_a_btn', origin: 'Sign in', sameOrigin: true }])
+  })
+
+  it('calls a hit with different text a clash', () => {
+    expect(
+      shapeKeyDuplicates([{ key: 'demo_a_btn', origin: 'Sign out' }], 'Sign in')
+    ).toEqual([{ key: 'demo_a_btn', origin: 'Sign out', sameOrigin: false }])
+  })
+
+  it('ignores surrounding whitespace on either side', () => {
+    expect(
+      shapeKeyDuplicates(
+        [{ key: 'demo_a_btn', origin: '  Sign in  ' }],
+        'Sign in'
+      )[0].sameOrigin
+    ).toBe(true)
+  })
+
+  it('has nothing to say about an empty list', () => {
+    expect(shapeKeyDuplicates([], 'Sign in')).toEqual([])
+  })
+})
+
+describe('keyClashMessage', () => {
+  it('points at the entry that already holds the same text', () => {
+    expect(
+      keyClashMessage({ key: 'a_btn', origin: 'Sign in' }, 'Sign in')
+    ).toContain('same source text')
+  })
+
+  it('names the other text when the clash is a different one', () => {
+    expect(
+      keyClashMessage({ key: 'a_btn', origin: 'Sign out' }, 'Sign in')
+    ).toContain('Sign out')
   })
 })
