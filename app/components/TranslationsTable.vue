@@ -680,7 +680,7 @@ defineExpose({
           root: 'h-full overflow-auto',
           base: 'min-w-max',
           th: 'bg-default',
-          td: 'align-top bg-default',
+          td: 'px-4 py-2.5 align-middle bg-default',
         }"
       >
         <template #empty>
@@ -695,7 +695,7 @@ defineExpose({
         <template #expanded="{ row }">
           <!-- Capped: the row spans every locale column, and a two-column panel
                stretched across 2000px is harder to read, not easier. -->
-          <div class="w-fit p-2">
+          <div class="w-fit pl-12">
             <AIKeySuggestion
               v-if="keySuggestion"
               layout="horizontal"
