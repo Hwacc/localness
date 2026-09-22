@@ -181,6 +181,16 @@ must both read `0` before deploying the release that drops the column. Keys whos
 source-language row already holds a *different* text are listed and left as they
 are: those are the ones to look at by hand.
 
+The compose directory is usually a plain file drop rather than a checkout, so
+there is nothing to `git pull`: put these two files next to `docker-compose.yml`,
+keeping the path the second one has in the repository (a directory named
+`scripts/`), or point at it with `LOCALNESS_BACKFILL_SCRIPT=`:
+
+```
+backfill-source-locale.sh
+scripts/migrate-origin-to-source-locale.ts
+```
+
 ## Publishing an image
 
 GitHub Actions publishes `huacc/localness` on a **semver git tag**, not on

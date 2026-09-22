@@ -15,7 +15,9 @@ set -eu
 cd "$(dirname "$0")"
 
 SERVICE=localness
-SCRIPT=scripts/migrate-origin-to-source-locale.ts
+# The compose directory is often a plain file drop rather than a checkout, so the
+# path can be pointed elsewhere when the two files were placed differently.
+SCRIPT="${LOCALNESS_BACKFILL_SCRIPT:-scripts/migrate-origin-to-source-locale.ts}"
 # Piped into the container rather than baked into the image: the release that
 # introduced the source language predates this script, and this must run before
 # the release that drops the column — so it cannot wait for a new image.
@@ -41,7 +43,11 @@ if [ ! -f docker-compose.yml ]; then
   exit 1
 fi
 if [ ! -f "$SCRIPT" ]; then
-  echo "$SCRIPT not found — run this from the repository root." >&2
+  echo "$SCRIPT not found." >&2
+  echo "The backfill itself runs inside the container; this file only carries it" >&2
+  echo "there. Put it next to this script, keeping the path it has in the" >&2
+  echo "repository (a directory named scripts/), or point at it with" >&2
+  echo "LOCALNESS_BACKFILL_SCRIPT=/path/to/migrate-origin-to-source-locale.ts." >&2
   exit 1
 fi
 
