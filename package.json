@@ -1,6 +1,6 @@
 {
   "name": "localness",
-  "version": "0.3.1",
+  "version": "0.3.2",
   "private": true,
   "description": "CMS for UI screenshots, tags, and i18n keys.",
   "type": "module",
