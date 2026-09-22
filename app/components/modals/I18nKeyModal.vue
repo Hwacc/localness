@@ -109,6 +109,12 @@ const keyDisplay = computed({
   },
 })
 
+/** Taking a suggestion ends the panel's job, the same way waving it away does. */
+function onPickSuggestion(key: string) {
+  keyDisplay.value = key
+  dismissSuggestion()
+}
+
 async function onSyncToggle(enabled: boolean) {
   const row = props.row
   if (!row || syncSaving.value) return
@@ -244,7 +250,7 @@ async function onSave() {
                   v-if="suggestion"
                   :suggestion="suggestion"
                   :origin="state.origin"
-                  @pick="keyDisplay = $event"
+                  @pick="onPickSuggestion"
                   @cancel="dismissSuggestion"
                 />
               </div>

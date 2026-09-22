@@ -231,7 +231,17 @@ async function onSubmit(_: FormSubmitEvent<ZPage>) {
         :state="state"
         @submit="onSubmit"
       >
-        <UTabs :items="tabsItems" variant="link" :ui="{ trigger: 'grow' }">
+        <!--
+          Panes stay mounted: the uploader owns the picked file until submit, so
+          unmounting it on a tab switch throws that file away, and a submit made
+          from another tab finds no uploader at all.
+        -->
+        <UTabs
+          :items="tabsItems"
+          variant="link"
+          :unmount-on-hide="false"
+          :ui="{ trigger: 'grow' }"
+        >
           <template #basic>
             <div class="flex flex-col gap-2.5">
               <UFormField label="Name" name="name">

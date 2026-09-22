@@ -5,6 +5,7 @@ import { useDropZone } from '@vueuse/core'
 import { isEmpty } from 'lodash-es'
 import { injectEditorContext } from '~/providers/EditorProvider.vue'
 
+const { $dayjs } = useNuxtApp()
 const projectStore = useProjectStore()
 /*
  * The store's list, not `curProject.pages`: release filtering lives there, and a
@@ -182,20 +183,20 @@ function showDeleteAlertModal() {
             <li
               :class="[
                 'relative',
-                'flex items-center p-2 cursor-pointer hover:bg-elevated rounded-md mb-3 overflow-hidden',
-                page.id !== pageStore.curPage.id &&
-                  'hover:border-green-400 hover:text-green-600',
+                'flex items-center p-2 cursor-pointer rounded-md mb-3 overflow-hidden',
+                'border-2 border-muted/10 hover:border-muted',
+                page.id === pageStore.curPage.id && 'border-primary! bg-primary/10!',
               ]"
               @click="() => onPageClick(page)"
             >
-              <GlowBorder
+              <!-- <GlowBorder
                 v-if="page.id === pageStore.curPage.id"
                 class="rounded-md"
                 :color="['#A07CFE', '#FE8FB5', '#FFBE7B']"
                 :style="{
                   '--border-radius': 'calc(var(--ui-radius) * 1.5)',
                 }"
-              />
+              /> -->
               <div class="flex flex-col gap-1 flex-1">
                 <p class="font-bold">
                   {{ page.name }}
@@ -234,7 +235,7 @@ function showDeleteAlertModal() {
               <p class="font-bold text-sm">Preview:</p>
               <img
                 v-oss-image="page.image"
-                class="w-[17.5rem] object-scale-down"
+                class="w-70 object-scale-down"
               />
             </div>
           </template>

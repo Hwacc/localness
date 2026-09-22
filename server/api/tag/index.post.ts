@@ -2,6 +2,7 @@ import { omit } from 'lodash-es'
 import prisma from '#server/libs/prisma'
 import { readZodBody } from '#server/helper/validate'
 import { requirePageTeamMember } from '#server/helper/access'
+import { setBoundKeyReleases } from '#server/helper/release'
 import { loadShapedTag, resolveTagI18n } from '#server/helper/i18n'
 
 /**
@@ -10,10 +11,8 @@ import { loadShapedTag, resolveTagI18n } from '#server/helper/i18n'
  * @access Private
  */
 export default defineEventHandler(async (event) => {
-  const { settings, translationID, i18nKeyId, ...body } = await readZodBody(
-    event,
-    zTag.parse
-  )
+  const { settings, translationID, i18nKeyId, releaseIds, ...body } =
+    await readZodBody(event, zTag.parse)
   if (!body.pageID) {
     throw createError({
       statusCode: 400,
@@ -25,6 +24,14 @@ export default defineEventHandler(async (event) => {
     pageID: body.pageID as number,
     i18nKey: body.i18nKey,
     translationID: translationID ?? i18nKeyId,
+  })
+
+  // Before the tag row: a rejected label id must not leave a tag behind whose key
+  // the caller did not mean to label.
+  await setBoundKeyReleases({
+    projectId: i18n.projectId,
+    i18nKeyId: i18n.i18nKeyId,
+    releaseIds,
   })
 
   const createdTag = await prisma.tag.create({

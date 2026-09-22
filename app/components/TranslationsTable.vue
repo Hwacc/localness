@@ -707,7 +707,7 @@ defineExpose({
             <p v-else class="text-xs text-muted">
               {{
                 String(askingId) === String(row.original.id)
-                  ? 'Asking the model…'
+                  ? 'Thinking…'
                   : 'No suggestion — the reason is in the notification.'
               }}
             </p>

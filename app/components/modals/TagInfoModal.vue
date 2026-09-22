@@ -74,6 +74,8 @@ const emit = defineEmits<{
     payload: {
       type: 'ocr' | 'link' | 'manual'
       translation?: ZTranslation
+      /** Labels for the entry this creates; unused by the `link` branch. */
+      releaseIds?: number[]
     }
   ]
   createI18nKey: [
@@ -100,7 +102,7 @@ const selectedItem = computed(() => {
 })
 
 const selectedFramework = ref<'vue' | 'react'>('vue')
-const { state } = useEditTagState(tag)
+const { state, seededReleaseIds } = useEditTagState(tag)
 
 const i18nKeyDisplay = computed({
   get: () => formatI18nKeyDisplay(state.i18nKey),
@@ -110,6 +112,12 @@ const i18nKeyDisplay = computed({
     state.i18nKey = next
   },
 })
+
+/** Taking a suggestion ends the panel's job, the same way waving it away does. */
+function onPickSuggestion(key: string) {
+  i18nKeyDisplay.value = key
+  dismissSuggestion()
+}
 
 /*
  * A typed key can already be in the project, and the tag save path reuses the
@@ -195,14 +203,44 @@ watch(
   { deep: true }
 )
 
+/** Order-insensitive: the picker appends, so the same set can come back reordered. */
+function sameReleaseIds(a: number[], b: number[]) {
+  const left = [...a].sort()
+  const right = [...b].sort()
+  return left.length === right.length && left.every((id, i) => id === right[i])
+}
+
+/**
+ * A save that would bind an entry whose labels this dialog never saw must not send
+ * the default we seeded — that would refile someone else's entry. Every other case
+ * is safe: an untouched set is exactly what the bound entry already carries.
+ */
+function releaseIdsForSave() {
+  const chosen = state.releaseIds ?? []
+  const bindsUnseenEntry =
+    !validID(tag.value.translationID) && Boolean(keyDuplicate.value)
+  if (bindsUnseenEntry && sameReleaseIds(chosen, seededReleaseIds.value)) {
+    return undefined
+  }
+  return chosen
+}
+
 async function onSubmit() {
+  // The debounce may not have run yet, and that lookup is the only thing that says
+  // whether this save creates an entry or binds one that already exists.
+  if (!validID(tag.value.translationID) && state.i18nKey.trim()) {
+    await lookupDuplicate()
+  }
   const _trimOrigin = state.translation?.origin?.trim()
   if (isTransOriginChanged.value && _trimOrigin) {
     state.translation.fingerprint = fpTranslation(_trimOrigin)
   }
   try {
     emit('save', {
-      tag: omit(state, ['translation', 'settings']),
+      tag: {
+        ...omit(state, ['translation', 'settings']),
+        releaseIds: releaseIdsForSave(),
+      },
       settings: state.settings,
       translation: state.translation
         ? {
@@ -231,6 +269,7 @@ function onCreateTranslation(type: 'ocr' | 'link' | 'manual') {
           ...state.translation,
           fingerprint,
         },
+        releaseIds: state.releaseIds,
       })
     }
     if (!state.translation?.origin) {
@@ -253,6 +292,9 @@ function onCreateTranslation(type: 'ocr' | 'link' | 'manual') {
   }
   emit('createTrans', {
     type,
+    // Only a branch that creates an entry has one to label: `link` binds an entry
+    // that already carries its own.
+    releaseIds: type === 'ocr' ? state.releaseIds : undefined,
   })
 }
 
@@ -566,7 +608,7 @@ const previewLabelStyle = computed(() => {
                     v-if="suggestion && !suggestionDismissed"
                     :suggestion="suggestion"
                     :origin="state.translation?.origin ?? ''"
-                    @pick="i18nKeyDisplay = $event"
+                    @pick="onPickSuggestion"
                     @cancel="dismissSuggestion"
                   />
                   <KeyDuplicateNote
@@ -574,6 +616,13 @@ const previewLabelStyle = computed(() => {
                     :duplicate="keyDuplicate"
                   />
                 </div>
+              </UFormField>
+              <UFormField
+                label="Releases"
+                name="releaseIds"
+                description="Labels on the translation entry, not on this box."
+              >
+                <ReleaseSelect v-model="state.releaseIds" :disabled="loading" />
               </UFormField>
               <UFormField label="Text" :ui="{ label: 'w-full' }">
                 <template #label="{ label }">
