@@ -19,18 +19,18 @@
 
 ## 角色
 
-队员是基准：能看见本队全部项目，画框、填译文、发布、导出、Pull / Push 都能做，自己也能建项目（建完自己就是那个项目的管家）。管家和队长在队员之上各多管一些事，Admin 是账号级别的身份，调用方不进界面：
+Team Member 是基准：能看见本队全部项目，画框、填译文、发布、导出、Pull / Push 都能做，自己也能建项目（建完自己就是那个项目的 Project Owner）。Project Owner 和 Team Owner 在 Team Member 之上各多管一些事，Admin 是账号级别的身份，调用方不进界面：
 
-| 手册里写 | 界面上是 | 比队员多管什么 |
+| 角色 | 界面上是 | 比 Team Member 多管什么 |
 |---|---|---|
-| 管家 | Project Owner | 项目设置（OCR、源语言、key 命名规范）、发行标签的增删改名、Git 绑定、删 API token |
-| 队长 | Team Owner | 邀请码、按人邀请、队内角色变更、删团队 |
-| Admin | Admin | 建团队；项目没有管家时，由他任命管家 |
+| Project Owner | 项目卡片、项目条上的 **Project Owner** 徽标 | 项目设置（OCR、源语言、key 命名规范）、发行标签的增删改名、Git 绑定、删 API token |
+| Team Owner | **Team** 下拉旁、成员表里的 **Team Owner** 徽标 | 邀请码、按人邀请、队内角色变更、删团队 |
+| Admin | **Teams** 页队伍详情里的徽标 | 建团队；项目没有 Project Owner 时，由他任命 |
 | 调用方 | — | 不进界面，用 API token 取已发布文案 |
 
 Admin 在 **Teams** 页的队伍详情里显示为一个徽标，和 Team Owner / Team Member 并排。它不是队伍角色：一个 Admin 如果不在某个团队里，他对那个团队的项目什么也做不了。
 
-**队长不等于管家。** 建项目的人自动成为该项目的管家，队长不会因为是队长就成了管家；队长要用管家权限，得被任命成管家。这条在第 6 章和第 14 章会反复用到。
+**Team Owner 不等于 Project Owner。** 建项目的人自动成为该项目的 Project Owner；Team Owner 不会因为是 Team Owner 就成了 Project Owner，要用 Project Owner 权限得被任命。这条在第 6 章和第 14 章会反复用到。
 
 ## 三种「草稿」，先分清
 

@@ -565,7 +565,7 @@ const previewLabelStyle = computed(() => {
               class="flex flex-col items-center justify-center min-h-50 gap-4"
             >
               <UIcon name="mingcute:empty-box-line" size="4rem" />
-              <p class="text-muted">Not have translation yet</p>
+              <p class="text-muted">No translation yet</p>
               <UButton
                 color="neutral"
                 variant="soft"
@@ -573,7 +573,7 @@ const previewLabelStyle = computed(() => {
                 :disabled="loading"
                 @click="onCreateTranslation('link')"
               >
-                Link a existing translation
+                Link an existing translation
               </UButton>
               <span>OR</span>
               <div class="flex gap-4">

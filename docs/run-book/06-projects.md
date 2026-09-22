@@ -2,20 +2,20 @@
 
 ## 这一章能做什么
 
-- 建项目，并知道自己会自动成为它的管家
-- 任命和卸任管家
+- 建项目，并知道自己会自动成为它的 Project Owner
+- 任命和卸任 Project Owner
 - 改项目设置：OCR、源语言、key 命名规范、AI 提示词、发行标签
 - 让某一页沿用项目设置，或者单独覆盖
 
-## 项目和管家
+## 项目与 Project Owner
 
 项目属于一个团队，进了队就能看见队里的全部项目。
 
-**队员都能建项目，建的人自动成为这个项目的管家。** 队长不会因为是队长就成了管家——要用管家权限，得被任命。
+**Team Member 都能建项目，建的人自动成为这个项目的 Project Owner。** Team Owner 不会因为是 Team Owner 就成了 Project Owner——要用 Project Owner 权限，得被任命。
 
-管家（Project Owner）管的是这一个项目：项目设置、发行标签的增删改名、Git 绑定、删 API token。一个项目可以有多个管家，但**不能一个都没有**。
+Project Owner 管的是这一个项目：项目设置、发行标签的增删改名、Git 绑定、删 API token。一个项目可以有多个 Project Owner，但**不能一个都没有**。
 
-能改管家名册的人是**现任管家**（互相委任）或 **Admin**（项目没有管家、或管家不在的时候破局）。Admin 也必须在这个团队里，不在队里的 Admin 什么也做不了。
+能改 Project Owner 名册的人是**现任 Project Owner**（互相委任）或 **Admin**（项目没有 Project Owner、或 Project Owner 不在的时候破局）。Admin 也必须在这个团队里，不在队里的 Admin 什么也做不了。
 
 ## 建项目
 
@@ -33,9 +33,9 @@
 
 填完点 **Submit**。
 
-做完应看到：项目出现在 Dashboard 卡片和 Workspace Bar 的项目条上，而你已经是它的管家——在 **Teams** 页该项目行的 **Owners** 里能看到自己。
+做完应看到：项目出现在 Dashboard 卡片和 Workspace Bar 的项目条上，而你已经是它的 Project Owner——在 **Teams** 页该项目行的 **Owners** 里能看到自己。
 
-## 任命和卸任管家
+## 任命和卸任 Project Owner
 
 **Teams** 页 → 选中团队 → **Projects** 卡片 → 项目行上的 **Owners**，弹出 **Project Owners** 名册：
 
@@ -46,17 +46,17 @@
 
 | 你看到 | 意思 |
 |---|---|
-| `Only a Project Owner or Admin can change Project Owners` | 你既不是这个项目的管家，也不是 Admin |
+| `Only a Project Owner or Admin can change Project Owners` | 你既不是这个项目的 Project Owner，也不是 Admin |
 | `User is not a member of this team` | 那个人不在这个团队里 |
-| `User is already a Project Owner` | 他已经是管家了 |
+| `User is already a Project Owner` | 他已经是 Project Owner 了 |
 | `User is not a Project Owner` | 卸任一个本来就不在名册上的人 |
-| `A project must keep at least one Project Owner` | 最后一名管家不能卸任，先任命别人 |
+| `A project must keep at least one Project Owner` | 最后一名 Project Owner 不能卸任，先任命别人 |
 
 名册为空时显示 `No Project Owners. Ask an Admin to appoint one.`
 
 ## 项目设置
 
-入口：Workspace Bar 的 **Project settings**（只有管家看得到），或者 Dashboard 项目卡片、**Teams** 页项目行上的设置图标。
+入口：Workspace Bar 的 **Project settings**（只有 Project Owner 看得到），或者 Dashboard 项目卡片、**Teams** 页项目行上的设置图标。
 
 [image 项目设置弹窗的 Settings 标签页，标出 OCR、Languages、AI key naming 三段，以及 Source language 下拉]
 
@@ -109,7 +109,7 @@
 | 你看到 | 原因 |
 |---|---|
 | 建项目时 **Team** 下拉是空的，或弹出 **No team** | 你还没进任何团队（第 3、5 章） |
-| 找不到 **Project settings** | 你不是这个项目的管家；队长身份不带管家权限 |
+| 找不到 **Project settings** | 你不是这个项目的 Project Owner；Team Owner 身份不带 Project Owner 权限 |
 | **Owners** 里选不到某个人 | 只能从本队成员里选 |
 | 页面上 key 规范的四个字段是灰的 | **Custom key convention** 关着，这一页在继承项目 |
 | 选了 OCR 语言 **Auto**，引擎自己变成 Engine 2 还变灰 | 正常，自动识别语言只有 Engine 2 支持 |
