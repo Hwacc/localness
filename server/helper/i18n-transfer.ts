@@ -1,4 +1,9 @@
 import prisma from '#server/libs/prisma'
+import {
+  sourceLocaleOf,
+  sourceTextOf,
+  writeOriginToSourceLocale,
+} from '#server/helper/i18n'
 import type {
   I18nTransferMode,
   I18nTransferSkipReason,
@@ -71,7 +76,6 @@ export type TransferSourceKey = {
   id: number
   key: string
   type: string
-  origin: string
   fingerprint: string
   description: string | null
   locales: Array<{
@@ -161,7 +165,6 @@ export async function transferKeys(params: {
       id: true,
       key: true,
       type: true,
-      origin: true,
       fingerprint: true,
       description: true,
       locales: {
@@ -203,6 +206,14 @@ export async function transferKeys(params: {
     movedIds: [],
   }
 
+  /*
+   * Resolved before the loop on purpose: each key writes inside its own
+   * transaction, and Prisma's SQLite client holds its one connection open inside
+   * one, so a query out there could only wait.
+   */
+  const sourceLocale = await sourceLocaleOf(params.sourceProjectId)
+  const targetSourceLocale = await sourceLocaleOf(params.targetProjectId)
+
   for (const sourceKey of plan.written) {
     try {
       await prisma.$transaction(async (tx) => {
@@ -213,7 +224,7 @@ export async function transferKeys(params: {
             // Explicit: the column defaults to STRING, so omitting it would
             // silently retype a non-string key.
             type: sourceKey.type,
-            origin: sourceKey.origin,
+            origin: sourceTextOf(sourceKey.locales, sourceLocale),
             fingerprint: sourceKey.fingerprint,
             description: sourceKey.description,
           },
@@ -226,6 +237,22 @@ export async function transferKeys(params: {
         await tx.localeValue.createMany({
           data: localeWritesFor(sourceKey, created.id),
         })
+
+        /*
+         * The target may keep its original text in a different language than the
+         * source project does, and the rows just copied are the source key's own
+         * locales — so make sure the target's source language holds the text that
+         * is now this key's original.
+         */
+        await writeOriginToSourceLocale(
+          {
+            projectId: params.targetProjectId,
+            i18nKeyId: created.id,
+            origin: sourceTextOf(sourceKey.locales, sourceLocale),
+            sourceLocale: targetSourceLocale,
+          },
+          tx
+        )
 
         if (params.mode !== 'move') return
 

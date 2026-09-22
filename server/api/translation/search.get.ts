@@ -1,6 +1,7 @@
 import prisma from '#server/libs/prisma'
 import { numericID } from '#server/helper/id'
 import { shapeI18nKey } from '#server/helper/i18n'
+import { DEFAULT_LOCALE_FALLBACK } from '#shared/constants'
 
 /**
  * @route GET /api/translation/search
@@ -45,13 +46,26 @@ export default defineEventHandler(async (event) => {
       id: { in: ids },
       project: { teamId: { in: teamIds } },
     },
-    include: { locales: true, releases: { select: { releaseId: true } } },
+    include: {
+      locales: true,
+      releases: { select: { releaseId: true } },
+      /*
+       * Rows here can come from several projects, so the source language — where
+       * a key's original text lives — is read per row rather than once.
+       */
+      project: { select: { settings: { select: { localeFallback: true } } } },
+    },
   })
   const pagination = new Pagination(
     Number(page ?? 1),
     Number(limit),
     Number(count[0]['COUNT(*)']),
-    records.map((r) => shapeI18nKey(r))
+    records.map((r) =>
+      shapeI18nKey(
+        r,
+        r.project?.settings?.localeFallback || DEFAULT_LOCALE_FALLBACK
+      )
+    )
   )
   return pagination
 })

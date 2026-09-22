@@ -2,7 +2,7 @@ import prisma from '#server/libs/prisma'
 import { numericID } from '#server/helper/id'
 import { requireTeamMember } from '#server/helper/access'
 import { readZodBody } from '#server/helper/validate'
-import { shapeI18nKeyRow } from '#server/helper/i18n'
+import { shapeI18nKeyRow, sourceLocaleOf } from '#server/helper/i18n'
 
 /**
  * @route POST /api/projects/:id/i18n-keys/:keyId/git-sync
@@ -49,5 +49,5 @@ export default defineEventHandler(async (event) => {
     },
   })
 
-  return shapeI18nKeyRow(updated)
+  return shapeI18nKeyRow(updated, await sourceLocaleOf(nID))
 })

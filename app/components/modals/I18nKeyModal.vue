@@ -99,6 +99,27 @@ function localeMeta(code: string) {
   return TRANSLATION_LANGUAGES.find((lang) => lang.value === code)
 }
 
+/** Where this project's original text lives — the column a translator reaches for first. */
+const sourceLocale = computed(
+  () =>
+    projectStore.curProject?.settings?.localeFallback ||
+    DEFAULT_LOCALE_FALLBACK
+)
+
+/**
+ * The source language's item and the Origin field are one value, so this pair
+ * routes writes there instead of into `state.locales` — otherwise editing it
+ * from the accordion would be silently overwritten by the origin on save.
+ */
+function localeValue(code: string) {
+  return code === sourceLocale.value ? state.origin : state.locales[code] ?? ''
+}
+
+function setLocaleValue(code: string, value: string) {
+  if (code === sourceLocale.value) state.origin = value
+  else state.locales[code] = value
+}
+
 const localeItems = computed(() =>
   localeCodes.value.map((code) => ({
     label: localeMeta(code)?.label || code,
@@ -107,14 +128,14 @@ const localeItems = computed(() =>
 )
 
 /**
- * English starts open, being the fallback locale the API serves first; a project
- * that does not carry it opens on whichever locale leads its own list. Held here
+ * The source language starts open — that is where a key's original text lives; a
+ * project that does not carry it opens on whichever locale leads its own list. Held here
  * rather than left to the accordion's own default: `UTabs` unmounts the tab it is
  * not showing, so a default would be reapplied on every return to this one.
  */
 const openLocale = ref<string | undefined>(
-  localeCodes.value.includes(DEFAULT_LOCALE_FALLBACK)
-    ? DEFAULT_LOCALE_FALLBACK
+  localeCodes.value.includes(sourceLocale.value)
+    ? sourceLocale.value
     : localeCodes.value[0]
 )
 
@@ -309,6 +330,17 @@ async function onSave() {
         </template>
         <template #translations>
           <UAccordion v-model="openLocale" :items="localeItems">
+            <template #default="{ item }">
+              {{ item.label }}
+              <UBadge
+                v-if="item.value === sourceLocale"
+                size="sm"
+                variant="soft"
+                color="neutral"
+                label="source language"
+                class="ms-2"
+              />
+            </template>
             <template #body="{ item }">
               <!--
                 Nuxt UI's own theme pairs `autoresize` with `resize-none`, so the
@@ -316,13 +348,14 @@ async function onSave() {
                 usual case, and the handle covers text longer than `maxrows`.
               -->
               <UTextarea
-                v-model="state.locales[item.value]"
+                :model-value="localeValue(item.value)"
                 class="w-full"
                 :ui="{ base: 'resize-y' }"
                 :rows="3"
                 :maxrows="10"
                 autoresize
                 :disabled="readonly"
+                @update:model-value="setLocaleValue(item.value, $event)"
               />
             </template>
           </UAccordion>

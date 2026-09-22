@@ -42,6 +42,8 @@ export const zProject = z.object({
     keySeparator: z.string().min(1, 'separator cannot be empty').optional(),
     keyStyle: z.enum(KEY_STYLE_VALUES).optional(),
     keyMaxDepth: z.number().int().min(1).max(10).optional(),
+    /** The language a key's original text lives in. Must be one of `locales`. */
+    localeFallback: z.string().min(1).optional(),
   }),
 })
 export type ZProject = z.infer<typeof zProject>

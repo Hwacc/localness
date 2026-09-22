@@ -16,6 +16,11 @@ const remote = vi.hoisted(() => ({ headSha: 'sha-preview' }))
 vi.mock('#server/libs/prisma', () => {
   const tx = {
     i18nKey: { upsert: async () => ({ id: 1 }) },
+    // The project's source language, read before the transaction and stubbed here
+    // so both the client and its transaction answer it.
+    projectSettings: {
+      findUnique: async () => ({ localeFallback: 'en' }),
+    },
     localeValue: {
       upsert: async ({
         create,

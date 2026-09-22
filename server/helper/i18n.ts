@@ -1,6 +1,7 @@
 import { omit } from 'lodash-es'
 import prisma from '#server/libs/prisma'
 import { isI18nKeyDraft } from '#shared/utils'
+import { DEFAULT_LOCALE_FALLBACK } from '#shared/constants'
 import { isProjectSteward } from '#server/helper/project-owner'
 
 type LocaleRow = {
@@ -117,23 +118,34 @@ export function localesToContent(
   return content
 }
 
+/**
+ * A key's original text lives in the project's source language, so it is read
+ * from that locale's draft instead of from a column of its own.
+ */
+export function sourceTextOf(
+  locales: Array<{ locale: string; draftText?: string | null }> | undefined,
+  sourceLocale: string
+) {
+  return locales?.find((row) => row.locale === sourceLocale)?.draftText ?? ''
+}
+
 export function shapeI18nKey(
   record: {
     id: number
     fingerprint: string
-    origin: string
     createdAt?: Date
     updatedAt?: Date
     locales?: LocaleRow[]
     releases?: Array<{ releaseId: number }>
   },
+  sourceLocale: string,
   version: I18nContentVersion = 'draft'
 ) {
   const content = localesToContent(record.locales, version)
   return {
     id: record.id,
     fingerprint: record.fingerprint,
-    origin: record.origin,
+    origin: sourceTextOf(record.locales, sourceLocale),
     createdAt: record.createdAt,
     updatedAt: record.updatedAt,
     vue: content,
@@ -143,22 +155,24 @@ export function shapeI18nKey(
   }
 }
 
-export function shapeI18nKeyRow(row: {
-  id: number
-  key: string
-  origin: string
-  description: string | null
-  updatedAt: Date
-  gitSyncEnabled?: boolean
-  locales: Array<{
-    locale: string
-    draftText: string | null
-    publishedText: string | null
-  }>
-  _count?: { tags: number }
-  tagCount?: number
-  releases?: Array<{ releaseId: number }>
-}) {
+export function shapeI18nKeyRow(
+  row: {
+    id: number
+    key: string
+    description: string | null
+    updatedAt: Date
+    gitSyncEnabled?: boolean
+    locales: Array<{
+      locale: string
+      draftText: string | null
+      publishedText: string | null
+    }>
+    _count?: { tags: number }
+    tagCount?: number
+    releases?: Array<{ releaseId: number }>
+  },
+  sourceLocale: string
+) {
   const locales = row.locales.map((locale) => ({
     locale: locale.locale,
     draftText: locale.draftText,
@@ -167,7 +181,7 @@ export function shapeI18nKeyRow(row: {
   return {
     id: row.id,
     key: row.key,
-    origin: row.origin,
+    origin: sourceTextOf(row.locales, sourceLocale),
     description: row.description,
     updatedAt: row.updatedAt,
     tagCount: row.tagCount ?? row._count?.tags ?? 0,
@@ -193,12 +207,12 @@ export function assertI18nKeyWritable(
 
 export function shapeTag<
   T extends { i18nKeyRecord?: any; i18nKeyId?: number | null },
->(tag: T, version: I18nContentVersion = 'draft') {
+>(tag: T, sourceLocale: string, version: I18nContentVersion = 'draft') {
   const rec = tag.i18nKeyRecord
   return {
     ...omit(tag, ['i18nKeyRecord']),
     translationID: rec?.id ?? tag.i18nKeyId ?? undefined,
-    translation: rec ? shapeI18nKey(rec, version) : undefined,
+    translation: rec ? shapeI18nKey(rec, sourceLocale, version) : undefined,
   }
 }
 
@@ -293,6 +307,63 @@ export async function deleteUnusedDraftI18nKey(id: number) {
   await prisma.i18nKey.delete({ where: { id } })
 }
 
+/**
+ * A project's source language: the locale a key's original text lives in. It is
+ * also what Git pushes as `source/`, what the export's origin column reads, and
+ * what the delivery API reports as `localeFallback`.
+ */
+export async function sourceLocaleOf(
+  projectId: number | null | undefined
+): Promise<string> {
+  if (!projectId) return DEFAULT_LOCALE_FALLBACK
+  const settings = await prisma.projectSettings.findUnique({
+    where: { projectID: projectId },
+    select: { localeFallback: true },
+  })
+  return settings?.localeFallback || DEFAULT_LOCALE_FALLBACK
+}
+
+/** The source language has to be a language the project actually publishes. */
+export function assertSourceLocale(locale: string, locales: string[]) {
+  if (!locales.includes(locale)) {
+    throw createError({
+      statusCode: 400,
+      statusMessage: `Source language must be one of the project's locales: ${locale}`,
+    })
+  }
+}
+
+/**
+ * The source language's row *is* the key's original text, so writing an origin
+ * writes that row. Draft side only: `publishedText` stays whatever a person
+ * published, which is the copy Git pushes and the export carries.
+ *
+ * An empty origin writes nothing — that would only leave an empty row behind.
+ */
+export async function writeOriginToSourceLocale(
+  params: {
+    projectId: number
+    i18nKeyId: number
+    origin: string
+    sourceLocale?: string
+  },
+  db: Pick<typeof prisma, 'localeValue'> = prisma
+) {
+  if (!params.origin) return
+  const locale =
+    params.sourceLocale ?? (await sourceLocaleOf(params.projectId))
+  await db.localeValue.upsert({
+    where: { i18nKeyId_locale: { i18nKeyId: params.i18nKeyId, locale } },
+    create: {
+      i18nKeyId: params.i18nKeyId,
+      locale,
+      draftText: params.origin,
+      publishedText: null,
+    },
+    update: { draftText: params.origin },
+  })
+}
+
 export async function resolveTagI18n(params: {
   pageID: number
   i18nKey?: string | null
@@ -313,10 +384,12 @@ export async function resolveTagI18n(params: {
 
   const projectId = page.projectID
   const keyText = params.i18nKey?.trim() || null
+  const sourceLocale = await sourceLocaleOf(projectId)
 
   if (params.translationID) {
     const current = await prisma.i18nKey.findUnique({
       where: { id: params.translationID },
+      include: { locales: true },
     })
     if (!current || current.projectId !== projectId) {
       throw createError({
@@ -331,6 +404,7 @@ export async function resolveTagI18n(params: {
 
     const clash = await prisma.i18nKey.findUnique({
       where: { projectId_key: { projectId, key: keyText } },
+      include: { locales: true },
     })
 
     if (!clash) {
@@ -345,13 +419,23 @@ export async function resolveTagI18n(params: {
       return { i18nKeyId: current.id, i18nKey: keyText, projectId }
     }
 
-    if (!clash.origin && current.origin) {
+    // An empty original text adopts the other entry's, in the column and in the
+    // source language's row together.
+    const clashText = sourceTextOf(clash.locales, sourceLocale)
+    const currentText = sourceTextOf(current.locales, sourceLocale)
+    if (!clashText && currentText) {
       await prisma.i18nKey.update({
         where: { id: clash.id },
         data: {
-          origin: current.origin,
+          origin: currentText,
           fingerprint: clash.fingerprint || current.fingerprint,
         },
+      })
+      await writeOriginToSourceLocale({
+        projectId,
+        i18nKeyId: clash.id,
+        origin: currentText,
+        sourceLocale,
       })
     }
     return { i18nKeyId: clash.id, i18nKey: clash.key, projectId }
@@ -370,6 +454,12 @@ export async function resolveTagI18n(params: {
       },
       update: {},
     })
+    await writeOriginToSourceLocale({
+      projectId,
+      i18nKeyId: record.id,
+      origin: params.origin ?? '',
+      sourceLocale,
+    })
     return { i18nKeyId: record.id, i18nKey: keyText, projectId }
   }
 
@@ -379,7 +469,12 @@ export async function resolveTagI18n(params: {
 export async function loadShapedTag(id: number) {
   const tag = await prisma.tag.findUnique({
     where: { id },
-    include: tagI18nInclude,
+    include: {
+      ...tagI18nInclude,
+      // Only for the project whose source language the original text is read from.
+      page: { select: { projectID: true } },
+    },
   })
-  return tag ? shapeTag(tag) : null
+  if (!tag) return null
+  return shapeTag(tag, await sourceLocaleOf(tag.page.projectID))
 }

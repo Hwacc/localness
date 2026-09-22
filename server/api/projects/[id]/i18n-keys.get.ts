@@ -1,7 +1,7 @@
 import prisma from '#server/libs/prisma'
 import { numericID } from '#server/helper/id'
 import { requireTeamMember } from '#server/helper/access'
-import { shapeI18nKeyRow } from '#server/helper/i18n'
+import { shapeI18nKeyRow, sourceLocaleOf } from '#server/helper/i18n'
 import { parseReleaseFilter, releaseWhereFragment } from '#server/helper/release'
 import { I18nKeyStatusFilter } from '#shared/constants'
 import { DRAFT_KEY_PREFIX } from '#shared/utils'
@@ -116,8 +116,17 @@ export default defineEventHandler(async (event) => {
       : {}),
     // Two independent OR groups, so they have to be nested under AND.
     AND: [
+      // Any locale's draft, not just the source language's: searching for a
+      // sentence should not depend on which language the project calls original.
       ...(q
-        ? [{ OR: [{ key: { contains: q } }, { origin: { contains: q } }] }]
+        ? [
+            {
+              OR: [
+                { key: { contains: q } },
+                { locales: { some: { draftText: { contains: q } } } },
+              ],
+            },
+          ]
         : []),
       ...(pageIds.length
         ? [
@@ -162,7 +171,8 @@ export default defineEventHandler(async (event) => {
     }),
   ])
 
-  const data = rows.map((row) => shapeI18nKeyRow(row))
+  const sourceLocale = await sourceLocaleOf(nID)
+  const data = rows.map((row) => shapeI18nKeyRow(row, sourceLocale))
 
   return new Pagination(page, limit, total, data)
 })

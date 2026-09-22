@@ -4,7 +4,13 @@ import { numericID } from '#server/helper/id'
 import { readZodBody } from '#server/helper/validate'
 import { LogAction, LogStatus } from '~~/shared/constants/log'
 import { requireI18nKeyTeamMember } from '#server/helper/access'
-import { localesToContent, upsertLocaleDrafts, assertI18nKeyWritable } from '#server/helper/i18n'
+import {
+  localesToContent,
+  sourceLocaleOf,
+  upsertLocaleDrafts,
+  writeOriginToSourceLocale,
+  assertI18nKeyWritable,
+} from '#server/helper/i18n'
 
 /**
  * @route POST /api/translation/:id/:framework
@@ -52,10 +58,25 @@ export default defineEventHandler(async (event) => {
 
   const before = localesToContent(existing.locales)
   try {
-    await upsertLocaleDrafts(
-      nID,
-      safeBody as Record<string, string | null | undefined>
-    )
+    /*
+     * The source language's row is the key's original text, not just another
+     * locale: writing it rewrites `origin` (and its fingerprint), and clearing it
+     * is ignored — an original text cannot be blank. It is dropped from the locale
+     * map and written through the origin helper, so that row has one writer.
+     */
+    const raw = safeBody as Record<string, string | null | undefined>
+    const sourceLocale = await sourceLocaleOf(existing.projectId)
+    const sourceText =
+      raw[sourceLocale] === undefined ? undefined : String(raw[sourceLocale])
+    await upsertLocaleDrafts(nID, omit(raw, sourceLocale))
+    if (sourceText?.trim()) {
+      await writeOriginToSourceLocale({
+        projectId: existing.projectId,
+        i18nKeyId: nID,
+        origin: sourceText,
+        sourceLocale,
+      })
+    }
     const loaded = await prisma.i18nKey.findUnique({
       where: { id: nID },
       include: { locales: true },

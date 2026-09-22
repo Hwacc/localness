@@ -2,6 +2,11 @@
 import type { FormSubmitEvent } from '@nuxt/ui'
 import { AlertModal } from '#components'
 import {
+  DEFAULT_LOCALE_FALLBACK,
+  TRANSLATION_LANGUAGES,
+} from '#shared/constants'
+import { parseLocales } from '#shared/utils'
+import {
   DEFAULT_KEY_CONVENTION,
   KEY_STYLES,
   slugKeyPrefix,
@@ -45,6 +50,8 @@ const state = reactive({
     ocrLanguage: project.settings?.ocrLanguage ?? 'eng',
     ocrEngine: project.settings?.ocrEngine ?? 1,
     prompt: project.settings?.prompt ?? '',
+    localeFallback:
+      project.settings?.localeFallback ?? DEFAULT_LOCALE_FALLBACK,
     keyPrefix: project.settings?.keyPrefix ?? '',
     keySeparator:
       project.settings?.keySeparator ?? DEFAULT_KEY_CONVENTION.separator,
@@ -60,6 +67,17 @@ const state = reactive({
  */
 const prefixPlaceholder = computed(() =>
   mode === 'create' ? slugKeyPrefix(state.name) : ''
+)
+
+/**
+ * The languages this project publishes, labelled. The source language has to be
+ * one of them — the server rejects anything else.
+ */
+const localeItems = computed(() =>
+  parseLocales(project.settings?.locales).map((code) => ({
+    label: TRANSLATION_LANGUAGES.find((lang) => lang.value === code)?.label ?? code,
+    value: code,
+  }))
 )
 
 /*
@@ -331,6 +349,20 @@ async function onSubmit(_: FormSubmitEvent<ZProject>) {
                 title="Warning"
                 description="Auto language detection is only supported by Engine 2."
               />
+              <h3 class="text-xs font-medium text-muted uppercase">
+                Languages
+              </h3>
+              <UFormField
+                label="Source language"
+                name="settings.localeFallback"
+                description="Each key keeps its original text in this language; Git pushes and exports read that copy."
+              >
+                <USelect
+                  v-model="state.settings.localeFallback"
+                  :items="localeItems"
+                  class="w-full"
+                />
+              </UFormField>
               <h3 class="text-xs font-medium text-muted uppercase">
                 AI key naming
               </h3>

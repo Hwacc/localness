@@ -1,7 +1,8 @@
 <script setup lang="ts">
 import type { CheckboxGroupItem } from '@nuxt/ui'
 import { compact } from 'lodash-es'
-import { DEFAULT_LOCALES, TRANSLATION_LANGUAGES } from '#shared/constants'
+import { DEFAULT_LOCALE_FALLBACK, TRANSLATION_LANGUAGES } from '#shared/constants'
+import { parseLocales } from '#shared/utils'
 import { exportBundleName } from '#shared/utils/file'
 import { releaseNameForExport } from '#shared/utils/release'
 import { TaskState } from '~/libs/task-queue/types'
@@ -10,27 +11,14 @@ import { useDebounceFn } from '@vueuse/core'
 const { $dayjs } = useNuxtApp()
 const projectStore = useProjectStore()
 
-function parseLocales(raw: unknown): string[] {
-  if (Array.isArray(raw) && raw.every((v) => typeof v === 'string')) {
-    return raw as string[]
-  }
-  if (typeof raw === 'string') {
-    try {
-      const parsed = JSON.parse(raw)
-      if (Array.isArray(parsed)) return parsed
-    } catch {
-      return [...DEFAULT_LOCALES]
-    }
-  }
-  return [...DEFAULT_LOCALES]
-}
-
 /** Column set and order follow the project, same as the Translations table. */
 const projectLocales = computed(() =>
   parseLocales(projectStore.curProject?.settings?.locales)
 )
 const fallbackLocale = computed(
-  () => projectStore.curProject?.settings?.localeFallback || 'en'
+  () =>
+    projectStore.curProject?.settings?.localeFallback ||
+    DEFAULT_LOCALE_FALLBACK
 )
 
 const state = reactive({
