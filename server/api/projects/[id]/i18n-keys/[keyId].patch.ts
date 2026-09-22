@@ -2,7 +2,12 @@ import prisma from '#server/libs/prisma'
 import { numericID } from '#server/helper/id'
 import { requireTeamMember } from '#server/helper/access'
 import { readZodBody } from '#server/helper/validate'
-import { shapeI18nKeyRow, assertI18nKeyWritable } from '#server/helper/i18n'
+import {
+  assertI18nKeyWritable,
+  shapeI18nKeyRow,
+  sourceLocaleOf,
+  sourceTextOf,
+} from '#server/helper/i18n'
 import { keyClashMessage } from '#server/helper/key-convention'
 
 /**
@@ -22,6 +27,7 @@ export default defineEventHandler(async (event) => {
   const nKeyId = numericID(keyId)
   await requireTeamMember(event, nID)
   const body = await readZodBody(event, zI18nKeyPatch.parse)
+  const sourceLocale = await sourceLocaleOf(nID)
 
   const existing = await prisma.i18nKey.findFirst({
     where: { id: nKeyId, projectId: nID },
@@ -41,14 +47,24 @@ export default defineEventHandler(async (event) => {
       where: {
         projectId_key: { projectId: nID, key: nextKey },
       },
+      select: {
+        key: true,
+        locales: {
+          where: { locale: sourceLocale },
+          select: { locale: true, draftText: true },
+        },
+      },
     })
     if (clash) {
       // Still refused: taking the name would mean merging two entries, which is
       // a different operation. The message at least says which case this is —
-      // `existing.origin` is the text of the row being renamed.
+      // the second text is the one the row being renamed carries.
       throw createError({
         statusCode: 409,
-        statusMessage: keyClashMessage(clash, existing.origin),
+        statusMessage: keyClashMessage(
+          { key: clash.key, origin: sourceTextOf(clash.locales, sourceLocale) },
+          sourceTextOf(existing.locales, sourceLocale)
+        ),
       })
     }
   }
@@ -72,5 +88,5 @@ export default defineEventHandler(async (event) => {
     })
   }
 
-  return shapeI18nKeyRow(updated)
+  return shapeI18nKeyRow(updated, sourceLocale)
 })

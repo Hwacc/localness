@@ -14,6 +14,7 @@ import {
   GitSyncPushReason,
 } from '#shared/constants'
 import { countSkipReasons, writeGitSyncLog } from './log'
+import { sourceLocaleOf } from '#server/helper/i18n'
 import type { ThreeWayDecision } from './three-way'
 import {
   classifyPull,
@@ -82,7 +83,11 @@ type PrismaLike = Pick<
   'i18nKey' | 'localeValue' | 'gitSyncBase' | 'gitSyncConflict'
 >
 
-/** Write Git (or a conflict resolution) as the platform copy: draft + published. */
+/**
+ * Write Git (or a conflict resolution) as the platform copy: draft + published.
+ * A written source locale also refreshes `origin`/`fingerprint` — the source
+ * language's row is where a key's original text lives.
+ */
 async function upsertDraft(
   params: {
     projectId: number
@@ -90,6 +95,8 @@ async function upsertDraft(
     locale: string
     text: string
     commitSha: string
+    /** The project's source language, resolved by the caller before its transaction. */
+    sourceLocale: string
   },
   db: PrismaLike = prisma
 ) {
@@ -100,12 +107,12 @@ async function upsertDraft(
     create: {
       projectId: params.projectId,
       key: params.key,
-      origin: params.locale === 'en' ? params.text : '',
+      origin: params.locale === params.sourceLocale ? params.text : '',
       fingerprint:
-        params.locale === 'en' ? fpTranslation(params.text) : '',
+        params.locale === params.sourceLocale ? fpTranslation(params.text) : '',
     },
     update:
-      params.locale === 'en'
+      params.locale === params.sourceLocale
         ? {
             origin: params.text,
             fingerprint: fpTranslation(params.text),
@@ -492,6 +499,9 @@ export async function applyPull(params: {
     })
   }
   const commitSha = preview.commitSha
+  // Resolved before the transaction on purpose: Prisma's SQLite client holds the
+  // one connection open inside it, so a query out there could only wait.
+  const sourceLocale = await sourceLocaleOf(projectId)
   let applied = 0
   let aligned = 0
   let kept = 0
@@ -503,7 +513,14 @@ export async function applyPull(params: {
           // Preview already confirmed Git. Land it as the platform copy
           // (draft + published) so Apply is not a third staging area.
           await upsertDraft(
-            { projectId, key: c.key, locale: c.locale, text: c.theirsText, commitSha },
+            {
+              projectId,
+              key: c.key,
+              locale: c.locale,
+              text: c.theirsText,
+              commitSha,
+              sourceLocale,
+            },
             tx
           )
           await setBase(
@@ -1137,12 +1154,14 @@ export async function resolveConflict(params: {
         return _exhaustive
       }
     }
+    const sourceLocale = await sourceLocaleOf(params.projectId)
     await upsertDraft({
       projectId: params.projectId,
       key: conflict.key,
       locale: conflict.locale,
       text: chosen,
       commitSha: params.commitSha ?? '',
+      sourceLocale,
     })
   }
   // Last seen Git stays the remote side. Use platform must not move base

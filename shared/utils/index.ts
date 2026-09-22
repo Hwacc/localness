@@ -2,6 +2,7 @@ import type { ID } from '../types'
 import clsx from 'clsx'
 import SparkMD5 from 'spark-md5'
 import { twMerge } from 'tailwind-merge'
+import { DEFAULT_LOCALES } from '../constants'
 import { zID } from './schemas'
 
 export function cn(...args: any[]) {
@@ -16,6 +17,25 @@ export async function sleep(ms: number) {
 
 export function validID(id: ID | null | undefined): id is ID {
   return zID.safeParse(id).success
+}
+
+/**
+ * The project's locale list, as stored in `ProjectSettings.locales`. Anything
+ * unreadable falls back to the default set, which is what a project starts on.
+ */
+export function parseLocales(raw: unknown): string[] {
+  if (Array.isArray(raw) && raw.every((v) => typeof v === 'string')) {
+    return raw as string[]
+  }
+  if (typeof raw === 'string') {
+    try {
+      const parsed = JSON.parse(raw)
+      if (Array.isArray(parsed)) return parsed
+    } catch {
+      return [...DEFAULT_LOCALES]
+    }
+  }
+  return [...DEFAULT_LOCALES]
 }
 
 export const timestampFilename = (file: File) => {

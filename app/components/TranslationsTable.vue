@@ -24,6 +24,8 @@ const props = defineProps<{
   total: number
   limit: number
   localeCodes: string[]
+  /** The language a key's original text lives in; editing that cell moves `origin`. */
+  sourceLocale: string
   releases: IProjectRelease[]
   publishing: boolean
   /** The row whose Git sync switch is in flight, so only it shows a spinner. */
@@ -199,6 +201,9 @@ async function saveDraft(row: II18nKeyRow, locale: string, value: string) {
     })
   }
   row.dirty = isI18nKeyDraft(row.locales)
+  // That cell *is* the original text, so the column beside it moves too — patched
+  // here rather than reloaded, for the same reason as the locale row above.
+  if (locale === props.sourceLocale) row.origin = value
 }
 
 /**

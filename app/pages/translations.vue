@@ -1,11 +1,11 @@
 <script setup lang="tsx">
 import type { DropdownMenuItem } from '@nuxt/ui'
 import {
-  DEFAULT_LOCALES,
+  DEFAULT_LOCALE_FALLBACK,
   I18nKeyStatusFilter,
   TRANSLATION_LANGUAGES,
 } from '#shared/constants'
-import { formatI18nKeyDisplay } from '#shared/utils'
+import { formatI18nKeyDisplay, parseLocales } from '#shared/utils'
 import type { TranslationsTable } from '#components'
 import {
   AlertModal,
@@ -34,23 +34,14 @@ const toast = useToast()
 /** Only for the column-visibility menu, which lives in the filter bar. */
 const table = useTemplateRef<InstanceType<typeof TranslationsTable>>('table')
 
-function parseLocales(raw: unknown): string[] {
-  if (Array.isArray(raw) && raw.every((v) => typeof v === 'string')) {
-    return raw as string[]
-  }
-  if (typeof raw === 'string') {
-    try {
-      const parsed = JSON.parse(raw)
-      if (Array.isArray(parsed)) return parsed
-    } catch {
-      return [...DEFAULT_LOCALES]
-    }
-  }
-  return [...DEFAULT_LOCALES]
-}
-
 const localeCodes = computed(() =>
   parseLocales(curProject.value.settings?.locales),
+)
+
+/** The language a key's original text lives in; that cell and `origin` are one value. */
+const sourceLocale = computed(
+  () =>
+    curProject.value.settings?.localeFallback || DEFAULT_LOCALE_FALLBACK
 )
 
 /**
@@ -997,6 +988,7 @@ onMounted(async () => {
         :total="total"
         :limit="limit"
         :locale-codes="localeCodes"
+        :source-locale="sourceLocale"
         :releases="curReleases"
         :publishing="publishing"
         :git-sync-busy-id="gitSyncPending"

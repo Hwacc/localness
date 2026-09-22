@@ -3,7 +3,13 @@ import { readZodBody } from '#server/helper/validate'
 import prisma from '#server/libs/prisma'
 import { LogAction, LogStatus } from '#shared/constants/log'
 import { requireTeamMember } from '#server/helper/access'
-import { shapeI18nKey, upsertLocaleDrafts } from '#server/helper/i18n'
+import {
+  shapeI18nKey,
+  sourceLocaleOf,
+  sourceTextOf,
+  upsertLocaleDrafts,
+  writeOriginToSourceLocale,
+} from '#server/helper/i18n'
 import {
   assertReleaseIdsInProject,
   setEntryReleases,
@@ -32,6 +38,9 @@ export default defineEventHandler(async (event) => {
     })
   }
   await requireTeamMember(event, body.projectId)
+  // Resolved once: the clash message, the shaped row and the source-language
+  // write below all need to know where this project keeps a key's original text.
+  const sourceLocale = await sourceLocaleOf(body.projectId)
 
   // Checked before the key is written: a bad label id should not leave a
   // half-created translation behind.
@@ -68,7 +77,13 @@ export default defineEventHandler(async (event) => {
     })
     throw createError({
       statusCode: 409,
-      statusMessage: keyClashMessage(existing, body.origin),
+      statusMessage: keyClashMessage(
+        {
+          key: existing.key,
+          origin: sourceTextOf(existing.locales, sourceLocale),
+        },
+        body.origin
+      ),
     })
   }
 
@@ -100,6 +115,14 @@ export default defineEventHandler(async (event) => {
     if (content) {
       await upsertLocaleDrafts(record.id, content as Record<string, string | null | undefined>)
     }
+    // After the content write, so the original text wins over anything the caller
+    // sent for the source language: that row *is* the original text.
+    await writeOriginToSourceLocale({
+      projectId: body.projectId,
+      i18nKeyId: record.id,
+      origin: body.origin,
+      sourceLocale,
+    })
     if (attachReleaseIds.length) {
       await setEntryReleases({
         projectId: body.projectId,
@@ -123,7 +146,7 @@ export default defineEventHandler(async (event) => {
         userID: numericID(session.user.id),
       },
     })
-    return loaded ? shapeI18nKey(loaded) : null
+    return loaded ? shapeI18nKey(loaded, sourceLocale) : null
   } catch (error) {
     console.error(error)
     await prisma.translationLog.create({

@@ -53,6 +53,10 @@ vi.mock('#server/libs/prisma', () => {
   }
 
   const client = {
+    /** Read before the resolution lands: which locale holds a key's original text. */
+    projectSettings: {
+      findUnique: async () => ({ localeFallback: 'en' }),
+    },
     gitSyncConflict: {
       findFirst: async () => {
         db.calls.push('gitSyncConflict.findFirst')

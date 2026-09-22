@@ -1,6 +1,7 @@
 import prisma from '#server/libs/prisma'
 import { numericID } from '#server/helper/id'
 import { requireTeamMember } from '#server/helper/access'
+import { sourceLocaleOf, sourceTextOf } from '#server/helper/i18n'
 import { shapeKeyDuplicates } from '#server/helper/key-convention'
 
 /** Headroom, not a limit the UI can reach: manual entry asks about one key. */
@@ -30,11 +31,25 @@ export default defineEventHandler(async (event) => {
     .slice(0, MAX_KEYS)
   if (!keys.length) return { duplicates: [] }
 
+  const sourceLocale = await sourceLocaleOf(nID)
   const rows = await prisma.i18nKey.findMany({
     where: { projectId: nID, key: { in: keys } },
-    select: { key: true, origin: true },
+    select: {
+      key: true,
+      locales: {
+        where: { locale: sourceLocale },
+        select: { locale: true, draftText: true },
+      },
+    },
   })
   return {
-    duplicates: shapeKeyDuplicates(rows, String(getQuery(event).origin ?? '')),
+    duplicates: shapeKeyDuplicates(
+      // What a key holds is its original text, which lives in that one locale.
+      rows.map((row) => ({
+        key: row.key,
+        origin: sourceTextOf(row.locales, sourceLocale),
+      })),
+      String(getQuery(event).origin ?? '')
+    ),
   }
 })

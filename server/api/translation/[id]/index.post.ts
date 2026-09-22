@@ -4,7 +4,13 @@ import { numericID } from '#server/helper/id'
 import { readZodBody } from '#server/helper/validate'
 import { LogAction, LogStatus } from '#shared/constants/log'
 import { requireI18nKeyTeamMember } from '#server/helper/access'
-import { shapeI18nKey, upsertLocaleDrafts, assertI18nKeyWritable } from '#server/helper/i18n'
+import {
+  assertI18nKeyWritable,
+  shapeI18nKey,
+  sourceLocaleOf,
+  upsertLocaleDrafts,
+  writeOriginToSourceLocale,
+} from '#server/helper/i18n'
 import { setEntryReleases, throwReleaseHttp } from '#server/helper/release'
 import { fpTranslation } from '#shared/utils'
 
@@ -42,6 +48,7 @@ export default defineEventHandler(async (event) => {
     })
   }
   assertI18nKeyWritable(existing.locales)
+  const sourceLocale = await sourceLocaleOf(existing.projectId)
   try {
     const safeData = omit(body, [
       'id',
@@ -71,6 +78,14 @@ export default defineEventHandler(async (event) => {
         content as Record<string, string | null | undefined>
       )
     }
+    // The source language's row is where the original text lives, so an origin
+    // edit lands there too.
+    await writeOriginToSourceLocale({
+      projectId: existing.projectId,
+      i18nKeyId: nID,
+      origin,
+      sourceLocale,
+    })
     // Absent means "leave the labels alone"; an empty array means "clear them".
     if (body.releaseIds) {
       try {
@@ -99,7 +114,7 @@ export default defineEventHandler(async (event) => {
         userID: numericID(session.user.id),
       },
     })
-    return loaded ? shapeI18nKey(loaded) : null
+    return loaded ? shapeI18nKey(loaded, sourceLocale) : null
   } catch (error) {
     console.error(error)
     await prisma.translationLog.create({

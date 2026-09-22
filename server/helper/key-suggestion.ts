@@ -3,6 +3,7 @@ import type { AgentErrorKind } from '#server/libs/agent/AbstractAgent'
 import AgentManager from '#server/libs/agent'
 import { AgentError } from '#server/libs/agent/AbstractAgent'
 import prisma from '#server/libs/prisma'
+import { sourceLocaleOf, sourceTextOf } from '#server/helper/i18n'
 import {
   resolveKeyConvention,
   shapeKeyDuplicates,
@@ -102,15 +103,30 @@ export async function buildKeySuggestion(
     result.key,
     ...(result.alternatives ?? []).map((one) => one.key),
   ].filter((key) => key !== '')
+  const sourceLocale = await sourceLocaleOf(params.projectId)
   const existing = candidates.length
     ? await prisma.i18nKey.findMany({
         where: { projectId: params.projectId, key: { in: candidates } },
-        select: { key: true, origin: true },
+        select: {
+          key: true,
+          locales: {
+            where: { locale: sourceLocale },
+            select: { locale: true, draftText: true },
+          },
+        },
       })
     : []
 
   return {
     ...result,
-    duplicates: shapeKeyDuplicates(existing, params.origin),
+    // What a candidate would reuse is the text that key holds, which lives in the
+    // project's source language.
+    duplicates: shapeKeyDuplicates(
+      existing.map((row) => ({
+        key: row.key,
+        origin: sourceTextOf(row.locales, sourceLocale),
+      })),
+      params.origin
+    ),
   }
 }

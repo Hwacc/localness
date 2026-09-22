@@ -2,7 +2,7 @@ import { LogAction, LogStatus } from '#shared/constants/log'
 import prisma from '#server/libs/prisma'
 import { numericID } from '#server/helper/id'
 import { requireI18nKeyTeamMember } from '#server/helper/access'
-import { shapeI18nKey } from '#server/helper/i18n'
+import { shapeI18nKey, sourceLocaleOf } from '#server/helper/i18n'
 import { isI18nKeyDraft } from '#shared/utils'
 
 /**
@@ -37,6 +37,7 @@ export default defineEventHandler(async (event) => {
       statusMessage: 'Only draft translations can be deleted',
     })
   }
+  const sourceLocale = await sourceLocaleOf(existing.projectId)
 
   try {
     const tagIds = (
@@ -85,7 +86,7 @@ export default defineEventHandler(async (event) => {
         fingerprint: existing.fingerprint,
       },
     })
-    return shapeI18nKey(existing)
+    return shapeI18nKey(existing, sourceLocale)
   } catch (error) {
     console.error(error)
     await prisma.translationLog.create({

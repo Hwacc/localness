@@ -1,7 +1,11 @@
 import prisma from '#server/libs/prisma'
 import { readZodBody } from '#server/helper/validate'
 import { requireTeamMembership } from '#server/helper/access'
-import { projectDetailInclude, shapeProject } from '#server/helper/i18n'
+import {
+  assertSourceLocale,
+  projectDetailInclude,
+  shapeProject,
+} from '#server/helper/i18n'
 import { DEFAULT_LOCALES, DEFAULT_LOCALE_FALLBACK } from '#shared/constants'
 import {
   DEFAULT_KEY_CONVENTION,
@@ -26,6 +30,12 @@ export default defineEventHandler(async (event) => {
   }
   const { userId } = await requireTeamMembership(event, teamId)
 
+  // A new project starts on the default locale set, so that is the list the
+  // source language has to come from.
+  if (settings?.localeFallback) {
+    assertSourceLocale(settings.localeFallback, [...DEFAULT_LOCALES])
+  }
+
   const createdProject = await prisma.$transaction(async (tx) => {
     const created = await tx.project.create({
       data: {
@@ -41,7 +51,7 @@ export default defineEventHandler(async (event) => {
         ocrEngine: settings?.ocrEngine ?? 1,
         prompt: settings?.prompt ?? '',
         locales: [...DEFAULT_LOCALES],
-        localeFallback: DEFAULT_LOCALE_FALLBACK,
+        localeFallback: settings?.localeFallback ?? DEFAULT_LOCALE_FALLBACK,
         // The slug is only a starting point. `Project.name` is free text that
         // need not be latin, and the value is stored as a snapshot, so renaming
         // the project later does not move the keys it already produced. An

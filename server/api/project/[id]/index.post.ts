@@ -2,7 +2,8 @@ import prisma from '#server/libs/prisma'
 import { numericID } from '#server/helper/id'
 import { readZodBody } from '#server/helper/validate'
 import { requireProjectOwner } from '#server/helper/access'
-import { PROJECT_SETTINGS_OMIT } from '#server/helper/i18n'
+import { assertSourceLocale, PROJECT_SETTINGS_OMIT } from '#server/helper/i18n'
+import { projectLocales } from '#server/helper/api-delivery'
 
 /**
  * @route POST /api/project/:id
@@ -39,6 +40,12 @@ export default defineEventHandler(async (event) => {
   }
 
   if (settings) {
+    // Checked against the locales this project actually publishes; a project
+    // whose list is unreadable has nothing to validate against, so it passes.
+    if (settings.localeFallback) {
+      const locales = await projectLocales(nID)
+      if (locales.length) assertSourceLocale(settings.localeFallback, locales)
+    }
     await prisma.projectSettings.upsert({
       where: {
         projectID: nID,

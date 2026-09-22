@@ -60,6 +60,11 @@ vi.mock('#server/libs/prisma', () => {
         db.calls.push('localeValue.createMany')
         return { count: Array.isArray(data) ? data.length : 1 }
       },
+      // The target's own source language is filled from the key's original text.
+      upsert: async () => {
+        db.calls.push('localeValue.upsert')
+        return {}
+      },
     },
     translationLog: {
       updateMany: async ({ where }: any) => {
@@ -95,6 +100,10 @@ vi.mock('#server/libs/prisma', () => {
   }
 
   const client = {
+    // Where each project keeps a key's original text; read before the loop.
+    projectSettings: {
+      findUnique: async () => ({ localeFallback: 'en' }),
+    },
     i18nKey: {
       findMany: async ({ where }: any) => {
         db.calls.push('i18nKey.findMany')
@@ -287,7 +296,11 @@ describe('transferKeys — copy', () => {
       skipped: [],
       failed: [],
     })
-    expect(mutations()).toEqual(['i18nKey.create', 'localeValue.createMany'])
+    expect(mutations()).toEqual([
+      'i18nKey.create',
+      'localeValue.createMany',
+      'localeValue.upsert',
+    ])
     expect(db.logNulledFor).toEqual([])
     expect(db.baseDeleted).toEqual([])
     expect(db.tagUpdated).toEqual([])
@@ -349,6 +362,7 @@ describe('transferKeys — move', () => {
     expect(mutations()).toEqual([
       'i18nKey.create',
       'localeValue.createMany',
+      'localeValue.upsert',
       'translationLog.updateMany',
       'gitSyncConflict.deleteMany',
       'tag.updateMany',
