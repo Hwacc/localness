@@ -300,6 +300,61 @@ function releaseLabelsOf(row: II18nKeyRow) {
   )
 }
 
+/**
+ * One column per locale. Extracted from the list below so the source language can
+ * also stand where `Origin` used to: a key's original text *is* that language's
+ * text, and two columns for one value is exactly what this removes.
+ */
+function localeColumn(code: string): TableColumn<II18nKeyRow> {
+  const meta = localeMeta(code)
+  return {
+    id: code,
+    header: ({ column }: { column: Column<II18nKeyRow, unknown> }) => (
+      <div class="flex items-center gap-1">
+        {meta ? <UIcon name={meta.icon} size="14" /> : null}
+        <span>{meta?.short || code}</span>
+        <UButton
+          color="neutral"
+          variant="ghost"
+          size="xs"
+          square
+          icon={column.getIsPinned() ? 'i-lucide:pin-off' : 'i-lucide:pin'}
+          onClick={() =>
+            column.pin(column.getIsPinned() === 'left' ? false : 'left')
+          }
+        />
+      </div>
+    ),
+    enableHiding: true,
+    size: 200,
+    cell: ({ row }: { row: TableRow<II18nKeyRow> }) => {
+      const original = row.original
+      const published = !original.dirty
+      return (
+        <UInput
+          modelValue={cellDraft(original, code)}
+          size="sm"
+          class="min-w-44"
+          disabled={published}
+          onUpdate:modelValue={(v: string) => {
+            if (published) return
+            setCellDraft(original, code, v ?? '')
+          }}
+          onBlur={() => {
+            if (published) return
+            saveDraft(original, code, cellDraft(original, code))
+          }}
+        />
+      )
+    },
+  } as TableColumn<II18nKeyRow>
+}
+
+/** The source language leads, the rest keep the project's own order. */
+const otherLocaleCodes = computed(() =>
+  props.localeCodes.filter((code) => code !== props.sourceLocale)
+)
+
 const columns = computed<TableColumn<II18nKeyRow>[]>(() => [
   {
     id: 'select',
@@ -431,21 +486,9 @@ const columns = computed<TableColumn<II18nKeyRow>[]>(() => [
       )
     },
   },
-  {
-    id: 'origin',
-    accessorKey: 'origin',
-    header: ({ column }) => pinHeader(column, 'Origin'),
-    enableHiding: false,
-    size: 220,
-    cell: ({ row }: { row: TableRow<II18nKeyRow> }) => (
-      <div
-        class="max-w-56 line-clamp-2 text-muted"
-        title={row.original.origin || ''}
-      >
-        {row.original.origin || '—'}
-      </div>
-    ),
-  },
+  // Where `Origin` used to sit: the original text's own column, first among the
+  // languages and editable like any other (editing it moves the key's text).
+  localeColumn(props.sourceLocale),
   {
     id: 'tagCount',
     accessorKey: 'tagCount',
@@ -518,50 +561,7 @@ const columns = computed<TableColumn<II18nKeyRow>[]>(() => [
         },
       ]
     : []),
-  ...props.localeCodes.map((code) => {
-    const meta = localeMeta(code)
-    return {
-      id: code,
-      header: ({ column }: { column: Column<II18nKeyRow, unknown> }) => (
-        <div class="flex items-center gap-1">
-          {meta ? <UIcon name={meta.icon} size="14" /> : null}
-          <span>{meta?.short || code}</span>
-          <UButton
-            color="neutral"
-            variant="ghost"
-            size="xs"
-            square
-            icon={column.getIsPinned() ? 'i-lucide:pin-off' : 'i-lucide:pin'}
-            onClick={() =>
-              column.pin(column.getIsPinned() === 'left' ? false : 'left')
-            }
-          />
-        </div>
-      ),
-      enableHiding: true,
-      size: 200,
-      cell: ({ row }: { row: TableRow<II18nKeyRow> }) => {
-        const original = row.original
-        const published = !original.dirty
-        return (
-          <UInput
-            modelValue={cellDraft(original, code)}
-            size="sm"
-            class="min-w-44"
-            disabled={published}
-            onUpdate:modelValue={(v: string) => {
-              if (published) return
-              setCellDraft(original, code, v ?? '')
-            }}
-            onBlur={() => {
-              if (published) return
-              saveDraft(original, code, cellDraft(original, code))
-            }}
-          />
-        )
-      },
-    } as TableColumn<II18nKeyRow>
-  }),
+  ...otherLocaleCodes.value.map((code) => localeColumn(code)),
   {
     id: 'actions',
     header: ({ column }) => pinHeader(column, '', 'right'),

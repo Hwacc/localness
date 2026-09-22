@@ -7,7 +7,6 @@ import {
   exportLocaleColumns,
   type ExportRowsResult,
 } from '#server/helper/export-rows'
-import { sourceTextOf } from '#server/helper/i18n'
 
 /**
  * Loads everything the export and its summary need from one selection, so both
@@ -61,7 +60,6 @@ export async function loadExportSelection(
     keys: keys.map((key) => ({
       id: key.id,
       key: key.key,
-      origin: sourceTextOf(key.locales, sourceLocale),
       locales: key.locales.map((locale) => ({
         locale: locale.locale,
         publishedText: locale.publishedText,

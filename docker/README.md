@@ -159,9 +159,27 @@ LOCALNESS_IMAGE=huacc/localness:1.3.0 docker compose up -d
 ```
 
 Migrations are applied by the entrypoint on every boot (`prisma migrate
-deploy`), which is idempotent. `I18nKey_FTS*` is declared external in
-`prisma.config.ts`, so migrations never drop the search index; the FTS tables
-are created by the `init-fts` nitro plugin on first boot.
+deploy`), which is idempotent.
+
+### Backfilling the source language (one-off)
+
+A key's original text used to be `I18nKey.origin` on its own. It now lives in the
+**source language** (`ProjectSettings.localeFallback`), as that locale's
+`draftText`, and a later release drops the column. Between those two releases run
+this once, from the same directory as `update.sh`:
+
+```bash
+./backfill-source-locale.sh           # report only — writes nothing
+./backfill-source-locale.sh --apply   # copy the database, backfill, re-check
+```
+
+It pipes the backfill script into the running container (the image may predate
+it, since it has to run before the release that drops the column), copies the
+database with SQLite's `VACUUM INTO` into `./backups/` — consistent without
+stopping the container — and then backfills. The last two lines of the report
+must both read `0` before deploying the release that drops the column. Keys whose
+source-language row already holds a *different* text are listed and left as they
+are: those are the ones to look at by hand.
 
 ## Publishing an image
 

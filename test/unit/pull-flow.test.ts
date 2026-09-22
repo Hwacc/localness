@@ -1,9 +1,12 @@
 import { describe, expect, it, vi, beforeEach } from 'vitest'
+import { fpTranslation } from '#shared/utils'
 
 const db = vi.hoisted(() => ({
   binding: null as Record<string, unknown> | null,
   previews: [] as Record<string, unknown>[],
   transactions: 0,
+  /** The key-row writes, so the fingerprint rule for the source language is asserted. */
+  keyWrites: [] as Array<{ create: unknown; update: unknown }>,
   localeWrites: [] as Record<string, unknown>[],
   basesWritten: [] as Record<string, unknown>[],
   conflictRow: null as { status: string } | null,
@@ -15,7 +18,18 @@ const remote = vi.hoisted(() => ({ headSha: 'sha-preview' }))
 
 vi.mock('#server/libs/prisma', () => {
   const tx = {
-    i18nKey: { upsert: async () => ({ id: 1 }) },
+    i18nKey: {
+      upsert: async ({
+        create,
+        update,
+      }: {
+        create: unknown
+        update: unknown
+      }) => {
+        db.keyWrites.push({ create, update })
+        return { id: 1 }
+      },
+    },
     // The project's source language, read before the transaction and stubbed here
     // so both the client and its transaction answer it.
     projectSettings: {
@@ -151,6 +165,7 @@ beforeEach(() => {
   }
   db.previews = [pending()]
   db.transactions = 0
+  db.keyWrites = []
   db.localeWrites = []
   db.basesWritten = []
   db.conflictRow = { status: 'theirs' }
@@ -237,6 +252,14 @@ describe('applyPull', () => {
     expect(db.localeWrites[0]!.update).toMatchObject({
       draftText: 'Git text',
       publishedText: 'Git text',
+    })
+    /*
+     * This is the project's source language, so the key's fingerprint follows the
+     * text Git just landed — the original text is that locale's row now, and the
+     * column that used to hold it is gone.
+     */
+    expect(db.keyWrites[0]!.update).toEqual({
+      fingerprint: fpTranslation('Git text'),
     })
   })
 
@@ -362,5 +385,8 @@ describe('resolveConflict', () => {
       publishedText: 'git',
     })
     expect(db.basesWritten[0]!.update).toMatchObject({ baseText: 'git' })
+    // `en-US` is not the source language here, so the key row keeps its fingerprint
+    // and nothing else is written.
+    expect(db.keyWrites[0]!.update).toEqual({})
   })
 })

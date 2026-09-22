@@ -427,7 +427,6 @@ export async function resolveTagI18n(params: {
       await prisma.i18nKey.update({
         where: { id: clash.id },
         data: {
-          origin: currentText,
           fingerprint: clash.fingerprint || current.fingerprint,
         },
       })
@@ -449,7 +448,6 @@ export async function resolveTagI18n(params: {
       create: {
         projectId,
         key: keyText,
-        origin: params.origin ?? '',
         fingerprint: params.fingerprint ?? '',
       },
       update: {},

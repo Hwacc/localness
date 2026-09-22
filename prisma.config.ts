@@ -10,16 +10,4 @@ export default defineConfig({
   datasource: {
     url: env('DATABASE_URL'),
   },
-  experimental: {
-    externalTables: true
-  },
-  tables: {
-    external: [
-      'I18nKey_FTS',
-      'I18nKey_FTS_data',
-      'I18nKey_FTS_config',
-      'I18nKey_FTS_docsize',
-      'I18nKey_FTS_idx',
-    ]
-  }
 })

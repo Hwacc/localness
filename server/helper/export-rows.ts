@@ -13,7 +13,6 @@ export type ExportTagInput = {
 export type ExportKeyInput = {
   id: number
   key: string
-  origin: string
   locales: Array<{
     locale: string
     publishedText: string | null
@@ -27,7 +26,6 @@ export type ExportRow = {
   /** Screenshot filename, empty for a key with no tag on the chosen pages. */
   pic: string
   key: string
-  origin: string
   /** Published text per locale column. Missing locales are empty strings. */
   texts: Record<string, string>
 }
@@ -46,8 +44,8 @@ export type ExportRowsResult = {
 
 /**
  * Locale columns for the sheet: the picked ones in their given order, with the
- * fallback locale kept in front when asked for (the `origin` column and the
- * source of truth for a key both live in that locale).
+ * source language kept in front when asked for — its column is where the sheet's
+ * original text lives, so it leads the same way `Origin` used to.
  */
 export function exportLocaleColumns(params: {
   locales: string[]
@@ -113,7 +111,6 @@ export function buildExportRows(params: {
         keyId: key.id,
         pic: '',
         key: key.key,
-        origin: key.origin,
         texts,
       })
       continue
@@ -125,7 +122,6 @@ export function buildExportRows(params: {
         keyId: key.id,
         pic: params.picByPageId.get(tag.pageId) ?? '',
         key: key.key,
-        origin: key.origin,
         texts,
       })
     }
