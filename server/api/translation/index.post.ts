@@ -110,7 +110,7 @@ export default defineEventHandler(async (event) => {
     }
     const loaded = await prisma.i18nKey.findUnique({
       where: { id: record.id },
-      include: { locales: true },
+      include: { locales: true, releases: { select: { releaseId: true } } },
     })
     await prisma.translationLog.create({
       data: {

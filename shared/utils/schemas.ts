@@ -88,6 +88,8 @@ export const zTag = z.object(
     i18nKey: zNilable(z.string()),
     translationID: zNilable(z.number().nonnegative()),
     i18nKeyId: zNilable(z.number().nonnegative()),
+    /** Labels for the key this tag is bound to. Omitted leaves them untouched. */
+    releaseIds: z.array(z.number().int().positive()).optional(),
     settings: zTagSetting.optional(),
   },
   'Tag parameters validate failed'

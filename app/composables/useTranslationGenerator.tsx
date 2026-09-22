@@ -55,7 +55,10 @@ export function useTranslationGenerator() {
     },
   })
 
-  async function generateTranslation(trans: ITranslation) {
+  async function generateTranslation(
+    trans: ITranslation,
+    releaseIds?: number[]
+  ) {
     if (!trans.origin) return null
     let checkedID: ID | null = null
     if (trans.fingerprint) {
@@ -63,6 +66,16 @@ export function useTranslationGenerator() {
         `/api/translation/check?fp=${trans.fingerprint}&projectId=${projectStore.curProject.id}`
       )
     }
+    /*
+     * Every "create a translation" path goes through here, and only the create
+     * calls below may label it: the caller's choice when it has a picker, the
+     * release being viewed when it does not. See the omit list for the recover
+     * path, which posts the same object at an existing entry.
+     */
+    const viewedRelease = defaultReleaseIdForFilter(
+      projectStore.curReleaseFilter
+    )
+    const labels = releaseIds ?? (viewedRelease ? [viewedRelease] : [])
     console.log('checked', trans, checkedID)
     return new Promise<ITranslation | null>((resolve) => {
       const cleanTrans = omit(trans, [
@@ -70,6 +83,7 @@ export function useTranslationGenerator() {
         'fingerprint',
         'updatedAt',
         'createdAt',
+        'releaseIds',
       ])
       if (checkedID) {
         // open ask modal
@@ -107,6 +121,7 @@ export function useTranslationGenerator() {
                   ...cleanTrans,
                   projectId: projectStore.curProject.id,
                   force: true,
+                  releaseIds: labels,
                 },
               })
               resolve(res)
@@ -129,6 +144,7 @@ export function useTranslationGenerator() {
           body: {
             ...cleanTrans,
             projectId: projectStore.curProject.id,
+            releaseIds: labels,
           },
         })
           .then((res) => {
@@ -145,9 +161,11 @@ export function useTranslationGenerator() {
   async function ocr({
     image,
     language = 'auto',
+    releaseIds,
   }: {
     image: string
     language?: string
+    releaseIds?: number[]
   }) {
     const lang = pageStore.curPage.settings?.ocrLanguage || language
     const ocrRes = await useApi<{
@@ -166,15 +184,18 @@ export function useTranslationGenerator() {
       })
       return
     }
-    return await generateTranslation({
-      origin: ocrRes.text,
-      fingerprint: ocrRes.fingerprint,
-    } as ITranslation)
+    return await generateTranslation(
+      {
+        origin: ocrRes.text,
+        fingerprint: ocrRes.fingerprint,
+      } as ITranslation,
+      releaseIds
+    )
   }
 
-  async function manual(translation: ITranslation) {
+  async function manual(translation: ITranslation, releaseIds?: number[]) {
     if (!translation.origin) return null
-    return await generateTranslation(translation)
+    return await generateTranslation(translation, releaseIds)
   }
 
   return { ocr, manual }

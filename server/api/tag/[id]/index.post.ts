@@ -3,6 +3,7 @@ import prisma from '#server/libs/prisma'
 import { readZodBody } from '#server/helper/validate'
 import { numericID } from '#server/helper/id'
 import { requireTagTeamMember } from '#server/helper/access'
+import { setBoundKeyReleases } from '#server/helper/release'
 import {
   deleteUnusedDraftI18nKey,
   loadShapedTag,
@@ -24,10 +25,8 @@ export default defineEventHandler(async (event) => {
   }
   const nID = numericID(id)
   await requireTagTeamMember(event, nID)
-  const { settings, translationID, i18nKeyId, ...body } = await readZodBody(
-    event,
-    zTag.partial().parse
-  )
+  const { settings, translationID, i18nKeyId, releaseIds, ...body } =
+    await readZodBody(event, zTag.partial().parse)
 
   if (settings) {
     await prisma.tagSettings.upsert({
@@ -44,7 +43,13 @@ export default defineEventHandler(async (event) => {
 
   const existing = await prisma.tag.findUnique({
     where: { id: nID },
-    select: { pageID: true, i18nKey: true, i18nKeyId: true },
+    select: {
+      pageID: true,
+      i18nKey: true,
+      i18nKeyId: true,
+      // Only for the project the labels are validated against.
+      page: { select: { projectID: true } },
+    },
   })
   if (!existing) {
     throw createError({
@@ -94,6 +99,13 @@ export default defineEventHandler(async (event) => {
   ) {
     await deleteUnusedDraftI18nKey(existing.i18nKeyId)
   }
+
+  // After the binding: the labels belong to whichever key this save ended up on.
+  await setBoundKeyReleases({
+    projectId: i18n?.projectId ?? existing.page.projectID,
+    i18nKeyId: i18n ? i18n.i18nKeyId : existing.i18nKeyId,
+    releaseIds,
+  })
 
   return await loadShapedTag(nID)
 })

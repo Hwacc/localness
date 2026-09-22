@@ -47,7 +47,8 @@ export function useTagModal() {
             // trans origin changed -> create new translation
             if (isTransOriginChanged) {
               updatedTrans = await translationGenerator.manual(
-                translation as ITranslation
+                translation as ITranslation,
+                tag.releaseIds
               )
             }
             // update translation content
@@ -92,7 +93,7 @@ export function useTagModal() {
           tagModal.patch({ loading: false })
         }
       },
-      onCreateTrans: async ({ type, translation }) => {
+      onCreateTrans: async ({ type, translation, releaseIds }) => {
         try {
           tagModal.patch({ loading: true })
           const handleUpdateTag = async (
@@ -122,6 +123,7 @@ export function useTagModal() {
             // ocr -> create translation -> update tag
             const createdTrans = await translationGenerator.ocr({
               image: opt.clip,
+              releaseIds,
             })
             await handleUpdateTag(createdTrans)
           } else if (type === 'link') {
@@ -138,7 +140,8 @@ export function useTagModal() {
           } else if (type === 'manual') {
             // manual -> create translation -> update tag
             const createdTrans = await translationGenerator.manual(
-              translation as ITranslation
+              translation as ITranslation,
+              releaseIds
             )
             await handleUpdateTag(createdTrans)
           }
