@@ -1,23 +1,25 @@
-import type { AbstractAgent } from './agent/AbstractAgent'
-import type { ZGenI18nKey } from '#shared/utils/schemas'
-import { CozeAgent } from './agent/CozeAgent'
+import type { AgentI18nKeyResult } from '#shared/types'
+import type { I18nKeyGenerateParams } from './agent/I18nKeyGenerateAgent'
+import { I18nKeyGenerateAgent } from './agent/I18nKeyGenerateAgent'
 
+/**
+ * One agent per feature, built on first use: an unconfigured deployment must
+ * still boot, and the failure belongs to the request that needed the agent.
+ */
 class AgentManager {
   private static instance: AgentManager
-  private cozeAgent: AbstractAgent | undefined
+  private i18nKeyAgent: I18nKeyGenerateAgent | undefined
 
   private constructor() {}
 
-  // Built on first use, not on import: `CozeAgent` reads its credential file in
-  // the constructor, so an eager build would throw at module evaluation and take
-  // the whole server down when the secrets are absent.
-  private get agent(): AbstractAgent {
-    this.cozeAgent ??= new CozeAgent()
-    return this.cozeAgent
+  private get keyGen(): I18nKeyGenerateAgent {
+    return (this.i18nKeyAgent ??= new I18nKeyGenerateAgent())
   }
 
-  public async generateI18nKey<T>(parmas?: ZGenI18nKey): Promise<T> {
-    return this.agent.generateI18nKey(parmas)
+  public generateI18nKey(
+    params: I18nKeyGenerateParams
+  ): Promise<AgentI18nKeyResult> {
+    return this.keyGen.generateI18nKey(params)
   }
 
   public static getInstance(): AgentManager {

@@ -7,6 +7,7 @@ import {
   OCR_LANGUAGES,
   TeamRole,
 } from '#shared/constants'
+import { KEY_STYLE_VALUES } from '#shared/utils/key-convention'
 
 /** Accepts T | null | undefined, including a missing object key (Zod v4). */
 export function zNilable<T extends z.ZodType>(schema: T) {
@@ -35,6 +36,12 @@ export const zProject = z.object({
     ocrLanguage: z.string(),
     ocrEngine: z.number(),
     prompt: zNilable(z.string()),
+    // Optional, not nilable: the columns are NOT NULL, and `null` for "no
+    // prefix" would be ambiguous — the empty string is that.
+    keyPrefix: z.string().optional(),
+    keySeparator: z.string().min(1, 'separator cannot be empty').optional(),
+    keyStyle: z.enum(KEY_STYLE_VALUES).optional(),
+    keyMaxDepth: z.number().int().min(1).max(10).optional(),
   }),
 })
 export type ZProject = z.infer<typeof zProject>
@@ -46,6 +53,12 @@ export const zPage = z.object({
     ocrLanguage: z.string(),
     ocrEngine: z.number(),
     prompt: zNilable(z.string()),
+    // Nilable, unlike the project's: on a page `null` means "inherit", and the
+    // form writes all four or leaves all four alone.
+    keyPrefix: zNilable(z.string()),
+    keySeparator: zNilable(z.string().min(1, 'separator cannot be empty')),
+    keyStyle: zNilable(z.enum(KEY_STYLE_VALUES)),
+    keyMaxDepth: zNilable(z.number().int().min(1).max(10)),
   }),
   /** Release labels to attach. Omitted leaves them untouched on update. */
   releaseIds: z.array(z.number().int().positive()).optional(),
@@ -75,6 +88,8 @@ export const zTag = z.object(
     i18nKey: zNilable(z.string()),
     translationID: zNilable(z.number().nonnegative()),
     i18nKeyId: zNilable(z.number().nonnegative()),
+    /** Labels for the key this tag is bound to. Omitted leaves them untouched. */
+    releaseIds: z.array(z.number().int().positive()).optional(),
     settings: zTagSetting.optional(),
   },
   'Tag parameters validate failed'
@@ -137,6 +152,10 @@ export const zPageSetting = z.object(
       })
     ),
     prompt: zNilable(z.string()),
+    keyPrefix: zNilable(z.string()),
+    keySeparator: zNilable(z.string().min(1, 'separator cannot be empty')),
+    keyStyle: zNilable(z.enum(KEY_STYLE_VALUES)),
+    keyMaxDepth: zNilable(z.number().int().min(1).max(10)),
   },
   'Page setting parameters validate failed'
 )
@@ -275,6 +294,16 @@ export const zGenI18nKey = z.object({
   tagPrompt: zNilable(z.string()),
 })
 export type ZGenI18nKey = z.infer<typeof zGenI18nKey>
+
+/**
+ * Naming a key for an entry rather than a tag. No tag id, and no page-level
+ * guidance: an entry's tags can sit on several pages, so the project's own
+ * prompt is the only instruction that is certain to apply.
+ */
+export const zGenI18nKeyForProject = z.object({
+  origin: z.string().min(1),
+})
+export type ZGenI18nKeyForProject = z.infer<typeof zGenI18nKeyForProject>
 
 export function isHttpsRemoteUrl(value: string): boolean {
   return normalizeGitHttpsRemote(value) != null

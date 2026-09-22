@@ -72,6 +72,52 @@ const drafts = ref<Record<string, string>>({})
 const editingKeyId = ref<ID | null>(null)
 const keyDraft = ref('')
 
+/*
+ * The AI panel opens as an expanded row rather than a popover. A floating panel
+ * anchored to a cell inside a scrolling table either drifts away from its row or
+ * has to be closed the moment you scroll, and both read as broken; an expanded
+ * row is *part of* the table, so it scrolls with it, cannot be clipped by it,
+ * and needs no anchoring at all.
+ */
+const expanded = ref<Record<string, boolean>>({})
+const askingId = ref<ID | null>(null)
+const { suggestion: keySuggestion, generate: generateKey } =
+  useI18nKeyGeneration()
+
+/** One panel at a time: it spans the whole table, so a list of them is unreadable. */
+async function askAi(row: II18nKeyRow) {
+  const id = String(row.id)
+  if (expanded.value[id]) {
+    /*
+     * A second click closes. Reopening asks again on purpose — an old answer may
+     * be stale by then — while closing costs nothing, which is what matters when
+     * one call can take 20 seconds.
+     */
+    expanded.value = {}
+    return
+  }
+  askingId.value = row.id
+  expanded.value = { [id]: true }
+  try {
+    await generateKey({ projectId: props.projectId, origin: row.origin })
+  } finally {
+    askingId.value = null
+  }
+}
+
+function onPickSuggestion(row: II18nKeyRow, key: string) {
+  // Land the name in the inline editor rather than writing it: the row's commit
+  // is Enter or blur, and the name should be seen in place before it goes in.
+  keyDraft.value = key
+  editingKeyId.value = row.id
+  expanded.value = {}
+}
+
+/** Discarding the panel is just closing it — the row keeps whatever it had. */
+function closeSuggestion() {
+  expanded.value = {}
+}
+
 function cellKey(rowId: ID, locale: string) {
   return `${rowId}:${locale}`
 }
@@ -290,12 +336,12 @@ const columns = computed<TableColumn<II18nKeyRow>[]>(() => [
         'A draft key can still be renamed: click it, or use the pencil. A published key keeps its name — revert it to draft first.',
       ),
     enableHiding: false,
-    size: 200,
+    size: 260,
     // Pinned: width must match `size` exactly (see the select column).
     meta: {
       class: {
-        th: 'w-[200px] min-w-[200px] max-w-[200px]',
-        td: 'w-[200px] min-w-[200px] max-w-[200px]',
+        th: 'w-[260px] min-w-[260px] max-w-[260px]',
+        td: 'w-[260px] min-w-[260px] max-w-[260px]',
       },
     },
     cell: ({ row }: { row: TableRow<II18nKeyRow> }) => {
@@ -326,7 +372,10 @@ const columns = computed<TableColumn<II18nKeyRow>[]>(() => [
       // Only a draft is offered the affordance, matching what the server allows.
       if (!original.dirty) {
         return (
-          <code class="text-xs font-mono break-all" title={original.key}>
+          <code
+            class="block truncate text-xs font-mono"
+            title={original.key}
+          >
             {formatI18nKeyDisplay(original.key)}
           </code>
         )
@@ -338,7 +387,7 @@ const columns = computed<TableColumn<II18nKeyRow>[]>(() => [
       return (
         <div class="flex items-start gap-1">
           <code
-            class="min-w-0 rounded px-1 -ml-1 text-xs font-mono break-all cursor-text hover:bg-elevated"
+            class="block min-w-0 truncate rounded px-1 -ml-1 text-xs font-mono cursor-text hover:bg-elevated"
             title={original.key}
             onClick={() => startKeyEdit(original)}
           >
@@ -354,6 +403,23 @@ const columns = computed<TableColumn<II18nKeyRow>[]>(() => [
               icon="i-lucide:pencil"
               aria-label="Rename key"
               onClick={() => startKeyEdit(original)}
+            />
+          </UTooltip>
+          {/*
+            Outside the inline editor on purpose: that input commits on blur, so
+            anything opened from inside it would blur it, commit, and close.
+          */}
+          <UTooltip text="Name this key with AI">
+            <UButton
+              class="shrink-0 text-muted size-4 p-0 justify-center"
+              variant="ghost"
+              color="neutral"
+              ui={{ leadingIcon: 'size-3' }}
+              square
+              icon="i-mdi:robot"
+              loading={String(askingId.value) === String(original.id)}
+              aria-label="Name this key with AI"
+              onClick={() => askAi(original)}
             />
           </UTooltip>
         </div>
@@ -603,6 +669,7 @@ defineExpose({
         ref="table"
         v-model:row-selection="rowSelection"
         v-model:column-pinning="columnPinning"
+        v-model:expanded="expanded"
         sticky="header"
         class="h-full"
         :data="rows"
@@ -613,7 +680,7 @@ defineExpose({
           root: 'h-full overflow-auto',
           base: 'min-w-max',
           th: 'bg-default',
-          td: 'align-top bg-default',
+          td: 'px-4 py-2.5 align-middle bg-default',
         }"
       >
         <template #empty>
@@ -623,6 +690,27 @@ defineExpose({
                 ? 'No keys yet. Create tags in the editor to populate this table.'
                 : 'Select a project to manage translations.'
             }}
+          </div>
+        </template>
+        <template #expanded="{ row }">
+          <!-- Capped: the row spans every locale column, and a two-column panel
+               stretched across 2000px is harder to read, not easier. -->
+          <div class="w-fit pl-12">
+            <AIKeySuggestion
+              v-if="keySuggestion"
+              layout="horizontal"
+              :suggestion="keySuggestion"
+              :origin="row.original.origin"
+              @pick="onPickSuggestion(row.original, $event)"
+              @cancel="closeSuggestion"
+            />
+            <p v-else class="text-xs text-muted">
+              {{
+                String(askingId) === String(row.original.id)
+                  ? 'Thinking…'
+                  : 'No suggestion — the reason is in the notification.'
+              }}
+            </p>
           </div>
         </template>
       </UTable>

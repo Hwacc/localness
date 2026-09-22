@@ -2,6 +2,10 @@
 import type { FormSubmitEvent } from '@nuxt/ui'
 import type { ImageUploader } from '#components'
 import { omit } from 'lodash-es'
+import {
+  DEFAULT_KEY_CONVENTION,
+  KEY_STYLES,
+} from '#shared/utils/key-convention'
 
 type Mode = 'edit' | 'create' | 'view'
 const {
@@ -33,7 +37,13 @@ const projectStore = useProjectStore()
 /** A page created while one release is being viewed starts on that release. */
 const defaultReleaseId = defaultReleaseIdForFilter(projectStore.curReleaseFilter)
 
-const state = reactive<ZPage>({
+/*
+ * Deliberately not typed `ZPage`: the four convention fields are nullable in
+ * the API and the schema, but the form holds concrete values. Whether a value
+ * is written at all is the switch's decision at submit time, so keeping nulls
+ * out of the fields is what lets them bind straight to the inputs.
+ */
+const state = reactive({
   name: page.name,
   image: page.image,
   settings: {
@@ -46,6 +56,12 @@ const state = reactive<ZPage>({
       projectStore.curProject?.settings?.ocrEngine ??
       1,
     prompt: page.settings?.prompt ?? '',
+    keyPrefix: page.settings?.keyPrefix ?? '',
+    keySeparator:
+      page.settings?.keySeparator ?? DEFAULT_KEY_CONVENTION.separator,
+    keyStyle: page.settings?.keyStyle ?? DEFAULT_KEY_CONVENTION.style,
+    keyMaxDepth:
+      page.settings?.keyMaxDepth ?? DEFAULT_KEY_CONVENTION.maxDepth,
   },
   releaseIds:
     mode === 'create'
@@ -54,6 +70,58 @@ const state = reactive<ZPage>({
         : []
       : (page.releaseIds ?? []).map(Number),
 })
+
+/*
+ * The page follows the project's key convention unless it says otherwise, and
+ * this switch is that "otherwise". All four move together: a per-field mixture
+ * ("prefix from the page, separator from the project") is not something the UI
+ * could explain, so it is not something the form can produce.
+ *
+ * `keyPrefix` is the tell because it is the one field where a customised value
+ * can legitimately be empty — which is also why it cannot double as "unset".
+ */
+const customKeyConvention = ref(
+  page.settings?.keyPrefix !== null && page.settings?.keyPrefix !== undefined
+)
+
+/** What the project would supply, field by field. */
+const projectConvention = computed(() => ({
+  prefix: projectStore.curProject?.settings?.keyPrefix ?? '',
+  separator:
+    projectStore.curProject?.settings?.keySeparator ??
+    DEFAULT_KEY_CONVENTION.separator,
+  style:
+    projectStore.curProject?.settings?.keyStyle ??
+    DEFAULT_KEY_CONVENTION.style,
+  maxDepth:
+    projectStore.curProject?.settings?.keyMaxDepth ??
+    DEFAULT_KEY_CONVENTION.maxDepth,
+}))
+
+/**
+ * The four fields always show what will actually be used — the project's values
+ * while inheriting, the page's own while customising — so the form never shows
+ * one set of rules while another is in force. Switching to customising keeps
+ * what is on screen, so the project's values become the starting point.
+ */
+function applyConvention(custom: boolean) {
+  if (custom) return
+  const inherited = projectConvention.value
+  state.settings.keyPrefix = inherited.prefix
+  state.settings.keySeparator = inherited.separator
+  state.settings.keyStyle = inherited.style
+  state.settings.keyMaxDepth = inherited.maxDepth
+}
+applyConvention(customKeyConvention.value)
+
+/*
+ * Not `v-model` plus a handler: both compile to `onUpdate:modelValue`, so the
+ * handler would replace the ref write instead of running alongside it.
+ */
+function onCustomChange(value: boolean) {
+  customKeyConvention.value = value
+  applyConvention(value)
+}
 watch(
   () => state.settings.ocrLanguage,
   (value) => {
@@ -101,21 +169,39 @@ const uploaderRef =
 async function onSubmit(_: FormSubmitEvent<ZPage>) {
   isLoading.value = true
   try {
+    /*
+     * Inheriting is written as nulls — never as a copy of the project's current
+     * values, which would freeze them into the page and stop it following the
+     * project from then on. Built as a payload rather than mutated into `state`
+     * so the form never sees a null.
+     */
+    const payload = {
+      ...state,
+      settings: customKeyConvention.value
+        ? state.settings
+        : {
+            ...state.settings,
+            keyPrefix: null,
+            keySeparator: null,
+            keyStyle: null,
+            keyMaxDepth: null,
+          },
+    }
     if (mode === 'edit') {
       // update page
       const uploadRes = await uploaderRef.value?.upload()
       if (uploadRes) {
-        state.image = uploadRes.key
+        payload.image = uploadRes.key
       }
-      await updatePage(page.id, uploadRes ? state : omit(state, 'image'))
+      await updatePage(page.id, uploadRes ? payload : omit(payload, 'image'))
     } else if (mode === 'create') {
       // create page
       const uploadRes = await uploaderRef.value?.upload()
       if (!uploadRes) return
-      state.image = uploadRes.key
-      await createPage(state)
+      payload.image = uploadRes.key
+      await createPage(payload)
     }
-    emit('save', state as Pick<IPage, 'name' | 'image' | 'settings'>, {
+    emit('save', payload as Pick<IPage, 'name' | 'image' | 'settings'>, {
       close: () => emit('close', true),
     })
   } catch (error) {
@@ -145,7 +231,17 @@ async function onSubmit(_: FormSubmitEvent<ZPage>) {
         :state="state"
         @submit="onSubmit"
       >
-        <UTabs :items="tabsItems" variant="link" :ui="{ trigger: 'grow' }">
+        <!--
+          Panes stay mounted: the uploader owns the picked file until submit, so
+          unmounting it on a tab switch throws that file away, and a submit made
+          from another tab finds no uploader at all.
+        -->
+        <UTabs
+          :items="tabsItems"
+          variant="link"
+          :unmount-on-hide="false"
+          :ui="{ trigger: 'grow' }"
+        >
           <template #basic>
             <div class="flex flex-col gap-2.5">
               <UFormField label="Name" name="name">
@@ -181,6 +277,12 @@ async function onSubmit(_: FormSubmitEvent<ZPage>) {
           </template>
           <template #settings>
             <div class="flex flex-col gap-2.5">
+              <!--
+                Not `text-sm font-medium`: that is what the field labels below
+                already use, so a heading in those clothes reads as one more
+                label rather than as a section.
+              -->
+              <h3 class="text-xs font-medium text-muted uppercase">OCR</h3>
               <div class="flex items-center gap-4">
                 <UFormField
                   class="flex-1"
@@ -212,6 +314,74 @@ async function onSubmit(_: FormSubmitEvent<ZPage>) {
                 color="warning"
                 title="Warning"
                 description="Auto language detection is only supported by Engine 2."
+              />
+              <h3 class="text-xs font-medium text-muted uppercase">
+                AI key naming
+              </h3>
+              <USwitch
+                :model-value="customKeyConvention"
+                label="Custom key convention"
+                description="Off, this page follows the project's key naming rules."
+                :disabled="mode === 'view' || isLoading"
+                @update:model-value="onCustomChange"
+              />
+              <div class="flex items-center gap-4">
+                <UFormField
+                  class="flex-1"
+                  label="Key Prefix"
+                  name="settings.keyPrefix"
+                >
+                  <UInput
+                    v-model="state.settings.keyPrefix"
+                    class="w-full"
+                    :disabled="!customKeyConvention || isLoading"
+                  />
+                </UFormField>
+                <UFormField
+                  class="flex-1"
+                  label="Key Separator"
+                  name="settings.keySeparator"
+                >
+                  <UInput
+                    v-model="state.settings.keySeparator"
+                    class="w-full font-mono"
+                    :disabled="!customKeyConvention || isLoading"
+                  />
+                </UFormField>
+              </div>
+              <div class="flex items-center gap-4">
+                <UFormField
+                  class="flex-1"
+                  label="Key Style"
+                  name="settings.keyStyle"
+                >
+                  <USelect
+                    v-model="state.settings.keyStyle"
+                    :items="KEY_STYLES"
+                    class="w-full"
+                    :disabled="!customKeyConvention || isLoading"
+                  />
+                </UFormField>
+                <UFormField
+                  class="flex-1"
+                  label="Key Max Depth"
+                  name="settings.keyMaxDepth"
+                >
+                  <UInput
+                    v-model.number="state.settings.keyMaxDepth"
+                    type="number"
+                    class="w-full"
+                    :min="1"
+                    :max="10"
+                    :disabled="!customKeyConvention || isLoading"
+                  />
+                </UFormField>
+              </div>
+              <UAlert
+                variant="soft"
+                color="neutral"
+                icon="i-lucide:info"
+                description="Used when the AI names a key: what the generated key must look like. Leave the prefix empty for none."
               />
             </div>
           </template>

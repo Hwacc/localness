@@ -1,6 +1,11 @@
 <script setup lang="ts">
 import type { FormSubmitEvent } from '@nuxt/ui'
 import { AlertModal } from '#components'
+import {
+  DEFAULT_KEY_CONVENTION,
+  KEY_STYLES,
+  slugKeyPrefix,
+} from '#shared/utils/key-convention'
 
 type Mode = 'edit' | 'create'
 const {
@@ -40,8 +45,22 @@ const state = reactive({
     ocrLanguage: project.settings?.ocrLanguage ?? 'eng',
     ocrEngine: project.settings?.ocrEngine ?? 1,
     prompt: project.settings?.prompt ?? '',
+    keyPrefix: project.settings?.keyPrefix ?? '',
+    keySeparator:
+      project.settings?.keySeparator ?? DEFAULT_KEY_CONVENTION.separator,
+    keyStyle: project.settings?.keyStyle ?? DEFAULT_KEY_CONVENTION.style,
+    keyMaxDepth:
+      project.settings?.keyMaxDepth ?? DEFAULT_KEY_CONVENTION.maxDepth,
   },
 })
+
+/**
+ * The server seeds a new project's prefix from its name, so show what that
+ * would be rather than an empty box that fills itself in after saving.
+ */
+const prefixPlaceholder = computed(() =>
+  mode === 'create' ? slugKeyPrefix(state.name) : ''
+)
 
 /*
  * Releases are project config, so the same gate as the rest of Project Settings:
@@ -274,6 +293,12 @@ async function onSubmit(_: FormSubmitEvent<ZProject>) {
           </template>
           <template #settings>
             <div class="flex flex-col gap-2.5">
+              <!--
+                Not `text-sm font-medium`: that is what the field labels below
+                already use, so a heading in those clothes reads as one more
+                label rather than as a section.
+              -->
+              <h3 class="text-xs font-medium text-muted uppercase">OCR</h3>
               <div class="flex items-center gap-4">
                 <UFormField
                   class="flex-1"
@@ -305,6 +330,64 @@ async function onSubmit(_: FormSubmitEvent<ZProject>) {
                 color="warning"
                 title="Warning"
                 description="Auto language detection is only supported by Engine 2."
+              />
+              <h3 class="text-xs font-medium text-muted uppercase">
+                AI key naming
+              </h3>
+              <div class="flex items-center gap-4">
+                <UFormField
+                  class="flex-1"
+                  label="Key Prefix"
+                  name="settings.keyPrefix"
+                >
+                  <UInput
+                    v-model="state.settings.keyPrefix"
+                    class="w-full"
+                    :placeholder="prefixPlaceholder"
+                  />
+                </UFormField>
+                <UFormField
+                  class="flex-1"
+                  label="Key Separator"
+                  name="settings.keySeparator"
+                >
+                  <UInput
+                    v-model="state.settings.keySeparator"
+                    class="w-full font-mono"
+                  />
+                </UFormField>
+              </div>
+              <div class="flex items-center gap-4">
+                <UFormField
+                  class="flex-1"
+                  label="Key Style"
+                  name="settings.keyStyle"
+                >
+                  <USelect
+                    v-model="state.settings.keyStyle"
+                    :items="KEY_STYLES"
+                    class="w-full"
+                  />
+                </UFormField>
+                <UFormField
+                  class="flex-1"
+                  label="Key Max Depth"
+                  name="settings.keyMaxDepth"
+                >
+                  <UInput
+                    v-model.number="state.settings.keyMaxDepth"
+                    type="number"
+                    class="w-full"
+                    :min="1"
+                    :max="10"
+                  />
+                </UFormField>
+              </div>
+              <UAlert
+                variant="soft"
+                color="neutral"
+                icon="i-lucide:info"
+                description="Used when the AI names a key: what the generated key must look like. Leave the prefix empty for none."
               />
             </div>
           </template>

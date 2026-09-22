@@ -152,7 +152,7 @@ export async function requireTagTeamMember(event: H3Event, tagId: number) {
     where: { id: tagId },
     select: {
       id: true,
-      page: { select: { projectID: true } },
+      page: { select: { id: true, projectID: true } },
     },
   })
   if (!tag?.page.projectID) {

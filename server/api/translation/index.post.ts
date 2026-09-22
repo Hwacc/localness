@@ -9,6 +9,7 @@ import {
   setEntryReleases,
   throwReleaseHttp,
 } from '#server/helper/release'
+import { keyClashMessage } from '#server/helper/key-convention'
 
 /**
  * @route POST /api/translation
@@ -67,7 +68,7 @@ export default defineEventHandler(async (event) => {
     })
     throw createError({
       statusCode: 409,
-      statusMessage: 'Translation already exists',
+      statusMessage: keyClashMessage(existing, body.origin),
     })
   }
 
@@ -109,7 +110,7 @@ export default defineEventHandler(async (event) => {
     }
     const loaded = await prisma.i18nKey.findUnique({
       where: { id: record.id },
-      include: { locales: true },
+      include: { locales: true, releases: { select: { releaseId: true } } },
     })
     await prisma.translationLog.create({
       data: {

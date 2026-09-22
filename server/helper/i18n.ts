@@ -27,7 +27,11 @@ export const PROJECT_SETTINGS_OMIT = {
 
 export const tagI18nInclude = {
   i18nKeyRecord: {
-    include: { locales: true },
+    include: {
+      locales: true,
+      // The editor edits the bound key's release labels, so it has to receive them.
+      releases: { select: { releaseId: true } },
+    },
   },
   settings: {
     omit: TAG_SETTINGS_OMIT,
@@ -121,6 +125,7 @@ export function shapeI18nKey(
     createdAt?: Date
     updatedAt?: Date
     locales?: LocaleRow[]
+    releases?: Array<{ releaseId: number }>
   },
   version: I18nContentVersion = 'draft'
 ) {
@@ -133,6 +138,8 @@ export function shapeI18nKey(
     updatedAt: record.updatedAt,
     vue: content,
     react: { ...content },
+    /** Labels as plain ids, for the same reason pages carry them that way. */
+    releaseIds: (record.releases ?? []).map((release) => release.releaseId),
   }
 }
 

@@ -23,7 +23,7 @@ export default defineEventHandler(async (event) => {
   await requireI18nKeyTeamMember(event, nID)
   const existing = await prisma.i18nKey.findUnique({
     where: { id: nID },
-    include: { locales: true },
+    include: { locales: true, releases: { select: { releaseId: true } } },
   })
   if (!existing) {
     throw createError({
