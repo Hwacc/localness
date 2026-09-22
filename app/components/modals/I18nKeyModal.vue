@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import {
+  DEFAULT_LOCALE_FALLBACK,
   DEFAULT_LOCALES,
   TRANSLATION_LANGUAGES,
 } from '#shared/constants'
@@ -97,6 +98,25 @@ watch(
 function localeMeta(code: string) {
   return TRANSLATION_LANGUAGES.find((lang) => lang.value === code)
 }
+
+const localeItems = computed(() =>
+  localeCodes.value.map((code) => ({
+    label: localeMeta(code)?.label || code,
+    value: code,
+  }))
+)
+
+/**
+ * English starts open, being the fallback locale the API serves first; a project
+ * that does not carry it opens on whichever locale leads its own list. Held here
+ * rather than left to the accordion's own default: `UTabs` unmounts the tab it is
+ * not showing, so a default would be reapplied on every return to this one.
+ */
+const openLocale = ref<string | undefined>(
+  localeCodes.value.includes(DEFAULT_LOCALE_FALLBACK)
+    ? DEFAULT_LOCALE_FALLBACK
+    : localeCodes.value[0]
+)
 
 const keyDisplay = computed({
   get: () => formatI18nKeyDisplay(state.key),
@@ -288,19 +308,24 @@ async function onSave() {
           </div>
         </template>
         <template #translations>
-          <div class="flex flex-col gap-4">
-            <UFormField
-              v-for="code in localeCodes"
-              :key="code"
-              :label="localeMeta(code)?.label || code"
-            >
-              <UInput
-                v-model="state.locales[code]"
+          <UAccordion v-model="openLocale" :items="localeItems">
+            <template #body="{ item }">
+              <!--
+                Nuxt UI's own theme pairs `autoresize` with `resize-none`, so the
+                drag handle has to be taken back explicitly: auto-grow covers the
+                usual case, and the handle covers text longer than `maxrows`.
+              -->
+              <UTextarea
+                v-model="state.locales[item.value]"
                 class="w-full"
+                :ui="{ base: 'resize-y' }"
+                :rows="3"
+                :maxrows="10"
+                autoresize
                 :disabled="readonly"
               />
-            </UFormField>
-          </div>
+            </template>
+          </UAccordion>
         </template>
       </UTabs>
     </template>
