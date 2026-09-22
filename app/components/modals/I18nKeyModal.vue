@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import {
+  DEFAULT_LOCALE_FALLBACK,
   DEFAULT_LOCALES,
   TRANSLATION_LANGUAGES,
 } from '#shared/constants'
@@ -29,6 +30,24 @@ const state = reactive({
   locales: {} as Record<string, string>,
   releaseIds: [] as number[],
 })
+
+/*
+ * `generating`, not `loading`: this dialog already has a `loading` for Save, and
+ * the two mean different things — one is "the request is still running", the
+ * other is "the write is in flight".
+ */
+const { loading: generating, suggestion, generate } = useI18nKeyGeneration()
+
+/** Naming needs the text, exactly as the tag dialog does: nothing to name without it. */
+function onGenerate() {
+  if (!state.origin.trim()) return
+  generate({ projectId: props.projectId, origin: state.origin })
+}
+
+/** The panel is only a suggestion until it is taken or waved away. */
+function dismissSuggestion() {
+  suggestion.value = null
+}
 
 /**
  * Git sync is a setting, not content, so it is neither part of `state` nor sent
@@ -80,6 +99,25 @@ function localeMeta(code: string) {
   return TRANSLATION_LANGUAGES.find((lang) => lang.value === code)
 }
 
+const localeItems = computed(() =>
+  localeCodes.value.map((code) => ({
+    label: localeMeta(code)?.label || code,
+    value: code,
+  }))
+)
+
+/**
+ * English starts open, being the fallback locale the API serves first; a project
+ * that does not carry it opens on whichever locale leads its own list. Held here
+ * rather than left to the accordion's own default: `UTabs` unmounts the tab it is
+ * not showing, so a default would be reapplied on every return to this one.
+ */
+const openLocale = ref<string | undefined>(
+  localeCodes.value.includes(DEFAULT_LOCALE_FALLBACK)
+    ? DEFAULT_LOCALE_FALLBACK
+    : localeCodes.value[0]
+)
+
 const keyDisplay = computed({
   get: () => formatI18nKeyDisplay(state.key),
   set: (value: string) => {
@@ -90,6 +128,12 @@ const keyDisplay = computed({
     state.key = next
   },
 })
+
+/** Taking a suggestion ends the panel's job, the same way waving it away does. */
+function onPickSuggestion(key: string) {
+  keyDisplay.value = key
+  dismissSuggestion()
+}
 
 async function onSyncToggle(enabled: boolean) {
   const row = props.row
@@ -209,11 +253,27 @@ async function onSave() {
         <template #general>
           <div class="flex flex-col gap-4">
             <UFormField label="Key">
-              <UInput
-                v-model="keyDisplay"
-                class="w-full font-mono"
-                :disabled="readonly"
-              />
+              <div class="w-full flex flex-col gap-2">
+                <div class="w-full flex items-center gap-2.5">
+                  <UInput
+                    v-model="keyDisplay"
+                    class="w-full font-mono"
+                    :disabled="readonly"
+                  />
+                  <AIButton
+                    v-if="!readonly"
+                    :loading="generating"
+                    @click="onGenerate"
+                  />
+                </div>
+                <AIKeySuggestion
+                  v-if="suggestion"
+                  :suggestion="suggestion"
+                  :origin="state.origin"
+                  @pick="onPickSuggestion"
+                  @cancel="dismissSuggestion"
+                />
+              </div>
             </UFormField>
             <UFormField label="Origin">
               <UTextarea
@@ -248,19 +308,24 @@ async function onSave() {
           </div>
         </template>
         <template #translations>
-          <div class="flex flex-col gap-4">
-            <UFormField
-              v-for="code in localeCodes"
-              :key="code"
-              :label="localeMeta(code)?.label || code"
-            >
-              <UInput
-                v-model="state.locales[code]"
+          <UAccordion v-model="openLocale" :items="localeItems">
+            <template #body="{ item }">
+              <!--
+                Nuxt UI's own theme pairs `autoresize` with `resize-none`, so the
+                drag handle has to be taken back explicitly: auto-grow covers the
+                usual case, and the handle covers text longer than `maxrows`.
+              -->
+              <UTextarea
+                v-model="state.locales[item.value]"
                 class="w-full"
+                :ui="{ base: 'resize-y' }"
+                :rows="3"
+                :maxrows="10"
+                autoresize
                 :disabled="readonly"
               />
-            </UFormField>
-          </div>
+            </template>
+          </UAccordion>
         </template>
       </UTabs>
     </template>

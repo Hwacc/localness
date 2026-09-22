@@ -236,6 +236,13 @@ model ProjectSettings {
   prompt         String?  @default("")
   locales        Json     @default("[\"en\",\"zh_cn\",\"zh_tw\",\"ja\",\"ko\",\"ru\",\"fr\",\"de\",\"es\",\"pt\"]")
   localeFallback String   @default("en") @map("locale_fallback")
+  // Naming convention for i18n keys. The prefix default is empty on purpose:
+  // a non-empty default would flag every existing key as non-compliant. New
+  // projects are seeded from a slug of the project name instead.
+  keyPrefix      String   @default("") @map("key_prefix")
+  keySeparator   String   @default("_") @map("key_separator")
+  keyStyle       String   @default("snake_case") @map("key_style")
+  keyMaxDepth    Int      @default(4) @map("key_max_depth")
   project        Project  @relation(fields: [projectID], references: [id], onDelete: Cascade)
 }
 
@@ -368,7 +375,15 @@ model PageSettings {
   ocrLanguage String   @map("ocr_language")
   ocrEngine   Int      @map("ocr_engine")
   prompt      String?  @default("")
-  page        Page     @relation(fields: [pageID], references: [id], onDelete: Cascade)
+  // Nullable and default-free on purpose: a page *inherits* the project's key
+  // convention until it is set, and no value can mean that — an empty prefix is
+  // a real choice ("no prefix"), so `''` is taken. The four are written together
+  // or left alone; a null here means "ask the project".
+  keyPrefix    String? @map("key_prefix")
+  keySeparator String? @map("key_separator")
+  keyStyle     String? @map("key_style")
+  keyMaxDepth  Int?    @map("key_max_depth")
+  page         Page    @relation(fields: [pageID], references: [id], onDelete: Cascade)
 }
 
 model PageLog {

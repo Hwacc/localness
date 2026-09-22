@@ -3,6 +3,7 @@ import { numericID } from '#server/helper/id'
 import { requireTeamMember } from '#server/helper/access'
 import { readZodBody } from '#server/helper/validate'
 import { shapeI18nKeyRow, assertI18nKeyWritable } from '#server/helper/i18n'
+import { keyClashMessage } from '#server/helper/key-convention'
 
 /**
  * @route PATCH /api/projects/:id/i18n-keys/:keyId
@@ -42,9 +43,12 @@ export default defineEventHandler(async (event) => {
       },
     })
     if (clash) {
+      // Still refused: taking the name would mean merging two entries, which is
+      // a different operation. The message at least says which case this is —
+      // `existing.origin` is the text of the row being renamed.
       throw createError({
         statusCode: 409,
-        statusMessage: 'Key already exists',
+        statusMessage: keyClashMessage(clash, existing.origin),
       })
     }
   }

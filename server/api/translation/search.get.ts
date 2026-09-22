@@ -45,7 +45,7 @@ export default defineEventHandler(async (event) => {
       id: { in: ids },
       project: { teamId: { in: teamIds } },
     },
-    include: { locales: true },
+    include: { locales: true, releases: { select: { releaseId: true } } },
   })
   const pagination = new Pagination(
     Number(page ?? 1),

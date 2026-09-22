@@ -438,3 +438,33 @@ export async function setEntryReleases(params: {
 
   return { ok: true, releaseIds }
 }
+
+/**
+ * Labels for the key a tag is bound to. Absent means "leave them alone" — the
+ * editor sends them only when the user actually chose something — and an empty
+ * array still means "clear them", the same contract `/api/translation/:id` has.
+ * Nothing to write while the tag has no key: a label belongs to the key.
+ */
+export async function setBoundKeyReleases(params: {
+  projectId?: number | null
+  i18nKeyId?: number | null
+  releaseIds?: number[]
+}) {
+  if (
+    !params.projectId ||
+    params.releaseIds === undefined ||
+    !params.i18nKeyId
+  ) {
+    return
+  }
+  try {
+    await setEntryReleases({
+      projectId: params.projectId,
+      kind: 'key',
+      id: params.i18nKeyId,
+      releaseIds: params.releaseIds,
+    })
+  } catch (error) {
+    throwReleaseHttp(error)
+  }
+}

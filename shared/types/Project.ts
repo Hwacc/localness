@@ -2,6 +2,8 @@ import type { IUser } from './User'
 import type { IPage } from './Page'
 import type { ID } from '.'
 import type { ITeam } from './Team'
+import type { KeyStyle } from '../utils/key-convention'
+import { DEFAULT_KEY_CONVENTION, slugKeyPrefix } from '../utils/key-convention'
 
 export interface IProjectSetting {
   ocrLanguage: string
@@ -9,6 +11,11 @@ export interface IProjectSetting {
   prompt?: string | null
   locales?: string[]
   localeFallback?: string
+  /** Key naming convention. Every settings row has one; the DB holds defaults. */
+  keyPrefix: string
+  keySeparator: string
+  keyStyle: KeyStyle
+  keyMaxDepth: number
 }
 
 export interface IProjectOwner {
@@ -64,6 +71,10 @@ export class Project implements IProject {
       ocrLanguage: 'eng',
       ocrEngine: 1,
       prompt: '',
+      keyPrefix: slugKeyPrefix(this.name),
+      keySeparator: DEFAULT_KEY_CONVENTION.separator,
+      keyStyle: DEFAULT_KEY_CONVENTION.style,
+      keyMaxDepth: DEFAULT_KEY_CONVENTION.maxDepth,
     }
   }
 }

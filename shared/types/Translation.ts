@@ -22,6 +22,8 @@ export interface ITranslation extends Record<string, any> {
   origin?: string
   vue?: TranslationContent
   react?: TranslationContent
+  /** Release labels of this entry. Absent on the client means "not loaded". */
+  releaseIds?: number[]
 }
 
 export class Translation implements ITranslation {

@@ -14,6 +14,8 @@ import {
 // tag editable schema
 export const zTagState = z.object({
   i18nKey: z.string(),
+  /** Labels belong to the bound key, but the tag save is the write that owns them. */
+  releaseIds: z.array(z.number()).optional(),
   settings: z.looseObject({
     locked: z.boolean(),
     style: z.object({
@@ -44,8 +46,25 @@ export type ZTagState = z.infer<typeof zTagState>
 
 export function useEditTagState(tag: MaybeRef<ITag>) {
   const { i18nKey, settings, translation } = unref(tag)
+  const projectStore = useProjectStore()
+
+  /**
+   * The key's own labels, or the release being viewed while there is no key yet —
+   * the same default a new page and a new translation get. Seeding from the key
+   * rather than the filter is what keeps a save from relabelling an entry that
+   * someone already filed.
+   */
+  function seedReleaseIds(src: ITag): number[] {
+    if (validID(src.translationID)) {
+      return (src.translation?.releaseIds ?? []).map(Number)
+    }
+    const defaultId = defaultReleaseIdForFilter(projectStore.curReleaseFilter)
+    return defaultId ? [defaultId] : []
+  }
+
   const state = reactive<ZTagState>({
     i18nKey: i18nKey ?? '',
+    releaseIds: seedReleaseIds(unref(tag)),
     settings: {
       locked: settings?.locked ?? false,
       style: {
@@ -67,6 +86,9 @@ export function useEditTagState(tag: MaybeRef<ITag>) {
     translation: cloneDeep(translation) ?? {},
   })
 
+  /** What the selector was seeded with, so a save can tell "edited" from "untouched". */
+  const seededReleaseIds = ref<number[]>([...(state.releaseIds ?? [])])
+
   watch(
     () => unref(tag),
     (val) => {
@@ -74,6 +96,8 @@ export function useEditTagState(tag: MaybeRef<ITag>) {
       console.log('watch tag', val)
       const { settings, i18nKey, translation } = val
       state.i18nKey = i18nKey ?? ''
+      state.releaseIds = seedReleaseIds(val)
+      seededReleaseIds.value = [...state.releaseIds]
       state.settings = {
         locked: settings?.locked ?? false,
         style: {
@@ -101,5 +125,5 @@ export function useEditTagState(tag: MaybeRef<ITag>) {
     }
   )
 
-  return { state }
+  return { state, seededReleaseIds }
 }

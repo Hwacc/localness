@@ -1,4 +1,11 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { createError } from 'h3'
+
+/*
+ * `throwReleaseHttp` calls the `createError` Nitro auto-imports at runtime; unit
+ * tests have no Nitro, so the h3 stub (aliased in vitest.config.ts) stands in.
+ */
+vi.stubGlobal('createError', createError)
 
 type ReleaseRow = {
   id: number
@@ -244,6 +251,7 @@ const {
   releaseNameStatus,
   releaseWhereFragment,
   renameRelease,
+  setBoundKeyReleases,
   setEntryReleases,
   setReleaseMembership,
 } = await import('#server/helper/release')
@@ -576,6 +584,62 @@ describe('setEntryReleases', () => {
 
     expect(result.releaseIds).toEqual([1])
     expect(db.pageLinks).toEqual([{ pageId: 100, releaseId: 1 }])
+  })
+})
+
+describe('setBoundKeyReleases', () => {
+  it('labels the key the tag is bound to', async () => {
+    seedRelease(1, 'v1', 1)
+
+    await setBoundKeyReleases({ projectId: 7, i18nKeyId: 200, releaseIds: [1] })
+
+    expect(db.keyLinks).toEqual([{ i18nKeyId: 200, releaseId: 1 }])
+  })
+
+  it('leaves the labels alone when the caller sent none', async () => {
+    seedRelease(1, 'v1', 1)
+    await setEntryReleases({
+      projectId: 7,
+      kind: 'key',
+      id: 200,
+      releaseIds: [1],
+    })
+    db.calls = []
+
+    await setBoundKeyReleases({ projectId: 7, i18nKeyId: 200 })
+
+    expect(db.keyLinks).toEqual([{ i18nKeyId: 200, releaseId: 1 }])
+    expect(db.calls).toEqual([])
+  })
+
+  it('clears them when the caller sends an empty set', async () => {
+    seedRelease(1, 'v1', 1)
+    await setEntryReleases({
+      projectId: 7,
+      kind: 'key',
+      id: 200,
+      releaseIds: [1],
+    })
+
+    await setBoundKeyReleases({ projectId: 7, i18nKeyId: 200, releaseIds: [] })
+
+    expect(db.keyLinks).toEqual([])
+  })
+
+  it('has nothing to do while no key is bound', async () => {
+    seedRelease(1, 'v1', 1)
+
+    await setBoundKeyReleases({ projectId: 7, i18nKeyId: null, releaseIds: [1] })
+
+    expect(db.keyLinks).toEqual([])
+    expect(db.calls).toEqual([])
+  })
+
+  it('reports a label from another project as 400 instead of writing it', async () => {
+    await expect(
+      setBoundKeyReleases({ projectId: 7, i18nKeyId: 200, releaseIds: [99] })
+    ).rejects.toMatchObject({ statusCode: 400 })
+    expect(db.keyLinks).toEqual([])
   })
 })
 

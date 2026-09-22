@@ -64,6 +64,40 @@ These need care:
 
 `DATABASE_CLIENT` from the old `.env` files is dead — no code reads it.
 
+### AI prompts (optional)
+
+`POST /api/tag/ai/gen-i18n-key` — the AI button in the tag info dialog — is the
+only AI call. It needs an OpenAI-compatible endpoint:
+
+```bash
+# Shared fallback for every AI feature.
+NUXT_OPENAI_API_KEY=
+NUXT_OPENAI_BASE_URL=https://api.siliconflow.cn/v1
+NUXT_OPENAI_MODEL=Qwen/Qwen3.5-4B
+
+# Per-feature overrides, each falling back on its own to the shared value.
+# The suffix is the feature slug in upper snake case: "i18n-key" -> I18N_KEY.
+# NUXT_OPENAI_I18N_KEY_API_KEY=
+# NUXT_OPENAI_I18N_KEY_BASE_URL=
+# NUXT_OPENAI_I18N_KEY_MODEL=
+```
+
+A feature override is per knob, not all-or-nothing: giving `i18n-key` its own
+model keeps the shared endpoint and key. Overriding all three puts that feature
+on a provider of its own.
+
+The system prompts are files rather than code: the image ships them at
+`/app/prompts` and the server reads them at runtime, re-reading whenever a file
+changes, so editing one takes effect without a restart. To change a prompt
+without rebuilding the image, mount a directory over that path — see the
+commented example in `docker-compose.yml`. The mount must be readable by uid
+1000, which is the image's `node` user (`NUXT_PROMPTS_DIR` moves the path).
+
+A missing or malformed prompt file fails that request with the file's path in the
+message, and the failure is not cached, so fixing the file is all it takes.
+Leaving `NUXT_OPENAI_API_KEY` unset is not fatal either: the app boots normally
+and only this endpoint returns 500.
+
 ### Atlassian OAuth (optional)
 
 Leave all four unset and the app runs on username/password only: the login page

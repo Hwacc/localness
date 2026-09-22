@@ -69,7 +69,8 @@ ENV NODE_ENV=production \
     HOST=0.0.0.0 \
     PATH=/app/node_modules/.bin:$PATH \
     DATABASE_URL=file:/app/runtime/db/localness.db \
-    NUXT_LOCAL_OSS_DIR=/app/runtime/uploads
+    NUXT_LOCAL_OSS_DIR=/app/runtime/uploads \
+    NUXT_PROMPTS_DIR=/app/prompts
 # git is a hard requirement: LILT Git sync shells out to it to clone and push.
 # openssl: the Prisma schema engine links against libssl at migrate time.
 RUN apt-get update \
@@ -81,6 +82,10 @@ COPY --from=runtime-deps /app/node_modules ./node_modules
 COPY --from=build /app/prisma ./prisma
 COPY --from=build /app/scripts ./scripts
 COPY --from=build /app/shared ./shared
+# The AI prompts are read from disk at runtime, and `server/` never reaches this
+# stage, so the defaults are copied out on their own. Mount a directory over
+# /app/prompts to replace them without rebuilding.
+COPY --from=build /app/server/prompts ./prompts
 COPY --from=build /app/package.json /app/pnpm-lock.yaml /app/prisma.config.ts /app/tsconfig.json ./
 COPY docker/entrypoint.sh /usr/local/bin/entrypoint.sh
 
