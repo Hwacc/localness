@@ -6,11 +6,15 @@ export type ExportRow = {
   keyId: number
   pic: string
   key: string
-  origin: string
   texts: Record<string, string>
 }
 
-const FIXED_HEADER = ['id', 'key_id', 'pic', 'key', 'origin'] as const
+/*
+ * No origin column: a key's original text is its source language's text, and that
+ * language's column is kept in front of the others — so it sits where `origin`
+ * used to, instead of the sheet carrying one value twice.
+ */
+const FIXED_HEADER = ['id', 'key_id', 'pic', 'key'] as const
 
 /**
  * Builds the xlsx. One sheet, not one per framework: copy is a single set, and
@@ -34,7 +38,6 @@ class Lister {
           key_id: row.keyId,
           pic: row.pic,
           key: row.key,
-          origin: row.origin,
           ...this.localeColumns.reduce(
             (acc, locale) => {
               acc[locale] = row.texts?.[locale] ?? ''

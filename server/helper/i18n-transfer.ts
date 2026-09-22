@@ -224,7 +224,6 @@ export async function transferKeys(params: {
             // Explicit: the column defaults to STRING, so omitting it would
             // silently retype a non-string key.
             type: sourceKey.type,
-            origin: sourceTextOf(sourceKey.locales, sourceLocale),
             fingerprint: sourceKey.fingerprint,
             description: sourceKey.description,
           },

@@ -66,7 +66,6 @@ export default defineEventHandler(async (event) => {
     const updated = await prisma.i18nKey.update({
       where: { id: nID },
       data: {
-        origin,
         fingerprint: fpTranslation(origin),
       },
       include: { locales: true },

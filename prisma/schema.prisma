@@ -456,7 +456,8 @@ model I18nKey {
   projectId    Int            @map("project_id")
   key          String
   type         String         @default("STRING")
-  origin       String         @default("")
+  /// The original text is the project's source language's `draftText`, not a
+  /// column here — see `LocaleValue`. Read it through `sourceTextOf`.
   fingerprint  String         @default("")
   description  String?
   /// False keeps the key out of Git sync in both directions. Separate from

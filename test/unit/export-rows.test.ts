@@ -14,7 +14,6 @@ function key(
   return {
     id,
     key: name,
-    origin: `${name} origin`,
     locales: Object.entries(locales).map(([locale, publishedText]) => ({
       locale,
       publishedText,

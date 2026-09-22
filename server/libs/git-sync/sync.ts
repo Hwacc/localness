@@ -107,14 +107,12 @@ async function upsertDraft(
     create: {
       projectId: params.projectId,
       key: params.key,
-      origin: params.locale === params.sourceLocale ? params.text : '',
       fingerprint:
         params.locale === params.sourceLocale ? fpTranslation(params.text) : '',
     },
     update:
       params.locale === params.sourceLocale
         ? {
-            origin: params.text,
             fingerprint: fpTranslation(params.text),
           }
         : {},

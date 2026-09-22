@@ -102,11 +102,9 @@ export default defineEventHandler(async (event) => {
       create: {
         projectId: body.projectId,
         key: body.force && existing ? `__draft_${fingerprint}` : key,
-        origin: body.origin,
         fingerprint,
       },
       update: {
-        origin: body.origin,
         fingerprint,
       },
       include: { locales: true },

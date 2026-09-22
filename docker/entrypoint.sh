@@ -10,9 +10,7 @@ if [ -z "$NUXT_SESSION_PASSWORD" ]; then
   exit 1
 fi
 
-# Schema first, then serve. `I18nKey_FTS*` is declared external in
-# prisma.config.ts, so this never drops the search index; the FTS tables
-# themselves are created by the init-fts nitro plugin on first boot.
+# Schema first, then serve.
 echo "[entrypoint] Applying migrations to $DATABASE_URL"
 /app/node_modules/.bin/prisma migrate deploy
 
