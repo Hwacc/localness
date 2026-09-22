@@ -36,7 +36,7 @@
 - 有邀请码：填进 **Invite code**，点 **Join team**。成功会弹 **Joined team**，描述是队伍名。
 - 暂时没有码：点 **Skip**，先去别处看看。这个「跳过」只在本次会话里记住，下次登录还会再问。
 
-跳过之后 Dashboard 上会留一张卡片，写着 `You are not in a team yet. Join with an invite code, or ask an Admin to create one.`，下面随时可以补填邀请码。码要找队长要（第 5 章）。
+跳过之后 Dashboard 上会留一张卡片，写着 `You are not in a team yet. Join with an invite code, or ask an Admin to create one.`，下面随时可以补填邀请码。码要找 Team Owner 要（第 5 章）。
 
 兑码时如果弹 **Already in this team**，说明你已经在这个队里了，不是出错。
 

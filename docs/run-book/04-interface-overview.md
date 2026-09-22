@@ -37,11 +37,11 @@
 
 从左到右：
 
-- **Team** 下拉：换团队，换完会自动选中那个团队里的一个项目。下拉旁边如果有 Team Owner 徽标，说明你是这个队的队长。
-- **项目条**：一格一个项目，点一下就切当前项目。这个团队还没有项目时显示 `No project in this team`。最右边的 **+** 是新建项目——队员都能建，建完你就是它的管家（第 6 章）。
-- **发行筛选**下拉：**All releases** / 某个发行 / **Unassigned**；管家还会多一项 **Manage releases…**，直接跳到项目设置的 Releases 那一栏。这个筛选同时作用于编辑器侧栏、词条表和导出（第 7 章）。项目还没有发行标签时，非管家看不到这个下拉。
+- **Team** 下拉：换团队，换完会自动选中那个团队里的一个项目。下拉旁边如果有 Team Owner 徽标，说明你是这个队的 Team Owner。
+- **项目条**：一格一个项目，点一下就切当前项目。这个团队还没有项目时显示 `No project in this team`。最右边的 **+** 是新建项目——Team Member 都能建，建完你就是它的 Project Owner（第 6 章）。
+- **发行筛选**下拉：**All releases** / 某个发行 / **Unassigned**；Project Owner 还会多一项 **Manage releases…**，直接跳到项目设置的 Releases 那一栏。这个筛选同时作用于编辑器侧栏、词条表和导出（第 7 章）。项目还没有发行标签时，非 Project Owner 看不到这个下拉。
 - **Export**：导出当前项目（第 10 章）。
-- **Project settings**：只有管家看得到（第 6 章）。
+- **Project settings**：只有 Project Owner 看得到（第 6 章）。
 
 **切项目不会换页面。** 你在 `/editor` 里切项目，人还留在编辑器，只是画布和页面列表换成了另一个项目的；词条表、Git、API、Skills 同样都跟着当前项目走。上次打开的团队和项目会被记住，下次登录直接回到它。
 
@@ -69,7 +69,7 @@
 | 你看到 | 原因 |
 |---|---|
 | Dashboard 上找不到发行筛选和当前项目 | Dashboard 没有 Workspace Bar，那些在工作页顶部；导出在每张项目卡片上 |
-| 看不到 **Project settings**，发行下拉里也没有 **Manage releases…** | 你不是这个项目的管家（第 14 章） |
+| 看不到 **Project settings**，发行下拉里也没有 **Manage releases…** | 你不是这个项目的 Project Owner（第 14 章） |
 | 项目条上找不到某个项目 | 它属于另一个团队，先在 **Team** 下拉里换过去 |
 | **Agent** 页点进去什么都没有 | 未开放 |
 | 铃铛有红点却找不到消息在哪 | 红点是未读条数，点开 Inbox 抽屉看；队伍邀请要在那里 Accept 或 Decline |
