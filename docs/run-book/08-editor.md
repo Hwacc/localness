@@ -154,10 +154,10 @@
 | 只改译文 / 样式 | 存进当前这条词条 |
 | 改了 **I18n Key** | 给当前这条词条**改名**。多个框共用它的话，一起改 |
 | 改成一个**已被别的文案占用**的 key | 保存后这条框会挂到**那条已有词条**上，你在这个框里填的原文不生效 |
-| 改了源语言那一块的原文 | 等于给这条框**换一条词条**：按新原文新建一条（如果项目里已有相同原文，会先问你复用还是新建），原来那条留在项目里 |
-| 点 **New**（原文那一行右侧的按钮） | 同上面那条，只是不用等 Save |
+| 改了源语言那一块的原文 | **原地改这条词条的原文**，和词条表里改源语言那一格是一回事。多个框共用这条词条的话，它们一起变 |
+| 点 **New**（原文那一行右侧的按钮） | 按当前原文**另建一条**词条，这个框改挂到新的那条上；原来那条留在项目里，别的框可能还指着它。项目里已有相同原文时，会先问你复用还是新建 |
 
-其中「已有相同原文」的那个弹窗长这样：标题 **Warning**，正文 `This translation already exists. Do you want to recover it?`，另有提示 `Create new translation may generate a repeating translation. Make sure to create it carefully.`，按钮是 **Create New** 和 **Recover**。**Recover** 把这条框挂到已有的那条词条上，**Create New** 另起一条。这个弹窗点不掉，必须二选一。
+**New** 碰到「已有相同原文」时，弹的那个窗长这样：标题 **Warning**，正文 `This translation already exists. Do you want to recover it?`，另有提示 `Create new translation may generate a repeating translation. Make sure to create it carefully.`，按钮是 **Create New** 和 **Recover**。**Recover** 把这条框挂到已有的那条词条上，**Create New** 另起一条。这个弹窗点不掉，必须二选一。
 
 ## 删掉一个框
 
@@ -192,7 +192,7 @@ Info 弹窗里的改动不属于这一类，它们点 **Save** 就走了。
 | 想选好几个框一起动 | 一次只能选一个，也没有框选 |
 | 点了 **AI**，面板上说 `Nothing in this text can be named.` | 框里那句原文起不出名字（比如纯符号），先确认源语言那一块里有内容 |
 | AI 给的 key 提示 `This key is taken` | 这个 key 已经是别人的。换一个，或者确认要复用那条词条 |
-| 改了原文那一块保存后，词条表里多了一条 | 改原文就是换词条，旧的没删 |
+| 改了原文那一块保存后，词条表里多出一条 | 你点的是 **New** 不是 **Save**。**New** 是故意另建一条（上表）；只想改原文就按 **Save** |
 | **Translations** 的语言下拉里找不到源语言 | 它不在下拉里。源语言的原文就在上面那一块，一个语言只给一个输入框 |
 | 改了 key 保存后，别的框上的标签也变了 | 这些框共用同一条词条，改名是一起改的 |
 | 关标签页时浏览器弹了「离开网站？」 | 还有没保存的框改动，先回编辑器按一下 `Ctrl+S` |

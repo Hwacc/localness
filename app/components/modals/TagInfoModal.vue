@@ -69,7 +69,6 @@ const emit = defineEmits<{
       tag: Omit<ZTagState, 'translation' | 'settings'>
       settings: ZTagSetting
       translation?: ZTranslation
-      isSourceTextChanged: boolean
       close: () => void
     }
   ]
@@ -149,7 +148,10 @@ const sourceText = computed<string>({
   },
 })
 
-/** Rewriting the original text is what turns a save into a new entry. */
+/**
+ * Drives the `New` button, which appears once the original text has been rewritten
+ * — that is the only way to end up with a separate entry from here.
+ */
 const isSourceTextChanged = computed(() => {
   const edited = sourceText.value.trim()
   if (!edited) return false
@@ -265,10 +267,6 @@ async function onSubmit() {
   if (!validID(tag.value.translationID) && state.i18nKey.trim()) {
     await lookupDuplicate()
   }
-  const trimmed = sourceText.value.trim()
-  if (isSourceTextChanged.value && trimmed) {
-    state.translation.fingerprint = fpTranslation(trimmed)
-  }
   try {
     emit('save', {
       tag: {
@@ -280,7 +278,6 @@ async function onSubmit() {
         id: tag.value.translationID,
         ...state.translation,
       },
-      isSourceTextChanged: isSourceTextChanged.value,
       close: () => emit('close', true),
     })
   } catch (error) {
