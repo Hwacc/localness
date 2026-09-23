@@ -48,7 +48,6 @@ flowchart LR
         S1 --> S2 --> S3 --> S4
     end
 
-```
 subgraph TR["Translations 词条表"]
     S5["5. 发布<br/>Draft → Published，只能在词条表操作"]
 end
@@ -76,7 +75,8 @@ NT["词条表直接 New translation<br/>第 9 章，不带框"] -.->|捷径| S5
 6. **交出去**：导出成 xlsx 或 JSON（第 10 章）、Push 到公司 Git 仓（第 11 章）、或者用 token 调只读 API（第 12 章）。三个出口都只取已发布文案。
 
 不是每条词条都得走完前四步：词条表里可以直接 **New translation** 建一条不带框的词条（第 9 章）。
-```
+
+
 ## 谁属于谁
 ```mermaid
 flowchart TD
