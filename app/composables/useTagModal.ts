@@ -39,46 +39,32 @@ export function useTagModal() {
       tag: opt.tag,
       clip: opt.clip,
       loading: false,
-      onSave: async ({ tag, settings, translation, isSourceTextChanged }) => {
+      onSave: async ({ tag, settings, translation }) => {
         try {
           tagModal.patch({ loading: true })
-          let updatedTrans: ITranslation | null = null
           if (translation) {
-            // source text changed -> create new translation
-            if (isSourceTextChanged) {
-              updatedTrans = await translationGenerator.manual(
-                translation as ITranslation,
-                tag.releaseIds
-              )
-            }
-            // update translation content
+            /*
+             * Written onto the entry this tag is already bound to, source language
+             * included: a key's identity is its key string, so rewriting its
+             * original text is an edit, not a different entry. `New` is the
+             * explicit way to spin a separate one off.
+             */
             const contentPromises = map(
               pick(translation, ['vue', 'react']),
               (item, key) => {
                 if (isEmpty(item)) return Promise.resolve()
-                return useApi(
-                  `/api/translation/${
-                    updatedTrans ? updatedTrans.id : translation?.id
-                  }/${key}`,
-                  {
-                    method: 'POST',
-                    body: item,
-                  }
-                )
+                return useApi(`/api/translation/${translation.id}/${key}`, {
+                  method: 'POST',
+                  body: item,
+                })
               }
             )
             await Promise.all(contentPromises)
           }
-          const updatedTag = await tagStore.updateTag(
-            opt.tag.id,
-            updatedTrans
-              ? {
-                  ...tag,
-                  settings,
-                  translationID: updatedTrans.id,
-                }
-              : { ...tag, settings }
-          )
+          const updatedTag = await tagStore.updateTag(opt.tag.id, {
+            ...tag,
+            settings,
+          })
           tagModal.patch({ tag: updatedTag })
           toast.add({
             title: 'Success',

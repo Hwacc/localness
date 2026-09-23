@@ -3,6 +3,7 @@ import prisma from '#server/libs/prisma'
 import { numericID } from '#server/helper/id'
 import { readZodBody } from '#server/helper/validate'
 import { LogAction, LogStatus } from '~~/shared/constants/log'
+import { fpTranslation } from '#shared/utils'
 import { requireI18nKeyTeamMember } from '#server/helper/access'
 import {
   localesToContent,
@@ -75,6 +76,17 @@ export default defineEventHandler(async (event) => {
         i18nKeyId: nID,
         text: sourceText,
         sourceLocale,
+      })
+      /*
+       * The fingerprint names a key by the text it holds, and
+       * `/api/translation/check?fp=` is what offers to reuse an entry that already
+       * has that text — so it follows the row the original text lives in, the way
+       * both `/api/translation` write paths already do. Without this, editing the
+       * source cell (here or in Tag Info) leaves the two saying different things.
+       */
+      await prisma.i18nKey.update({
+        where: { id: nID },
+        data: { fingerprint: fpTranslation(sourceText) },
       })
     }
     const loaded = await prisma.i18nKey.findUnique({
