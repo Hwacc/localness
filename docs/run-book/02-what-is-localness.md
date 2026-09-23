@@ -33,7 +33,7 @@ Localness 做的就是把这些钉在一起：**在截图上框出这句话 → 
 
 
 ## 一条主路径
-
+```mermaid
 flowchart LR
     subgraph ED["Editor 编辑器"]
         direction LR
@@ -76,9 +76,9 @@ NT["词条表直接 New translation<br/>第 9 章，不带框"] -.->|捷径| S5
 6. **交出去**：导出成 xlsx 或 JSON（第 10 章）、Push 到公司 Git 仓（第 11 章）、或者用 token 调只读 API（第 12 章）。三个出口都只取已发布文案。
 
 不是每条词条都得走完前四步：词条表里可以直接 **New translation** 建一条不带框的词条（第 9 章）。
-
+```
 ## 谁属于谁
-
+```mermaid
 flowchart TD
     Team["Team（团队）<br/>一组人 + 一组项目"]
     Team --> ProjA["Project A"]
@@ -100,7 +100,7 @@ flowchart TD
     Rel["Release（发行标签）"]
     Rel -.->|挂在| Page1
     Rel -.->|挂在| Entry1
-
+```
 - **Team（团队）**：一组人加一组项目。进了队才看得见队里的项目。
 - **Project（项目）**：翻译工作的单位，通常对应一个前端项目。一个项目有自己的语言集合、一个源语言、一套 key 命名规范，以及它自己的页面和词条。**i18n key 在项目内唯一**，两个项目之间的 key 互不相干。
 - **Page（页面）**：一张截图。
