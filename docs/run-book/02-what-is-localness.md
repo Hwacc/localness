@@ -16,11 +16,13 @@ Localness 做的就是把这些钉在一起：**在截图上框出这句话 → 
 
 它只管**界面上会出现的那一行行字**——按钮名、标签、提示语、报错文案——以及这些字在每种语言下该说什么。
 
-| 它做 | 它不做 |
-|---|---|
+
+| 它做                     | 它不做                                                  |
+| ---------------------- | ---------------------------------------------------- |
 | 存每处文案的 i18n key 和各语言译文 | 不存结构化内容，没有「文章」「商品」这类内容类型，不生成页面（**不是无头 CMS**，也不是建站工具） |
-| 用截图上的框记住这句话在界面上的位置 | 不管页面什么时候上线、长什么样 |
-| 把已发布文案交出去 | 不主动往前端推：前端、CI、agent 自己来取 |
+| 用截图上的框记住这句话在界面上的位置     | 不管页面什么时候上线、长什么样                                      |
+| 把已发布文案交出去              | 不主动往前端推：前端、CI、agent 自己来取                             |
+
 
 「交出去」有三种方式，三个出口都只取**已发布**文案：
 
@@ -28,9 +30,43 @@ Localness 做的就是把这些钉在一起：**在截图上框出这句话 → 
 - **Push 到公司 Git 仓**（第 11 章）：接 LILT 那条翻译流水线，双向同步。
 - **只读 API 与 MCP**（第 12 章）：给 CI、脚本或 agent 自己来取。
 
+
+
 ## 一条主路径
 
-[image 主路径流程图，从左到右六个阶段：上传截图 → 画框 → OCR 读出原文 → 命名 key 并填各语言译文 → 发布 → 交出去（导出 / Git Push / API）。每个阶段下方标出它发生在哪个页面：前四步在 Editor，第五步在 Translations，第六步在 Export / LILT Git / API]
+flowchart LR
+    subgraph ED["Editor 编辑器"]
+        direction LR
+        S1["1. 上传截图  
+一张截图 = 一个 Page"]
+        S2["2. 画框  
+框 = Tag"]
+        S3["3. OCR 读出原文  
+存入项目源语言，读不准可手填"]
+        S4["4. 命名 key 并填译文  
+自写或 AI 提候选，成为 Draft 词条"]
+        S1 --> S2 --> S3 --> S4
+    end
+
+```
+subgraph TR["Translations 词条表"]
+    S5["5. 发布<br/>Draft → Published，只能在词条表操作"]
+end
+
+subgraph OUT["Export / LILT Git / API"]
+    S6["6. 交出去<br/>三个出口都只取已发布文案"]
+    D1["导出 xlsx / JSON<br/>第 10 章"]
+    D2["Push 到公司 Git 仓<br/>第 11 章"]
+    D3["只读 API 与 MCP<br/>第 12 章"]
+    S6 --> D1
+    S6 --> D2
+    S6 --> D3
+end
+
+S4 --> S5
+S5 --> S6
+NT["词条表直接 New translation<br/>第 9 章，不带框"] -.->|捷径| S5
+```
 
 1. **上传截图**（Editor）：一张截图就是一个 Page。
 2. **画框**（Editor）：在截图上拖出一个框，这个框叫 Tag。
@@ -43,7 +79,27 @@ Localness 做的就是把这些钉在一起：**在截图上框出这句话 → 
 
 ## 谁属于谁
 
-[image 层级关系图：Team 下挂多个 Project；一个 Project 下有多个 Page 和一批词条；Page 上有多个 Tag；Tag 指向词条，多个 Tag 可以指向同一条词条；Release 标签分别挂在 Page 和词条上]
+flowchart TD
+    Team["Team（团队）<br/>一组人 + 一组项目"]
+    Team --> ProjA["Project A"]
+    Team --> ProjB["Project B"]
+
+    ProjA --> Page1["Page 1（一张截图）"]
+    ProjA --> Page2["Page 2（一张截图）"]
+    ProjA --> Entry1["词条（i18n key）<br/>草稿 + 各语言已发布文本，key 项目内唯一"]
+    ProjA --> Entry2["词条（i18n key）<br/>可以一个框都没有"]
+
+    Page1 --> Tag1["Tag（标注框）"]
+    Page1 --> Tag2["Tag（标注框）"]
+    Page2 --> Tag3["Tag（标注框）"]
+
+    Tag1 -->|指向| Entry1
+    Tag2 -->|指向| Entry1
+    Tag3 -->|指向| Entry1
+
+    Rel["Release（发行标签）"]
+    Rel -.->|挂在| Page1
+    Rel -.->|挂在| Entry1
 
 - **Team（团队）**：一组人加一组项目。进了队才看得见队里的项目。
 - **Project（项目）**：翻译工作的单位，通常对应一个前端项目。一个项目有自己的语言集合、一个源语言、一套 key 命名规范，以及它自己的页面和词条。**i18n key 在项目内唯一**，两个项目之间的 key 互不相干。
