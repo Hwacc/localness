@@ -1,5 +1,8 @@
 <script setup lang="ts">
-import { TRANSLATION_LANGUAGES } from '#shared/constants'
+import {
+  DEFAULT_LOCALE_FALLBACK,
+  TRANSLATION_LANGUAGES,
+} from '#shared/constants'
 import { formatI18nKeyDisplay } from '#shared/utils'
 import { isEmpty, omit } from 'lodash-es'
 import type { ZTagState } from '~/composables/useEditTagState'
@@ -66,7 +69,7 @@ const emit = defineEmits<{
       tag: Omit<ZTagState, 'translation' | 'settings'>
       settings: ZTagSetting
       translation?: ZTranslation
-      isTransOriginChanged: boolean
+      isSourceTextChanged: boolean
       close: () => void
     }
   ]
@@ -81,7 +84,7 @@ const emit = defineEmits<{
   createI18nKey: [
     payload: {
       id: ID
-      origin: string
+      sourceText: string
       i18nKey?: string
       prompt?: string
     }
@@ -89,8 +92,22 @@ const emit = defineEmits<{
 }>()
 
 const overlay = useOverlay()
+const projectStore = useProjectStore()
 
-const selectedLanguage = ref<string>('en')
+/** The language a key's original text lives in; the source block here edits it. */
+const sourceLocale = computed(
+  () =>
+    projectStore.curProject?.settings?.localeFallback || DEFAULT_LOCALE_FALLBACK
+)
+const sourceItem = computed(() =>
+  TRANSLATION_LANGUAGES.find((o) => o.value === sourceLocale.value)
+)
+/** The source language is edited in the block above, so it is not a target here. */
+const targetLanguages = computed(() =>
+  TRANSLATION_LANGUAGES.filter((o) => o.value !== sourceLocale.value)
+)
+
+const selectedLanguage = ref<string>(targetLanguages.value[0]?.value ?? '')
 const selectedItem = computed(() => {
   const language = TRANSLATION_LANGUAGES.find(
     (o: any) => o.value === selectedLanguage.value
@@ -103,6 +120,46 @@ const selectedItem = computed(() => {
 
 const selectedFramework = ref<'vue' | 'react'>('vue')
 const { state, seededReleaseIds } = useEditTagState(tag)
+
+/**
+ * The original text is the source language's entry, not a field beside the locale
+ * map: the save posts both framework copies back, and the server makes whichever
+ * one arrives last the original text — so every copy has to carry the edit.
+ */
+const sourceText = computed<string>({
+  get(): string {
+    return (
+      (state.translation?.[selectedFramework.value]?.[
+        sourceLocale.value
+      ] as string) || ''
+    )
+  },
+  set(value: string) {
+    if (!state.translation) {
+      state.translation = {}
+    }
+    for (const framework of ['vue', 'react'] as const) {
+      let temp = state.translation[framework]
+      if (!temp) {
+        temp = {}
+      }
+      temp[sourceLocale.value] = value
+      state.translation[framework] = temp
+    }
+  },
+})
+
+/** Rewriting the original text is what turns a save into a new entry. */
+const isSourceTextChanged = computed(() => {
+  const edited = sourceText.value.trim()
+  if (!edited) return false
+  const original = String(
+    (tag.value.translation?.[selectedFramework.value] as
+      | Record<string, string>
+      | undefined)?.[sourceLocale.value] ?? ''
+  )
+  return edited !== original.trim()
+})
 
 const i18nKeyDisplay = computed({
   get: () => formatI18nKeyDisplay(state.i18nKey),
@@ -124,7 +181,6 @@ function onPickSuggestion(key: string) {
  * existing entry silently — so this is the only place a user finds out that the
  * key they typed belongs to a different text.
  */
-const projectStore = useProjectStore()
 const keyDuplicate = ref<I18nKeyDuplicate | null>(null)
 let duplicateTimer: ReturnType<typeof setTimeout> | undefined
 
@@ -141,7 +197,7 @@ async function lookupDuplicate() {
     return
   }
   const params = new URLSearchParams({
-    origin: state.translation?.origin ?? '',
+    sourceText: sourceText.value,
   })
   params.append('keys', key)
   const res = await useApi<{ duplicates: I18nKeyDuplicate[] }>(
@@ -151,7 +207,7 @@ async function lookupDuplicate() {
 }
 
 watch(
-  () => [state.i18nKey, state.translation?.origin],
+  () => [state.i18nKey, sourceText.value],
   () => {
     clearTimeout(duplicateTimer)
     duplicateTimer = setTimeout(lookupDuplicate, 400)
@@ -181,28 +237,6 @@ const editableTranslationContent = computed<string>({
   },
 })
 
-const originText = computed({
-  get: () => state.translation?.origin ?? '',
-  set: (value: string) => {
-    if (!state.translation) state.translation = {}
-    state.translation.origin = value
-  },
-})
-
-const isTransOriginChanged = ref<boolean>(false)
-watch(
-  () => state.translation?.origin,
-  (val) => {
-    if (!val) {
-      isTransOriginChanged.value = false
-      return
-    }
-    isTransOriginChanged.value =
-      val.trim() !== tag.value.translation?.origin?.trim()
-  },
-  { deep: true }
-)
-
 /** Order-insensitive: the picker appends, so the same set can come back reordered. */
 function sameReleaseIds(a: number[], b: number[]) {
   const left = [...a].sort()
@@ -231,9 +265,9 @@ async function onSubmit() {
   if (!validID(tag.value.translationID) && state.i18nKey.trim()) {
     await lookupDuplicate()
   }
-  const _trimOrigin = state.translation?.origin?.trim()
-  if (isTransOriginChanged.value && _trimOrigin) {
-    state.translation.fingerprint = fpTranslation(_trimOrigin)
+  const trimmed = sourceText.value.trim()
+  if (isSourceTextChanged.value && trimmed) {
+    state.translation.fingerprint = fpTranslation(trimmed)
   }
   try {
     emit('save', {
@@ -242,14 +276,11 @@ async function onSubmit() {
         releaseIds: releaseIdsForSave(),
       },
       settings: state.settings,
-      translation: state.translation
-        ? {
-            id: tag.value.translationID,
-            ...state.translation,
-            origin: _trimOrigin,
-          }
-        : undefined,
-      isTransOriginChanged: isTransOriginChanged.value,
+      translation: {
+        id: tag.value.translationID,
+        ...state.translation,
+      },
+      isSourceTextChanged: isSourceTextChanged.value,
       close: () => emit('close', true),
     })
   } catch (error) {
@@ -261,26 +292,25 @@ const inputModal = overlay.create(InputModal)
 function onCreateTranslation(type: 'ocr' | 'link' | 'manual') {
   if (type === 'manual') {
     const _emit = () => {
-      if (!state.translation?.origin) return
-      const fingerprint = fpTranslation(state.translation.origin)
+      const trimmed = sourceText.value.trim()
+      if (!trimmed) return
       emit('createTrans', {
         type,
         translation: {
           ...state.translation,
-          fingerprint,
+          fingerprint: fpTranslation(trimmed),
         },
         releaseIds: state.releaseIds,
       })
     }
-    if (!state.translation?.origin) {
+    if (!sourceText.value.trim()) {
       inputModal.open({
         title: 'Input Dialog',
         label: 'Enter the original text to create',
         textArea: true,
         onClose: (value) => {
-          console.log('on close', value)
           if (value) {
-            state.translation.origin = value
+            sourceText.value = value
             _emit()
           }
         },
@@ -299,11 +329,12 @@ function onCreateTranslation(type: 'ocr' | 'link' | 'manual') {
 }
 
 async function onCreateI18nKey() {
-  if (!state.translation?.origin) return
+  const trimmed = sourceText.value.trim()
+  if (!trimmed) return
   emit('createI18nKey', {
     id: tag.value.id,
     i18nKey: state.i18nKey,
-    origin: state.translation?.origin,
+    sourceText: trimmed,
     prompt: state.settings.prompt,
   })
 }
@@ -607,7 +638,7 @@ const previewLabelStyle = computed(() => {
                   <AIKeySuggestion
                     v-if="suggestion && !suggestionDismissed"
                     :suggestion="suggestion"
-                    :origin="state.translation?.origin ?? ''"
+                    :source-text="sourceText"
                     @pick="onPickSuggestion"
                     @cancel="dismissSuggestion"
                   />
@@ -624,10 +655,19 @@ const previewLabelStyle = computed(() => {
               >
                 <ReleaseSelect v-model="state.releaseIds" :disabled="loading" />
               </UFormField>
-              <UFormField label="Text" :ui="{ label: 'w-full' }">
+              <UFormField
+                :label="sourceItem?.label || 'Text'"
+                :ui="{ label: 'w-full' }"
+              >
                 <template #label="{ label }">
                   <div class="flex items-center gap-3">
-                    <span>{{ label }}</span>
+                    <div class="flex items-center gap-2">
+                      <UIcon
+                        :name="sourceItem?.icon || 'i-lucide:languages'"
+                        :size="12"
+                      />
+                      <span>{{ label }}</span>
+                    </div>
                     <UButton
                       label="Link"
                       icon="i-lucide-link"
@@ -636,7 +676,7 @@ const previewLabelStyle = computed(() => {
                       @click="onCreateTranslation('link')"
                     />
                     <UButton
-                      v-if="isTransOriginChanged"
+                      v-if="isSourceTextChanged"
                       label="New"
                       color="neutral"
                       size="xs"
@@ -659,7 +699,7 @@ const previewLabelStyle = computed(() => {
                 </template>
                 <template #default>
                   <UTextarea
-                    v-model="originText"
+                    v-model="sourceText"
                     class="w-full"
                     :maxrows="4"
                     autoresize
@@ -673,7 +713,7 @@ const previewLabelStyle = computed(() => {
 
                     <USelect
                       v-model="selectedLanguage"
-                      :items="TRANSLATION_LANGUAGES"
+                      :items="targetLanguages"
                       size="sm"
                       class="min-w-50"
                     >

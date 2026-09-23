@@ -129,6 +129,10 @@ export function sourceTextOf(
   return locales?.find((row) => row.locale === sourceLocale)?.draftText ?? ''
 }
 
+/**
+ * A key's original text travels in `vue`/`react` like every other locale — it is
+ * the project's source language's entry, nothing beside it.
+ */
 export function shapeI18nKey(
   record: {
     id: number
@@ -138,14 +142,12 @@ export function shapeI18nKey(
     locales?: LocaleRow[]
     releases?: Array<{ releaseId: number }>
   },
-  sourceLocale: string,
   version: I18nContentVersion = 'draft'
 ) {
   const content = localesToContent(record.locales, version)
   return {
     id: record.id,
     fingerprint: record.fingerprint,
-    origin: sourceTextOf(record.locales, sourceLocale),
     createdAt: record.createdAt,
     updatedAt: record.updatedAt,
     vue: content,
@@ -170,8 +172,7 @@ export function shapeI18nKeyRow(
     _count?: { tags: number }
     tagCount?: number
     releases?: Array<{ releaseId: number }>
-  },
-  sourceLocale: string
+  }
 ) {
   const locales = row.locales.map((locale) => ({
     locale: locale.locale,
@@ -181,7 +182,6 @@ export function shapeI18nKeyRow(
   return {
     id: row.id,
     key: row.key,
-    origin: sourceTextOf(row.locales, sourceLocale),
     description: row.description,
     updatedAt: row.updatedAt,
     tagCount: row.tagCount ?? row._count?.tags ?? 0,
@@ -207,12 +207,12 @@ export function assertI18nKeyWritable(
 
 export function shapeTag<
   T extends { i18nKeyRecord?: any; i18nKeyId?: number | null },
->(tag: T, sourceLocale: string, version: I18nContentVersion = 'draft') {
+>(tag: T, version: I18nContentVersion = 'draft') {
   const rec = tag.i18nKeyRecord
   return {
     ...omit(tag, ['i18nKeyRecord']),
     translationID: rec?.id ?? tag.i18nKeyId ?? undefined,
-    translation: rec ? shapeI18nKey(rec, sourceLocale, version) : undefined,
+    translation: rec ? shapeI18nKey(rec, version) : undefined,
   }
 }
 
@@ -309,7 +309,7 @@ export async function deleteUnusedDraftI18nKey(id: number) {
 
 /**
  * A project's source language: the locale a key's original text lives in. It is
- * also what Git pushes as `source/`, what the export's origin column reads, and
+ * also what Git pushes as `source/`, which locale leads the export's columns, and
  * what the delivery API reports as `localeFallback`.
  */
 export async function sourceLocaleOf(
@@ -334,22 +334,22 @@ export function assertSourceLocale(locale: string, locales: string[]) {
 }
 
 /**
- * The source language's row *is* the key's original text, so writing an origin
- * writes that row. Draft side only: `publishedText` stays whatever a person
- * published, which is the copy Git pushes and the export carries.
+ * The source language's row *is* the key's original text, so writing one writes
+ * that row. Draft side only: `publishedText` stays whatever a person published,
+ * which is the copy Git pushes and the export carries.
  *
- * An empty origin writes nothing — that would only leave an empty row behind.
+ * An empty text writes nothing — that would only leave an empty row behind.
  */
-export async function writeOriginToSourceLocale(
+export async function writeSourceText(
   params: {
     projectId: number
     i18nKeyId: number
-    origin: string
+    text: string
     sourceLocale?: string
   },
   db: Pick<typeof prisma, 'localeValue'> = prisma
 ) {
-  if (!params.origin) return
+  if (!params.text) return
   const locale =
     params.sourceLocale ?? (await sourceLocaleOf(params.projectId))
   await db.localeValue.upsert({
@@ -357,10 +357,10 @@ export async function writeOriginToSourceLocale(
     create: {
       i18nKeyId: params.i18nKeyId,
       locale,
-      draftText: params.origin,
+      draftText: params.text,
       publishedText: null,
     },
-    update: { draftText: params.origin },
+    update: { draftText: params.text },
   })
 }
 
@@ -368,7 +368,7 @@ export async function resolveTagI18n(params: {
   pageID: number
   i18nKey?: string | null
   translationID?: number | null
-  origin?: string
+  sourceText?: string
   fingerprint?: string
 }) {
   const page = await prisma.page.findUnique({
@@ -419,8 +419,8 @@ export async function resolveTagI18n(params: {
       return { i18nKeyId: current.id, i18nKey: keyText, projectId }
     }
 
-    // An empty original text adopts the other entry's, in the column and in the
-    // source language's row together.
+    // An empty original text adopts the other entry's, and the source language's
+    // row is the only place it lives.
     const clashText = sourceTextOf(clash.locales, sourceLocale)
     const currentText = sourceTextOf(current.locales, sourceLocale)
     if (!clashText && currentText) {
@@ -430,10 +430,10 @@ export async function resolveTagI18n(params: {
           fingerprint: clash.fingerprint || current.fingerprint,
         },
       })
-      await writeOriginToSourceLocale({
+      await writeSourceText({
         projectId,
         i18nKeyId: clash.id,
-        origin: currentText,
+        text: currentText,
         sourceLocale,
       })
     }
@@ -452,10 +452,10 @@ export async function resolveTagI18n(params: {
       },
       update: {},
     })
-    await writeOriginToSourceLocale({
+    await writeSourceText({
       projectId,
       i18nKeyId: record.id,
-      origin: params.origin ?? '',
+      text: params.sourceText ?? '',
       sourceLocale,
     })
     return { i18nKeyId: record.id, i18nKey: keyText, projectId }
@@ -467,12 +467,8 @@ export async function resolveTagI18n(params: {
 export async function loadShapedTag(id: number) {
   const tag = await prisma.tag.findUnique({
     where: { id },
-    include: {
-      ...tagI18nInclude,
-      // Only for the project whose source language the original text is read from.
-      page: { select: { projectID: true } },
-    },
+    include: tagI18nInclude,
   })
   if (!tag) return null
-  return shapeTag(tag, await sourceLocaleOf(tag.page.projectID))
+  return shapeTag(tag)
 }

@@ -39,13 +39,13 @@ export function useTagModal() {
       tag: opt.tag,
       clip: opt.clip,
       loading: false,
-      onSave: async ({ tag, settings, translation, isTransOriginChanged }) => {
+      onSave: async ({ tag, settings, translation, isSourceTextChanged }) => {
         try {
           tagModal.patch({ loading: true })
           let updatedTrans: ITranslation | null = null
           if (translation) {
-            // trans origin changed -> create new translation
-            if (isTransOriginChanged) {
+            // source text changed -> create new translation
+            if (isSourceTextChanged) {
               updatedTrans = await translationGenerator.manual(
                 translation as ITranslation,
                 tag.releaseIds
@@ -152,7 +152,7 @@ export function useTagModal() {
         }
       },
 
-      onCreateI18nKey: async ({ id, origin, prompt }) => {
+      onCreateI18nKey: async ({ id, sourceText, prompt }) => {
         tagModal.patch({ loading: true, suggestion: null })
         try {
           // Nothing is written here on purpose: the answer is a suggestion until
@@ -161,7 +161,7 @@ export function useTagModal() {
           tagModal.patch({
             suggestion: await requestKeySuggestion({
               tagID: id,
-              origin,
+              sourceText,
               projectPrompt: projectStore.curProject.settings?.prompt,
               pagePrompt: pageStore.curPage.settings?.prompt,
               tagPrompt: prompt,

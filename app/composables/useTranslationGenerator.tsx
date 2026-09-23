@@ -1,4 +1,5 @@
 import { omit } from 'lodash-es'
+import { DEFAULT_LOCALE_FALLBACK } from '#shared/constants'
 import { AlertModal, UAlert, UButton } from '#components'
 
 export function useTranslationGenerator() {
@@ -6,6 +7,17 @@ export function useTranslationGenerator() {
   const pageStore = usePageStore()
   const projectStore = useProjectStore()
   const overlay = useOverlay()
+
+  /** A key's original text is its source language's entry, never a field beside it. */
+  const sourceLocale = computed(
+    () =>
+      projectStore.curProject?.settings?.localeFallback ||
+      DEFAULT_LOCALE_FALLBACK
+  )
+
+  function sourceTextOf(trans: ITranslation) {
+    return String((trans.vue ?? trans.react)?.[sourceLocale.value] ?? '').trim()
+  }
 
   const alertModal = overlay.create(AlertModal, {
     props: {
@@ -59,7 +71,7 @@ export function useTranslationGenerator() {
     trans: ITranslation,
     releaseIds?: number[]
   ) {
-    if (!trans.origin) return null
+    if (!sourceTextOf(trans)) return null
     let checkedID: ID | null = null
     if (trans.fingerprint) {
       checkedID = await useApi<ID | null>(
@@ -186,7 +198,7 @@ export function useTranslationGenerator() {
     }
     return await generateTranslation(
       {
-        origin: ocrRes.text,
+        vue: { [sourceLocale.value]: ocrRes.text },
         fingerprint: ocrRes.fingerprint,
       } as ITranslation,
       releaseIds
@@ -194,7 +206,6 @@ export function useTranslationGenerator() {
   }
 
   async function manual(translation: ITranslation, releaseIds?: number[]) {
-    if (!translation.origin) return null
     return await generateTranslation(translation, releaseIds)
   }
 

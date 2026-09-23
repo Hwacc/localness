@@ -62,7 +62,7 @@ export default defineEventHandler(async (event) => {
       throw createError({
         statusCode: 409,
         statusMessage: keyClashMessage(
-          { key: clash.key, origin: sourceTextOf(clash.locales, sourceLocale) },
+          { key: clash.key, sourceText: sourceTextOf(clash.locales, sourceLocale) },
           sourceTextOf(existing.locales, sourceLocale)
         ),
       })
@@ -88,5 +88,5 @@ export default defineEventHandler(async (event) => {
     })
   }
 
-  return shapeI18nKeyRow(updated, sourceLocale)
+  return shapeI18nKeyRow(updated)
 })

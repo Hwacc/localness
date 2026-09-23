@@ -38,7 +38,7 @@ const localeCodes = computed(() =>
   parseLocales(curProject.value.settings?.locales),
 )
 
-/** The language a key's original text lives in; that cell and `origin` are one value. */
+/** The language a key's original text lives in; that cell *is* the original text. */
 const sourceLocale = computed(
   () =>
     curProject.value.settings?.localeFallback || DEFAULT_LOCALE_FALLBACK
@@ -803,7 +803,7 @@ onMounted(async () => {
           v-model="q"
           class="w-72"
           icon="i-lucide:search"
-          placeholder="Search key or origin"
+          placeholder="Search key or text"
         />
         <USelectMenu
           v-model="statusFilter"

@@ -8,7 +8,7 @@ import {
   localesToContent,
   sourceLocaleOf,
   upsertLocaleDrafts,
-  writeOriginToSourceLocale,
+  writeSourceText,
   assertI18nKeyWritable,
 } from '#server/helper/i18n'
 
@@ -60,9 +60,9 @@ export default defineEventHandler(async (event) => {
   try {
     /*
      * The source language's row is the key's original text, not just another
-     * locale: writing it rewrites `origin` (and its fingerprint), and clearing it
-     * is ignored — an original text cannot be blank. It is dropped from the locale
-     * map and written through the origin helper, so that row has one writer.
+     * locale: clearing it is ignored — an original text cannot be blank. It is
+     * dropped from the locale map and written through the source helper, so that
+     * row has one writer.
      */
     const raw = safeBody as Record<string, string | null | undefined>
     const sourceLocale = await sourceLocaleOf(existing.projectId)
@@ -70,10 +70,10 @@ export default defineEventHandler(async (event) => {
       raw[sourceLocale] === undefined ? undefined : String(raw[sourceLocale])
     await upsertLocaleDrafts(nID, omit(raw, sourceLocale))
     if (sourceText?.trim()) {
-      await writeOriginToSourceLocale({
+      await writeSourceText({
         projectId: existing.projectId,
         i18nKeyId: nID,
-        origin: sourceText,
+        text: sourceText,
         sourceLocale,
       })
     }

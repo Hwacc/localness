@@ -45,7 +45,7 @@ export type ExportRowsResult = {
 /**
  * Locale columns for the sheet: the picked ones in their given order, with the
  * source language kept in front when asked for — its column is where the sheet's
- * original text lives, so it leads the same way `Origin` used to.
+ * original text lives, so it leads.
  */
 export function exportLocaleColumns(params: {
   locales: string[]

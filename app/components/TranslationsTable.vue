@@ -24,7 +24,7 @@ const props = defineProps<{
   total: number
   limit: number
   localeCodes: string[]
-  /** The language a key's original text lives in; editing that cell moves `origin`. */
+  /** The language a key's original text lives in; editing that cell edits the original. */
   sourceLocale: string
   releases: IProjectRelease[]
   publishing: boolean
@@ -101,7 +101,10 @@ async function askAi(row: II18nKeyRow) {
   askingId.value = row.id
   expanded.value = { [id]: true }
   try {
-    await generateKey({ projectId: props.projectId, origin: row.origin })
+    await generateKey({
+      projectId: props.projectId,
+      sourceText: cellDraft(row, props.sourceLocale),
+    })
   } finally {
     askingId.value = null
   }
@@ -201,9 +204,6 @@ async function saveDraft(row: II18nKeyRow, locale: string, value: string) {
     })
   }
   row.dirty = isI18nKeyDraft(row.locales)
-  // That cell *is* the original text, so the column beside it moves too — patched
-  // here rather than reloaded, for the same reason as the locale row above.
-  if (locale === props.sourceLocale) row.origin = value
 }
 
 /**
@@ -302,8 +302,8 @@ function releaseLabelsOf(row: II18nKeyRow) {
 
 /**
  * One column per locale. Extracted from the list below so the source language can
- * also stand where `Origin` used to: a key's original text *is* that language's
- * text, and two columns for one value is exactly what this removes.
+ * also lead the languages: a key's original text *is* that language's text, and a
+ * second column for it would be one value twice.
  */
 function localeColumn(code: string): TableColumn<II18nKeyRow> {
   const meta = localeMeta(code)
@@ -486,8 +486,8 @@ const columns = computed<TableColumn<II18nKeyRow>[]>(() => [
       )
     },
   },
-  // Where `Origin` used to sit: the original text's own column, first among the
-  // languages and editable like any other (editing it moves the key's text).
+  // The original text's own column, first among the languages and editable like
+  // any other (editing it moves the key's text).
   localeColumn(props.sourceLocale),
   {
     id: 'tagCount',
@@ -705,7 +705,7 @@ defineExpose({
               v-if="keySuggestion"
               layout="horizontal"
               :suggestion="keySuggestion"
-              :origin="row.original.origin"
+              :source-text="cellDraft(row.original, props.sourceLocale)"
               @pick="onPickSuggestion(row.original, $event)"
               @cancel="closeSuggestion"
             />

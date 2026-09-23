@@ -26,7 +26,6 @@ const projectStore = useProjectStore()
 
 const state = reactive({
   key: '',
-  origin: '',
   locales: {} as Record<string, string>,
   releaseIds: [] as number[],
 })
@@ -40,8 +39,9 @@ const { loading: generating, suggestion, generate } = useI18nKeyGeneration()
 
 /** Naming needs the text, exactly as the tag dialog does: nothing to name without it. */
 function onGenerate() {
-  if (!state.origin.trim()) return
-  generate({ projectId: props.projectId, origin: state.origin })
+  const sourceText = (state.locales[sourceLocale.value] ?? '').trim()
+  if (!sourceText) return
+  generate({ projectId: props.projectId, sourceText })
 }
 
 /** The panel is only a suggestion until it is taken or waved away. */
@@ -69,7 +69,6 @@ const tabsItems = [
 
 function fillFromRow(row: II18nKeyRow | null | undefined) {
   state.key = row?.key ?? ''
-  state.origin = row?.origin ?? ''
   const next: Record<string, string> = {}
   for (const code of localeCodes.value) {
     next[code] =
@@ -99,45 +98,36 @@ function localeMeta(code: string) {
   return TRANSLATION_LANGUAGES.find((lang) => lang.value === code)
 }
 
-/** Where this project's original text lives — the column a translator reaches for first. */
+/** Where this project's original text lives — the entry a translator reaches for first. */
 const sourceLocale = computed(
   () =>
     projectStore.curProject?.settings?.localeFallback ||
     DEFAULT_LOCALE_FALLBACK
 )
+const sourceItem = computed(() => localeMeta(sourceLocale.value))
 
 /**
- * The source language's item and the Origin field are one value, so this pair
- * routes writes there instead of into `state.locales` — otherwise editing it
- * from the accordion would be silently overwritten by the origin on save.
+ * The source language is a field of its own on the General tab, so it is not one
+ * of the accordion's entries: one language, one input.
  */
-function localeValue(code: string) {
-  return code === sourceLocale.value ? state.origin : state.locales[code] ?? ''
-}
-
-function setLocaleValue(code: string, value: string) {
-  if (code === sourceLocale.value) state.origin = value
-  else state.locales[code] = value
-}
+const otherLocaleCodes = computed(() =>
+  localeCodes.value.filter((code) => code !== sourceLocale.value)
+)
 
 const localeItems = computed(() =>
-  localeCodes.value.map((code) => ({
+  otherLocaleCodes.value.map((code) => ({
     label: localeMeta(code)?.label || code,
     value: code,
   }))
 )
 
 /**
- * The source language starts open — that is where a key's original text lives; a
- * project that does not carry it opens on whichever locale leads its own list. Held here
- * rather than left to the accordion's own default: `UTabs` unmounts the tab it is
- * not showing, so a default would be reapplied on every return to this one.
+ * Whichever other language leads the project's own list opens first — the source
+ * language is not in this tab. Held here rather than left to the accordion's own
+ * default: `UTabs` unmounts the tab it is not showing, so a default would be
+ * reapplied on every return to this one.
  */
-const openLocale = ref<string | undefined>(
-  localeCodes.value.includes(sourceLocale.value)
-    ? sourceLocale.value
-    : localeCodes.value[0]
-)
+const openLocale = ref<string | undefined>(otherLocaleCodes.value[0])
 
 const keyDisplay = computed({
   get: () => formatI18nKeyDisplay(state.key),
@@ -185,7 +175,7 @@ async function onSyncToggle(enabled: boolean) {
 async function onSave() {
   if (props.readonly) return
   const key = state.key.trim()
-  const origin = state.origin.trim()
+  const sourceText = (state.locales[sourceLocale.value] ?? '').trim()
   if (!key) {
     toast.add({
       title: 'Key is required',
@@ -194,9 +184,9 @@ async function onSave() {
     })
     return
   }
-  if (!origin) {
+  if (!sourceText) {
     toast.add({
-      title: 'Origin is required',
+      title: 'Source text is required',
       color: 'error',
       icon: 'i-lucide:circle-alert',
     })
@@ -210,7 +200,6 @@ async function onSave() {
         body: {
           projectId: Number(props.projectId),
           key,
-          origin,
           vue: state.locales,
           releaseIds: state.releaseIds,
         },
@@ -229,7 +218,7 @@ async function onSave() {
       await useApi(`/api/translation/${row.id}`, {
         method: 'POST',
         body: {
-          origin,
+          // The source language's entry in here is the key's original text.
           vue: state.locales,
           // Always sent, so clearing every label saves as "Unassigned" rather
           // than being read as "leave them alone".
@@ -290,15 +279,24 @@ async function onSave() {
                 <AIKeySuggestion
                   v-if="suggestion"
                   :suggestion="suggestion"
-                  :origin="state.origin"
+                  :source-text="state.locales[sourceLocale] ?? ''"
                   @pick="onPickSuggestion"
                   @cancel="dismissSuggestion"
                 />
               </div>
             </UFormField>
-            <UFormField label="Origin">
+            <UFormField :label="sourceItem?.label || 'Source'">
+              <template #label="{ label }">
+                <div class="flex items-center gap-2">
+                  <UIcon
+                    :name="sourceItem?.icon || 'i-lucide:languages'"
+                    size="14"
+                  />
+                  <span>{{ label }}</span>
+                </div>
+              </template>
               <UTextarea
-                v-model="state.origin"
+                v-model="state.locales[sourceLocale]"
                 class="w-full"
                 :rows="3"
                 :disabled="readonly"
@@ -329,18 +327,11 @@ async function onSave() {
           </div>
         </template>
         <template #translations>
+          <p v-if="sourceItem" class="mb-3 text-xs text-muted">
+            {{ sourceItem.label }} is the source language; edit it on the
+            General tab.
+          </p>
           <UAccordion v-model="openLocale" :items="localeItems">
-            <template #default="{ item }">
-              {{ item.label }}
-              <UBadge
-                v-if="item.value === sourceLocale"
-                size="sm"
-                variant="soft"
-                color="neutral"
-                label="source language"
-                class="ms-2"
-              />
-            </template>
             <template #body="{ item }">
               <!--
                 Nuxt UI's own theme pairs `autoresize` with `resize-none`, so the
@@ -348,14 +339,13 @@ async function onSave() {
                 usual case, and the handle covers text longer than `maxrows`.
               -->
               <UTextarea
-                :model-value="localeValue(item.value)"
+                v-model="state.locales[item.value]"
                 class="w-full"
                 :ui="{ base: 'resize-y' }"
                 :rows="3"
                 :maxrows="10"
                 autoresize
                 :disabled="readonly"
-                @update:model-value="setLocaleValue(item.value, $event)"
               />
             </template>
           </UAccordion>

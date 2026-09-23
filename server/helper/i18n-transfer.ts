@@ -2,7 +2,7 @@ import prisma from '#server/libs/prisma'
 import {
   sourceLocaleOf,
   sourceTextOf,
-  writeOriginToSourceLocale,
+  writeSourceText,
 } from '#server/helper/i18n'
 import type {
   I18nTransferMode,
@@ -243,11 +243,11 @@ export async function transferKeys(params: {
          * locales — so make sure the target's source language holds the text that
          * is now this key's original.
          */
-        await writeOriginToSourceLocale(
+        await writeSourceText(
           {
             projectId: params.targetProjectId,
             i18nKeyId: created.id,
-            origin: sourceTextOf(sourceKey.locales, sourceLocale),
+            text: sourceTextOf(sourceKey.locales, sourceLocale),
             sourceLocale: targetSourceLocale,
           },
           tx

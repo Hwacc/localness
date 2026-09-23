@@ -2,7 +2,10 @@
 import { UCheckbox, UIcon } from '#components'
 import type { DropdownMenuItem, TableColumn, TableRow } from '@nuxt/ui'
 import { omit } from 'lodash-es'
-import { TRANSLATION_LANGUAGES } from '#shared/constants'
+import {
+  DEFAULT_LOCALE_FALLBACK,
+  TRANSLATION_LANGUAGES,
+} from '#shared/constants'
 import { formatI18nKeyDisplay } from '#shared/utils'
 
 const emit = defineEmits<{
@@ -21,6 +24,22 @@ const rowSelection = ref<Record<string, boolean>>({})
 
 const framework = ref<'vue' | 'react'>('vue')
 
+const sourceLocale = computed(
+  () =>
+    curProject.value.settings?.localeFallback || DEFAULT_LOCALE_FALLBACK
+)
+
+/** The source language leads: it carries the key's original text. */
+const languageOrder = computed(() => {
+  const source = TRANSLATION_LANGUAGES.filter(
+    (lang) => lang.value === sourceLocale.value
+  )
+  const others = TRANSLATION_LANGUAGES.filter(
+    (lang) => lang.value !== sourceLocale.value
+  )
+  return [...source, ...others]
+})
+
 function rowToTranslation(row: II18nKeyRow): ITranslation {
   const content: TranslationContent = {}
   for (const locale of row.locales) {
@@ -29,7 +48,6 @@ function rowToTranslation(row: II18nKeyRow): ITranslation {
   }
   return {
     id: row.id,
-    origin: row.origin,
     fingerprint: '',
     vue: content,
     react: { ...content },
@@ -72,21 +90,11 @@ const columns = computed<TableColumn<ITranslation>[]>(() => [
       </code>
     ),
   },
-  {
-    id: 'origin',
-    accessorKey: 'origin',
-    header: 'Origin',
-    enableHiding: false,
-    cell: ({ row }) => (
-      <div
-        class="w-max max-w-[20rem] whitespace-normal line-clamp-2"
-        title={row.getValue('origin')}
-      >
-        {row.getValue('origin') || '—'}
-      </div>
-    ),
-  },
-  ...TRANSLATION_LANGUAGES.map((lang) => {
+  /*
+   * One column per language, with the source language first — it carries the key's
+   * original text, so a column of its own beside these would be the same value twice.
+   */
+  ...languageOrder.value.map((lang) => {
     return {
       id: lang.value,
       accessorKey: lang.value,
@@ -204,7 +212,7 @@ onMounted(() => {
           <UInput
             v-model="search"
             class="w-75"
-            placeholder="Search key or origin"
+            placeholder="Search key or text"
             @keydown.enter="onSearch"
           >
             <template #trailing>

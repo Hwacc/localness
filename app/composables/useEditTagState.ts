@@ -117,7 +117,6 @@ export function useEditTagState(tag: MaybeRef<ITag>) {
         prompt: settings?.prompt ?? '',
       }
       state.translation = {
-        origin: translation?.origin ?? '',
         fingerprint: translation?.fingerprint ?? '',
         vue: translation?.vue ?? {},
         react: translation?.react ?? {},

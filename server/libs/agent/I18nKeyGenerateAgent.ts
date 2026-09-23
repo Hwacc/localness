@@ -47,7 +47,7 @@ export function buildI18nKeyUserTurn(
     guidance('Page guidance', params.pagePrompt),
     guidance('Tag guidance', params.tagPrompt),
     conventionBlock(params.convention),
-    guidance('Text', params.tagOrigin),
+    guidance('Text', params.tagSourceText),
   ]
     .filter((section) => section !== null)
     .join('\n\n')

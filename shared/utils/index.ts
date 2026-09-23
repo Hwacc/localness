@@ -44,9 +44,9 @@ export const timestampFilename = (file: File) => {
   return `${filename}-${timestamp}.${ext}`
 }
 
-export const fpTranslation = (origin: string) => {
-  const normalizedOrigin = origin.replace(/\s+/g, '').trim()
-  return SparkMD5.hash(normalizedOrigin)
+export const fpTranslation = (text: string) => {
+  const normalized = text.replace(/\s+/g, '').trim()
+  return SparkMD5.hash(normalized)
 }
 
 export const DRAFT_KEY_PREFIX = '__draft_'

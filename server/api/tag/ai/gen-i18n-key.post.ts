@@ -25,7 +25,7 @@ export default defineEventHandler(async (event) => {
     const suggestion = await buildKeySuggestion({
       projectId: projectID,
       pageID: tag.page?.id,
-      origin: params.tagOrigin,
+      sourceText: params.tagSourceText,
       // The caller knows this tag's own context, so its guidance wins.
       prompts: {
         project: params.projectPrompt,

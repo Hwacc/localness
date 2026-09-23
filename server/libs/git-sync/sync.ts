@@ -85,8 +85,8 @@ type PrismaLike = Pick<
 
 /**
  * Write Git (or a conflict resolution) as the platform copy: draft + published.
- * A written source locale also refreshes `origin`/`fingerprint` — the source
- * language's row is where a key's original text lives.
+ * A written source locale also refreshes the fingerprint — the source language's
+ * row is where a key's original text lives.
  */
 async function upsertDraft(
   params: {

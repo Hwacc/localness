@@ -9,14 +9,14 @@ import {
   shapeI18nKey,
   sourceLocaleOf,
   upsertLocaleDrafts,
-  writeOriginToSourceLocale,
+  writeSourceText,
 } from '#server/helper/i18n'
 import { setEntryReleases, throwReleaseHttp } from '#server/helper/release'
 import { fpTranslation } from '#shared/utils'
 
 /**
  * @route POST /api/translation/:id
- * @description Update an I18nKey origin
+ * @description Update an I18nKey in place, including its original text
  * @access Private
  */
 export default defineEventHandler(async (event) => {
@@ -31,12 +31,6 @@ export default defineEventHandler(async (event) => {
   const nID = numericID(id)
   await requireI18nKeyTeamMember(event, nID)
   const body = await readZodBody(event, zTranslation.parse)
-  if (!body.origin) {
-    throw createError({
-      statusCode: 400,
-      statusMessage: 'Missing origin text',
-    })
-  }
   const existing = await prisma.i18nKey.findUnique({
     where: { id: nID },
     include: { locales: true },
@@ -49,40 +43,37 @@ export default defineEventHandler(async (event) => {
   }
   assertI18nKeyWritable(existing.locales)
   const sourceLocale = await sourceLocaleOf(existing.projectId)
+  const content = body.vue || body.react
+  const sourceText = String(content?.[sourceLocale] ?? '').trim()
+  if (!sourceText) {
+    throw createError({
+      statusCode: 400,
+      statusMessage: 'Missing source text',
+    })
+  }
   try {
-    const safeData = omit(body, [
-      'id',
-      'fingerprint',
-      'vue',
-      'react',
-      'projectId',
-      'key',
-      'force',
-      // Labels are relations, not a column: they are written below, and letting
-      // this through would hand Prisma an unknown field.
-      'releaseIds',
-    ])
-    const origin = safeData.origin as string
     const updated = await prisma.i18nKey.update({
       where: { id: nID },
       data: {
-        fingerprint: fpTranslation(origin),
+        fingerprint: fpTranslation(sourceText),
       },
       include: { locales: true },
     })
-    const content = body.vue || body.react
+    /*
+     * The source language's row *is* the original text, so it is dropped from the
+     * map and written through the helper — that row has one writer, and clearing
+     * it is ignored.
+     */
     if (content) {
       await upsertLocaleDrafts(
         nID,
-        content as Record<string, string | null | undefined>
+        omit(content, sourceLocale) as Record<string, string | null | undefined>
       )
     }
-    // The source language's row is where the original text lives, so an origin
-    // edit lands there too.
-    await writeOriginToSourceLocale({
+    await writeSourceText({
       projectId: existing.projectId,
       i18nKeyId: nID,
-      origin,
+      text: sourceText,
       sourceLocale,
     })
     // Absent means "leave the labels alone"; an empty array means "clear them".
@@ -113,7 +104,7 @@ export default defineEventHandler(async (event) => {
         userID: numericID(session.user.id),
       },
     })
-    return loaded ? shapeI18nKey(loaded, sourceLocale) : null
+    return loaded ? shapeI18nKey(loaded) : null
   } catch (error) {
     console.error(error)
     await prisma.translationLog.create({

@@ -178,7 +178,6 @@ export const zTranslationContent = z.looseObject({
 export type ZTranslationContent = z.infer<typeof zTranslationContent>
 
 export const zTranslation = z.looseObject({
-  origin: zNilable(z.string()).optional(),
   fingerprint: zNilable(z.string()).optional(),
   projectId: z.number().int().positive().optional(),
   key: zNilable(z.string()).optional(),
@@ -291,7 +290,7 @@ export const zGenI18nKey = z.object({
   pagePrompt: zNilable(z.string()),
   pageImage: zNilable(z.string()),
   tagID: z.number().nonnegative(),
-  tagOrigin: z.string(),
+  tagSourceText: z.string(),
   tagI18nKey: zNilable(z.string()),
   tagPrompt: zNilable(z.string()),
 })
@@ -303,7 +302,7 @@ export type ZGenI18nKey = z.infer<typeof zGenI18nKey>
  * prompt is the only instruction that is certain to apply.
  */
 export const zGenI18nKeyForProject = z.object({
-  origin: z.string().min(1),
+  sourceText: z.string().min(1),
 })
 export type ZGenI18nKeyForProject = z.infer<typeof zGenI18nKeyForProject>
 

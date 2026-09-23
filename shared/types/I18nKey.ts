@@ -10,7 +10,6 @@ export interface ILocaleValue {
 export interface II18nKeyRow {
   id: ID
   key: string
-  origin: string
   description: string | null
   updatedAt: Date | string
   tagCount: number

@@ -28,7 +28,7 @@ vi.mock('#server/libs/prisma', () => ({
   },
 }))
 
-const { shapeI18nKey, shapeI18nKeyRow, sourceTextOf, writeOriginToSourceLocale } =
+const { shapeI18nKey, shapeI18nKeyRow, sourceTextOf, writeSourceText } =
   await import('#server/helper/i18n')
 
 const locale = (code: string, draftText: string | null) => ({
@@ -59,46 +59,44 @@ describe('sourceTextOf', () => {
 
 describe('shaping', () => {
   /*
-   * The point of the model: a key's original text is the source language's draft,
-   * so a row that still carries an `origin` column value must not report it.
+   * The model's whole point: a key's original text is the source language's draft
+   * and nothing else. It rides along in the locale map, so the shaped record has
+   * no field of its own for it — a second copy is what this removes.
    */
-  it('derives a row origin from the source language, not from the column', () => {
-    const row = shapeI18nKeyRow(
-      {
-        id: 1,
-        key: 'a.b',
-        origin: 'stale column value',
-        description: null,
-        updatedAt: new Date('2026-09-22T00:00:00.000Z'),
-        locales: [locale('en', 'Save'), locale('ja', '保存')],
-      },
-      'ja'
-    )
+  it('carries a row by locale, with no origin field', () => {
+    const row = shapeI18nKeyRow({
+      id: 1,
+      key: 'a.b',
+      description: null,
+      updatedAt: new Date('2026-09-22T00:00:00.000Z'),
+      locales: [locale('en', 'Save'), locale('ja', '保存')],
+    })
 
-    expect(row.origin).toBe('保存')
+    expect('origin' in row).toBe(false)
+    expect(row.locales).toEqual([
+      locale('en', 'Save'),
+      locale('ja', '保存'),
+    ])
   })
 
-  it('derives a key origin the same way', () => {
-    const key = shapeI18nKey(
-      {
-        id: 1,
-        fingerprint: 'fp',
-        origin: 'stale column value',
-        locales: [locale('en', 'Save'), locale('ja', '保存')],
-      },
-      'ja'
-    )
+  it('carries a key by locale the same way', () => {
+    const key = shapeI18nKey({
+      id: 1,
+      fingerprint: 'fp',
+      locales: [locale('en', 'Save'), locale('ja', '保存')],
+    })
 
-    expect(key.origin).toBe('保存')
+    expect('origin' in key).toBe(false)
+    expect(key.vue).toMatchObject({ en: 'Save', ja: '保存' })
   })
 })
 
-describe('writeOriginToSourceLocale', () => {
+describe('writeSourceText', () => {
   it('writes the draft and leaves the published copy alone', async () => {
-    await writeOriginToSourceLocale({
+    await writeSourceText({
       projectId: 7,
       i18nKeyId: 12,
-      origin: 'Save',
+      text: 'Save',
     })
 
     expect(db.localeUpserts).toEqual([
@@ -114,11 +112,11 @@ describe('writeOriginToSourceLocale', () => {
     ])
   })
 
-  it('writes nothing for an empty origin', async () => {
-    await writeOriginToSourceLocale({
+  it('writes nothing for an empty text', async () => {
+    await writeSourceText({
       projectId: 7,
       i18nKeyId: 12,
-      origin: '',
+      text: '',
     })
 
     expect(db.localeUpserts).toEqual([])
