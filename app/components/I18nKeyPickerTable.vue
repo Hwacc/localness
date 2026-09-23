@@ -5,7 +5,11 @@ import {
   today,
   type DateValue,
 } from '@internationalized/date'
-import { I18nKeyStatusFilter } from '#shared/constants'
+import {
+  DEFAULT_LOCALE_FALLBACK,
+  I18nKeyStatusFilter,
+  TRANSLATION_LANGUAGES,
+} from '#shared/constants'
 import { formatI18nKeyDisplay } from '#shared/utils'
 import { useDebounceFn } from '@vueuse/core'
 
@@ -27,6 +31,23 @@ const { $dayjs } = useNuxtApp()
 const pageIds = computed(() => props.pageIds)
 const projectId = computed(() => props.projectId)
 const releaseFilter = computed(() => props.releaseFilter ?? 'all')
+
+/** The language a key's original text lives in, so its column can say whose it is. */
+const projectStore = useProjectStore()
+const sourceLocale = computed(
+  () =>
+    projectStore.curProject?.settings?.localeFallback || DEFAULT_LOCALE_FALLBACK
+)
+const sourceItem = computed(() =>
+  TRANSLATION_LANGUAGES.find((lang) => lang.value === sourceLocale.value)
+)
+
+/** What a key holds in the source language — this table's only readable text. */
+function sourceText(row: II18nKeyRow) {
+  return row.locales.find((locale) => locale.locale === sourceLocale.value)
+    ?.draftText
+}
+
 const query = useI18nKeyQuery({ projectId, pageIds, releaseFilter, limit: 10 })
 const {
   q,
@@ -49,7 +70,8 @@ const statusItems = [
 const columns: TableColumn<II18nKeyRow>[] = [
   { id: 'select', header: '', enableSorting: false },
   { id: 'key', accessorKey: 'key', header: 'Key' },
-  { id: 'origin', accessorKey: 'origin', header: 'Origin' },
+  /* No accessor: the value is one entry of `locales`, not a field of the row. */
+  { id: 'sourceText', header: 'Source' },
   { id: 'status', header: 'Status' },
   { id: 'tags', header: 'Tags' },
   { id: 'updatedAt', header: 'Updated' },
@@ -157,7 +179,7 @@ onMounted(() => query.load())
         class="w-56"
         size="sm"
         icon="i-lucide:search"
-        placeholder="Search key or origin"
+        placeholder="Search key or text"
       />
       <USelect
         v-model="status"
@@ -255,12 +277,22 @@ onMounted(() => query.load())
             </UBadge>
           </div>
         </template>
-        <template #origin-cell="{ row }">
+        <template #sourceText-header>
+          <div class="flex items-center gap-1">
+            <UIcon
+              v-if="sourceItem"
+              :name="sourceItem.icon"
+              size="14"
+            />
+            <span>{{ sourceItem?.short || 'Source' }}</span>
+          </div>
+        </template>
+        <template #sourceText-cell="{ row }">
           <p
             class="max-w-64 truncate text-sm text-muted"
-            :title="row.original.origin"
+            :title="sourceText(row.original) || ''"
           >
-            {{ row.original.origin || '—' }}
+            {{ sourceText(row.original) || '—' }}
           </p>
         </template>
         <template #status-cell="{ row }">

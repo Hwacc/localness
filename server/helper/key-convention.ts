@@ -72,14 +72,14 @@ export function resolveKeyConvention(
  * them, so it stays testable without a database.
  */
 export function shapeKeyDuplicates(
-  rows: { key: string; origin: string }[],
+  rows: { key: string; sourceText: string }[],
   text: string
 ): I18nKeyDuplicate[] {
   const wanted = text.trim()
   return rows.map((row) => ({
     key: row.key,
-    origin: row.origin,
-    sameOrigin: row.origin.trim() === wanted,
+    sourceText: row.sourceText,
+    sameSourceText: row.sourceText.trim() === wanted,
   }))
 }
 
@@ -91,10 +91,10 @@ export function shapeKeyDuplicates(
  * one), while a different text owning it means the name is simply taken.
  */
 export function keyClashMessage(
-  clash: { key: string; origin: string },
+  clash: { key: string; sourceText: string },
   text: string
 ): string {
-  return clash.origin.trim() === text.trim()
+  return clash.sourceText.trim() === text.trim()
     ? `Key "${clash.key}" already exists for the same source text`
-    : `Key "${clash.key}" already belongs to a different text: "${clash.origin}"`
+    : `Key "${clash.key}" already belongs to a different text: "${clash.sourceText}"`
 }

@@ -3,7 +3,7 @@ const props = withDefaults(
   defineProps<{
     suggestion: I18nKeySuggestion
     /** The text that was sent, to spot an echo that does not match it. */
-    origin: string
+    sourceText: string
     /**
      * `stacked` for the narrow columns (the two dialogs), `horizontal` for the
      * table's expanded row, which has the whole table to spread across.
@@ -72,7 +72,7 @@ const confidenceLabel = computed(() =>
 )
 
 const echoDiffers = computed(
-  () => props.suggestion.source.trim() !== props.origin.trim()
+  () => props.suggestion.source.trim() !== props.sourceText.trim()
 )
 </script>
 

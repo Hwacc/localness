@@ -229,22 +229,32 @@ describe('resolveKeyConvention', () => {
 describe('shapeKeyDuplicates', () => {
   it('calls a hit with the same text a reuse', () => {
     expect(
-      shapeKeyDuplicates([{ key: 'demo_a_btn', origin: 'Sign in' }], 'Sign in')
-    ).toEqual([{ key: 'demo_a_btn', origin: 'Sign in', sameOrigin: true }])
+      shapeKeyDuplicates(
+        [{ key: 'demo_a_btn', sourceText: 'Sign in' }],
+        'Sign in'
+      )
+    ).toEqual([
+      { key: 'demo_a_btn', sourceText: 'Sign in', sameSourceText: true },
+    ])
   })
 
   it('calls a hit with different text a clash', () => {
     expect(
-      shapeKeyDuplicates([{ key: 'demo_a_btn', origin: 'Sign out' }], 'Sign in')
-    ).toEqual([{ key: 'demo_a_btn', origin: 'Sign out', sameOrigin: false }])
+      shapeKeyDuplicates(
+        [{ key: 'demo_a_btn', sourceText: 'Sign out' }],
+        'Sign in'
+      )
+    ).toEqual([
+      { key: 'demo_a_btn', sourceText: 'Sign out', sameSourceText: false },
+    ])
   })
 
   it('ignores surrounding whitespace on either side', () => {
     expect(
       shapeKeyDuplicates(
-        [{ key: 'demo_a_btn', origin: '  Sign in  ' }],
+        [{ key: 'demo_a_btn', sourceText: '  Sign in  ' }],
         'Sign in'
-      )[0].sameOrigin
+      )[0].sameSourceText
     ).toBe(true)
   })
 
@@ -256,13 +266,13 @@ describe('shapeKeyDuplicates', () => {
 describe('keyClashMessage', () => {
   it('points at the entry that already holds the same text', () => {
     expect(
-      keyClashMessage({ key: 'a_btn', origin: 'Sign in' }, 'Sign in')
+      keyClashMessage({ key: 'a_btn', sourceText: 'Sign in' }, 'Sign in')
     ).toContain('same source text')
   })
 
   it('names the other text when the clash is a different one', () => {
     expect(
-      keyClashMessage({ key: 'a_btn', origin: 'Sign out' }, 'Sign in')
+      keyClashMessage({ key: 'a_btn', sourceText: 'Sign out' }, 'Sign in')
     ).toContain('Sign out')
   })
 })

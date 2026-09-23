@@ -51,7 +51,7 @@ export type KeySuggestionParams = {
    * sit on several pages, so picking one of them would be arbitrary.
    */
   pageID?: number | null
-  origin: string
+  sourceText: string
   prompts?: {
     project?: string | null
     page?: string | null
@@ -90,7 +90,7 @@ export async function buildKeySuggestion(
     projectPrompt: params.prompts?.project ?? projectSettings?.prompt ?? null,
     pagePrompt: params.prompts?.page ?? null,
     pageImage: null,
-    tagOrigin: params.origin,
+    tagSourceText: params.sourceText,
     tagI18nKey: null,
     tagPrompt: params.prompts?.tag ?? null,
     convention: resolveKeyConvention(pageSettings, projectSettings),
@@ -124,9 +124,9 @@ export async function buildKeySuggestion(
     duplicates: shapeKeyDuplicates(
       existing.map((row) => ({
         key: row.key,
-        origin: sourceTextOf(row.locales, sourceLocale),
+        sourceText: sourceTextOf(row.locales, sourceLocale),
       })),
-      params.origin
+      params.sourceText
     ),
   }
 }

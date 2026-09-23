@@ -22,9 +22,9 @@ export interface I18nKeyCandidate {
 export interface I18nKeyDuplicate {
   key: string
   /** The text that key already translates. */
-  origin: string
+  sourceText: string
   /** Same text as the one being named: a reuse, not a clash. */
-  sameOrigin: boolean
+  sameSourceText: boolean
 }
 
 /**

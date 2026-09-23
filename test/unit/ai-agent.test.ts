@@ -37,7 +37,7 @@ const BASE: I18nKeyGenerateParams = {
   projectPrompt: null,
   pagePrompt: null,
   pageImage: null,
-  tagOrigin: 'Sign in',
+  tagSourceText: 'Sign in',
   tagI18nKey: null,
   tagPrompt: null,
   convention: CONVENTION,

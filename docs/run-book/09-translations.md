@@ -19,7 +19,7 @@
 
 | 控件                           | 做什么                                                                                                           |
 | ------------------------------ | ---------------------------------------------------------------------------------------------------------------- |
-| **Search key or origin** | 搜 key，也搜**任意语言**的草稿文本——不用管原文存在哪个语言下                                             |
+| **Search key or text** | 搜 key，也搜**任意语言**的草稿文本——不用管原文存在哪个语言下                                             |
 | 状态下拉                       | **All statuses** / **Draft** / **Published**                                                   |
 | 日期                           | 默认**Updated: any time**。选一天，或选一段起止日期；按钮上显示的就是你选的日期，右边 **Clear** 清掉 |
 | **Show __draft_ keys** | 默认勾上，显示编辑器给没命名的框自动建的占位 key。鼠标停上去有说明：它和 Draft 状态筛选不是一回事                |
@@ -38,7 +38,7 @@
 | ------------------ | ---------------------------------------------------------------------------------------------------------------------------------- |
 | 复选框             | 勾选做批量操作                                                                                                                     |
 | **Key**      | 草稿的 key 旁边有铅笔（`Rename this draft key`）和机器人（`Name this key with AI`）两个小图标；已发布的 key 是纯文本，没有图标 |
-| 源语言列           | **第一列语言就是原文**（第 6 章的 Source language），它和 key 的原文是同一个值                                               |
+| 源语言列           | **第一列语言就是原文**（第 6 章的 Source language）。这条词条的原文就存在这一格，没有第二个地方放它                                               |
 | **Tags**     | 这条词条被几个框引用。有引用时点一下打开预览；是 0 时灰着，点不动                                                                  |
 | **Status**   | **Draft** 或 **Published**                                                                                             |
 | **Releases** | 挂了哪些发行标签，最多显示两个，多的折成`+N`。项目里没有发行标签时这一列不出现（第 7 章）                                        |
@@ -68,11 +68,13 @@
 - 只有**草稿**能改名。已发布的 key 保住名字——Key 表头那个 i 图标里写着：`A draft key can still be renamed: click it, or use the pencil. A published key keeps its name — revert it to draft first.`
 - 改名后这一行**留在原地**，不会因为更新时间变了而跳走。
 
-**改更多东西**（原文、发行标签、Git 同步、各语言一起看）：点铅笔打开 **Edit translation** 弹窗，两个标签页 **General**（Key、Origin、Releases、Git sync）和 **Translations**（一个语言一段，原文那段标着 **source language**）。底部 **Cancel** / **Save**。已发布时这个弹窗叫 **View translation**，只有 **Close**。
+**改更多东西**（原文、发行标签、Git 同步、各语言一起看）：点铅笔打开 **Edit translation** 弹窗，两个标签页 **General**（Key、源语言那一格、Releases、Git sync）和 **Translations**（一个语言一段）。底部 **Cancel** / **Save**。已发布时这个弹窗叫 **View translation**，只有 **Close**。
+
+源语言那一格的标签是**国旗 + 语言名**（比如 **English**），它填的就是原文；**Translations 标签页里没有它**——一个语言只给一个输入框。那边顶部有一行小字提醒它在 General 里改。
 
 ### 建一条新词条
 
-**New translation** 打开同一个弹窗（标题 **New translation**）。**Key** 和 **Origin** 都必填，缺一个点 **Create** 会弹 **Key is required** / **Origin is required**。保存成功弹 **Created**。
+**New translation** 打开同一个弹窗（标题 **New translation**）。**Key** 和源语言那一格都必填，缺一个点 **Create** 会弹 **Key is required** / **Source text is required**。保存成功弹 **Created**。
 
 正筛着某个发行时，新词条的 **Releases** 会预选那个发行（第 7 章）。弹窗里的 **Git sync** 开关是**一拨就生效**的，不用等 Save。
 

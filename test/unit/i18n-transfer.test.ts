@@ -5,7 +5,6 @@ type KeyRow = {
   projectId: number
   key: string
   type: string
-  origin: string
   fingerprint: string
   description: string | null
   locales: Array<{
@@ -142,7 +141,6 @@ function key(partial: Partial<KeyRow> & { id: number; key: string }): KeyRow {
   return {
     projectId: SOURCE,
     type: 'STRING',
-    origin: '',
     fingerprint: '',
     description: null,
     locales: [],
@@ -274,7 +272,6 @@ describe('transferKeys — copy', () => {
         id: 1,
         key: 'a.b',
         type: 'PLURAL',
-        origin: 'Save',
         fingerprint: 'fp1',
         description: 'a label',
         locales: [{ locale: 'en', draftText: 'Save', publishedText: 'Save' }],
@@ -336,7 +333,6 @@ describe('transferKeys — move', () => {
       key({
         id: 1,
         key: 'a.b',
-        origin: 'Save',
         fingerprint: 'fp1',
         locales: [{ locale: 'en', draftText: 'Save', publishedText: 'Save' }],
       }),

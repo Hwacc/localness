@@ -19,7 +19,6 @@ export interface ITranslation extends Record<string, any> {
   fingerprint: string
   createdAt?: string
   updatedAt?: string
-  origin?: string
   vue?: TranslationContent
   react?: TranslationContent
   /** Release labels of this entry. Absent on the client means "not loaded". */
@@ -29,7 +28,6 @@ export interface ITranslation extends Record<string, any> {
 export class Translation implements ITranslation {
   id: ID = 0
   fingerprint: string = ''
-  origin: string = ''
   vue: TranslationContent = {}
   react: TranslationContent = {}
 }

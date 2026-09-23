@@ -2,7 +2,7 @@ import prisma from '#server/libs/prisma'
 import { z } from 'zod/v4'
 import { numericID } from '#server/helper/id'
 import { requirePageTeamMember } from '#server/helper/access'
-import { tagI18nInclude, shapeTag, sourceLocaleOf } from '#server/helper/i18n'
+import { tagI18nInclude, shapeTag } from '#server/helper/i18n'
 
 const zQuery = z.object({
   pageID: z.string(),
@@ -23,13 +23,7 @@ export default defineEventHandler(async (event) => {
     where: {
       pageID: nPageID,
     },
-    include: {
-      ...tagI18nInclude,
-      // Only for the source language a key's original text is read from; every
-      // tag here sits on the same page.
-      page: { select: { projectID: true } },
-    },
+    include: tagI18nInclude,
   })
-  const sourceLocale = await sourceLocaleOf(tags[0]?.page?.projectID)
-  return tags.map((tag) => shapeTag(tag, sourceLocale))
+  return tags.map((tag) => shapeTag(tag))
 })

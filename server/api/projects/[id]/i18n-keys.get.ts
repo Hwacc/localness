@@ -1,7 +1,7 @@
 import prisma from '#server/libs/prisma'
 import { numericID } from '#server/helper/id'
 import { requireTeamMember } from '#server/helper/access'
-import { shapeI18nKeyRow, sourceLocaleOf } from '#server/helper/i18n'
+import { shapeI18nKeyRow } from '#server/helper/i18n'
 import { parseReleaseFilter, releaseWhereFragment } from '#server/helper/release'
 import { I18nKeyStatusFilter } from '#shared/constants'
 import { DRAFT_KEY_PREFIX } from '#shared/utils'
@@ -171,8 +171,7 @@ export default defineEventHandler(async (event) => {
     }),
   ])
 
-  const sourceLocale = await sourceLocaleOf(nID)
-  const data = rows.map((row) => shapeI18nKeyRow(row, sourceLocale))
+  const data = rows.map((row) => shapeI18nKeyRow(row))
 
   return new Pagination(page, limit, total, data)
 })

@@ -26,9 +26,9 @@ export default defineEventHandler(async (event) => {
   }
   const nID = numericID(id)
   await requireTeamMember(event, nID)
-  const { origin } = await readZodBody(event, zGenI18nKeyForProject.parse)
+  const { sourceText } = await readZodBody(event, zGenI18nKeyForProject.parse)
   try {
-    return await buildKeySuggestion({ projectId: nID, origin })
+    return await buildKeySuggestion({ projectId: nID, sourceText })
   } catch (error) {
     rethrowAsHttp(error)
   }

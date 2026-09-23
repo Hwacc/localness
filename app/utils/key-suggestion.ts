@@ -8,12 +8,12 @@ import type { I18nKeySuggestion } from '#shared/types'
 export type KeySuggestionScope =
   | {
       tagID: ID
-      origin: string
+      sourceText: string
       projectPrompt?: string | null
       pagePrompt?: string | null
       tagPrompt?: string | null
     }
-  | { projectId: ID; origin: string }
+  | { projectId: ID; sourceText: string }
 
 /**
  * The request itself, without state — for callers that drive their own.
@@ -32,13 +32,13 @@ export async function requestKeySuggestion(
         projectPrompt: scope.projectPrompt,
         pagePrompt: scope.pagePrompt,
         tagID: scope.tagID,
-        tagOrigin: scope.origin,
+        tagSourceText: scope.sourceText,
         tagPrompt: scope.tagPrompt,
       },
     })
   }
   return useApi<I18nKeySuggestion>(
     `/api/projects/${scope.projectId}/ai/gen-i18n-key`,
-    { method: 'POST', body: { origin: scope.origin } }
+    { method: 'POST', body: { sourceText: scope.sourceText } }
   )
 }

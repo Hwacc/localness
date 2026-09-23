@@ -8,7 +8,7 @@ import { shapeKeyDuplicates } from '#server/helper/key-convention'
 const MAX_KEYS = 50
 
 /**
- * @route GET /api/projects/:id/i18n-keys/check?keys=a&keys=b&origin=<text>
+ * @route GET /api/projects/:id/i18n-keys/check?keys=a&keys=b&sourceText=<text>
  * @description Which of these exact keys the project already has. Read-only,
  * and the only way manual key entry can ask before saving — the list endpoint
  * matches on substrings, and `/api/translation/check` looks up by fingerprint.
@@ -44,12 +44,12 @@ export default defineEventHandler(async (event) => {
   })
   return {
     duplicates: shapeKeyDuplicates(
-      // What a key holds is its original text, which lives in that one locale.
+      // What a key holds is its source text, which lives in that one locale.
       rows.map((row) => ({
         key: row.key,
-        origin: sourceTextOf(row.locales, sourceLocale),
+        sourceText: sourceTextOf(row.locales, sourceLocale),
       })),
-      String(getQuery(event).origin ?? '')
+      String(getQuery(event).sourceText ?? '')
     ),
   }
 })

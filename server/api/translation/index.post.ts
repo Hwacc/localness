@@ -8,7 +8,6 @@ import {
   sourceLocaleOf,
   sourceTextOf,
   upsertLocaleDrafts,
-  writeOriginToSourceLocale,
 } from '#server/helper/i18n'
 import {
   assertReleaseIdsInProject,
@@ -25,12 +24,6 @@ import { keyClashMessage } from '#server/helper/key-convention'
 export default defineEventHandler(async (event) => {
   const session = await requireUserSession(event)
   const body = await readZodBody(event, zTranslation.parse)
-  if (!body.origin) {
-    throw createError({
-      statusCode: 400,
-      statusMessage: 'Missing origin text',
-    })
-  }
   if (!body.projectId) {
     throw createError({
       statusCode: 400,
@@ -38,9 +31,22 @@ export default defineEventHandler(async (event) => {
     })
   }
   await requireTeamMember(event, body.projectId)
-  // Resolved once: the clash message, the shaped row and the source-language
-  // write below all need to know where this project keeps a key's original text.
+  // Resolved once: the clash message, the shaped row and the source text below
+  // all need to know where this project keeps a key's original text.
   const sourceLocale = await sourceLocaleOf(body.projectId)
+
+  /*
+   * The original text is the source language's entry in the locale map, not a
+   * field beside it — a caller that leaves that entry blank has nothing to name.
+   */
+  const content = body.vue || body.react
+  const sourceText = String(content?.[sourceLocale] ?? '').trim()
+  if (!sourceText) {
+    throw createError({
+      statusCode: 400,
+      statusMessage: 'Missing source text',
+    })
+  }
 
   // Checked before the key is written: a bad label id should not leave a
   // half-created translation behind.
@@ -54,7 +60,7 @@ export default defineEventHandler(async (event) => {
     throwReleaseHttp(error)
   }
 
-  let fingerprint = body.fingerprint || fpTranslation(body.origin)
+  let fingerprint = body.fingerprint || fpTranslation(sourceText)
   const key = (body.key && String(body.key).trim()) || `__draft_${fingerprint}`
 
   const existing = await prisma.i18nKey.findUnique({
@@ -80,15 +86,15 @@ export default defineEventHandler(async (event) => {
       statusMessage: keyClashMessage(
         {
           key: existing.key,
-          origin: sourceTextOf(existing.locales, sourceLocale),
+          sourceText: sourceTextOf(existing.locales, sourceLocale),
         },
-        body.origin
+        sourceText
       ),
     })
   }
 
   if (existing && body.force) {
-    fingerprint = fpTranslation(body.origin + Date.now())
+    fingerprint = fpTranslation(sourceText + Date.now())
   }
 
   try {
@@ -113,14 +119,6 @@ export default defineEventHandler(async (event) => {
     if (content) {
       await upsertLocaleDrafts(record.id, content as Record<string, string | null | undefined>)
     }
-    // After the content write, so the original text wins over anything the caller
-    // sent for the source language: that row *is* the original text.
-    await writeOriginToSourceLocale({
-      projectId: body.projectId,
-      i18nKeyId: record.id,
-      origin: body.origin,
-      sourceLocale,
-    })
     if (attachReleaseIds.length) {
       await setEntryReleases({
         projectId: body.projectId,
@@ -144,7 +142,7 @@ export default defineEventHandler(async (event) => {
         userID: numericID(session.user.id),
       },
     })
-    return loaded ? shapeI18nKey(loaded, sourceLocale) : null
+    return loaded ? shapeI18nKey(loaded) : null
   } catch (error) {
     console.error(error)
     await prisma.translationLog.create({
