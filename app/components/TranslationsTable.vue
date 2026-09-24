@@ -134,6 +134,36 @@ function closeSuggestion() {
   expanded.value = {}
 }
 
+/**
+ * Which row the pointer is over, taken from the table's own hover event: a
+ * `dblclick` on the wrapper would otherwise have to work out the row from the
+ * DOM, and rows carry no id. Nothing renders from this, so it is not a ref.
+ */
+let hoveredRow: II18nKeyRow | null = null
+
+function onRowHover(_event: Event, row: TableRow<II18nKeyRow> | null) {
+  hoveredRow = row?.original ?? null
+}
+
+/** Double-clicking a row opens its drawer, the same as the eye/pencil button does. */
+function onRowDoubleClick(event: MouseEvent) {
+  const target = event.target as HTMLElement | null
+  /*
+   * A second click in a field is a word selection, and on a control it is that
+   * control being used twice. Cells that already act on a single click mark
+   * themselves `data-row-open-skip` so the two gestures cannot fight.
+   */
+  if (
+    target?.closest(
+      'input, textarea, select, button, a, [role="checkbox"], [data-row-open-skip]',
+    )
+  ) {
+    return
+  }
+  if (!hoveredRow) return
+  emit('edit', hoveredRow)
+}
+
 function cellKey(rowId: ID, locale: string) {
   return `${rowId}:${locale}`
 }
@@ -492,7 +522,9 @@ const columns = computed<TableColumn<II18nKeyRow>[]>(() => [
        * plain text, so nobody discovered it could be renamed.
        */
       return (
-        <div class="flex items-start gap-1">
+        // The key renames itself on one click, so a double-click must not also
+        // open the drawer — that would replace the inline editor mid-gesture.
+        <div class="flex items-start gap-1" data-row-open-skip="">
           <code
             class="block min-w-0 truncate rounded px-1 -ml-1 text-xs font-mono cursor-text hover:bg-elevated"
             title={original.key}
@@ -549,6 +581,8 @@ const columns = computed<TableColumn<II18nKeyRow>[]>(() => [
     cell: ({ row }: { row: TableRow<II18nKeyRow> }) => (
       <div
         class={row.original.tagCount > 0 ? 'cursor-pointer' : 'opacity-50'}
+        // The count acts on one click, so a double-click must not also open the drawer.
+        data-row-open-skip=""
         onClick={() => openTagRefs(row.original)}
       >
         <UBadge variant="subtle" color="neutral">
@@ -723,7 +757,10 @@ defineExpose({
   <div
     class="flex-1 min-h-0 min-w-0 rounded-xl border border-default bg-default overflow-hidden flex flex-col"
   >
-    <div class="flex-1 min-h-0 min-w-0 overflow-hidden">
+    <div
+      class="flex-1 min-h-0 min-w-0 overflow-hidden"
+      @dblclick="onRowDoubleClick"
+    >
       <UTable
         ref="table"
         v-model:row-selection="rowSelection"
@@ -734,6 +771,7 @@ defineExpose({
         :data="rows"
         :columns="columns"
         :loading="loading"
+        :on-hover="onRowHover"
         :get-row-id="(row: II18nKeyRow) => String(row.id)"
         :ui="{
           root: 'h-full overflow-auto',

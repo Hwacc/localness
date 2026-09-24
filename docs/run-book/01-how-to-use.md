@@ -1,6 +1,8 @@
 # 1. 这份手册怎么用
 
-这本手册覆盖 Localness 的全部界面操作：上传截图、画框、填译文、发布、导出、和公司 Git 仓对账，以及给 CI 或 MCP 配只读访问。对应 0.3.x。
+<img alt="Localness 0.3.x" src="https://img.shields.io/badge/Localness-0.3.x-blue" />
+
+这本手册覆盖 Localness 的全部界面操作：上传截图、画框、填译文、发布、导出、和公司 Git 仓对账，以及给 CI 或 MCP 配只读访问。
 
 ## 你要做的事在哪一章
 
