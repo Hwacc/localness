@@ -1,6 +1,8 @@
 # Localness 操作手册
 
-Localness 的操作手册，对应 0.3.x。全书按章分文件，一章一文件。
+<img alt="Localness 0.3.x" src="https://img.shields.io/badge/Localness-0.3.x-blue" />
+
+Localness 的操作手册，全书按章分文件，一章一文件。
 
 第一次用，从第 2 章读起；只想查某件事怎么做，从[第 1 章](01-how-to-use.md)的跳章表进；遇到具体问题，[第 15 章](15-appendix.md)的常见问题按症状索引。
 
