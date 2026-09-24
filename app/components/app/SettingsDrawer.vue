@@ -58,6 +58,15 @@ function setTheme(value: (typeof themeOptions)[number]['value']) {
           </button>
         </div>
       </section>
+      <section class="mt-6 flex flex-col gap-3 border-t border-default pt-6">
+        <div>
+          <h2 class="text-sm font-semibold">About</h2>
+          <p class="mt-0.5 text-xs text-muted">
+            Build running on this instance
+          </p>
+        </div>
+        <VersionLine />
+      </section>
     </template>
   </USlideover>
 </template>

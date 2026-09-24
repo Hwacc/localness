@@ -2,6 +2,25 @@
 import tailwindcss from '@tailwindcss/vite'
 import { resolve } from 'node:path'
 import fs from 'node:fs/promises'
+import { execSync } from 'node:child_process'
+import pkg from './package.json'
+
+/**
+ * The commit the About line shows. `.git` is excluded from the Docker build
+ * context, so an image cannot read its own — it takes one from
+ * `NUXT_PUBLIC_APP_COMMIT`, which is also the knob for correcting it without a
+ * rebuild. Neither value may break the config, so both fall back to empty.
+ */
+function buildCommit(): string {
+  if (process.env.NUXT_PUBLIC_APP_COMMIT) {
+    return process.env.NUXT_PUBLIC_APP_COMMIT
+  }
+  try {
+    return execSync('git rev-parse --short HEAD', { encoding: 'utf8' }).trim()
+  } catch {
+    return ''
+  }
+}
 
 export default defineNuxtConfig({
   alias: {
@@ -38,6 +57,8 @@ export default defineNuxtConfig({
     public: {
       ossEngine: process.env.NUXT_PUBLIC_OSS_ENGINE || 'LOCAL',
       ossBaseUrl: process.env.NUXT_PUBLIC_OSS_BASE_URL || '/upload/',
+      appVersion: pkg.version,
+      appCommit: buildCommit(),
     },
   },
   css: ['~/assets/css/index.css'],
