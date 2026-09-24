@@ -129,10 +129,7 @@ export function sourceTextOf(
   return locales?.find((row) => row.locale === sourceLocale)?.draftText ?? ''
 }
 
-/**
- * A key's original text travels in `vue`/`react` like every other locale — it is
- * the project's source language's entry, nothing beside it.
- */
+/** The original text rides in `vue`/`react` like every other locale. */
 export function shapeI18nKey(
   record: {
     id: number
@@ -152,11 +149,7 @@ export function shapeI18nKey(
     updatedAt: record.updatedAt,
     vue: content,
     react: { ...content },
-    /**
-     * Published entries are read-only — an edit to one has to go through
-     * "revert to draft" first — so every surface that edits a key needs to know
-     * which state it is in. Same meaning as the row's `dirty`: true is a draft.
-     */
+    /** True while a draft; published entries are read-only and refuse writes. */
     dirty: isI18nKeyDraft(record.locales ?? []),
     /** Labels as plain ids, for the same reason pages carry them that way. */
     releaseIds: (record.releases ?? []).map((release) => release.releaseId),
@@ -340,11 +333,8 @@ export function assertSourceLocale(locale: string, locales: string[]) {
 }
 
 /**
- * The source language's row *is* the key's original text, so writing one writes
- * that row. Draft side only: `publishedText` stays whatever a person published,
- * which is the copy Git pushes and the export carries.
- *
- * An empty text writes nothing — that would only leave an empty row behind.
+ * The source language's row *is* the original text. Draft side only; an empty text
+ * writes nothing.
  */
 export async function writeSourceText(
   params: {

@@ -31,10 +31,6 @@ export default defineEventHandler(async (event) => {
     },
     include: { locales: true, releases: { select: { releaseId: true } } },
   })
-  /*
-   * The whole entry, not just its id: the caller's "recover" choice binds the tag
-   * to what comes back, and a second read to learn what that is would be a wasted
-   * round trip.
-   */
+  /* The whole entry, not its id: "recover" binds the tag to what comes back. */
   return record ? shapeI18nKey(record) : null
 })

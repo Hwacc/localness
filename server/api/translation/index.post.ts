@@ -35,10 +35,7 @@ export default defineEventHandler(async (event) => {
   // all need to know where this project keeps a key's original text.
   const sourceLocale = await sourceLocaleOf(body.projectId)
 
-  /*
-   * The original text is the source language's entry in the locale map, not a
-   * field beside it — a caller that leaves that entry blank has nothing to name.
-   */
+  /* The source language's entry is the original text; blank means there is none. */
   const content = body.vue || body.react
   const sourceText = String(content?.[sourceLocale] ?? '').trim()
   if (!sourceText) {

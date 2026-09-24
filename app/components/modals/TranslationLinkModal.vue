@@ -90,10 +90,7 @@ const columns = computed<TableColumn<ITranslation>[]>(() => [
       </code>
     ),
   },
-  /*
-   * One column per language, with the source language first — it carries the key's
-   * original text, so a column of its own beside these would be the same value twice.
-   */
+  /* One column per language, source first: it carries the key's original text. */
   ...languageOrder.value.map((lang) => {
     return {
       id: lang.value,
@@ -239,11 +236,7 @@ onMounted(() => {
             @click="onSearch"
           />
           <div class="flex items-center ml-auto mr-0 gap-2">
-            <!--
-              The Vue / React switch is hidden for now: both copies hold the same
-              locale set, so there is nothing to switch between. `framework` stays
-              as the one column source.
-            -->
+            <!-- Vue / React switch hidden: both copies hold the same set. -->
             <UDropdownMenu
               :ui="{
                 group: 'max-h-50',

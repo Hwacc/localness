@@ -106,10 +106,7 @@ const sourceLocale = computed(
 )
 const sourceItem = computed(() => localeMeta(sourceLocale.value))
 
-/**
- * The source language is a field of its own on the General tab, so it is not one
- * of the accordion's entries: one language, one input.
- */
+/** The source language is edited on the General tab, so it is not an entry here. */
 const otherLocaleCodes = computed(() =>
   localeCodes.value.filter((code) => code !== sourceLocale.value)
 )
@@ -121,12 +118,7 @@ const localeItems = computed(() =>
   }))
 )
 
-/**
- * Whichever other language leads the project's own list opens first — the source
- * language is not in this tab. Held here rather than left to the accordion's own
- * default: `UTabs` unmounts the tab it is not showing, so a default would be
- * reapplied on every return to this one.
- */
+/** Held in a ref: `UTabs` reapplies its own default whenever this tab is re-entered. */
 const openLocale = ref<string | undefined>(otherLocaleCodes.value[0])
 
 const keyDisplay = computed({

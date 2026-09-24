@@ -42,25 +42,11 @@ export function useTagModal() {
       onSave: async ({ tag, settings, translation }) => {
         try {
           tagModal.patch({ loading: true })
-          /*
-           * A published entry's text is read-only server-side, and a rejection
-           * here would take the whole save down with it — style, lock, prompt and
-           * labels included. The dialog disables those fields in that state, so
-           * there is nothing to write and the rest of the save goes through.
-           */
+          /* Refused on a published entry; a failure would lose the whole save. */
           const textEditable = translation?.dirty !== false
           if (translation && textEditable) {
-            /*
-             * Written onto the entry this tag is already bound to, source language
-             * included: a key's identity is its key string, so rewriting its
-             * original text is an edit, not a different entry. `New` is the
-             * explicit way to spin a separate one off.
-             *
-             * One request, not one per framework copy: `vue` and `react` hold the
-             * same locale set and the endpoint writes that set either way, so a
-             * second POST only raced the first. The dialog keeps both copies in
-             * step, which is what makes reading one of them enough.
-             */
+            /* Edits land on the bound entry; `New` is what creates another. */
+            /* One request: `vue` and `react` hold the same set either way. */
             const content = translation.vue ?? translation.react
             if (!isEmpty(content)) {
               await useApi(`/api/translation/${translation.id}/vue`, {
@@ -167,11 +153,7 @@ export function useTagModal() {
           tagModal.patch({ loading: false })
         }
       },
-      /*
-       * A revert to draft happens inside the dialog (it owns the confirmation and
-       * the call), so all that is left here is to pick up the entry's new state —
-       * otherwise reopening the dialog would still call it published.
-       */
+      /* The dialog did the revert; this only picks up the entry's new state. */
       onReverted: async () => {
         const refreshed = await tagStore.refreshTag(opt.tag.id)
         if (refreshed) {
