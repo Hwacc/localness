@@ -1058,6 +1058,7 @@ onMounted(async () => {
         @navigate="navigateDrawer"
         @cell-saved="onCellSaved"
         @toggle-git-sync="onRowToggleGitSync"
+        @unpublish="openUnpublish"
       />
     </div>
   </div>

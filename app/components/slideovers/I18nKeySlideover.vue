@@ -39,6 +39,8 @@ const emit = defineEmits<{
   navigate: [delta: -1 | 1]
   /** Git sync is a setting, not content, so the page owns the call. */
   'toggle-git-sync': [row: II18nKeyRow]
+  /** Reverting is the page's row action too: it owns the confirm and the reload. */
+  unpublish: [row: II18nKeyRow]
   /** A locale was written here, so the table's own copy of that cell is stale. */
   'cell-saved': [rowId: ID, locale: string]
 }>()
@@ -152,7 +154,15 @@ async function flushPendingSaves() {
 watch(
   [open, () => props.row?.id] as const,
   async ([isOpen]) => {
-    if (!isOpen || !props.row) return
+    if (!isOpen) return
+    if (!props.row) {
+      /*
+       * The row dropped out of the loaded page. Reverting one while the table is
+       * filtered to Published does that, and there is nothing left to show.
+       */
+      open.value = false
+      return
+    }
     const id = props.row.id
     /*
      * A cell being typed into when the drawer opened has its save in flight, and
@@ -324,10 +334,24 @@ defineExpose({ flushPendingSaves })
       <div v-if="row" class="flex flex-col gap-4">
         <div
           v-if="!writable"
-          class="rounded-lg border border-default bg-elevated px-3 py-2 text-xs text-muted"
+          class="flex items-center gap-3 rounded-lg border border-default bg-elevated px-3 py-2 text-xs text-muted"
         >
-          Published — the text and the key are read-only. Revert it to draft to
-          edit them. Releases and Git sync stay editable.
+          <span class="flex-1">
+            Published — the text and the key are read-only. Releases and Git
+            sync stay editable.
+          </span>
+          <!--
+            Carrying the action, not just the advice: the confirm dialog it opens
+            is the same one the row's undo button uses, and it owns the reload.
+          -->
+          <UButton
+            class="shrink-0"
+            size="xs"
+            color="warning"
+            icon="i-lucide:undo-2"
+            label="Revert"
+            @click="emit('unpublish', row)"
+          />
         </div>
 
         <div class="flex items-center gap-2">
