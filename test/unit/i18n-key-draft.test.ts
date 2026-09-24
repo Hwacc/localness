@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest'
-import { hasUnpublishedDraft, isI18nKeyDraft } from '#shared/utils'
+import {
+  hasUnpublishedDraft,
+  isI18nKeyDraft,
+  localeDraftWrite,
+} from '#shared/utils'
 
 const locale = (
   code: string,
@@ -58,5 +62,67 @@ describe('hasUnpublishedDraft', () => {
 
   it('treats withdrawn text as unpublished', () => {
     expect(hasUnpublishedDraft([locale('en', null, 'Save')])).toBe(true)
+  })
+})
+
+describe('localeDraftWrite', () => {
+  const write = (input: {
+    locale: string
+    value: string
+    previous: string
+    sourceLocale?: string
+  }) =>
+    localeDraftWrite({ sourceLocale: 'en', ...input })
+
+  it('sends nothing when the text did not move', () => {
+    expect(write({ locale: 'ja', value: '保存', previous: '保存' })).toEqual({
+      kind: 'unchanged',
+    })
+  })
+
+  it('writes a changed non-source locale', () => {
+    expect(write({ locale: 'ja', value: '保存中', previous: '保存' })).toEqual({
+      kind: 'write',
+      body: { ja: '保存中' },
+    })
+  })
+
+  it('writes an emptied non-source locale rather than dropping it', () => {
+    // Clearing a translation is a real edit; only the source is protected.
+    expect(write({ locale: 'ja', value: '', previous: '保存' })).toEqual({
+      kind: 'write',
+      body: { ja: '' },
+    })
+  })
+
+  it('refuses to blank the source text', () => {
+    expect(write({ locale: 'en', value: '', previous: 'Save' })).toEqual({
+      kind: 'source-required',
+    })
+  })
+
+  it('refuses whitespace-only source text', () => {
+    expect(write({ locale: 'en', value: '   ', previous: 'Save' })).toEqual({
+      kind: 'source-required',
+    })
+  })
+
+  it('writes a changed source text', () => {
+    expect(write({ locale: 'en', value: 'Store', previous: 'Save' })).toEqual({
+      kind: 'write',
+      body: { en: 'Store' },
+    })
+  })
+
+  it('never produces a null value the endpoint would read as "null"', () => {
+    const result = write({ locale: 'ja', value: '', previous: '保存' })
+    expect(result).toEqual({ kind: 'write', body: { ja: '' } })
+  })
+
+  it('allows whitespace-only text where the source is refused', () => {
+    expect(write({ locale: 'ja', value: '  ', previous: '保存' })).toEqual({
+      kind: 'write',
+      body: { ja: '  ' },
+    })
   })
 })

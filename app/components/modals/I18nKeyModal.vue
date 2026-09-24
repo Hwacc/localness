@@ -6,11 +6,13 @@ import {
 } from '#shared/constants'
 import { formatI18nKeyDisplay, resolveEditedKey } from '#shared/utils'
 
+/**
+ * New key only: the view/edit half of this dialog moved to `I18nKeySlideover`,
+ * which shows one key's locales at a width they can actually be read at.
+ */
 const props = defineProps<{
-  row?: II18nKeyRow | null
   locales: string[]
   projectId: ID
-  readonly?: boolean
 }>()
 
 const emit = defineEmits<{
@@ -20,7 +22,6 @@ const emit = defineEmits<{
 
 const toast = useToast()
 const loading = ref(false)
-const isCreate = computed(() => !props.row)
 
 const projectStore = useProjectStore()
 
@@ -31,9 +32,9 @@ const state = reactive({
 })
 
 /*
- * `generating`, not `loading`: this dialog already has a `loading` for Save, and
- * the two mean different things — one is "the request is still running", the
- * other is "the write is in flight".
+ * `generating`, not `loading`: this dialog already has a `loading` for Create,
+ * and the two mean different things — one is "the request is still running",
+ * the other is "the write is in flight".
  */
 const { loading: generating, suggestion, generate } = useI18nKeyGeneration()
 
@@ -49,15 +50,6 @@ function dismissSuggestion() {
   suggestion.value = null
 }
 
-/**
- * Git sync is a setting, not content, so it is neither part of `state` nor sent
- * with Save — the endpoint that writes it does not require a draft, which is
- * what lets a published key be switched off. That also means it is live on
- * toggle rather than on Save.
- */
-const syncEnabled = ref(true)
-const syncSaving = ref(false)
-
 const localeCodes = computed(() =>
   props.locales.length ? props.locales : [...DEFAULT_LOCALES]
 )
@@ -66,33 +58,6 @@ const tabsItems = [
   { label: 'General', icon: 'i-lucide:info', slot: 'general' },
   { label: 'Translations', icon: 'i-lucide:languages', slot: 'translations' },
 ]
-
-function fillFromRow(row: II18nKeyRow | null | undefined) {
-  state.key = row?.key ?? ''
-  const next: Record<string, string> = {}
-  for (const code of localeCodes.value) {
-    next[code] =
-      row?.locales.find((locale) => locale.locale === code)?.draftText ?? ''
-  }
-  state.locales = next
-  syncEnabled.value = row?.gitSyncEnabled ?? true
-  // A new entry created while one release is being viewed starts on that one.
-  const defaultReleaseId = defaultReleaseIdForFilter(
-    projectStore.curReleaseFilter
-  )
-  state.releaseIds = row
-    ? (row.releaseIds ?? []).map(Number)
-    : defaultReleaseId
-      ? [defaultReleaseId]
-      : []
-}
-
-fillFromRow(props.row)
-
-watch(
-  () => props.row?.id,
-  () => fillFromRow(props.row)
-)
 
 function localeMeta(code: string) {
   return TRANSLATION_LANGUAGES.find((lang) => lang.value === code)
@@ -121,6 +86,17 @@ const localeItems = computed(() =>
 /** Held in a ref: `UTabs` reapplies its own default whenever this tab is re-entered. */
 const openLocale = ref<string | undefined>(otherLocaleCodes.value[0])
 
+/** A new entry starts on the release being viewed, so tagging the obvious one is one click. */
+function defaultReleaseIds() {
+  const releaseId = defaultReleaseIdForFilter(projectStore.curReleaseFilter)
+  return releaseId ? [releaseId] : []
+}
+
+state.locales = Object.fromEntries(
+  localeCodes.value.map((code) => [code, ''])
+)
+state.releaseIds = defaultReleaseIds()
+
 const keyDisplay = computed({
   get: () => formatI18nKeyDisplay(state.key),
   set: (value: string) => {
@@ -138,34 +114,8 @@ function onPickSuggestion(key: string) {
   dismissSuggestion()
 }
 
-async function onSyncToggle(enabled: boolean) {
-  const row = props.row
-  if (!row || syncSaving.value) return
-  const previous = syncEnabled.value
-  syncSaving.value = true
-  syncEnabled.value = enabled
-  try {
-    await useApi(
-      `/api/projects/${props.projectId}/i18n-keys/${row.id}/git-sync`,
-      { method: 'POST', body: { enabled } }
-    )
-    toast.add({
-      title: enabled ? 'Included in Git sync' : 'Kept out of Git sync',
-      color: 'success',
-      icon: 'i-lucide:check',
-    })
-    emit('saved')
-  } catch (error) {
-    // `useApi` has already reported it — put the switch back where it was.
-    console.error(error)
-    syncEnabled.value = previous
-  } finally {
-    syncSaving.value = false
-  }
-}
-
+/** Staged rather than live: there is nothing to write to until this is created. */
 async function onSave() {
-  if (props.readonly) return
   const key = state.key.trim()
   const sourceText = (state.locales[sourceLocale.value] ?? '').trim()
   if (!key) {
@@ -186,40 +136,17 @@ async function onSave() {
   }
   loading.value = true
   try {
-    if (isCreate.value) {
-      await useApi('/api/translation', {
-        method: 'POST',
-        body: {
-          projectId: Number(props.projectId),
-          key,
-          vue: state.locales,
-          releaseIds: state.releaseIds,
-        },
-      })
-    } else {
-      const row = props.row!
-      if (key !== row.key) {
-        await useApi(
-          `/api/projects/${props.projectId}/i18n-keys/${row.id}`,
-          {
-            method: 'PATCH',
-            body: { key },
-          }
-        )
-      }
-      await useApi(`/api/translation/${row.id}`, {
-        method: 'POST',
-        body: {
-          // The source language's entry in here is the key's original text.
-          vue: state.locales,
-          // Always sent, so clearing every label saves as "Unassigned" rather
-          // than being read as "leave them alone".
-          releaseIds: state.releaseIds,
-        },
-      })
-    }
+    await useApi('/api/translation', {
+      method: 'POST',
+      body: {
+        projectId: Number(props.projectId),
+        key,
+        vue: state.locales,
+        releaseIds: state.releaseIds,
+      },
+    })
     toast.add({
-      title: isCreate.value ? 'Created' : 'Saved',
+      title: 'Created',
       color: 'success',
       icon: 'i-lucide:check',
     })
@@ -235,21 +162,14 @@ async function onSave() {
 
 <template>
   <UModal
-    :title="
-      readonly
-        ? 'View translation'
-        : isCreate
-          ? 'New translation'
-          : 'Edit translation'
-    "
+    title="New translation"
     :ui="{ content: 'max-w-lg' }"
     @update:open="(open: boolean) => !open && emit('close', false)"
   >
     <template #body>
       <!--
-        Split rather than one long column: drafts are usually edited inline in
-        the table, so this dialog is mostly opened for the identity fields —
-        the locale texts are the occasional errand. General therefore leads.
+        General leads because it holds what this needs to create anything — the
+        key and the source text. The other languages are optional and follow.
       -->
       <UTabs :items="tabsItems" variant="link" :ui="{ trigger: 'grow' }">
         <template #general>
@@ -257,16 +177,8 @@ async function onSave() {
             <UFormField label="Key">
               <div class="w-full flex flex-col gap-2">
                 <div class="w-full flex items-center gap-2.5">
-                  <UInput
-                    v-model="keyDisplay"
-                    class="w-full font-mono"
-                    :disabled="readonly"
-                  />
-                  <AIButton
-                    v-if="!readonly"
-                    :loading="generating"
-                    @click="onGenerate"
-                  />
+                  <UInput v-model="keyDisplay" class="w-full font-mono" />
+                  <AIButton :loading="generating" @click="onGenerate" />
                 </div>
                 <AIKeySuggestion
                   v-if="suggestion"
@@ -287,34 +199,10 @@ async function onSave() {
                   <span>{{ label }}</span>
                 </div>
               </template>
-              <UTextarea
-                v-model="state.locales[sourceLocale]"
-                class="w-full"
-                :rows="3"
-                :disabled="readonly"
-              />
+              <UTextarea v-model="state.locales[sourceLocale]" class="w-full" :rows="3" />
             </UFormField>
             <UFormField label="Releases">
-              <ReleaseSelect
-                v-model="state.releaseIds"
-                :disabled="readonly"
-              />
-            </UFormField>
-            <!--
-              Live on toggle, and not disabled by `readonly`: this is a sync
-              setting, so it stays available on the published keys that are
-              otherwise read-only here.
-            -->
-            <UFormField
-              v-if="props.row"
-              label="Git sync"
-              description="Off keeps this key out of pull and push. It is still served on the published API."
-            >
-              <USwitch
-                :model-value="syncEnabled"
-                :loading="syncSaving"
-                @update:model-value="onSyncToggle"
-              />
+              <ReleaseSelect v-model="state.releaseIds" />
             </UFormField>
           </div>
         </template>
@@ -337,7 +225,6 @@ async function onSave() {
                 :rows="3"
                 :maxrows="10"
                 autoresize
-                :disabled="readonly"
               />
             </template>
           </UAccordion>
@@ -349,16 +236,11 @@ async function onSave() {
         <UButton
           color="neutral"
           variant="ghost"
-          :label="readonly ? 'Close' : 'Cancel'"
+          label="Cancel"
           :disabled="loading"
           @click="emit('close', false)"
         />
-        <UButton
-          v-if="!readonly"
-          :label="isCreate ? 'Create' : 'Save'"
-          :loading="loading"
-          @click="onSave"
-        />
+        <UButton label="Create" :loading="loading" @click="onSave" />
       </div>
     </template>
   </UModal>

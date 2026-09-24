@@ -5,6 +5,9 @@
   "description": "CMS for UI screenshots, tags, and i18n keys.",
   "type": "module",
   "license": "UNLICENSED",
+  "author": "Hwacc",
+  "authorUrl": "https://github.com/Hwacc",
+  "authorEmail": "mshcccch@gmail.com",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/Hwacc/localness.git"

@@ -122,7 +122,7 @@
 
 底部是 **Cancel** / **Save**。**Info 里改的东西要点 Save 才落库。**
 
-**这条词条已发布时**，最上面多一行锁形提示（`Published, so its text is read-only. Revert it to draft to edit.`）带一个 **Revert to draft** 按钮：**I18n Key**、**AI**、原文、译文四处输入和 **Releases** 都禁用（和词条表里逐行的 **Edit translation** 弹窗一个口径；服务端本就拒绝写已发布词条），**Link** / **New** / **History** 以及框的样式、锁定、Prompt 照旧。点 **Revert to draft** 先问一次 `Revert "…" to draft? It will drop out of published export until you publish again.`，确认后这条词条变回 **Draft**，输入随即解锁 —— 和词条表那一列的撤回是同一件事（第 9 章）。
+**这条词条已发布时**，最上面多一行锁形提示（`Published, so its text is read-only. Revert it to draft to edit.`）带一个 **Revert to draft** 按钮：**I18n Key**、**AI**、原文、译文四处输入和 **Releases** 都禁用（和词条表里点一行打开的那个抽屉一个口径；服务端本就拒绝写已发布词条），**Link** / **New** / **History** 以及框的样式、锁定、Prompt 照旧。点 **Revert to draft** 先问一次 `Revert "…" to draft? It will drop out of published export until you publish again.`，确认后这条词条变回 **Draft**，输入随即解锁 —— 和词条表那一列的撤回是同一件事（第 9 章）。
 
 ### 让 AI 起名
 

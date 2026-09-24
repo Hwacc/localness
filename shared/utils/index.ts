@@ -101,3 +101,28 @@ export function hasUnpublishedDraft(
     (locale) => (locale.draftText ?? '') !== (locale.publishedText ?? '')
   )
 }
+
+export type LocaleDraftWrite =
+  | { kind: 'write'; body: Record<string, string> }
+  | { kind: 'unchanged' }
+  | { kind: 'source-required' }
+
+/**
+ * What to send to `POST /api/translation/:id/vue` for one locale cell, or why
+ * there is nothing to send. The source locale is the key's original text, and
+ * the endpoint refuses to blank it: it ignores an empty source, and reads a
+ * `null` as the literal string "null". Believing either one stored the empty
+ * value is what left the grid showing a blank source the server never took.
+ */
+export function localeDraftWrite(input: {
+  locale: string
+  sourceLocale: string
+  value: string
+  previous: string
+}): LocaleDraftWrite {
+  if (input.value === input.previous) return { kind: 'unchanged' }
+  if (input.locale === input.sourceLocale && !input.value.trim()) {
+    return { kind: 'source-required' }
+  }
+  return { kind: 'write', body: { [input.locale]: input.value } }
+}
