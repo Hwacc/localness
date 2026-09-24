@@ -1,0 +1,65 @@
+PROPRIETARY — ALL RIGHTS RESERVED. NO LICENSE GRANTED.
+
+Copyright (c) 2026 CHUANCHENG HUA(@Hwacc)
+All rights reserved.
+
+This repository and all of its contents — including but not limited to
+source code, object code, documentation, images, assets, and any other
+materials (collectively, the "Software") — are the proprietary property
+of CHUANCHENG HUA(@Hwacc) (the "Copyright Holder").
+
+1. NO LICENSE
+   The Software is distributed WITHOUT any open-source license or any
+   other license. Access to this repository does not grant, and shall
+   not be construed as granting, any license or right under any
+   copyright, patent, trademark, trade secret, or other intellectual
+   property right of the Copyright Holder, whether by implication,
+   estoppel, or otherwise.
+
+2. NO PERMITTED USE WITHOUT PRIOR WRITTEN CONSENT
+   No person or organization may use, copy, reproduce, modify, merge,
+   publish, distribute, sublicense, sell, rent, lease, or create
+   derivative works of the Software, in whole or in part, for any
+   purpose, whether commercial or non-commercial, without the prior
+   express written permission of the Copyright Holder.
+
+3. PUBLIC VISIBILITY / PLATFORM FORKING
+   If this repository is publicly visible on a code-hosting platform,
+   viewing the repository and any in-platform forking are permitted only
+   to the extent required by that platform's terms of service. Such
+   viewing or forking does NOT grant any right to use, copy, modify, or
+   redistribute the Software outside that platform, or to include any
+   part of it in another project.
+
+4. LICENSING INQUIRIES
+   To request permission to reuse, redistribute, or commercially license
+   any part of the Software, contact the Copyright Holder IN ADVANCE at:
+
+       Email: mshcccch@gmail.com
+       (or open an issue in this repository)
+
+   No reply does not constitute permission. Silence shall not be
+   interpreted as consent, acquiescence, or a waiver of any rights.
+
+5. UNAUTHORIZED USE
+   Any unauthorized use, reproduction, modification, or redistribution
+   of the Software, or any portion of it, may result in civil and
+   criminal liability and will be enforced to the maximum extent
+   permitted by applicable law.
+
+6. PACKAGE-MANAGER METADATA (INFORMATIONAL ONLY)
+   The package.json file may contain "private": true and
+   "license": "UNLICENSED". These are package-manager metadata fields
+   only:
+     - "private": true merely prevents accidental publication to the
+       npm registry; it is not a license;
+     - "UNLICENSED" is npm's marker meaning "no license granted"; it is
+       NOT the same as "Unlicense", which is a public-domain dedication.
+   Neither field constitutes a license or a grant of any rights.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS
+OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.
+IN NO EVENT SHALL THE COPYRIGHT HOLDER BE LIABLE FOR ANY CLAIM, DAMAGES
+OR OTHER LIABILITY ARISING FROM, OUT OF OR IN CONNECTION WITH THE
+SOFTWARE. NOTHING IN THIS SECTION GRANTS ANY RIGHT TO USE THE SOFTWARE.

@@ -6,7 +6,7 @@ import {
   TRANSLATION_LANGUAGES,
 } from '#shared/constants'
 import { formatI18nKeyDisplay, parseLocales } from '#shared/utils'
-import type { TranslationsTable } from '#components'
+import type { I18nKeySlideover, TranslationsTable } from '#components'
 import {
   AlertModal,
   I18nKeyModal,
@@ -110,29 +110,71 @@ const selectedPublishedIds = computed<number[]>(() =>
 )
 
 const overlay = useOverlay()
-const editModal = overlay.create(I18nKeyModal)
+const createModal = overlay.create(I18nKeyModal)
 const deleteModal = overlay.create(AlertModal)
 const unpublishModal = overlay.create(AlertModal)
 const transferModal = overlay.create(TransferKeysModal)
 
 function openCreate() {
   if (!validID(curProject.value.id)) return
-  editModal.open({
+  createModal.open({
     locales: localeCodes.value,
     projectId: curProject.value.id,
     onSaved: () => loadKeys(),
   })
 }
 
-function openEdit(row: II18nKeyRow) {
+/*
+ * The drawer is mounted rather than opened through `useOverlay`: an overlay is
+ * unmounted on close, and this one has to keep its prev/next position and stay
+ * reachable for the flush that precedes publishing.
+ */
+const drawerOpen = ref(false)
+const drawerRowId = ref<ID | null>(null)
+const keyDrawer =
+  useTemplateRef<InstanceType<typeof I18nKeySlideover>>('keyDrawer')
+
+/** Found by id, not held: a reload replaces the row object it was opened with. */
+const drawerRow = computed(
+  () =>
+    rows.value.find((r) => String(r.id) === String(drawerRowId.value)) ?? null,
+)
+const drawerIndex = computed(() =>
+  rows.value.findIndex((r) => String(r.id) === String(drawerRowId.value)),
+)
+
+/**
+ * The table and the drawer both save without being awaited, and publishing
+ * copies whatever draft the server holds, so every in-flight write lands first.
+ */
+async function flushPendingWrites() {
+  await Promise.allSettled([
+    table.value?.flushPendingSaves(),
+    keyDrawer.value?.flushPendingSaves(),
+  ])
+}
+
+async function openEdit(row: II18nKeyRow) {
   if (!validID(curProject.value.id)) return
-  editModal.open({
-    row,
-    locales: localeCodes.value,
-    projectId: curProject.value.id,
-    readonly: !row.dirty,
-    onSaved: () => loadKeys(),
-  })
+  /*
+   * The click that got here was the row's pencil, so it blurred whatever cell
+   * had focus and that save is still in flight. Filling now would show the value
+   * the user just replaced, and the drawer's next blur would write it back.
+   */
+  await flushPendingWrites()
+  drawerRowId.value = row.id
+  drawerOpen.value = true
+}
+
+function navigateDrawer(delta: -1 | 1) {
+  const next = rows.value[drawerIndex.value + delta]
+  if (!next) return
+  drawerRowId.value = next.id
+}
+
+/** A write from the drawer makes the table's own copy of that cell stale. */
+function onCellSaved(rowId: ID, locale: string) {
+  table.value?.clearCellDraft(rowId, locale)
 }
 
 function openUnpublish(row: II18nKeyRow) {
@@ -684,9 +726,8 @@ async function publishKeys(keyIds: number[]) {
   if (!validID(curProject.value.id) || keyIds.length === 0) return
   publishing.value = true
   try {
-    // Cell edits save on blur without being awaited; publishing before they
-    // land would copy the previous draft.
-    await table.value?.flushPendingSaves()
+    // Publishing before an in-flight save lands would copy the previous draft.
+    await flushPendingWrites()
     const res = await useApi<{ updated: number }>(
       `/api/projects/${curProject.value.id}/publish`,
       {
@@ -728,7 +769,8 @@ async function unpublishKeys(keyIds: number[]) {
   if (!validID(curProject.value.id) || keyIds.length === 0) return
   publishing.value = true
   try {
-    await table.value?.flushPendingSaves()
+    // Publishing before an in-flight save lands would copy the previous draft.
+    await flushPendingWrites()
     const res = await useApi<{ updated: number }>(
       `/api/projects/${curProject.value.id}/unpublish`,
       {
@@ -999,6 +1041,22 @@ onMounted(async () => {
         @delete="openDelete"
         @publish="onRowPublish"
         @unpublish="openUnpublish"
+        @toggle-git-sync="onRowToggleGitSync"
+      />
+
+      <!-- Teleports to <body>, so nesting it in this column costs no layout. -->
+      <I18nKeySlideover
+        ref="keyDrawer"
+        v-model:open="drawerOpen"
+        :project-id="curProject.id"
+        :row="drawerRow"
+        :locale-codes="localeCodes"
+        :source-locale="sourceLocale"
+        :git-sync-busy-id="gitSyncPending"
+        :index="drawerIndex"
+        :total="rows.length"
+        @navigate="navigateDrawer"
+        @cell-saved="onCellSaved"
         @toggle-git-sync="onRowToggleGitSync"
       />
     </div>

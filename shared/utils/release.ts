@@ -63,3 +63,21 @@ export function resolveReleaseFilterValue(
   )
   return exists ? stored : 'all'
 }
+
+/**
+ * The two sets of single-label calls that turn `current` into `next`. The
+ * membership endpoint is a per-release set operation, so a whole-set change has
+ * to be spelled as one add or remove each; ids are compared as numbers because
+ * a row's ids come back from JSON while the picker emits numbers.
+ */
+export function releaseMembershipDiff(
+  current: ID[],
+  next: number[]
+): { add: number[]; remove: number[] } {
+  const currentIds = new Set(current.map(Number))
+  const nextIds = new Set(next.map(Number))
+  return {
+    add: [...nextIds].filter((id) => !currentIds.has(id)),
+    remove: [...currentIds].filter((id) => !nextIds.has(id)),
+  }
+}

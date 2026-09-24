@@ -2,7 +2,11 @@
 import type { Column } from '@tanstack/vue-table'
 import type { TableColumn, TableRow } from '@nuxt/ui'
 import { TRANSLATION_LANGUAGES } from '#shared/constants'
-import { formatI18nKeyDisplay, resolveEditedKey } from '#shared/utils'
+import {
+  formatI18nKeyDisplay,
+  localeDraftWrite,
+  resolveEditedKey,
+} from '#shared/utils'
 import {
   UBadge,
   UButton,
@@ -82,6 +86,13 @@ const keyDraft = ref('')
  * and needs no anchoring at all.
  */
 const expanded = ref<Record<string, boolean>>({})
+/**
+ * The row the open panel belongs to — `expanded` holds exactly one key while a
+ * panel is up. A call takes ~20s, so an answer can land after the user closed
+ * that panel and opened another one; without this it would be shown under
+ * whichever row happened to be open by then.
+ */
+const panelRowId = computed(() => Object.keys(expanded.value)[0] ?? null)
 const askingId = ref<ID | null>(null)
 const { suggestion: keySuggestion, generate: generateKey } =
   useI18nKeyGeneration()
@@ -139,6 +150,20 @@ function setCellDraft(row: II18nKeyRow, locale: string, value: string) {
   drafts.value = { ...drafts.value, [cellKey(row.id, locale)]: value }
 }
 
+/**
+ * A write from outside this table — the row drawer — makes this cell's override
+ * a lie. Dropping it lets `cellDraft` fall back to the row, which holds what the
+ * server actually took; left in place, the stale string would be compared on the
+ * next blur and written back over the newer text.
+ */
+function clearCellDraft(rowId: ID, locale: string) {
+  const stale = cellKey(rowId, locale)
+  if (!(stale in drafts.value)) return
+  drafts.value = Object.fromEntries(
+    Object.entries(drafts.value).filter(([key]) => key !== stale),
+  )
+}
+
 function rebuildDrafts() {
   const next: Record<string, string> = {}
   for (const row of props.rows) {
@@ -179,11 +204,37 @@ async function flushPendingSaves() {
 
 async function saveDraft(row: II18nKeyRow, locale: string, value: string) {
   if (!row.dirty) return
-  const previous = draftOf(row, locale)
-  if (previous === value) return
+  const decision = localeDraftWrite({
+    locale,
+    sourceLocale: props.sourceLocale,
+    value,
+    previous: draftOf(row, locale),
+  })
+  switch (decision.kind) {
+    case 'unchanged':
+      return
+    case 'source-required':
+      /*
+       * The endpoint ignores an empty source write, so leaving the cell blank
+       * would have it claim text the server never took.
+       */
+      clearCellDraft(row.id, locale)
+      toast.add({
+        title: 'Source text is required',
+        color: 'error',
+        icon: 'i-lucide:circle-alert',
+      })
+      return
+    case 'write':
+      break
+    default: {
+      const _exhaustive: never = decision
+      throw new Error(`Unknown locale write: ${String(_exhaustive)}`)
+    }
+  }
   const request = useApi(`/api/translation/${row.id}/vue`, {
     method: 'POST',
-    body: { [locale]: value },
+    body: decision.body,
   })
   pendingSaves.add(request)
   try {
@@ -465,6 +516,11 @@ const columns = computed<TableColumn<II18nKeyRow>[]>(() => [
             Outside the inline editor on purpose: that input commits on blur, so
             anything opened from inside it would blur it, commit, and close.
           */}
+          {/*
+            Disabled while any request is in flight, not just this row's: the
+            answers share one `suggestion`, so a second call would let whichever
+            lands last decide what the panel shows.
+          */}
           <UTooltip text="Name this key with AI">
             <UButton
               class="shrink-0 text-muted size-4 p-0 justify-center"
@@ -474,6 +530,7 @@ const columns = computed<TableColumn<II18nKeyRow>[]>(() => [
               square
               icon="i-mdi:robot"
               loading={String(askingId.value) === String(original.id)}
+              disabled={askingId.value !== null}
               aria-label="Name this key with AI"
               onClick={() => askAi(original)}
             />
@@ -655,6 +712,8 @@ const columns = computed<TableColumn<II18nKeyRow>[]>(() => [
 
 defineExpose({
   flushPendingSaves,
+  /** For the page, when the drawer writes a locale this table is also showing. */
+  clearCellDraft,
   /** For the page's column-visibility menu, which sits in the filter bar. */
   tableApi: computed(() => table.value?.tableApi),
 })
@@ -697,7 +756,10 @@ defineExpose({
                stretched across 2000px is harder to read, not easier. -->
           <div class="w-fit pl-12">
             <AIKeySuggestion
-              v-if="keySuggestion"
+              v-if="
+                keySuggestion &&
+                String(panelRowId) === String(row.original.id)
+              "
               layout="horizontal"
               :suggestion="keySuggestion"
               :source-text="cellDraft(row.original, props.sourceLocale)"

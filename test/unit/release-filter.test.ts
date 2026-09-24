@@ -3,6 +3,7 @@ import {
   defaultReleaseIdForFilter,
   entryMatchesReleaseFilter,
   pageMatchesReleaseFilter,
+  releaseMembershipDiff,
   resolveReleaseFilterValue,
 } from '#shared/utils/release'
 
@@ -73,5 +74,48 @@ describe('resolveReleaseFilterValue', () => {
   it('passes the non-label states through', () => {
     expect(resolveReleaseFilterValue('all', releases)).toBe('all')
     expect(resolveReleaseFilterValue('unassigned', releases)).toBe('unassigned')
+  })
+})
+
+describe('releaseMembershipDiff', () => {
+  it('asks for nothing when the set did not move', () => {
+    expect(releaseMembershipDiff([1, 2], [1, 2])).toEqual({
+      add: [],
+      remove: [],
+    })
+    expect(releaseMembershipDiff([], [])).toEqual({ add: [], remove: [] })
+  })
+
+  it('adds what the row did not carry', () => {
+    expect(releaseMembershipDiff([1], [1, 3])).toEqual({ add: [3], remove: [] })
+  })
+
+  it('removes what the row no longer should carry', () => {
+    expect(releaseMembershipDiff([1, 3], [1])).toEqual({
+      add: [],
+      remove: [3],
+    })
+  })
+
+  it('reports both directions at once', () => {
+    expect(releaseMembershipDiff([1, 2], [2, 3])).toEqual({
+      add: [3],
+      remove: [1],
+    })
+  })
+
+  it('compares across the id types the row and the picker carry', () => {
+    // Row ids arrive from JSON as numbers while `ID` also allows strings.
+    expect(releaseMembershipDiff(['1', '2'], [2, 3])).toEqual({
+      add: [3],
+      remove: [1],
+    })
+  })
+
+  it('collapses duplicates instead of asking twice', () => {
+    expect(releaseMembershipDiff([1, 1], [1, 3, 3])).toEqual({
+      add: [3],
+      remove: [],
+    })
   })
 })
