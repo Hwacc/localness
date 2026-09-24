@@ -25,21 +25,19 @@
 
 表单五项：
 
-| 字段 | 说明 |
-|---|---|
-| **Credential** | **Repository Access Token**（仓级令牌）或 **Personal API token**（个人令牌） |
-| **Token** | 粘进去就行，占位文字写着 `Paste token (never shown again)`——**存下之后再打开这一页是看不到的**，所以要换只能在 **Rotate token** 里粘一个新的 |
-| **Remote URL** | 必须是 **HTTPS 的 clone 地址**（以 `.git` 结尾）。帮助文字：`Git clone HTTPS URL ending in .git. A Bitbucket /src/… browser page is converted automatically.` |
-| **Branch** | 默认 `main` |
-| **Product** | 这个仓里哪个 product 目录。先点 **Load products** 才会列出候选 |
+| 字段                 | 说明                                                                                                                                                                    |
+| -------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Credential** | **Repository Access Token**（仓级令牌）或 **Personal API token**（个人令牌）                                                                                |
+| **Token**      | 粘进去就行，占位文字写着`Paste token (never shown again)`——**存下之后再打开这一页是看不到的**，所以要换只能在 **Rotate token** 里粘一个新的             |
+| **Remote URL** | 必须是**HTTPS 的 clone 地址**（以 `.git` 结尾）。帮助文字：`Git clone HTTPS URL ending in .git. A Bitbucket /src/… browser page is converted automatically.` |
+| **Branch**     | 默认`main`                                                                                                                                                            |
+| **Product**    | 这个仓里哪个 product 目录。先点**Load products** 才会列出候选                                                                                                     |
 
 **粘浏览器地址不用自己改**：在 Bitbucket / GitHub 上打开目录时地址栏里那种 `/src/main/…` 或 `/tree/main/…` 的链接，离开输入框时会自动变成 `.git` 结尾的 clone 地址，顺带把里面的分支填进 **Branch**。
 
 **Load products 需要先有 token**（输入框里粘了，或者之前存过）。没有 token 时按钮是灰的，下面写着 `Paste a token to enable Load products. Listing products clones the remote.`——它真的会去 clone 一次，所以有点慢。
 
-列出的是这个仓里**带 `source/` 或 `translated/` 的目录**，选定一个，点 **Save**。
-
-[image 绑定表单整块：Credential 下拉、Token 输入框、Remote URL、Branch、Product 下拉加右边的 Load products 按钮]
+列出的是这个仓里**带 `source/` 或 `translated/` 的目录**，选定一个，点 **Save**。![1790221241487](image/11-git-sync/1790221241487.png)
 
 绑定好之后，卡片上显示 product 名字、`Last pull <时间> · Last push <时间>`（从没同步过写 `Never`），右上角是 **Pull** / **Push** / **History** / **Settings**。同一张卡片里 Settings 展开后就是这套字段外加一个 **Rotate token (leave blank to keep)**，改完点 **Save settings**。
 
@@ -67,16 +65,16 @@
 
 **Changes**：逐条 key 的变更，列是 **Key** / **Locale** / **Reason**（裁决结果）/ **Text**（Git 那边的文案）。可以按 key 或文案搜，也可以按裁决筛。展开一行能看到 **Git** 和 **Platform draft** 两份文案对照。
 
-[image Review pull 面板：上面 Batch files 一行一个文件的勾选框，下面 Changes 表格（Reason 列四种徽标各一个）和展开后 Git / Platform draft 两栏]
+![1790221324119](image/11-git-sync/1790221324119.png)
 
 裁决只有四种，含义是拿「上次同步的基线」比的：
 
-| 界面上写的 | 意思 | 能不能勾 |
-|---|---|---|
-| **Apply Git text** | 只有 Git 改了，平台这边没动 | 能勾，这是唯一能勾的一种 |
-| **Keep platform draft** | 只有平台改了，Git 没动 | 不能勾，本来就不会动它 |
-| **Align base only** | 两边一样 | 不能勾，只是把基线记上 |
-| **Conflict** | 两边都改了，而且不一样 | 不能勾，去下面的冲突卡片处理 |
+| 界面上写的                    | 意思                        | 能不能勾                     |
+| ----------------------------- | --------------------------- | ---------------------------- |
+| **Apply Git text**      | 只有 Git 改了，平台这边没动 | 能勾，这是唯一能勾的一种     |
+| **Keep platform draft** | 只有平台改了，Git 没动      | 不能勾，本来就不会动它       |
+| **Align base only**     | 两边一样                    | 不能勾，只是把基线记上       |
+| **Conflict**            | 两边都改了，而且不一样      | 不能勾，去下面的冲突卡片处理 |
 
 勾完点 **Apply pull**：
 
@@ -96,15 +94,15 @@
 
 推的是**已发布的源语言**文案。每条 key 有一个原因：
 
-| 原因 | 意思 | 默认勾选 |
-|---|---|---|
-| **New key** | 远端还没有这条 key | 是 |
-| **Changed** | 平台改过，Git 那边没动 | 是 |
-| **Unchanged since last push** | 和远端一样，没什么可推 | 否，默认不显示 |
-| **No published source text** | 这条 key 的源语言还没发布 | 否，默认不显示 |
-| **Auto draft key** | `__draft_` 占位 key，永远不推 | 否，默认不显示 |
-| **Git is ahead — check to overwrite** | Git 那边改了而平台没动。**勾上就是用平台覆盖 Git** | 否，但可以勾 |
-| **Conflict with Git source** | 两边都改了，不能勾，去冲突卡片 | 不能勾 |
+| 原因                                         | 意思                                                     | 默认勾选       |
+| -------------------------------------------- | -------------------------------------------------------- | -------------- |
+| **New key**                            | 远端还没有这条 key                                       | 是             |
+| **Changed**                            | 平台改过，Git 那边没动                                   | 是             |
+| **Unchanged since last push**          | 和远端一样，没什么可推                                   | 否，默认不显示 |
+| **No published source text**           | 这条 key 的源语言还没发布                                | 否，默认不显示 |
+| **Auto draft key**                     | `__draft_` 占位 key，永远不推                          | 否，默认不显示 |
+| **Git is ahead — check to overwrite** | Git 那边改了而平台没动。**勾上就是用平台覆盖 Git** | 否，但可以勾   |
+| **Conflict with Git source**           | 两边都改了，不能勾，去冲突卡片                           | 不能勾         |
 
 上面那张表里写「默认不显示」的几种，要用右上角的原因筛选专门挑出来才看得到；默认视图只给你**要推的**和**要你决定的**。
 
@@ -132,13 +130,13 @@
 
 四个按钮，选完这条就关掉：
 
-[image 一张冲突卡片：key 和语言在顶、左右两份文案、底下 Last sync (base) 和 Published (reference)、四个按钮排一行]
+![1790221401355](image/11-git-sync/1790221401355.png)
 
-| 按钮 | 结果 |
-|---|---|
-| **Use Git** | 采用 Git 的文案，写进平台草稿 |
-| **Use platform** | 保留平台这边的文案 |
-| **Edit** → **Save edit** | 两边的都不满意，自己改一版写进去 |
+| 按钮                                      | 结果                                                                                             |
+| ----------------------------------------- | ------------------------------------------------------------------------------------------------ |
+| **Use Git**                         | 采用 Git 的文案，写进平台草稿                                                                    |
+| **Use platform**                    | 保留平台这边的文案                                                                               |
+| **Edit** → **Save edit**     | 两边的都不满意，自己改一版写进去                                                                 |
 | **Rename…** → **Keep both** | 平台上这条 key 改名并**退出 Git 同步**，Git 那边原地不动。适合「这边想另起一个 key」的情形 |
 
 三件事要知道：
@@ -166,20 +164,20 @@
 
 ## 做错了会怎样
 
-| 你看到 | 原因 |
-|---|---|
-| `LILT Git sync is not configured` | 这个项目还没绑定。找 Project Owner |
-| **Load products** 是灰的 | 还没粘 token。列 product 会 clone 一次远端，所以必须先有凭证 |
-| 提示 `Remote URL must be an https Git remote` | 地址不是 HTTPS，或者解析不出仓名。Bitbucket / GitHub 的浏览地址会被自动转，转不出来就说明这条链接不是仓 |
-| **Push** 按钮按不动 | 还有没解决的冲突卡片 |
-| **Apply pull** 或 **Commit push** 是灰的 | 一条都没勾；或者这次预览里还有冲突没解决 |
-| `Remote changed since preview — run a new preview` | Pull 的预览之后别人又推了一版。重新点一次 Pull 拿新预览 |
-| `Remote changed during push — run a new preview` | Push 提交的一瞬间别人也在推同一个分支。重新点一次 Push |
-| 预览过期了 | 预览有有效期，过期重新点一次 |
-| 裁决完冲突，Push 里还是没有它 | 裁决写的是草稿，要先在词条表**发布**，下次 Push 才会带上 |
-| 裁完冲突再 Pull，那张卡又回来了 | 不该发生。真出现说明中间有人又改了 Git 那边——重新看一遍卡片上的两份文案 |
-| 想换 product，下拉里只有当前那一个 | 候选是 **Load products** 现列出来的，换之前再点一次 **Load products** |
-| Pull 的下拉里某个文件写着 `unmapped (de-DE)` | 远端这个语言在平台的对照表里找不到，这个文件不参与 Pull |
-| 词条表里某条 key 不出现在 Push 预览里 | 它的 Git 同步开关关着（第 9 章），或者它是个 `__draft_` 占位 key |
-| Pull 下来的文案马上就出现在导出里了 | 正常，Pull 的 **Apply Git text** 写的是草稿 + 已发布 |
-| 远端 `translated/` 里的语言一直不更新 | 那一侧由下游（LILT）写，平台只推 `source/` |
+| 你看到                                                | 原因                                                                                                    |
+| ----------------------------------------------------- | ------------------------------------------------------------------------------------------------------- |
+| `LILT Git sync is not configured`                   | 这个项目还没绑定。找 Project Owner                                                                      |
+| **Load products** 是灰的                        | 还没粘 token。列 product 会 clone 一次远端，所以必须先有凭证                                            |
+| 提示`Remote URL must be an https Git remote`        | 地址不是 HTTPS，或者解析不出仓名。Bitbucket / GitHub 的浏览地址会被自动转，转不出来就说明这条链接不是仓 |
+| **Push** 按钮按不动                             | 还有没解决的冲突卡片                                                                                    |
+| **Apply pull** 或 **Commit push** 是灰的  | 一条都没勾；或者这次预览里还有冲突没解决                                                                |
+| `Remote changed since preview — run a new preview` | Pull 的预览之后别人又推了一版。重新点一次 Pull 拿新预览                                                 |
+| `Remote changed during push — run a new preview`   | Push 提交的一瞬间别人也在推同一个分支。重新点一次 Push                                                  |
+| 预览过期了                                            | 预览有有效期，过期重新点一次                                                                            |
+| 裁决完冲突，Push 里还是没有它                         | 裁决写的是草稿，要先在词条表**发布**，下次 Push 才会带上                                          |
+| 裁完冲突再 Pull，那张卡又回来了                       | 不该发生。真出现说明中间有人又改了 Git 那边——重新看一遍卡片上的两份文案                               |
+| 想换 product，下拉里只有当前那一个                    | 候选是**Load products** 现列出来的，换之前再点一次 **Load products**                        |
+| Pull 的下拉里某个文件写着`unmapped (de-DE)`         | 远端这个语言在平台的对照表里找不到，这个文件不参与 Pull                                                 |
+| 词条表里某条 key 不出现在 Push 预览里                 | 它的 Git 同步开关关着（第 9 章），或者它是个`__draft_` 占位 key                                       |
+| Pull 下来的文案马上就出现在导出里了                   | 正常，Pull 的**Apply Git text** 写的是草稿 + 已发布                                               |
+| 远端`translated/` 里的语言一直不更新                | 那一侧由下游（LILT）写，平台只推`source/`                                                             |
