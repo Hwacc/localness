@@ -146,6 +146,7 @@ onMounted(() => {
           </UForm>
         </motion.div>
       </AnimatePresence>
+      <VersionLine class="mt-6" />
     </div>
   </ClientOnly>
 </template>
