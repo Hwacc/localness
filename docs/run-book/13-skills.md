@@ -17,25 +17,25 @@
 
 点 **Upload**，弹窗标题 **Upload skill**，三项：
 
-| 字段 | 说明 |
-|---|---|
-| **Name** | 必填，项目里唯一。占位文字是 `i18n-assistant` |
-| **Description** | 必填。占位文字是 `When to use this skill`——写清楚 agent 什么时候该用它 |
-| **Package** | 选文件。底下那行说明就是全部要求：`Zip or .skill with SKILL.md at the root (or one folder down), or a single .md file. Max 5MB.` |
+| 字段                  | 说明                                                                                                                               |
+| --------------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
+| **Name**        | 必填，项目里唯一。占位文字是`i18n-assistant`                                                                                     |
+| **Description** | 必填。占位文字是`When to use this skill`——写清楚 agent 什么时候该用它                                                          |
+| **Package**     | 选文件。底下那行说明就是全部要求：`Zip or .skill with SKILL.md at the root (or one folder down), or a single .md file. Max 5MB.` |
 
 底部 **Cancel** / **Upload**。
 
 选文件时会当场检查，不合格直接说原因：
 
-| 提示 | 原因 |
-|---|---|
-| `Use a .zip, .skill, or .md file` | 文件类型不对 |
-| `File must be 5MB or smaller` | 超过 5 MB |
-| `Zip must contain SKILL.md at the root or one folder down` | 压缩包里找不到 `SKILL.md` |
+| 提示                                                         | 原因                       |
+| ------------------------------------------------------------ | -------------------------- |
+| `Use a .zip, .skill, or .md file`                          | 文件类型不对               |
+| `File must be 5MB or smaller`                              | 超过 5 MB                  |
+| `Zip must contain SKILL.md at the root or one folder down` | 压缩包里找不到`SKILL.md` |
 
 ## 卡片上有什么
 
-[image Skills 页：页头搜索框和 Upload 按钮，下面三张卡片，其中一张是自己传的（带 Edit / Delete），一张是别人传的（只有 Download）]
+![1790221580670](image/13-skills/1790221580670.png)
 
 - 名字，和一行 `类型 · 原文件名`（类型按扩展名认：**Markdown** / **Skill bundle** / **Zip** / **Package**）。
 - 说明，最多显示三行。
@@ -55,12 +55,12 @@
 
 ## 做错了会怎样
 
-| 你看到 | 原因 |
-|---|---|
-| 卡片上没有 **Edit** 和 **Delete** | 这条不是你传的。要改找维护人 |
-| 上传时提示 `Use a .zip, .skill, or .md file` | 只收这三种扩展名 |
-| 上传时提示 `Zip must contain SKILL.md at the root or one folder down` | 压缩包里没有 `SKILL.md`，或者埋得太深 |
-| 提示 `File must be 5MB or smaller` | 超过 5 MB |
-| 保存时提示 `A skill with this name already exists in the project` | 换个名字。同名指的是同一个项目内 |
-| 搜不到刚传的 skill | 搜索只匹配名字和说明；也可能当前项目不是你以为的那个（第 4 章） |
-| 换个项目后列表空了 | skill 是**按项目**存的，切项目就换一批 |
+| 你看到                                                                 | 原因                                                            |
+| ---------------------------------------------------------------------- | --------------------------------------------------------------- |
+| 卡片上没有**Edit** 和 **Delete**                           | 这条不是你传的。要改找维护人                                    |
+| 上传时提示`Use a .zip, .skill, or .md file`                          | 只收这三种扩展名                                                |
+| 上传时提示`Zip must contain SKILL.md at the root or one folder down` | 压缩包里没有`SKILL.md`，或者埋得太深                          |
+| 提示`File must be 5MB or smaller`                                    | 超过 5 MB                                                       |
+| 保存时提示`A skill with this name already exists in the project`     | 换个名字。同名指的是同一个项目内                                |
+| 搜不到刚传的 skill                                                     | 搜索只匹配名字和说明；也可能当前项目不是你以为的那个（第 4 章） |
+| 换个项目后列表空了                                                     | skill 是**按项目**存的，切项目就换一批                    |

@@ -33,38 +33,32 @@ Localness 做的就是把这些钉在一起：**在截图上框出这句话 → 
 
 
 ## 一条主路径
+
 ```mermaid
 flowchart LR
     subgraph ED["Editor 编辑器"]
-        direction LR
-        S1["1. 上传截图  
-一张截图 = 一个 Page"]
-        S2["2. 画框  
-框 = Tag"]
-        S3["3. OCR 读出原文  
-存入项目源语言，读不准可手填"]
-        S4["4. 命名 key 并填译文  
-自写或 AI 提候选，成为 Draft 词条"]
+        S1["1. 上传截图<br/>一张截图 = 一个 Page"]
+        S2["2. 画框<br/>框 = Tag"]
+        S3["3. OCR 读出原文"]
+        S4["4. 命名 key、填译文<br/>成为 Draft 词条"]
         S1 --> S2 --> S3 --> S4
     end
 
-subgraph TR["Translations 词条表"]
-    S5["5. 发布<br/>Draft → Published，只能在词条表操作"]
-end
+    subgraph TR["Translations 词条表"]
+        NT["New translation<br/>第 9 章，不带框"] -.->|捷径| S5
+        S5["5. 发布<br/>Draft → Published"]
+    end
 
-subgraph OUT["Export / LILT Git / API"]
-    S6["6. 交出去<br/>三个出口都只取已发布文案"]
-    D1["导出 xlsx / JSON<br/>第 10 章"]
-    D2["Push 到公司 Git 仓<br/>第 11 章"]
-    D3["只读 API 与 MCP<br/>第 12 章"]
-    S6 --> D1
-    S6 --> D2
-    S6 --> D3
-end
+    subgraph OUT["6. 交出去（三个出口都只取已发布文案）"]
+        D1["导出 xlsx / JSON<br/>第 10 章"]
+        D2["Push 到公司 Git 仓<br/>第 11 章"]
+        D3["只读 API 与 MCP<br/>第 12 章"]
+    end
 
-S4 --> S5
-S5 --> S6
-NT["词条表直接 New translation<br/>第 9 章，不带框"] -.->|捷径| S5
+    S4 --> S5
+    S5 --> D1
+    S5 --> D2
+    S5 --> D3
 ```
 
 1. **上传截图**（Editor）：一张截图就是一个 Page。
@@ -78,29 +72,27 @@ NT["词条表直接 New translation<br/>第 9 章，不带框"] -.->|捷径| S5
 
 
 ## 谁属于谁
+
 ```mermaid
 flowchart TD
     Team["Team（团队）<br/>一组人 + 一组项目"]
-    Team --> ProjA["Project A"]
-    Team --> ProjB["Project B"]
+    Team --> Proj["Project（项目）<br/>key 项目内唯一"]
 
-    ProjA --> Page1["Page 1（一张截图）"]
-    ProjA --> Page2["Page 2（一张截图）"]
-    ProjA --> Entry1["词条（i18n key）<br/>草稿 + 各语言已发布文本，key 项目内唯一"]
-    ProjA --> Entry2["词条（i18n key）<br/>可以一个框都没有"]
+    Proj --> Page["Page（一张截图）"]
+    Proj --> Entry1["词条（i18n key）"]
+    Proj --> Entry2["词条（i18n key）<br/>一个框也没有"]
 
-    Page1 --> Tag1["Tag（标注框）"]
-    Page1 --> Tag2["Tag（标注框）"]
-    Page2 --> Tag3["Tag（标注框）"]
+    Page --> Tag1["Tag（框）"]
+    Page --> Tag2["Tag（框）"]
 
     Tag1 -->|指向| Entry1
     Tag2 -->|指向| Entry1
-    Tag3 -->|指向| Entry1
 
-    Rel["Release（发行标签）"]
-    Rel -.->|挂在| Page1
+    Rel(["Release（发行标签）"])
+    Rel -.->|挂在| Page
     Rel -.->|挂在| Entry1
 ```
+
 - **Team（团队）**：一组人加一组项目。进了队才看得见队里的项目。
 - **Project（项目）**：翻译工作的单位，通常对应一个前端项目。一个项目有自己的语言集合、一个源语言、一套 key 命名规范，以及它自己的页面和词条。**i18n key 在项目内唯一**，两个项目之间的 key 互不相干。
 - **Page（页面）**：一张截图。
