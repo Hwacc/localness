@@ -58,11 +58,7 @@ describe('sourceTextOf', () => {
 })
 
 describe('shaping', () => {
-  /*
-   * The model's whole point: a key's original text is the source language's draft
-   * and nothing else. It rides along in the locale map, so the shaped record has
-   * no field of its own for it — a second copy is what this removes.
-   */
+  /* No field of its own for the original text: it rides in the locale map. */
   it('carries a row by locale, with no origin field', () => {
     const row = shapeI18nKeyRow({
       id: 1,
@@ -90,11 +86,7 @@ describe('shaping', () => {
     expect(key.vue).toMatchObject({ en: 'Save', ja: '保存' })
   })
 
-  /*
-   * Editing surfaces read this to know whether the text is writable at all: a
-   * published entry refuses every text write, so the dialog disables its fields
-   * rather than letting Save fail on them.
-   */
+  /* Read by editors to disable their fields on a published entry. */
   it('reports an entry whose texts all match as published', () => {
     const key = shapeI18nKey({
       id: 1,

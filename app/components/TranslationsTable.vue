@@ -300,11 +300,7 @@ function releaseLabelsOf(row: II18nKeyRow) {
   )
 }
 
-/**
- * One column per locale. Extracted from the list below so the source language can
- * also lead the languages: a key's original text *is* that language's text, and a
- * second column for it would be one value twice.
- */
+/** One column per locale, so the source language can also lead the languages. */
 function localeColumn(code: string): TableColumn<II18nKeyRow> {
   const meta = localeMeta(code)
   return {
@@ -486,8 +482,7 @@ const columns = computed<TableColumn<II18nKeyRow>[]>(() => [
       )
     },
   },
-  // The original text's own column, first among the languages and editable like
-  // any other (editing it moves the key's text).
+  // The original text's own column, first among the languages and editable like any other.
   localeColumn(props.sourceLocale),
   {
     id: 'tagCount',

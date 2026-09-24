@@ -16,7 +16,7 @@
 
 ## 进一个团队
 
-[image Teams 页的团队详情：标出顶部兑码框、Invite codes 卡片、Invite 搜索框、成员表行尾的三个按钮、Projects 卡片上的 Owners 入口]
+![1790217830199](image/05-teams/1790217830199.png)
 
 ### 用邀请码，不用别人同意
 
@@ -60,8 +60,6 @@
 - 这条路发出去的角色固定是 **Team Member**，界面上没有角色可选。想让人当 Team Owner，等他进队之后在成员表里点 **Make owner**。
 - 已经在队里的人再被邀请会失败，角色不变。
 
-
-
 ## Team Owner：改角色、移除成员
 
 成员表两列 **Member** / **Role**，每行右边三个按钮：
@@ -74,19 +72,17 @@
 
 ## 会被拦下来的情况
 
-
-| 你想做 | 被拦的原因 | 界面上写的 |
-|---|---|---|
-| 把自己降成 Team Member | 你是最后一名 Team Owner | `A team must keep at least one Team Owner` |
-| 移除某个成员 | 他是最后一名 Team Owner | `A team must keep at least one Team Owner` |
-| 移除某个成员 | 他是某些项目唯一的 Project Owner | `Appoint another Project Owner for {名字} first` |
-| 离开团队 | 你是最后一名 Team Owner | `Promote another member to Team Owner first` |
-| 离开团队 | 你是某些项目唯一的 Project Owner | `Appoint another Project Owner for {项目} first`；如果队里还没有别人可以接手，则是 `Invite someone to this team and appoint them Project Owner for {项目} first` |
-| 离开团队 | 你是队里唯一成员 | `You are the only member — delete the team instead` |
-| 删团队 | 你不是 Team Owner | `Only a Team Owner can delete a team` |
-| 删团队 | 队里还有别的成员 | `Remove the other members first` |
-| 删团队 | 队里还有项目 | `Delete this team's projects first` |
-
+| 你想做                 | 被拦的原因                       | 界面上写的                                                                                                                                                           |
+| ---------------------- | -------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 把自己降成 Team Member | 你是最后一名 Team Owner          | `A team must keep at least one Team Owner`                                                                                                                         |
+| 移除某个成员           | 他是最后一名 Team Owner          | `A team must keep at least one Team Owner`                                                                                                                         |
+| 移除某个成员           | 他是某些项目唯一的 Project Owner | `Appoint another Project Owner for {名字} first`                                                                                                                   |
+| 离开团队               | 你是最后一名 Team Owner          | `Promote another member to Team Owner first`                                                                                                                       |
+| 离开团队               | 你是某些项目唯一的 Project Owner | `Appoint another Project Owner for {项目} first`；如果队里还没有别人可以接手，则是 `Invite someone to this team and appoint them Project Owner for {项目} first` |
+| 离开团队               | 你是队里唯一成员                 | `You are the only member — delete the team instead`                                                                                                               |
+| 删团队                 | 你不是 Team Owner                | `Only a Team Owner can delete a team`                                                                                                                              |
+| 删团队                 | 队里还有别的成员                 | `Remove the other members first`                                                                                                                                   |
+| 删团队                 | 队里还有项目                     | `Delete this team's projects first`                                                                                                                                |
 
 离队的确认框写着 `Leave "{队伍名}"? You lose access to its projects and need a new invite to come back.`，按钮是 **Leave**，成功弹 **Left team**。
 
@@ -96,7 +92,7 @@
 
 铃铛打开 **Inbox** 抽屉，顶部写着 `N in Inbox`，右边是 **Clear all**。每条消息自己带一个 ✕，可以单删。
 
-[image Inbox 抽屉：标出未读红点、一条 Team invite 上的 Accept / Decline、单条的 ✕、顶部的 Clear all]
+![1790218070894](image/05-teams/1790218070894.png)
 
 **Clear all 要小心。** 它的确认框写得很直白：`Delete every notification? Pending invites go too, and the sender is not told — you will need a new invite to join that team.` 也就是说，还没处理的邀请会被一起清掉，而且**不会通知邀请你的人**——他以为发了，你这边什么都没收到，只能请他重发一次。
 
@@ -108,15 +104,12 @@ Project Owner 是什么、谁能任命，见第 6 章。
 
 ## 做错了会怎样
 
-
-| 你看到 | 原因 |
-|---|---|
-| `Invalid or expired invite code` | 码打错、过期、次数用完，或被 Team Owner 撤销了——四种情况提示都一样，找 Team Owner 重新生成一个 |
-| `Too many invalid invite attempts. Try again later.` | 短时间内兑错太多次，等一会儿再试 |
-| `Type at least 2 characters` | 邀请搜索框里字太少 |
-| `No matching user` | 搜不到人。对方得先有账号（第 3 章）；邮箱只参与匹配，列表里不显示 |
-| 发了邀请，对方说没收到 | 邀请在对方的 Inbox 里，要点 **Accept** 才入队；对方如果按过 **Clear all**，邀请就没了，得重发 |
-| 邀请某人时选项是灰的 | 选项下面写了原因：是你自己、他已经在队里、或者邀请还没处理 |
-| **Make member** / **Remove** / **Leave team** 按不下去 | 见上面那张「会被拦下来的情况」 |
-
-
+| 你看到                                                                   | 原因                                                                                                     |
+| ------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------- |
+| `Invalid or expired invite code`                                       | 码打错、过期、次数用完，或被 Team Owner 撤销了——四种情况提示都一样，找 Team Owner 重新生成一个         |
+| `Too many invalid invite attempts. Try again later.`                   | 短时间内兑错太多次，等一会儿再试                                                                         |
+| `Type at least 2 characters`                                           | 邀请搜索框里字太少                                                                                       |
+| `No matching user`                                                     | 搜不到人。对方得先有账号（第 3 章）；邮箱只参与匹配，列表里不显示                                        |
+| 发了邀请，对方说没收到                                                   | 邀请在对方的 Inbox 里，要点**Accept** 才入队；对方如果按过 **Clear all**，邀请就没了，得重发 |
+| 邀请某人时选项是灰的                                                     | 选项下面写了原因：是你自己、他已经在队里、或者邀请还没处理                                               |
+| **Make member** / **Remove** / **Leave team** 按不下去 | 见上面那张「会被拦下来的情况」                                                                           |

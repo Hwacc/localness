@@ -44,13 +44,13 @@ Project Owner 管的是这一个项目：项目设置、发行标签的增删改
 
 只能从**本队成员**里选。被拦下来时会告诉你原因：
 
-| 你看到 | 意思 |
-|---|---|
+| 你看到                                                      | 意思                                           |
+| ----------------------------------------------------------- | ---------------------------------------------- |
 | `Only a Project Owner or Admin can change Project Owners` | 你既不是这个项目的 Project Owner，也不是 Admin |
-| `User is not a member of this team` | 那个人不在这个团队里 |
-| `User is already a Project Owner` | 他已经是 Project Owner 了 |
-| `User is not a Project Owner` | 卸任一个本来就不在名册上的人 |
-| `A project must keep at least one Project Owner` | 最后一名 Project Owner 不能卸任，先任命别人 |
+| `User is not a member of this team`                       | 那个人不在这个团队里                           |
+| `User is already a Project Owner`                         | 他已经是 Project Owner 了                      |
+| `User is not a Project Owner`                             | 卸任一个本来就不在名册上的人                   |
+| `A project must keep at least one Project Owner`          | 最后一名 Project Owner 不能卸任，先任命别人    |
 
 名册为空时显示 `No Project Owners. Ask an Admin to appoint one.`
 
@@ -58,7 +58,7 @@ Project Owner 管的是这一个项目：项目设置、发行标签的增删改
 
 入口：Workspace Bar 的 **Project settings**（只有 Project Owner 看得到），或者 Dashboard 项目卡片、**Teams** 页项目行上的设置图标。
 
-[image 项目设置弹窗的 Settings 标签页，标出 OCR、Languages、AI key naming 三段，以及 Source language 下拉]
+![1790218214645](image/06-projects/1790218214645.png)
 
 ### OCR
 
@@ -95,7 +95,7 @@ Project Owner 管的是这一个项目：项目设置、发行标签的增删改
 
 编辑器左侧页面列表，某一页的 ⋮ → **Page Settings**；新建页面时是同一个弹窗（标题 **New Page**），标签页是 **Basic** / **Prompt** / **Settings**。
 
-[image PageModal 的 Settings 标签页，Custom key convention 关着和打开两种状态并排：关着时四个字段是灰的、显示项目的值；打开后可以填本页的值]
+![1790218307491](image/06-projects/1790218307491.png)
 
 两类设置的继承行为**不一样**，这是最容易误会的地方：
 
@@ -106,12 +106,12 @@ Project Owner 管的是这一个项目：项目设置、发行标签的增删改
 
 ## 做错了会怎样
 
-| 你看到 | 原因 |
-|---|---|
-| 建项目时 **Team** 下拉是空的，或弹出 **No team** | 你还没进任何团队（第 3、5 章） |
-| 找不到 **Project settings** | 你不是这个项目的 Project Owner；Team Owner 身份不带 Project Owner 权限 |
-| **Owners** 里选不到某个人 | 只能从本队成员里选 |
-| 页面上 key 规范的四个字段是灰的 | **Custom key convention** 关着，这一页在继承项目 |
-| 选了 OCR 语言 **Auto**，引擎自己变成 Engine 2 还变灰 | 正常，自动识别语言只有 Engine 2 支持 |
-| 改了项目前缀，老的 key 没变 | 命名规范只影响之后生成的 key |
-| 找不到改语言集合的地方 | 目前没有这个入口，找管理员 |
+| 你看到                                                      | 原因                                                                   |
+| ----------------------------------------------------------- | ---------------------------------------------------------------------- |
+| 建项目时**Team** 下拉是空的，或弹出 **No team** | 你还没进任何团队（第 3、5 章）                                         |
+| 找不到**Project settings**                            | 你不是这个项目的 Project Owner；Team Owner 身份不带 Project Owner 权限 |
+| **Owners** 里选不到某个人                             | 只能从本队成员里选                                                     |
+| 页面上 key 规范的四个字段是灰的                             | **Custom key convention** 关着，这一页在继承项目                 |
+| 选了 OCR 语言**Auto**，引擎自己变成 Engine 2 还变灰   | 正常，自动识别语言只有 Engine 2 支持                                   |
+| 改了项目前缀，老的 key 没变                                 | 命名规范只影响之后生成的 key                                           |
+| 找不到改语言集合的地方                                      | 目前没有这个入口，找管理员                                             |

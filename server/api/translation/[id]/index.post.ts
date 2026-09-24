@@ -59,11 +59,6 @@ export default defineEventHandler(async (event) => {
       },
       include: { locales: true },
     })
-    /*
-     * The source language's row *is* the original text, so it is dropped from the
-     * map and written through the helper — that row has one writer, and clearing
-     * it is ignored.
-     */
     if (content) {
       await upsertLocaleDrafts(
         nID,

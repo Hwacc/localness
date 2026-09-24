@@ -122,11 +122,7 @@ const selectedItem = computed(() => {
 const selectedFramework = ref<'vue' | 'react'>('vue')
 const { state, seededReleaseIds } = useEditTagState(tag)
 
-/**
- * The locale maps are one value under two names — `vue` and `react` carry the same
- * set, and the save reads one of them — so every edit lands in both. That is what
- * makes a single write enough, and it keeps the copies from drifting apart.
- */
+/** `vue` and `react` are one value under two names, so an edit lands in both. */
 function setLocaleDraft(locale: string, value: string) {
   if (!state.translation) {
     state.translation = {}
@@ -152,10 +148,7 @@ const sourceText = computed<string>({
   },
 })
 
-/**
- * Drives the `New` button, which appears once the original text has been rewritten
- * — that is the only way to end up with a separate entry from here.
- */
+/** Shows the `New` button — the only way to spin off a separate entry here. */
 const isSourceTextChanged = computed(() => {
   const edited = sourceText.value.trim()
   if (!edited) return false
@@ -167,12 +160,7 @@ const isSourceTextChanged = computed(() => {
   return edited !== original.trim()
 })
 
-/**
- * A published entry's text is read-only everywhere — the server refuses the write
- * — so the fields are disabled rather than left to fail on Save. Reverting is the
- * way back, and it is not a local toggle: the entry drops out of published export
- * and the API until someone publishes it again.
- */
+/** Published entries refuse writes server-side, so the fields are disabled. */
 const isPublished = computed(() => tag.value.translation?.dirty === false)
 
 const i18nKeyDisplay = computed({
@@ -657,8 +645,6 @@ const previewLabelStyle = computed(() => {
               </div>
             </div>
             <div v-else class="flex flex-col gap-2.5">
-              <!-- The server refuses writes to a published entry, so its fields are
-                   disabled instead of being left to fail on Save. -->
               <div
                 v-if="isPublished"
                 class="flex items-center gap-2 rounded-lg border border-default px-3 py-2"
@@ -788,11 +774,7 @@ const previewLabelStyle = computed(() => {
                       </template>
                     </USelect>
                     <AIButton class="[&>span]:h-6 [&>span]:leading-1" />
-                    <!--
-                      The Vue / React switch is hidden for now: both copies hold the
-                      same locale set, so there is nothing to switch between.
-                      `selectedFramework` stays as the one read/write target.
-                    -->
+                    <!-- Vue / React switch hidden: both copies hold the same set. -->
                   </div>
                 </template>
                 <template #default>

@@ -59,12 +59,7 @@ export default defineEventHandler(async (event) => {
 
   const before = localesToContent(existing.locales)
   try {
-    /*
-     * The source language's row is the key's original text, not just another
-     * locale: clearing it is ignored — an original text cannot be blank. It is
-     * dropped from the locale map and written through the source helper, so that
-     * row has one writer.
-     */
+    /* That row is the original text: one writer, and clearing it is ignored. */
     const raw = safeBody as Record<string, string | null | undefined>
     const sourceLocale = await sourceLocaleOf(existing.projectId)
     const sourceText =
@@ -77,13 +72,7 @@ export default defineEventHandler(async (event) => {
         text: sourceText,
         sourceLocale,
       })
-      /*
-       * The fingerprint names a key by the text it holds, and
-       * `/api/translation/check?fp=` is what offers to reuse an entry that already
-       * has that text — so it follows the row the original text lives in, the way
-       * both `/api/translation` write paths already do. Without this, editing the
-       * source cell (here or in Tag Info) leaves the two saying different things.
-       */
+      /* The fingerprint names the text, so it follows the source row. */
       await prisma.i18nKey.update({
         where: { id: nID },
         data: { fingerprint: fpTranslation(sourceText) },

@@ -72,11 +72,7 @@ export function useTranslationGenerator() {
     releaseIds?: number[]
   ) {
     if (!sourceTextOf(trans)) return null
-    /*
-     * The fingerprint names the text, so a hit is the entry that already holds it.
-     * The whole entry comes back rather than its id: choosing to reuse it is a
-     * link, and nothing has to be read — or written — a second time.
-     */
+    /* A hit is the entry holding this text, so the whole entry comes back. */
     const existing = trans.fingerprint
       ? await useApi<ITranslation | null>(
           `/api/translation/check?fp=${trans.fingerprint}&projectId=${projectStore.curProject.id}`
@@ -104,13 +100,7 @@ export function useTranslationGenerator() {
         alertModal.open()
         alertModal.patch({
           interceptCancel: true,
-          /*
-           * Reusing the entry is a link, not a write: it already holds this text —
-           * that is why the fingerprint matched. Writing would be both redundant
-           * and wrong twice over: the write endpoint refuses a published entry,
-           * and the copies travelling with this tag would overwrite the other
-           * locales the entry already carries.
-           */
+          /* Recover links, never writes: the entry already holds this text. */
           onOk: (_, { close }) => {
             resolve(existing)
             close()

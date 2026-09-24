@@ -9,11 +9,7 @@ export type ExportRow = {
   texts: Record<string, string>
 }
 
-/*
- * No separate original-text column: a key's original text is its source language's
- * text, and that language's column is kept in front of the others — one column,
- * not the same value twice.
- */
+/* No separate original-text column: the source language's column carries it. */
 const FIXED_HEADER = ['id', 'key_id', 'pic', 'key'] as const
 
 /**

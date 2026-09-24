@@ -120,10 +120,6 @@ export function useEditTagState(tag: MaybeRef<ITag>) {
         fingerprint: translation?.fingerprint ?? '',
         vue: translation?.vue ?? {},
         react: translation?.react ?? {},
-        /*
-         * Carried along rather than derived: a save has to know the entry is
-         * published before it posts the text, and the server refuses those writes.
-         */
         dirty: translation?.dirty,
       }
     }
