@@ -3,8 +3,17 @@ import { omit } from 'lodash-es'
 export const useTagStore = defineStore('tag', () => {
   const pageStore = usePageStore()
 
-  async function getTag(id: ID) {
+  /*
+   * Pull a tag again without writing to it: another surface may have changed what
+   * it points at (a revert to draft, a conflict resolution), and the list is
+   * updated the way a write updates it so the canvas and the dialog agree.
+   */
+  async function refreshTag(id: ID) {
+    if (!validID(id)) return
     const tag = await useApi<ITag>(`/api/tag/${id}`)
+    if (tag) {
+      pageStore.setTags(pageStore.tagList.map((t) => (t.id === id ? tag : t)))
+    }
     return tag
   }
 
@@ -63,7 +72,7 @@ export const useTagStore = defineStore('tag', () => {
   }
 
   return {
-    getTag,
+    refreshTag,
     addTag,
     deleteTag,
     updateTag,

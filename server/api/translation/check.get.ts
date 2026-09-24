@@ -1,9 +1,10 @@
 import prisma from '#server/libs/prisma'
 import { numericID } from '#server/helper/id'
+import { shapeI18nKey } from '#server/helper/i18n'
 
 /**
  * @route GET /api/translation/check
- * @description Check if an I18nKey exists by fingerprint in the user's teams
+ * @description The I18nKey holding this fingerprint in the user's teams, if any
  * @access Private
  */
 export default defineEventHandler(async (event) => {
@@ -28,7 +29,12 @@ export default defineEventHandler(async (event) => {
       ...(nProjectId ? { projectId: nProjectId } : {}),
       project: { teamId: { in: teamIds } },
     },
-    select: { id: true },
+    include: { locales: true, releases: { select: { releaseId: true } } },
   })
-  return record ? record.id : null
+  /*
+   * The whole entry, not just its id: the caller's "recover" choice binds the tag
+   * to what comes back, and a second read to learn what that is would be a wasted
+   * round trip.
+   */
+  return record ? shapeI18nKey(record) : null
 })

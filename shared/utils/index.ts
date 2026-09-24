@@ -76,7 +76,7 @@ export function resolveEditedKey(
 
 /** Draft = never published, or any locale draft differs from published. */
 export function isI18nKeyDraft(
-  locales: Array<{ draftText: string | null; publishedText: string | null }>
+  locales: Array<{ draftText: string | null; publishedText?: string | null }>
 ) {
   if (!locales.length) return true
   const hasPublished = locales.some(
@@ -95,7 +95,7 @@ export function isI18nKeyDraft(
  * so a drift here would disagree with what the endpoint actually does.
  */
 export function hasUnpublishedDraft(
-  locales: Array<{ draftText: string | null; publishedText: string | null }>
+  locales: Array<{ draftText: string | null; publishedText?: string | null }>
 ): boolean {
   return locales.some(
     (locale) => (locale.draftText ?? '') !== (locale.publishedText ?? '')

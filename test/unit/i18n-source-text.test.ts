@@ -89,6 +89,31 @@ describe('shaping', () => {
     expect('origin' in key).toBe(false)
     expect(key.vue).toMatchObject({ en: 'Save', ja: '保存' })
   })
+
+  /*
+   * Editing surfaces read this to know whether the text is writable at all: a
+   * published entry refuses every text write, so the dialog disables its fields
+   * rather than letting Save fail on them.
+   */
+  it('reports an entry whose texts all match as published', () => {
+    const key = shapeI18nKey({
+      id: 1,
+      fingerprint: 'fp',
+      locales: [{ locale: 'en', draftText: 'Save', publishedText: 'Save' }],
+    })
+
+    expect(key.dirty).toBe(false)
+  })
+
+  it('reports an entry with nothing published as a draft', () => {
+    const key = shapeI18nKey({
+      id: 1,
+      fingerprint: 'fp',
+      locales: [locale('en', 'Save')],
+    })
+
+    expect(key.dirty).toBe(true)
+  })
 })
 
 describe('writeSourceText', () => {

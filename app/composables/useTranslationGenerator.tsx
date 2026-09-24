@@ -72,23 +72,25 @@ export function useTranslationGenerator() {
     releaseIds?: number[]
   ) {
     if (!sourceTextOf(trans)) return null
-    let checkedID: ID | null = null
-    if (trans.fingerprint) {
-      checkedID = await useApi<ID | null>(
-        `/api/translation/check?fp=${trans.fingerprint}&projectId=${projectStore.curProject.id}`
-      )
-    }
+    /*
+     * The fingerprint names the text, so a hit is the entry that already holds it.
+     * The whole entry comes back rather than its id: choosing to reuse it is a
+     * link, and nothing has to be read — or written — a second time.
+     */
+    const existing = trans.fingerprint
+      ? await useApi<ITranslation | null>(
+          `/api/translation/check?fp=${trans.fingerprint}&projectId=${projectStore.curProject.id}`
+        )
+      : null
     /*
      * Every "create a translation" path goes through here, and only the create
      * calls below may label it: the caller's choice when it has a picker, the
-     * release being viewed when it does not. See the omit list for the recover
-     * path, which posts the same object at an existing entry.
+     * release being viewed when it does not.
      */
     const viewedRelease = defaultReleaseIdForFilter(
       projectStore.curReleaseFilter
     )
     const labels = releaseIds ?? (viewedRelease ? [viewedRelease] : [])
-    console.log('checked', trans, checkedID)
     return new Promise<ITranslation | null>((resolve) => {
       const cleanTrans = omit(trans, [
         'id',
@@ -97,37 +99,27 @@ export function useTranslationGenerator() {
         'createdAt',
         'releaseIds',
       ])
-      if (checkedID) {
+      if (existing) {
         // open ask modal
         alertModal.open()
         alertModal.patch({
           interceptCancel: true,
-          onOk: async (_, { close }) => {
-            // answer if recover existing translation
-            try {
-              alertModal.patch({ loading: true })
-              // update existing translation
-              const res = await useApi<ITranslation>(
-                `/api/translation/${checkedID}`,
-                {
-                  method: 'POST',
-                  body: cleanTrans,
-                }
-              )
-              resolve(res)
-              close()
-            } catch (error) {
-              console.error(error)
-              resolve(null)
-            } finally {
-              alertModal.patch({ loading: false })
-            }
+          /*
+           * Reusing the entry is a link, not a write: it already holds this text —
+           * that is why the fingerprint matched. Writing would be both redundant
+           * and wrong twice over: the write endpoint refuses a published entry,
+           * and the copies travelling with this tag would overwrite the other
+           * locales the entry already carries.
+           */
+          onOk: (_, { close }) => {
+            resolve(existing)
+            close()
           },
           onCancel: async (_, { close }) => {
             // answer if force create new translation
             try {
               alertModal.patch({ loading: true })
-    const res = await useApi<ITranslation>(`/api/translation`, {
+              const res = await useApi<ITranslation>(`/api/translation`, {
                 method: 'POST',
                 body: {
                   ...cleanTrans,
@@ -148,7 +140,7 @@ export function useTranslationGenerator() {
           onClose: (isOk) => {
             if (!isOk) resolve(null)
           },
-        }) 
+        })
       } else {
         // create new Translation
         useApi<ITranslation>(`/api/translation`, {

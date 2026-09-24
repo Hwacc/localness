@@ -8,7 +8,7 @@ import { isEmpty, omit } from 'lodash-es'
 import type { ZTagState } from '~/composables/useEditTagState'
 import { zTagState } from '~/composables/useEditTagState'
 import InputModal from './InputModal.vue'
-import { HistoryModal } from '#components'
+import { AlertModal, HistoryModal } from '#components'
 import type { ITranslationLog } from '~~/shared/types/Translation'
 
 const props = defineProps<{
@@ -88,6 +88,8 @@ const emit = defineEmits<{
       prompt?: string
     }
   ]
+  /** The entry was reverted to draft here, so the tag has to be picked up again. */
+  reverted: []
 }>()
 
 const overlay = useOverlay()
@@ -121,10 +123,22 @@ const selectedFramework = ref<'vue' | 'react'>('vue')
 const { state, seededReleaseIds } = useEditTagState(tag)
 
 /**
- * The original text is the source language's entry, not a field beside the locale
- * map: the save posts both framework copies back, and the server makes whichever
- * one arrives last the original text — so every copy has to carry the edit.
+ * The locale maps are one value under two names — `vue` and `react` carry the same
+ * set, and the save reads one of them — so every edit lands in both. That is what
+ * makes a single write enough, and it keeps the copies from drifting apart.
  */
+function setLocaleDraft(locale: string, value: string) {
+  if (!state.translation) {
+    state.translation = {}
+  }
+  for (const framework of ['vue', 'react'] as const) {
+    const temp = state.translation[framework] ?? {}
+    temp[locale] = value
+    state.translation[framework] = temp
+  }
+}
+
+/** The original text is the source language's entry, not a field beside the map. */
 const sourceText = computed<string>({
   get(): string {
     return (
@@ -134,17 +148,7 @@ const sourceText = computed<string>({
     )
   },
   set(value: string) {
-    if (!state.translation) {
-      state.translation = {}
-    }
-    for (const framework of ['vue', 'react'] as const) {
-      let temp = state.translation[framework]
-      if (!temp) {
-        temp = {}
-      }
-      temp[sourceLocale.value] = value
-      state.translation[framework] = temp
-    }
+    setLocaleDraft(sourceLocale.value, value)
   },
 })
 
@@ -162,6 +166,14 @@ const isSourceTextChanged = computed(() => {
   )
   return edited !== original.trim()
 })
+
+/**
+ * A published entry's text is read-only everywhere — the server refuses the write
+ * — so the fields are disabled rather than left to fail on Save. Reverting is the
+ * way back, and it is not a local toggle: the entry drops out of published export
+ * and the API until someone publishes it again.
+ */
+const isPublished = computed(() => tag.value.translation?.dirty === false)
 
 const i18nKeyDisplay = computed({
   get: () => formatI18nKeyDisplay(state.i18nKey),
@@ -227,15 +239,7 @@ const editableTranslationContent = computed<string>({
     )
   },
   set(value: string) {
-    let temp = state.translation?.[selectedFramework.value]
-    if (!temp) {
-      temp = {}
-    }
-    temp[selectedLanguage.value] = value
-    if (!state.translation) {
-      state.translation = {}
-    }
-    state.translation[selectedFramework.value] = temp
+    setLocaleDraft(selectedLanguage.value, value)
   },
 })
 
@@ -333,6 +337,33 @@ async function onCreateI18nKey() {
     i18nKey: state.i18nKey,
     sourceText: trimmed,
     prompt: state.settings.prompt,
+  })
+}
+
+const revertModal = overlay.create(AlertModal)
+
+/** Lives here rather than with the save flow: nothing about the tag is written. */
+function onRevertToDraft() {
+  revertModal.open({
+    mode: 'warning',
+    title: 'Revert to draft',
+    message: `Revert “${formatI18nKeyDisplay(
+      tag.value.i18nKey ?? ''
+    )}” to draft? It will drop out of published export until you publish again.`,
+    okText: 'Revert',
+    onOk: async (_mode, { close }) => {
+      revertModal.patch({ loading: true })
+      try {
+        await useApi(`/api/projects/${projectStore.curProject.id}/unpublish`, {
+          method: 'POST',
+          body: { keyIds: [tag.value.translationID] },
+        })
+        close()
+        emit('reverted')
+      } finally {
+        revertModal.patch({ loading: false })
+      }
+    },
   })
 }
 
@@ -626,11 +657,42 @@ const previewLabelStyle = computed(() => {
               </div>
             </div>
             <div v-else class="flex flex-col gap-2.5">
+              <!-- The server refuses writes to a published entry, so its fields are
+                   disabled instead of being left to fail on Save. -->
+              <div
+                v-if="isPublished"
+                class="flex items-center gap-2 rounded-lg border border-default px-3 py-2"
+              >
+                <UIcon
+                  name="i-lucide:lock"
+                  class="size-4 shrink-0 text-muted"
+                />
+                <p class="text-xs text-muted">
+                  Published, so its text is read-only. Revert it to draft to
+                  edit.
+                </p>
+                <UButton
+                  class="ml-auto shrink-0"
+                  size="xs"
+                  color="warning"
+                  variant="soft"
+                  label="Revert to draft"
+                  @click="onRevertToDraft"
+                />
+              </div>
               <UFormField label="I18n Key">
                 <div class="w-full flex flex-col gap-2">
                   <div class="w-full flex items-center gap-2.5">
-                    <UInput v-model="i18nKeyDisplay" class="w-full font-mono" />
-                    <AIButton :loading="loading" @click="onCreateI18nKey" />
+                    <UInput
+                      v-model="i18nKeyDisplay"
+                      class="w-full font-mono"
+                      :disabled="isPublished"
+                    />
+                    <AIButton
+                      :loading="loading"
+                      :disabled="isPublished"
+                      @click="onCreateI18nKey"
+                    />
                   </div>
                   <AIKeySuggestion
                     v-if="suggestion && !suggestionDismissed"
@@ -650,7 +712,10 @@ const previewLabelStyle = computed(() => {
                 name="releaseIds"
                 description="Labels on the translation entry, not on this box."
               >
-                <ReleaseSelect v-model="state.releaseIds" :disabled="loading" />
+                <ReleaseSelect
+                  v-model="state.releaseIds"
+                  :disabled="loading || isPublished"
+                />
               </UFormField>
               <UFormField
                 :label="sourceItem?.label || 'Text'"
@@ -700,6 +765,7 @@ const previewLabelStyle = computed(() => {
                     class="w-full"
                     :maxrows="4"
                     autoresize
+                    :disabled="isPublished"
                   />
                 </template>
               </UFormField>
@@ -722,11 +788,11 @@ const previewLabelStyle = computed(() => {
                       </template>
                     </USelect>
                     <AIButton class="[&>span]:h-6 [&>span]:leading-1" />
-                    <FrameworkGroup
-                      v-model="selectedFramework"
-                      class="ml-auto mr-0"
-                      size="sm"
-                    />
+                    <!--
+                      The Vue / React switch is hidden for now: both copies hold the
+                      same locale set, so there is nothing to switch between.
+                      `selectedFramework` stays as the one read/write target.
+                    -->
                   </div>
                 </template>
                 <template #default>
@@ -735,6 +801,7 @@ const previewLabelStyle = computed(() => {
                     class="w-full"
                     :maxrows="4"
                     autoresize
+                    :disabled="isPublished"
                   />
                 </template>
               </UFormField>

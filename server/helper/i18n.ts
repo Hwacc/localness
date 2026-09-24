@@ -152,6 +152,12 @@ export function shapeI18nKey(
     updatedAt: record.updatedAt,
     vue: content,
     react: { ...content },
+    /**
+     * Published entries are read-only — an edit to one has to go through
+     * "revert to draft" first — so every surface that edits a key needs to know
+     * which state it is in. Same meaning as the row's `dirty`: true is a draft.
+     */
+    dirty: isI18nKeyDraft(record.locales ?? []),
     /** Labels as plain ids, for the same reason pages carry them that way. */
     releaseIds: (record.releases ?? []).map((release) => release.releaseId),
   }
