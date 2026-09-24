@@ -239,7 +239,11 @@ onMounted(() => {
             @click="onSearch"
           />
           <div class="flex items-center ml-auto mr-0 gap-2">
-            <FrameworkGroup v-model="framework" />
+            <!--
+              The Vue / React switch is hidden for now: both copies hold the same
+              locale set, so there is nothing to switch between. `framework` stays
+              as the one column source.
+            -->
             <UDropdownMenu
               :ui="{
                 group: 'max-h-50',

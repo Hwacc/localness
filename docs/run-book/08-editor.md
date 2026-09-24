@@ -120,9 +120,11 @@
 - **I18n Key**：这条词条的 key（`__draft_…` 时显示短哈希），右边一个 **AI** 按钮。
 - **Releases**：发行标签。说明写着 `Labels on the translation entry, not on this box.`——标签挂在词条上，不挂在这个框上（第 7 章）。
 - **国旗图标 + 语言名那一块**（例如 **English**，就是本项目的源语言，第 6 章）：原文填在这里。标签旁边三个小按钮：**Link**（换绑另一条词条）、**New**（只在原文被你改过时才出现）、**History**（这条词条的改动记录），右边还写着它的 Finger。
-- **Translations**：选一个语言，填这个语言的译文；右上角 **Vue** / **React** 两组分开存。源语言**不在这个下拉里**——它就在上面那一块，一个语言只有一个输入框。
+- **Translations**：选一个语言，填这个语言的译文。源语言**不在这个下拉里**——它就在上面那一块，一个语言只有一个输入框。
 
 底部是 **Cancel** / **Save**。**Info 里改的东西要点 Save 才落库。**
+
+**这条词条已发布时**，最上面多一行锁形提示（`Published, so its text is read-only. Revert it to draft to edit.`）带一个 **Revert to draft** 按钮：**I18n Key**、**AI**、原文、译文四处输入和 **Releases** 都禁用（和词条表里逐行的 **Edit translation** 弹窗一个口径；服务端本就拒绝写已发布词条），**Link** / **New** / **History** 以及框的样式、锁定、Prompt 照旧。点 **Revert to draft** 先问一次 `Revert "…" to draft? It will drop out of published export until you publish again.`，确认后这条词条变回 **Draft**，输入随即解锁 —— 和词条表那一列的撤回是同一件事（第 9 章）。
 
 ### 让 AI 起名
 
@@ -155,9 +157,10 @@
 | 改了 **I18n Key** | 给当前这条词条**改名**。多个框共用它的话，一起改 |
 | 改成一个**已被别的文案占用**的 key | 保存后这条框会挂到**那条已有词条**上，你在这个框里填的原文不生效 |
 | 改了源语言那一块的原文 | **原地改这条词条的原文**，和词条表里改源语言那一格是一回事。多个框共用这条词条的话，它们一起变 |
+| 这条词条**已发布** | 原文 / 译文 / **I18n Key** / **Releases** 一律改不了（输入框禁用的，服务端也拒）。先点上面那行 **Revert to draft** 解锁；框的样式、锁定、Prompt 不受这条影响，照常能存 |
 | 点 **New**（原文那一行右侧的按钮） | 按当前原文**另建一条**词条，这个框改挂到新的那条上；原来那条留在项目里，别的框可能还指着它。项目里已有相同原文时，会先问你复用还是新建 |
 
-**New** 碰到「已有相同原文」时，弹的那个窗长这样：标题 **Warning**，正文 `This translation already exists. Do you want to recover it?`，另有提示 `Create new translation may generate a repeating translation. Make sure to create it carefully.`，按钮是 **Create New** 和 **Recover**。**Recover** 把这条框挂到已有的那条词条上，**Create New** 另起一条。这个弹窗点不掉，必须二选一。
+**New** 碰到「已有相同原文」时，弹的那个窗长这样：标题 **Warning**，正文 `This translation already exists. Do you want to recover it?`，另有提示 `Create new translation may generate a repeating translation. Make sure to create it carefully.`，按钮是 **Create New** 和 **Recover**。**Recover** 把这条框挂到已有的那条词条上——**不动那条词条的内容**（它本来就装着这句原文），**Create New** 另起一条。这个弹窗点不掉，必须二选一。
 
 ## 删掉一个框
 

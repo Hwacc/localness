@@ -1,5 +1,5 @@
 import { TagInfoModal, TranslationLinkModal } from '#components'
-import { isEmpty, map, pick } from 'lodash-es'
+import { isEmpty } from 'lodash-es'
 
 type TagModalOptions = {
   tag: ITag
@@ -42,24 +42,32 @@ export function useTagModal() {
       onSave: async ({ tag, settings, translation }) => {
         try {
           tagModal.patch({ loading: true })
-          if (translation) {
+          /*
+           * A published entry's text is read-only server-side, and a rejection
+           * here would take the whole save down with it — style, lock, prompt and
+           * labels included. The dialog disables those fields in that state, so
+           * there is nothing to write and the rest of the save goes through.
+           */
+          const textEditable = translation?.dirty !== false
+          if (translation && textEditable) {
             /*
              * Written onto the entry this tag is already bound to, source language
              * included: a key's identity is its key string, so rewriting its
              * original text is an edit, not a different entry. `New` is the
              * explicit way to spin a separate one off.
+             *
+             * One request, not one per framework copy: `vue` and `react` hold the
+             * same locale set and the endpoint writes that set either way, so a
+             * second POST only raced the first. The dialog keeps both copies in
+             * step, which is what makes reading one of them enough.
              */
-            const contentPromises = map(
-              pick(translation, ['vue', 'react']),
-              (item, key) => {
-                if (isEmpty(item)) return Promise.resolve()
-                return useApi(`/api/translation/${translation.id}/${key}`, {
-                  method: 'POST',
-                  body: item,
-                })
-              }
-            )
-            await Promise.all(contentPromises)
+            const content = translation.vue ?? translation.react
+            if (!isEmpty(content)) {
+              await useApi(`/api/translation/${translation.id}/vue`, {
+                method: 'POST',
+                body: content,
+              })
+            }
           }
           const updatedTag = await tagStore.updateTag(opt.tag.id, {
             ...tag,
@@ -157,6 +165,18 @@ export function useTagModal() {
           console.error('gen i18n key error', error)
         } finally {
           tagModal.patch({ loading: false })
+        }
+      },
+      /*
+       * A revert to draft happens inside the dialog (it owns the confirmation and
+       * the call), so all that is left here is to pick up the entry's new state —
+       * otherwise reopening the dialog would still call it published.
+       */
+      onReverted: async () => {
+        const refreshed = await tagStore.refreshTag(opt.tag.id)
+        if (refreshed) {
+          tagModal.patch({ tag: refreshed })
+          opt.onSave?.(refreshed)
         }
       },
       onClose: (isOK: boolean) => {

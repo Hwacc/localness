@@ -15,7 +15,7 @@
 
 ## 登录
 
-[image 登录表单：Get Start 之后的样子，标出 Username、Password、Login 按钮、or 分隔线、Continue with Atlassian 按钮]
+![1790216328875](image/03-login/1790216328875.png)
 
 ### 本地账号
 
@@ -61,13 +61,13 @@
 
 ## 做错了会怎样
 
-| 你看到 | 原因 |
-|---|---|
-| `Please enter your username` / `Username needs at least 3 characters` | 用户名没填，或少于 3 个字符 |
-| **Continue with Atlassian** 是灰的，下面一行 `Atlassian login is not configured. Contact an admin.` | 这个实例没接 Atlassian，改用本地账号 |
-| `That Atlassian email is not allowed to sign in here.` | 邮箱域名不在允许名单里，找管理员 |
-| `Atlassian did not return an account. Try again.` | Atlassian 那边没返回账号，重试，或改用用户名密码 |
-| `This account already has an Atlassian login.` | 这个本地账号已经绑过了，不用再绑 |
-| `That Atlassian account is linked to another user.` | 那个 Atlassian 账号绑在别的用户名下，找管理员处理 |
-| 初始化页报 **Failed to initialize** | 刷新重试；还不行找管理员 |
-| 登进来了，但 Dashboard 上一个项目都没有 | 你还没进任何团队，看上面「兑邀请码」那节 |
+| 你看到                                                                                                      | 原因                                              |
+| ----------------------------------------------------------------------------------------------------------- | ------------------------------------------------- |
+| `Please enter your username` / `Username needs at least 3 characters`                                   | 用户名没填，或少于 3 个字符                       |
+| **Continue with Atlassian** 是灰的，下面一行 `Atlassian login is not configured. Contact an admin.` | 这个实例没接 Atlassian，改用本地账号              |
+| `That Atlassian email is not allowed to sign in here.`                                                    | 邮箱域名不在允许名单里，找管理员                  |
+| `Atlassian did not return an account. Try again.`                                                         | Atlassian 那边没返回账号，重试，或改用用户名密码  |
+| `This account already has an Atlassian login.`                                                            | 这个本地账号已经绑过了，不用再绑                  |
+| `That Atlassian account is linked to another user.`                                                       | 那个 Atlassian 账号绑在别的用户名下，找管理员处理 |
+| 初始化页报**Failed to initialize**                                                                    | 刷新重试；还不行找管理员                          |
+| 登进来了，但 Dashboard 上一个项目都没有                                                                     | 你还没进任何团队，看上面「兑邀请码」那节          |
