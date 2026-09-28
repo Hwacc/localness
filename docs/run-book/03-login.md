@@ -50,7 +50,7 @@
 
 绑成功后弹 **Atlassian connected**，卡片变成 **Connected** 并显示 Atlassian 那边的名字和邮箱。
 
-[image Profile 弹窗的 Account 标签页，标出 Atlassian 卡片和 Connect Atlassian 按钮的位置]
+![1790562318213](image/03-login/1790562318213.png)
 
 同一个 **Account** 标签页还能设密码：Atlassian 自动开的账号本来没有密码，填 **New password** 和 **Confirm password** 点 **Set password**，之后就能用用户名密码登录。**设完或改完都会被登出**，需要重新登录一次，界面上那句 `You will be logged out after saving.` 说的就是这件事。
 
