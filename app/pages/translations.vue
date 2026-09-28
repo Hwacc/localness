@@ -825,16 +825,25 @@ onMounted(async () => {
           :visible="Boolean(curProject.isSteward)"
         />
       </div>
-      <UButton
-        class="shrink-0"
-        size="sm"
-        color="neutral"
-        variant="outline"
-        label="New translation"
-        icon="i-lucide:plus"
-        :disabled="!validID(curProject.id)"
-        @click="openCreate"
-      />
+      <div class="shrink-0 flex items-center gap-2">
+        <ImportKeysSlideover
+          v-if="canManageProjectSettings(curProject)"
+          :project-id="curProject.id"
+          :locale-codes="localeCodes"
+          :source-locale="sourceLocale"
+          :releases="curReleases"
+          @imported="loadKeys"
+        />
+        <UButton
+          size="sm"
+          color="neutral"
+          variant="outline"
+          label="New translation"
+          icon="i-lucide:plus"
+          :disabled="!validID(curProject.id)"
+          @click="openCreate"
+        />
+      </div>
     </header>
 
     <div class="flex-1 min-h-0 min-w-0 p-6 flex flex-col gap-4 overflow-hidden">
