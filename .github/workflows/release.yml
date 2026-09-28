@@ -119,6 +119,7 @@ jobs:
           labels: |
             org.opencontainers.image.description=Screenshot tagging + i18n key store. Changelog: https://github.com/${{ github.repository }}/releases/tag/${{ github.ref_name }}
             org.opencontainers.image.documentation=https://github.com/${{ github.repository }}/releases/tag/${{ github.ref_name }}
+            org.opencontainers.image.licenses=Elastic-2.0
 
       - uses: docker/build-push-action@v6
         with:

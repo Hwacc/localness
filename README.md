@@ -8,7 +8,7 @@
     <img alt="TypeScript" src="https://img.shields.io/badge/TypeScript-strict-3178C6?logo=typescript&logoColor=white" />
     <img alt="Prisma" src="https://img.shields.io/badge/Prisma-SQLite-2D3748?logo=prisma&logoColor=white" />
     <img alt="Docker" src="https://img.shields.io/badge/Docker-self--hosted-2496ED?logo=docker&logoColor=white" />
-    <img alt="License: Proprietary" src="https://img.shields.io/badge/License-Proprietary-red" />
+    <img alt="License: Elastic 2.0" src="https://img.shields.io/badge/License-Elastic%202.0-005571" />
   </p>
 </div>
 
@@ -206,18 +206,27 @@ An MCP endpoint (`/mcp`) exposes the same data to AI coding agents. See
 
 ## License
 
-**Proprietary — All Rights Reserved. No open-source license is granted.**
+**[Elastic License 2.0](LICENSE)** — source-available. Not an OSI-approved open-source
+license.
 
 Copyright (c) 2026 CHUANCHENG HUA ([@Hwacc](https://github.com/Hwacc)).
-See [`LICENSE`](LICENSE) for the full terms. In short:
 
-- Viewing this repository — and in-platform forking — is permitted only to the extent
-  required by the hosting platform's terms of service. It grants **no** right to use,
-  copy, modify, or redistribute the code outside that platform.
-- Any use, reproduction, modification, or distribution, whether commercial or
-  non-commercial, requires the Copyright Holder's **prior written permission**.
-- `"license": "UNLICENSED"` in `package.json` is npm's marker for *no license granted* —
-  it is **not** the public-domain "Unlicense".
+You **may**, free of charge:
 
-For licensing inquiries, contact the Copyright Holder at **mshcccch@gmail.com**
-or open an issue in this repository.
+- run Localness yourself, personally or inside your company, in production included;
+- read, modify, and build the source;
+- redistribute it, so long as whoever receives it also receives the license terms.
+
+You **may not**:
+
+- provide Localness to third parties as a hosted or managed service — i.e. resell it
+  as a SaaS;
+- move, change, disable, or circumvent license-key functionality, or remove anything
+  a license key protects;
+- strip or obscure the licensing and copyright notices.
+
+If you modify the source, your copies must say so prominently. The summary above is
+not a substitute for [`LICENSE`](LICENSE), which is the binding text.
+
+A commercial license lifting these limitations is available. For that, or for any
+other licensing question, contact **mshcccch@gmail.com** or open an issue.

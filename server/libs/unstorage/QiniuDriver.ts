@@ -1,5 +1,6 @@
 import { defineDriver } from 'unstorage'
 import qiniu from 'qiniu'
+import { IMAGE_MAX_BYTES } from '#shared/constants'
 
 interface QiniuDriverOptions {
   domain: string
@@ -35,6 +36,21 @@ export const qiniuDriver = defineDriver((options: QiniuDriverOptions) => {
       const _putOptions = {
         scope: options.bucket,
         expires: 3600,
+        /**
+         * The client uploads straight to Qiniu, so the server never sees these
+         * bytes and the policy is the only place a limit can be enforced. One
+         * token covers both images and skill packages, so it carries the looser
+         * of the two limits; the per-kind limit is applied by
+         * `server/helper/upload.ts` on the LOCAL path.
+         *
+         * No `mimeLimit`: it checks the Content-Type the client declares, and
+         * the client holds this token, so it is not a boundary — it would only
+         * reject honest uploads of types browsers label inconsistently. The
+         * extension is constrained instead, by `uuidFilename` deriving it from
+         * the real last dot. Scoping the token to one exact key is the remaining
+         * gap on this path.
+         */
+        fsizeLimit: IMAGE_MAX_BYTES,
         returnBody:
           '{"key":"$(key)","hash":"$(etag)","fsize":$(fsize),"bucket":"$(bucket)","name":"$(x:name)"}',
       }

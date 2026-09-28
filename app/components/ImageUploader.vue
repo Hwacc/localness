@@ -4,6 +4,8 @@ import type {
   Props as ImagePreviewProps,
   Emits as ImagePreviewEmits,
 } from '~/components/ImagePreview.vue'
+import { IMAGE_EXTENSIONS, IMAGE_MAX_BYTES } from '#shared/constants'
+import { fileExtension } from '#shared/utils/file'
 
 const {
   url = '',
@@ -47,7 +49,7 @@ async function onClick() {
   if (disabled) return
   fileInput.value = document.createElement('input')
   fileInput.value!.type = 'file'
-  fileInput.value!.accept = 'image/*'
+  fileInput.value!.accept = IMAGE_EXTENSIONS.map((ext) => `.${ext}`).join(',')
   fileInput.value!.style.display = 'none'
   fileInput.value!.addEventListener('change', onInputChange)
   await nextTick()
@@ -57,10 +59,12 @@ async function onClick() {
 async function onInputChange(e: any) {
   const _file = e.target?.files[0]
   if (!_file) return
-  if (_file.type.indexOf('image') < 0) {
+  // Extension, not `type`: the server decides on the extension, so a check on
+  // the browser's guessed MIME could pass here and still be rejected there.
+  if (!IMAGE_EXTENSIONS.includes(fileExtension(_file.name) as never)) {
     toast.add({
       title: 'Error',
-      description: 'File is not an image',
+      description: `Only ${IMAGE_EXTENSIONS.join(', ')} images are accepted`,
       color: 'error',
     })
     return
@@ -98,10 +102,11 @@ async function handleUpload() {
   if (!innerFile.value) {
     return null
   }
-  if (limitSize > 0 && innerFile.value.size > limitSize) {
+  const maxBytes = limitSize > 0 ? limitSize : IMAGE_MAX_BYTES
+  if (innerFile.value.size > maxBytes) {
     toast.add({
       title: 'Error',
-      description: 'Image size is too large',
+      description: `Image must be smaller than ${Math.round(maxBytes / 1024 / 1024)}MB`,
       color: 'error',
     })
     return null
