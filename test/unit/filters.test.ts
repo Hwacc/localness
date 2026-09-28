@@ -129,6 +129,19 @@ describe('classifyPull', () => {
         classifyPull({ ...excluded, base: '', ours: '', theirs: 'b' })
       ).toBe('conflict')
     })
+
+    it('stays quiet once the remote text was settled, e.g. by Use platform', () => {
+      // Resolving a card to the platform side records the remote text as base.
+      expect(
+        classifyPull({ ...excluded, base: 'b', ours: 'a', theirs: 'b' })
+      ).toBeNull()
+    })
+
+    it('conflicts again when Git moves past the settled text', () => {
+      expect(
+        classifyPull({ ...excluded, base: 'b', ours: 'a', theirs: 'c' })
+      ).toBe('conflict')
+    })
   })
 })
 

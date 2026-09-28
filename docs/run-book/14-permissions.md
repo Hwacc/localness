@@ -21,6 +21,7 @@
 | 吊销 API token                                             | 只能吊销自己建的                   | 项目里所有     | 只能吊销自己建的         |
 | 改**项目**设置（OCR、源语言、key 命名规范、Prompt）  | 不能                               | 能             | 不能                     |
 | 建 / 改名 / 删 Release                                     | 不能                               | 能             | 不能                     |
+| 从 JSON / xlsx 导入词条                                    | 不能                               | 能             | 不能                     |
 | 绑 Git（clone 地址、token、product）                       | 不能                               | 能             | 不能                     |
 | 任命 / 卸任 Project Owner                                  | 不能                               | 能（互相委任） | 不能                     |
 | 硬删 API token                                             | 不能                               | 能             | 不能                     |

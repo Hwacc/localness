@@ -1,5 +1,7 @@
 import type { ID } from '.'
 import type { ITagSetting } from './Tag'
+import type { KeyViolation } from '../utils/key-convention'
+import type { InterpolationStyle } from '../utils/i18n-import'
 
 export interface ILocaleValue {
   locale: string
@@ -66,4 +68,49 @@ export interface II18nTransferResult {
   failed: Array<{ key: string }>
   /** Source key ids a move actually removed, for the client to drop local bindings. */
   movedIds: ID[]
+}
+
+export type I18nImportSkipReason = 'no-source-text' | 'reserved-prefix' | 'empty-key'
+
+export type I18nImportRowKind = 'new' | 'same' | 'changed'
+
+export interface II18nImportChange {
+  locale: string
+  /** What the project holds now: published text, else the draft. */
+  before: string | null
+  after: string
+}
+
+export interface II18nImportRow {
+  key: string
+  kind: I18nImportRowKind
+  /** Incoming text per project locale. */
+  texts: Record<string, string>
+  /** Only on `changed`: the locales an overwrite would rewrite. */
+  changes: II18nImportChange[]
+  /** An existing key with unpublished edits, which an overwrite replaces. */
+  hasUnpublishedDraft: boolean
+  /** Reported, never enforced: an imported key is already in someone's code. */
+  violations: KeyViolation[]
+}
+
+/** Shared by preview and apply, so what the user reviewed is what gets written. */
+export interface II18nImportPreview {
+  sourceLocale: string
+  rows: II18nImportRow[]
+  skipped: Array<{ key: string; reason: I18nImportSkipReason }>
+  /** Locales in the payload the project does not configure. */
+  ignoredLocales: string[]
+  counts: Record<I18nImportRowKind | 'skipped', number>
+  /** More than one means the file mixes placeholder syntaxes. */
+  interpolationStyles: InterpolationStyle[]
+}
+
+export interface II18nImportResult {
+  created: number
+  updated: number
+  unchanged: number
+  skipped: number
+  /** Keys newly attached to the chosen release. */
+  releaseLinked: number
 }

@@ -8,6 +8,7 @@ import {
   TeamRole,
 } from '#shared/constants'
 import { KEY_STYLE_VALUES } from '#shared/utils/key-convention'
+import { IMPORT_MAX_KEYS } from '#shared/utils/i18n-import'
 
 /** Accepts T | null | undefined, including a missing object key (Zod v4). */
 export function zNilable<T extends z.ZodType>(schema: T) {
@@ -305,6 +306,34 @@ export const zGenI18nKeyForProject = z.object({
   sourceText: z.string().min(1),
 })
 export type ZGenI18nKeyForProject = z.infer<typeof zGenI18nKeyForProject>
+
+/**
+ * An import, already parsed and mapped by the client: `locale → key → text`.
+ * Text is re-normalised on the server, so a hand-rolled caller gets the same
+ * rules as the UI.
+ */
+export const zI18nImportPreview = z.object({
+  locales: z
+    .record(z.string().min(1), z.record(z.string(), z.string()))
+    .refine(
+      (locales) => {
+        const keys = new Set<string>()
+        for (const entries of Object.values(locales)) {
+          for (const key of Object.keys(entries)) keys.add(key)
+        }
+        return keys.size <= IMPORT_MAX_KEYS
+      },
+      { message: `An import can carry at most ${IMPORT_MAX_KEYS} keys` }
+    ),
+})
+export type ZI18nImportPreview = z.infer<typeof zI18nImportPreview>
+
+export const zI18nImportApply = zI18nImportPreview.extend({
+  /** `changed` keys the user ticked. Everything else that differs is left alone. */
+  overwriteKeys: z.array(z.string()).max(IMPORT_MAX_KEYS),
+  releaseId: z.number().int().positive().optional(),
+})
+export type ZI18nImportApply = z.infer<typeof zI18nImportApply>
 
 export function isHttpsRemoteUrl(value: string): boolean {
   return normalizeGitHttpsRemote(value) != null

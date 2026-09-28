@@ -3,6 +3,7 @@ export enum LogAction {
   FORCE_CREATE = 'FORCE_CREATE',
   UPDATE = 'UPDATE',
   DELETE = 'DELETE',
+  IMPORT = 'IMPORT',
 }
 
 export enum LogStatus {

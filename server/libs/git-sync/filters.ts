@@ -74,6 +74,11 @@ export function classifyPush(
  * real disagreement still surfaces as a conflict so the user decides, and that
  * matters most when this side has no text: three-way alone would say
  * `apply-theirs` and quietly write the remote text into a key that opted out.
+ *
+ * Only a disagreement Git has moved into counts. A base equal to the remote
+ * text means that text was already settled — by an earlier sync, or by a
+ * conflict card resolved to the platform side, which records exactly that
+ * base — and re-raising it would make "Use platform" undecidable.
  */
 export function classifyPull(params: {
   ours: string | null | undefined
@@ -84,7 +89,10 @@ export function classifyPull(params: {
   if (params.gitSyncEnabled) {
     return decideThreeWay(params.base, params.ours, params.theirs)
   }
-  return (params.ours ?? '') === (params.theirs ?? '') ? null : 'conflict'
+  const theirs = params.theirs ?? ''
+  if ((params.ours ?? '') === theirs) return null
+  if (params.base != null && params.base === theirs) return null
+  return 'conflict'
 }
 
 export function emptyPushCounts(): Record<GitSyncPushReason, number> {
