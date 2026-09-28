@@ -34,7 +34,7 @@ async function onSelectProject(p: IProject) {
 
 <template>
   <USlideover
-    class="max-w-[21.875rem]"
+    class="max-w-87.5"
     title="Select Project"
     side="left"
     :close="{
