@@ -3,9 +3,28 @@ import { v4 as uuidv4 } from 'uuid'
 
 export const LOCAL_OSS_PUBLIC_BASE = '/upload/'
 
+/**
+ * Lowercased extension without the dot, `''` when there is none. `split('.')[1]`
+ * used to stand in for this, which read `evil.html.png` as an html file and
+ * stored it under an extension the uploader chose.
+ */
+export function fileExtension(name: string) {
+  const base = getFileKey(name)
+  const dot = base.lastIndexOf('.')
+  if (dot <= 0 || dot === base.length - 1) return ''
+  return base.slice(dot + 1).toLowerCase()
+}
+
+export function fileBaseName(name: string) {
+  const base = getFileKey(name)
+  const dot = base.lastIndexOf('.')
+  if (dot <= 0) return base
+  return base.slice(0, dot)
+}
+
 export function uuidFilename(filename: string) {
-  const [_, ext] = filename.split('.')
-  return `${uuidv4()}.${ext}`
+  const ext = fileExtension(filename)
+  return ext ? `${uuidv4()}.${ext}` : uuidv4()
 }
 
 export function getFileKey(filePath = '') {

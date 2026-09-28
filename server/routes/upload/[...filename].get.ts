@@ -1,3 +1,4 @@
+import { contentTypeForKey } from '#server/helper/upload'
 import { OSSEngine } from '#shared/constants'
 
 /**
@@ -19,14 +20,31 @@ export default defineEventHandler(async (event) => {
   const ossStorage = event.context.ossStorage
   const engine =
     (process.env.NUXT_PUBLIC_OSS_ENGINE as OSSEngine) || OSSEngine.LOCAL
+  // eslint-disable-next-line no-useless-assignment
   let file: any = ''
   switch (engine) {
     case OSSEngine.QINIU:
+      // A signed URL, not bytes — the headers below would describe the wrong thing.
       file = await ossStorage.getItem(filename, { deadline: Number(deadline) })
       break
-    case OSSEngine.LOCAL:
-      file = await ossStorage.getItemRaw(getFileKey(filename))
+    case OSSEngine.LOCAL: {
+      const key = getFileKey(filename)
+      file = await ossStorage.getItemRaw(key)
+      if (file) {
+        /**
+         * Without these the Buffer went out untyped, so the extension decided how
+         * the browser read it — and the extension was uploader-controlled.
+         * `nosniff` keeps the declared type from being second-guessed.
+         */
+        const { type, inline } = contentTypeForKey(key)
+        setHeader(event, 'content-type', type)
+        setHeader(event, 'x-content-type-options', 'nosniff')
+        if (!inline) {
+          setHeader(event, 'content-disposition', `attachment; filename="${key}"`)
+        }
+      }
       break
+    }
     case OSSEngine.CLOUDFLARE:
       throw createError({
         statusCode: 501,

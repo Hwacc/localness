@@ -4,7 +4,7 @@
   "private": true,
   "description": "CMS for UI screenshots, tags, and i18n keys.",
   "type": "module",
-  "license": "UNLICENSED",
+  "license": "Elastic-2.0",
   "author": "Hwacc",
   "authorUrl": "https://github.com/Hwacc",
   "authorEmail": "mshcccch@gmail.com",

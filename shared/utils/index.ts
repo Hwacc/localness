@@ -3,6 +3,7 @@ import clsx from 'clsx'
 import SparkMD5 from 'spark-md5'
 import { twMerge } from 'tailwind-merge'
 import { DEFAULT_LOCALES } from '../constants'
+import { fileBaseName, fileExtension } from './file'
 import { zID } from './schemas'
 
 export function cn(...args: any[]) {
@@ -39,9 +40,10 @@ export function parseLocales(raw: unknown): string[] {
 }
 
 export const timestampFilename = (file: File) => {
-  const [filename, ext] = file.name.split('.')
   const timestamp = Date.now()
-  return `${filename}-${timestamp}.${ext}`
+  const base = fileBaseName(file.name)
+  const ext = fileExtension(file.name)
+  return ext ? `${base}-${timestamp}.${ext}` : `${base}-${timestamp}`
 }
 
 export const fpTranslation = (text: string) => {

@@ -161,6 +161,21 @@ export enum OSSEngine {
 /** Skill packages are small instruction trees, not installers. */
 export const SKILL_MAX_BYTES = 5 * 1024 * 1024
 export const SKILL_KEY_PREFIX = 'skills/'
+export const SKILL_EXTENSIONS = ['zip', 'md', 'skill'] as const
+
+export const IMAGE_MAX_BYTES = 10 * 1024 * 1024
+/** No `svg`: it can carry script, and these files are served from our origin. */
+export const IMAGE_EXTENSIONS = ['png', 'jpg', 'jpeg', 'webp'] as const
+
+export const UPLOAD_CONTENT_TYPES: Record<string, string> = {
+  png: 'image/png',
+  jpg: 'image/jpeg',
+  jpeg: 'image/jpeg',
+  webp: 'image/webp',
+  zip: 'application/zip',
+  md: 'text/plain; charset=utf-8',
+  skill: 'application/zip',
+}
 
 export const SCALE_OPTIONS = [
   {
