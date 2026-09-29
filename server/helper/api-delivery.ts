@@ -1,4 +1,4 @@
-import { createError } from 'h3'
+import { createError, type H3CorsOptions } from 'h3'
 import prisma from '#server/libs/prisma'
 import {
   parseReleaseFilter,
@@ -6,9 +6,26 @@ import {
   listReleases,
 } from '#server/helper/release'
 import { DEFAULT_LOCALE_FALLBACK } from '#shared/constants'
+import type { DeliveryBundle, DeliveryMeta } from '#shared/types/Delivery'
 
-/** Published copy only: the flat `{ key: text }` map the JSON export uses. */
-export type DeliveryBundle = Record<string, Record<string, string>>
+export type { DeliveryBundle, DeliveryMeta }
+
+const DELIVERY_API_PREFIX = '/api/v1/'
+
+export function isDeliveryApiPath(path: string): boolean {
+  return path.startsWith(DELIVERY_API_PREFIX)
+}
+
+/**
+ * Any origin, because the credential is a bearer token and never a cookie: a
+ * page that can read the response already had to hold the token. Read-only, so
+ * GET is the only method a preflight may be granted.
+ */
+export const DELIVERY_CORS: H3CorsOptions = {
+  origin: '*',
+  methods: ['GET'],
+  allowHeaders: ['authorization'],
+}
 
 /**
  * An empty string is not "published empty": `publish` copies a blank draft to
@@ -145,7 +162,10 @@ function publishedKeyRows(
  * cannot tell a small release from an under-tagged one, so the counts are
  * reported rather than inferred — otherwise it renders raw keys.
  */
-export async function deliveryMeta(projectId: number, releaseId: number | null) {
+export async function deliveryMeta(
+  projectId: number,
+  releaseId: number | null
+): Promise<DeliveryMeta | null> {
   // Resolved before the fan-out because the coverage groupBy filters on it.
   const locales = await projectLocales(projectId)
   const filter = releaseWhere(releaseId)
