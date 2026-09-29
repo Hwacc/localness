@@ -186,6 +186,7 @@ const {
   deliveryLocale,
   deliveryMeta,
   deliveryBundle,
+  isDeliveryApiPath,
   listDeliveryKeys,
   listUnpublishedDeliveryKeys,
   LIST_KEYS_DEFAULT_LIMIT,
@@ -217,6 +218,17 @@ beforeEach(() => {
   db.values = []
   db.keyQueries = 0
   db.groupQueries = 0
+})
+
+describe('isDeliveryApiPath', () => {
+  it('opens CORS for the delivery API only', () => {
+    expect(isDeliveryApiPath('/api/v1/meta')).toBe(true)
+    expect(isDeliveryApiPath('/api/v1/locales/en?release=2')).toBe(true)
+    expect(isDeliveryApiPath('/api/v1')).toBe(false)
+    expect(isDeliveryApiPath('/api/v10/meta')).toBe(false)
+    expect(isDeliveryApiPath('/api/projects')).toBe(false)
+    expect(isDeliveryApiPath('/mcp')).toBe(false)
+  })
 })
 
 describe('resolveReleaseParam', () => {
