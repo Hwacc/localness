@@ -2,11 +2,12 @@ import { z } from 'zod/v4'
 import prisma from '#server/libs/prisma'
 import { numericID } from '#server/helper/id'
 import { readZodBody } from '#server/helper/validate'
+import { zOptionalEmail, zOptionalNickname } from '#shared/utils/schemas'
 
 const zProfile = z.object(
   {
-    nickname: z.string().min(3).nullable().optional(),
-    email: z.email().nullable().optional(),
+    nickname: zOptionalNickname,
+    email: zOptionalEmail,
     avatar: z.string().nullable().optional(),
   },
   'User parameters validate failed'
