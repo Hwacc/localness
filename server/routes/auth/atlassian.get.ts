@@ -5,6 +5,11 @@ import {
   loginOrProvisionAtlassianUser,
   parseAllowedEmailDomains,
 } from '#server/helper/atlassian-auth'
+import {
+  backfillUserEmail,
+  findLinkCandidateIds,
+  newPendingLink,
+} from '#server/helper/atlassian-link-flow'
 import { sessionCookieOptions } from '#server/helper/session'
 import { numericID } from '#server/helper/id'
 import type { UserRole } from '#shared/constants'
@@ -25,12 +30,25 @@ const oauthOptions: Parameters<typeof defineOAuthAtlassianEventHandler>[0] = {
 
     try {
       if (boundFlow) {
-        await bindAtlassianToUser(
-          numericID(sessionUserId),
-          atlassianUser,
-          domains
-        )
+        const userId = numericID(sessionUserId)
+        await bindAtlassianToUser(userId, atlassianUser, domains)
+        await backfillUserEmail(userId, atlassianUser.email)
         return sendRedirect(event, '/dashboard?settings=1&oauth=bound')
+      }
+
+      // An Atlassian account we have not seen, whose email an existing account
+      // already carries: do not open a second account and do not sign anyone in
+      // on the strength of a typed-in email. Park the sign-in and ask for that
+      // account's password.
+      const candidateIds = await findLinkCandidateIds(atlassianUser, domains)
+      if (candidateIds.length > 0) {
+        await clearUserSession(event)
+        await setUserSession(
+          event,
+          { secure: { atlassianLink: newPendingLink(atlassianUser, candidateIds) } },
+          sessionCookieOptions(event)
+        )
+        return sendRedirect(event, '/?link=atlassian')
       }
 
       const localUser = await loginOrProvisionAtlassianUser(

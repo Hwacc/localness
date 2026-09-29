@@ -81,7 +81,7 @@ function displayNameOf(profile: AtlassianProfile): string | undefined {
   return profile.name || profile.nickname || undefined
 }
 
-function assertProfile(
+export function assertProfile(
   profile: AtlassianProfile,
   domains: string[]
 ): { accountId: string; email: string } {
@@ -114,6 +114,24 @@ async function allocateUsername(seed: string): Promise<string> {
   return `${base}${randomBytes(3).toString('hex')}`
 }
 
+function usernameSeedOf(profile: AtlassianProfile): string {
+  return (
+    profile.nickname ||
+    profile.name ||
+    profile.email?.split('@')[0] ||
+    'user'
+  )
+}
+
+/**
+ * The username a new account would get right now, for showing before the user
+ * agrees. Not reserved: it is decided again at creation, so a name taken in
+ * between gets a numeric suffix.
+ */
+export function previewAtlassianUsername(profile: AtlassianProfile) {
+  return allocateUsername(usernameSeedOf(profile))
+}
+
 export async function loginOrProvisionAtlassianUser(
   profile: AtlassianProfile,
   domains: string[]
@@ -131,12 +149,7 @@ export async function loginOrProvisionAtlassianUser(
   })
   if (existing) return existing.user
 
-  const seed =
-    profile.nickname ||
-    profile.name ||
-    profile.email?.split('@')[0] ||
-    'user'
-  const username = await allocateUsername(seed)
+  const username = await allocateUsername(usernameSeedOf(profile))
   const password = await bcrypt.hash(randomBytes(32).toString('hex'), bcryptRounds())
 
   return prisma.$transaction(async (tx) => {
