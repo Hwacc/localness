@@ -43,6 +43,9 @@ const newCodeNeverExpires = ref(false)
 const newCodeExpiresAt = ref('')
 const createTeamOpen = ref(false)
 const newCodeOpen = ref(false)
+const renameOpen = ref(false)
+const renaming = ref(false)
+const renameValue = ref('')
 
 const { joinCode, joining, joinWithCode } = useJoinTeamByCode(async (team) => {
   await loadTeams()
@@ -260,6 +263,39 @@ async function createTeam() {
     createTeamOpen.value = false
   } finally {
     creating.value = false
+  }
+}
+
+const renameTrimmed = computed(() => renameValue.value.trim())
+const renameDisabled = computed(
+  () =>
+    renameTrimmed.value.length < 2 ||
+    renameTrimmed.value === detail.value?.name
+)
+
+watch(renameOpen, (open) => {
+  if (open) renameValue.value = detail.value?.name ?? ''
+})
+
+async function renameTeam() {
+  if (!validID(selectedId.value) || renameDisabled.value) return
+  renaming.value = true
+  try {
+    const updated = await useApi(`/api/teams/${selectedId.value}`, {
+      method: 'PATCH',
+      body: { name: renameTrimmed.value },
+    })
+    if (!updated) return
+    toast.add({
+      title: 'Team renamed',
+      color: 'success',
+      icon: 'i-lucide:check',
+    })
+    renameOpen.value = false
+    await loadTeams()
+    await loadDetail()
+  } finally {
+    renaming.value = false
   }
 }
 
@@ -730,7 +766,40 @@ onMounted(async () => {
             class="shrink-0 rounded-xl border border-default bg-default px-5 py-4 flex flex-wrap items-center gap-4"
           >
             <div class="min-w-0 mr-auto">
-              <h2 class="text-lg font-semibold truncate">{{ detail.name }}</h2>
+              <div class="flex items-center gap-1 min-w-0">
+                <h2 class="text-lg font-semibold truncate">{{ detail.name }}</h2>
+                <UPopover v-if="isOwner" v-model:open="renameOpen">
+                  <UButton
+                    size="xs"
+                    color="neutral"
+                    variant="ghost"
+                    icon="i-lucide:pencil"
+                    square
+                    aria-label="Rename team"
+                  />
+                  <template #content>
+                    <form
+                      class="p-3 flex items-center gap-2"
+                      @submit.prevent="renameTeam"
+                    >
+                      <UInput
+                        v-model="renameValue"
+                        size="sm"
+                        class="w-52"
+                        placeholder="Team name"
+                        maxlength="60"
+                      />
+                      <UButton
+                        type="submit"
+                        size="sm"
+                        label="Save"
+                        :loading="renaming"
+                        :disabled="renameDisabled"
+                      />
+                    </form>
+                  </template>
+                </UPopover>
+              </div>
               <p class="text-sm text-muted flex items-center gap-2 flex-wrap">
                 <span>Your role:</span>
                 <TeamOwnerBadge :visible="isOwner" />
