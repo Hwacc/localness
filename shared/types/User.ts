@@ -19,6 +19,23 @@ export interface IUser {
   ownProjects?: IProject[]
 }
 
+/** One row of the platform Admin's account list. */
+export interface IUserListItem {
+  id: ID
+  username: string
+  nickname: string | null
+  email: string | null
+  role: UserRole
+  createdAt: string
+}
+
+export interface IUserListPage {
+  items: IUserListItem[]
+  total: number
+  page: number
+  pageSize: number
+}
+
 export class User implements IUser {
   id: ID = 0
   username: string = ''

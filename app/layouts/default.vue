@@ -1,12 +1,17 @@
 <script setup lang="ts">
+import { UserRole } from '#shared/constants'
 import TaskProvider from '~/providers/TaskProvider.vue'
 
 const route = useRoute()
 const { loggedIn } = useUserSession()
 const projectStore = useProjectStore()
+const userStore = useUserStore()
+const { user } = storeToRefs(userStore)
 
 onMounted(async () => {
   if (loggedIn.value) {
+    // The Users entry depends on the role, and not every page loads the user.
+    if (!user.value.id) await userStore.getUser()
     await projectStore.getProjects()
   }
 })
@@ -60,7 +65,20 @@ const navItems = [
     name: 'teams',
     to: '/teams',
   },
+  {
+    icon: 'i-lucide:user-plus',
+    label: 'Users',
+    name: 'users',
+    to: '/users',
+    adminOnly: true,
+  },
 ]
+
+const visibleNavItems = computed(() =>
+  navItems.filter(
+    (item) => !item.adminOnly || user.value.role === UserRole.ADMIN
+  )
+)
 </script>
 
 <template>
@@ -81,7 +99,7 @@ const navItems = [
           </UTooltip>
           <div class="flex flex-1 flex-col gap-4 items-center">
             <UTooltip
-              v-for="item in navItems"
+              v-for="item in visibleNavItems"
               :key="item.name"
               :text="item.label"
               :content="{ side: 'right' }"
