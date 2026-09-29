@@ -2,6 +2,7 @@
 import { AlertModal, type ImageUploader } from '#components'
 import { z } from 'zod/v4'
 import { copyTextToClipboard } from '~/utils/clipboard'
+import { zOptionalEmail, zOptionalNickname } from '#shared/utils/schemas'
 
 const userStore = useUserStore()
 const overlay = useOverlay()
@@ -30,8 +31,8 @@ const emit = defineEmits<{
 
 const switch2Link = ref(false)
 const zProfile = z.object({
-  nickname: z.string().min(3).nullable().optional(),
-  email: z.email().nullable().optional(),
+  nickname: zOptionalNickname,
+  email: zOptionalEmail,
   avatar: z.string().nullable().optional(),
 })
 const profileState = reactive({
