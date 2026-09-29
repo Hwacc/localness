@@ -1,8 +1,11 @@
 <script setup lang="ts">
-import type { ImageUploader } from '#components'
+import { AlertModal, type ImageUploader } from '#components'
 import { z } from 'zod/v4'
+import { copyTextToClipboard } from '~/utils/clipboard'
 
 const userStore = useUserStore()
+const overlay = useOverlay()
+const toast = useToast()
 const hasPasswordSet = computed(() => userStore.user.hasPasswordSet !== false)
 const tabsItems = computed(() => [
   {
@@ -15,7 +18,7 @@ const tabsItems = computed(() => [
     label: 'Account',
     desc: hasPasswordSet.value
       ? 'Change password successfully will log you out to login again.'
-      : 'Set a password to also sign in with username. You will be logged out after saving.',
+      : `Set a password to also sign in with your username (${userStore.user.username}) and password. You will be logged out after saving.`,
     icon: 'i-lucide:lock',
     slot: 'account',
   },
@@ -38,6 +41,17 @@ const profileState = reactive({
 })
 const avatarUploader =
   useTemplateRef<InstanceType<typeof ImageUploader>>('avatarUploader')
+/** The name used to sign in with a password. Read-only: there is no rename. */
+async function copyUsername() {
+  await copyTextToClipboard(userStore.user.username)
+  toast.add({
+    title: 'Copied',
+    description: userStore.user.username,
+    color: 'success',
+    icon: 'i-lucide:copy',
+  })
+}
+
 async function onProfileSubmit() {
   if (!switch2Link.value) {
     const res = await avatarUploader.value?.upload()
@@ -94,6 +108,44 @@ function connectAtlassian() {
   if (!atlassianReady.value) return
   window.location.href = '/auth/atlassian'
 }
+
+/**
+ * Disconnecting keeps the account, so it needs a password to keep signing in
+ * with. The server refuses otherwise; the button says why up front.
+ */
+const disconnectBlockedReason = computed(() =>
+  hasPasswordSet.value
+    ? ''
+    : 'Set a password first, or you will not be able to sign in after disconnecting'
+)
+const disconnecting = ref(false)
+const disconnectModal = overlay.create(AlertModal)
+
+function confirmDisconnectAtlassian() {
+  if (disconnectBlockedReason.value) return
+  disconnectModal.open({
+    mode: 'warning',
+    title: 'Disconnect Atlassian',
+    message:
+      'Disconnect your Atlassian account? You will sign in with your username and password instead.',
+    okText: 'Disconnect',
+    onOk: async (_mode, { close }) => {
+      disconnecting.value = true
+      try {
+        await useApi('/api/auth/atlassian', { method: 'DELETE' })
+        toast.add({
+          title: 'Atlassian disconnected',
+          color: 'success',
+          icon: 'i-lucide:check',
+        })
+        close()
+        await userStore.getUser()
+      } finally {
+        disconnecting.value = false
+      }
+    },
+  })
+}
 </script>
 
 <template>
@@ -110,6 +162,24 @@ function connectAtlassian() {
             :schema="zProfile"
             @submit="onProfileSubmit"
           >
+            <UFormField label="Username" name="username">
+              <UInput
+                :model-value="userStore.user.username"
+                class="w-full"
+                readonly
+              >
+                <template #trailing>
+                  <UButton
+                    color="neutral"
+                    variant="link"
+                    size="sm"
+                    icon="i-lucide:copy"
+                    aria-label="Copy username"
+                    @click="copyUsername"
+                  />
+                </template>
+              </UInput>
+            </UFormField>
             <UFormField label="Nickname" name="nickname">
               <UInput v-model="profileState.nickname" class="w-full" />
             </UFormField>
@@ -162,6 +232,20 @@ function connectAtlassian() {
                 <p v-if="atlassian.email" class="text-sm text-muted">
                   {{ atlassian.email }}
                 </p>
+                <UTooltip
+                  :text="disconnectBlockedReason"
+                  :disabled="!disconnectBlockedReason"
+                >
+                  <UButton
+                    size="sm"
+                    color="neutral"
+                    variant="outline"
+                    label="Disconnect"
+                    :loading="disconnecting"
+                    :disabled="Boolean(disconnectBlockedReason)"
+                    @click="confirmDisconnectAtlassian"
+                  />
+                </UTooltip>
               </template>
               <template v-else>
                 <AtlassianButton
