@@ -10,30 +10,49 @@ datasource db {
 }
 
 model User {
-  id             Int              @id @default(autoincrement())
-  createdAt      DateTime         @default(now()) @map("created_at")
-  updatedAt      DateTime         @updatedAt @map("updated_at")
-  username       String           @unique
-  nickname       String?
-  email          String?
-  password       String
-  role           String           @default("USER")
-  avatar         String?
-  passwordSetAt  DateTime?        @map("password_set_at")
-  teams          UserTeam[]
-  translationLog TranslationLog[]
-  tagLogs        TagLog[]
-  pageLogs       PageLog[]
-  projectLogs    ProjectLog[]
-  gitSyncLogs    GitSyncLog[]
-  inviteCodes    TeamInviteCode[]
-  notifications  Notification[]
-  authIdentities AuthIdentity[]
-  projectOwners  ProjectOwner[]
-  apiTokens      ApiToken[]
-  projectSkills  ProjectSkill[]
+  id                Int              @id @default(autoincrement())
+  createdAt         DateTime         @default(now()) @map("created_at")
+  updatedAt         DateTime         @updatedAt @map("updated_at")
+  username          String           @unique
+  nickname          String?
+  email             String?
+  password          String
+  role              String           @default("USER")
+  avatar            String?
+  passwordSetAt     DateTime?        @map("password_set_at")
+  teams             UserTeam[]
+  translationLog    TranslationLog[]
+  tagLogs           TagLog[]
+  pageLogs          PageLog[]
+  projectLogs       ProjectLog[]
+  gitSyncLogs       GitSyncLog[]
+  inviteCodes       TeamInviteCode[]
+  notifications     Notification[]
+  authIdentities    AuthIdentity[]
+  projectOwners     ProjectOwner[]
+  apiTokens         ApiToken[]
+  projectSkills     ProjectSkill[]
+  adminLogsActed    UserAdminLog[]   @relation("UserAdminLogActor")
+  adminLogsTargeted UserAdminLog[]   @relation("UserAdminLogTarget")
 
   @@unique([username, id])
+}
+
+/// Account-level audit trail: which platform Admin provisioned which account.
+/// `afterData` never holds a password or hash.
+model UserAdminLog {
+  id        Int      @id @default(autoincrement())
+  action    String
+  createdAt DateTime @default(now()) @map("created_at")
+  afterData Json?    @map("after_data")
+  actorId   Int?     @map("actor_id")
+  targetId  Int?     @map("target_id")
+  actor     User?    @relation("UserAdminLogActor", fields: [actorId], references: [id], onDelete: SetNull)
+  target    User?    @relation("UserAdminLogTarget", fields: [targetId], references: [id], onDelete: SetNull)
+
+  @@index([actorId])
+  @@index([targetId])
+  @@index([createdAt])
 }
 
 model AuthIdentity {
@@ -108,19 +127,19 @@ model UserTeam {
 }
 
 model Project {
-  id          Int              @id @default(autoincrement())
-  createdAt   DateTime         @default(now()) @map("created_at")
-  updatedAt   DateTime         @updatedAt @map("updated_at")
-  name        String
-  description String?
-  teamId      Int              @map("team_id")
-  team        Team             @relation(fields: [teamId], references: [id], onDelete: Cascade)
-  pages       Page[]
-  settings    ProjectSettings?
-  gitSync     GitSyncBinding?
-  projectLogs ProjectLog[]
-  i18nKeys    I18nKey[]
-  gitSyncBases GitSyncBase[]
+  id               Int               @id @default(autoincrement())
+  createdAt        DateTime          @default(now()) @map("created_at")
+  updatedAt        DateTime          @updatedAt @map("updated_at")
+  name             String
+  description      String?
+  teamId           Int               @map("team_id")
+  team             Team              @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  pages            Page[]
+  settings         ProjectSettings?
+  gitSync          GitSyncBinding?
+  projectLogs      ProjectLog[]
+  i18nKeys         I18nKey[]
+  gitSyncBases     GitSyncBase[]
   gitSyncConflicts GitSyncConflict[]
   gitSyncPreviews  GitSyncPreview[]
   gitSyncLogs      GitSyncLog[]
@@ -263,22 +282,22 @@ model ProjectLog {
 }
 
 model GitSyncBinding {
-  id              Int      @id @default(autoincrement())
-  createdAt       DateTime @default(now()) @map("created_at")
-  updatedAt       DateTime @updatedAt @map("updated_at")
-  projectId       Int      @unique @map("project_id")
-  enabled         Boolean  @default(true)
-  adapter         String   @default("lilt-swbu")
-  remoteUrl       String   @default("") @map("remote_url")
-  branch          String   @default("main")
-  product         String
-  credentialKind  String   @map("credential_kind")
-  token           String   @default("")
-  localeMap       Json?    @map("locale_map")
-  seenFiles       Json?    @map("seen_files")
-  lastPulledAt    DateTime? @map("last_pulled_at")
-  lastPushedAt    DateTime? @map("last_pushed_at")
-  project         Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  id             Int       @id @default(autoincrement())
+  createdAt      DateTime  @default(now()) @map("created_at")
+  updatedAt      DateTime  @updatedAt @map("updated_at")
+  projectId      Int       @unique @map("project_id")
+  enabled        Boolean   @default(true)
+  adapter        String    @default("lilt-swbu")
+  remoteUrl      String    @default("") @map("remote_url")
+  branch         String    @default("main")
+  product        String
+  credentialKind String    @map("credential_kind")
+  token          String    @default("")
+  localeMap      Json?     @map("locale_map")
+  seenFiles      Json?     @map("seen_files")
+  lastPulledAt   DateTime? @map("last_pulled_at")
+  lastPushedAt   DateTime? @map("last_pushed_at")
+  project        Project   @relation(fields: [projectId], references: [id], onDelete: Cascade)
 
   @@unique([adapter, remoteUrl, product])
 }
@@ -368,22 +387,22 @@ model Page {
 }
 
 model PageSettings {
-  id          Int      @id @default(autoincrement())
-  createdAt   DateTime @default(now()) @map("created_at")
-  updatedAt   DateTime @updatedAt @map("updated_at")
-  pageID      Int      @unique @map("page_id")
-  ocrLanguage String   @map("ocr_language")
-  ocrEngine   Int      @map("ocr_engine")
-  prompt      String?  @default("")
+  id           Int      @id @default(autoincrement())
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+  pageID       Int      @unique @map("page_id")
+  ocrLanguage  String   @map("ocr_language")
+  ocrEngine    Int      @map("ocr_engine")
+  prompt       String?  @default("")
   // Nullable and default-free on purpose: a page *inherits* the project's key
   // convention until it is set, and no value can mean that — an empty prefix is
   // a real choice ("no prefix"), so `''` is taken. The four are written together
   // or left alone; a null here means "ask the project".
-  keyPrefix    String? @map("key_prefix")
-  keySeparator String? @map("key_separator")
-  keyStyle     String? @map("key_style")
-  keyMaxDepth  Int?    @map("key_max_depth")
-  page         Page    @relation(fields: [pageID], references: [id], onDelete: Cascade)
+  keyPrefix    String?  @map("key_prefix")
+  keySeparator String?  @map("key_separator")
+  keyStyle     String?  @map("key_style")
+  keyMaxDepth  Int?     @map("key_max_depth")
+  page         Page     @relation(fields: [pageID], references: [id], onDelete: Cascade)
 }
 
 model PageLog {
@@ -450,38 +469,38 @@ model TagLog {
 }
 
 model I18nKey {
-  id           Int            @id @default(autoincrement())
-  createdAt    DateTime       @default(now()) @map("created_at")
-  updatedAt    DateTime       @updatedAt @map("updated_at")
-  projectId    Int            @map("project_id")
-  key          String
-  type         String         @default("STRING")
+  id             Int              @id @default(autoincrement())
+  createdAt      DateTime         @default(now()) @map("created_at")
+  updatedAt      DateTime         @updatedAt @map("updated_at")
+  projectId      Int              @map("project_id")
+  key            String
+  type           String           @default("STRING")
   /// The original text is the project's source language's `draftText`, not a
   /// column here — see `LocaleValue`. Read it through `sourceTextOf`.
-  fingerprint  String         @default("")
-  description  String?
+  fingerprint    String           @default("")
+  description    String?
   /// False keeps the key out of Git sync in both directions. Separate from
   /// `publishedText`, which decides whether the key is served at all.
-  gitSyncEnabled Boolean      @default(true) @map("git_sync_enabled")
-  project      Project        @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  locales      LocaleValue[]
-  tags         Tag[]
-  logs         TranslationLog[]
-  releases     I18nKeyRelease[]
+  gitSyncEnabled Boolean          @default(true) @map("git_sync_enabled")
+  project        Project          @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  locales        LocaleValue[]
+  tags           Tag[]
+  logs           TranslationLog[]
+  releases       I18nKeyRelease[]
 
   @@unique([projectId, key])
   @@index([fingerprint])
 }
 
 model LocaleValue {
-  id             Int      @id @default(autoincrement())
-  createdAt      DateTime @default(now()) @map("created_at")
-  updatedAt      DateTime @updatedAt @map("updated_at")
-  i18nKeyId      Int      @map("i18n_key_id")
-  locale         String
-  draftText      String?  @map("draft_text")
-  publishedText  String?  @map("published_text")
-  i18nKey        I18nKey  @relation(fields: [i18nKeyId], references: [id], onDelete: Cascade)
+  id            Int      @id @default(autoincrement())
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @updatedAt @map("updated_at")
+  i18nKeyId     Int      @map("i18n_key_id")
+  locale        String
+  draftText     String?  @map("draft_text")
+  publishedText String?  @map("published_text")
+  i18nKey       I18nKey  @relation(fields: [i18nKeyId], references: [id], onDelete: Cascade)
 
   @@unique([i18nKeyId, locale])
 }
@@ -498,17 +517,17 @@ model I18nMigrateConflict {
 }
 
 model TranslationLog {
-  id            Int      @id @default(autoincrement())
-  action        String
-  status        String
-  createdAt     DateTime @default(now()) @map("created_at")
-  userID        Int?     @map("user_id")
-  i18nKeyId     Int?     @map("i18n_key_id")
-  fingerprint   String?
-  beforeData    Json?    @map("before_data")
-  afterData     Json?    @map("after_data")
-  i18nKey       I18nKey? @relation(fields: [i18nKeyId], references: [id], onDelete: NoAction)
-  user          User?    @relation(fields: [userID], references: [id], onDelete: SetNull)
+  id          Int      @id @default(autoincrement())
+  action      String
+  status      String
+  createdAt   DateTime @default(now()) @map("created_at")
+  userID      Int?     @map("user_id")
+  i18nKeyId   Int?     @map("i18n_key_id")
+  fingerprint String?
+  beforeData  Json?    @map("before_data")
+  afterData   Json?    @map("after_data")
+  i18nKey     I18nKey? @relation(fields: [i18nKeyId], references: [id], onDelete: NoAction)
+  user        User?    @relation(fields: [userID], references: [id], onDelete: SetNull)
 
   @@index([userID])
   @@index([createdAt])
