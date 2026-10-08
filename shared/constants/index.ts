@@ -58,6 +58,16 @@ export const API_TOKEN_DISPLAY_PREFIX = 12
  */
 export const API_TOKEN_TOUCH_INTERVAL_MS = 60 * 1000
 
+/**
+ * What a delivery token is allowed to do. `WRITE` implies `READ` — a caller that
+ * may create a Page must also be able to read the dictionary it binds against.
+ * Tokens minted before this existed are `READ`, which is exactly what they were.
+ */
+export enum ApiTokenScope {
+  READ = 'read',
+  WRITE = 'write',
+}
+
 export enum GitSyncAdapter {
   LILT_SWBU = 'lilt-swbu',
 }

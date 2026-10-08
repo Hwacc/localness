@@ -57,6 +57,44 @@ const examples = computed(() => [
   },
 ])
 
+/**
+ * Writes exist for one caller so far: a design-tool plugin that imports a frame
+ * as a page. They take the same token and the same project scoping, but only a
+ * `write` token is allowed through.
+ */
+const writeExamples = computed(() => [
+  {
+    title: 'Create a page from a screenshot',
+    description:
+      'Upload the image first, then send its key here with the tag rectangles. Coordinates are in the screenshot’s own pixels.',
+    code: `# 1. upload (multipart, one file field)
+curl -X POST -H "Authorization: Bearer <token>" \\
+  -F "file=@screen.png" \\
+  ${baseUrl.value}/api/v1/uploads
+
+# 2. create, with the returned key
+curl -X POST -H "Authorization: Bearer <token>" \\
+  -H "Content-Type: application/json" \\
+  -d '{"name":"Home","image":"<key>","tags":[{"figmaNodeId":"1:2","x":10,"y":20,"width":80,"height":24,"i18nKey":"home.title"}]}' \\
+  ${baseUrl.value}/api/v1/pages`,
+  },
+  {
+    title: 'Re-import a page',
+    description:
+      'Idempotent by node id: tags whose node still exists have their geometry updated, new ones are created, and tags whose node is gone come back as `stale` without being deleted.',
+    code: `curl -X PATCH -H "Authorization: Bearer <token>" \\
+  -H "Content-Type: application/json" \\
+  -d '{"tags":[{"figmaNodeId":"1:2","x":10,"y":20,"width":80,"height":24,"i18nKey":null}]}' \\
+  ${baseUrl.value}/api/v1/pages/12`,
+  },
+  {
+    title: 'Read a page’s tags',
+    description:
+      'What an importer fetches before deciding what to update. Accepts only pages of the token’s own project.',
+    code: curlExample('/api/v1/pages/12/tags'),
+  },
+])
+
 const fetchExample = computed(
   () => `const res = await fetch(
   '${baseUrl.value}/api/v1/locales/en',
@@ -93,9 +131,11 @@ async function copy(value: string, label: string) {
       <header class="flex flex-col gap-2">
         <h1 class="text-xl font-semibold">API</h1>
         <p class="text-sm text-muted">
-          Read-only access to this project's published copy. Drafts are never
-          reachable with a token, and versioned by
-          <code class="text-xs">release</code> only.
+          Access to this project's published copy. Drafts are never reachable
+          with a token, and versioned by
+          <code class="text-xs">release</code> only. A token is read-only unless
+          you mint it as <span class="text-default">write</span>, which also
+          lets a design tool import a frame as a page.
         </p>
       </header>
 
@@ -110,6 +150,7 @@ async function copy(value: string, label: string) {
             Send a token as a bearer credential. The token picks the project and
             the URL names none, so a consumer holding nothing but a token can
             start at <code class="text-xs">/meta</code> to learn what it serves.
+            A credential minted before write scopes existed is read-only.
           </p>
           <pre
             class="rounded bg-elevated/50 p-2 text-xs overflow-x-auto"
@@ -125,6 +166,38 @@ async function copy(value: string, label: string) {
         <h2 class="text-sm font-semibold">Endpoints</h2>
         <div
           v-for="example in examples"
+          :key="example.title"
+          class="rounded-lg border border-default p-3 flex flex-col gap-2"
+        >
+          <div class="flex items-start justify-between gap-2">
+            <div class="flex flex-col gap-0.5 min-w-0">
+              <span class="text-sm font-medium">{{ example.title }}</span>
+              <span class="text-xs text-muted">{{ example.description }}</span>
+            </div>
+            <UButton
+              size="xs"
+              color="neutral"
+              variant="ghost"
+              icon="i-lucide:copy"
+              @click="copy(example.code, example.title)"
+            />
+          </div>
+          <pre
+            class="rounded bg-elevated/50 p-2 text-xs overflow-x-auto"
+          ><code>{{ example.code }}</code></pre>
+        </div>
+      </section>
+
+      <section class="flex flex-col gap-3">
+        <h2 class="text-sm font-semibold">Importing from a design tool</h2>
+        <p class="text-sm text-muted">
+          These need a <span class="text-default">write</span> token; a read
+          token gets a 403. They only ever touch pages of the token's own
+          project. Importing never creates i18n keys — tag text that matches no
+          published key is left unbound for you to fill in.
+        </p>
+        <div
+          v-for="example in writeExamples"
           :key="example.title"
           class="rounded-lg border border-default p-3 flex flex-col gap-2"
         >

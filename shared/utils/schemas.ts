@@ -498,3 +498,48 @@ export const zNotificationIds = z.object({
   ids: z.array(z.number().int().positive()).optional(),
 })
 export type ZNotificationIds = z.infer<typeof zNotificationIds>
+
+/**
+ * Bound on one import. A frame's text layers fit comfortably; the cap is there
+ * so one request cannot hold SQLite's single writer for an unbounded time.
+ */
+export const API_V1_MAX_TAGS = 500
+
+/**
+ * A rectangle an importer draws for one node. Deliberately narrower than `zTag`:
+ * no `className` (the server writes the same constant the editor does), no
+ * `settings`, no `releaseIds` — none of those are an importer's business, and
+ * `zPage`'s mandatory settings blob is a form artifact rather than a contract.
+ * `i18nKey` is a name the importer resolved from published copy; an unknown one
+ * is left unbound instead of creating a key.
+ */
+export const zApiV1Tag = z.object({
+  figmaNodeId: z.string().min(1),
+  x: z.number().nonnegative(),
+  y: z.number().nonnegative(),
+  width: z.number().nonnegative(),
+  height: z.number().nonnegative(),
+  i18nKey: zNilable(z.string()),
+})
+export type ZApiV1Tag = z.infer<typeof zApiV1Tag>
+
+export const zApiV1PageCreate = z.object({
+  name: z.string().trim().min(1).max(200),
+  image: z.string().min(1),
+  tags: z.array(zApiV1Tag).max(API_V1_MAX_TAGS).default([]),
+})
+export type ZApiV1PageCreate = z.infer<typeof zApiV1PageCreate>
+
+/** Every field optional: an absent one is left alone, an absent `tags` is a no-op. */
+export const zApiV1PageUpdate = z.object({
+  name: z.string().trim().min(1).max(200).optional(),
+  image: z.string().min(1).optional(),
+  tags: z.array(zApiV1Tag).max(API_V1_MAX_TAGS).optional(),
+})
+export type ZApiV1PageUpdate = z.infer<typeof zApiV1PageUpdate>
+
+/** Tags an importer decided are gone from the design. Only ever explicit ids. */
+export const zApiV1TagDelete = z.object({
+  tagIds: z.array(z.number().int().positive()).min(1).max(API_V1_MAX_TAGS),
+})
+export type ZApiV1TagDelete = z.infer<typeof zApiV1TagDelete>

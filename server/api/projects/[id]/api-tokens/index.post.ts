@@ -4,16 +4,17 @@ import { requireProjectAccess } from '#server/helper/access'
 import {
   apiTokenName,
   apiTokenPrefix,
+  apiTokenScope,
   generateApiToken,
   hashApiToken,
 } from '#server/helper/api-token'
 
 /**
  * @route POST /api/projects/:id/api-tokens
- * @description Create a token. Any Team Member may — the credential only ever
- * returns published copy, which is strictly less than a member already reads and
- * writes in the UI, and members already hold Git credentials for this project.
- * The plaintext is returned only here; no read path ever returns it.
+ * @description Create a token. Any Team Member may — even a write token grants
+ * nothing a member cannot already do in the UI, and members already hold Git
+ * credentials for this project. The plaintext is returned only here; no read
+ * path ever returns it.
  */
 
 /** List shape. Never includes the hash, and never the plaintext. */
@@ -21,6 +22,7 @@ function shapeToken(row: {
   id: number
   name: string
   prefix: string
+  scope: string
   createdAt: Date
   revokedAt: Date | null
   lastUsedAt: Date | null
@@ -29,6 +31,7 @@ function shapeToken(row: {
     id: row.id,
     name: row.name,
     prefix: row.prefix,
+    scope: row.scope,
     createdAt: row.createdAt,
     revokedAt: row.revokedAt,
     lastUsedAt: row.lastUsedAt,
@@ -45,6 +48,7 @@ export default defineEventHandler(async (event) => {
 
   const body = await readBody(event)
   const name = apiTokenName(body?.name)
+  const scope = apiTokenScope(body?.scope)
   const plaintext = generateApiToken()
 
   const created = await prisma.apiToken.create({
@@ -52,6 +56,7 @@ export default defineEventHandler(async (event) => {
       projectId,
       createdBy: numericID(access.userId),
       name,
+      scope,
       tokenHash: hashApiToken(plaintext),
       prefix: apiTokenPrefix(plaintext),
     },

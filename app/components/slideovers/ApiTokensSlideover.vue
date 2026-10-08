@@ -6,8 +6,9 @@ import { AlertModal, ApiTokenRevealModal } from '#components'
  * issuing a credential is a one-off configuration task, while the documentation
  * on `/api` is what a consumer is there to read.
  *
- * Any Team Member may mint one. The server already narrows the list to your own
- * when you are not a steward, so every row shown is revocable by whoever is
+ * Any Team Member may mint one, including a write token — that grants nothing a
+ * member cannot already do in the UI, and the server's list is narrowed to your
+ * own when you are not a steward, so every row shown is revocable by whoever is
  * looking — no per-row check needed. Erasing a row outright is different: purge
  * destroys the audit record rather than stopping the token, so it stays a
  * steward action, and a member looking at a revoked row has reached the end.
@@ -21,6 +22,7 @@ type ApiTokenRow = {
   id: number
   name: string
   prefix: string
+  scope: string
   createdBy: number
   creatorName: string
   createdAt: string
@@ -43,9 +45,19 @@ const open = ref(false)
 const tokens = ref<ApiTokenRow[]>([])
 const loadingTokens = ref(false)
 const newName = ref('')
+const newScope = ref('read')
 const creating = ref(false)
 const revokingId = ref<number | null>(null)
 const purgingId = ref<number | null>(null)
+
+/**
+ * Read is the default, matching the server: a credential only gains write when
+ * someone picks it deliberately.
+ */
+const scopeItems = [
+  { label: 'Read-only', value: 'read' },
+  { label: 'Can write', value: 'write' },
+]
 
 async function loadTokens() {
   if (!validID(props.projectId)) {
@@ -70,15 +82,17 @@ async function createToken() {
   try {
     const created = await useApi<ApiTokenRow & { token: string }>(
       `/api/projects/${props.projectId}/api-tokens`,
-      { method: 'POST', body: { name } }
+      { method: 'POST', body: { name, scope: newScope.value } }
     )
     newName.value = ''
+    newScope.value = 'read'
     // Revealed before the list reloads: the plaintext exists only in this one
     // response, so nothing that can fail is allowed to sit between the create
     // and the reveal.
     revealModal.open({
       token: created.token,
       name: created.name,
+      scope: created.scope,
       // The overlay store holds whatever `open` was given until the next open,
       // so the plaintext has to be wiped there and not only off the screen.
       onDismiss: () => revealModal.patch({ token: '' }),
@@ -149,7 +163,7 @@ watch(
   <USlideover
     v-model:open="open"
     title="API tokens"
-    description="Read-only credentials for this project."
+    description="Credentials for this project's delivery API and MCP server."
     side="right"
     :close="{ icon: 'i-lucide:x' }"
     :ui="{ body: 'p-4 sm:p-4' }"
@@ -173,6 +187,12 @@ watch(
             placeholder="What is it for, e.g. MCP"
             @keyup.enter="createToken"
           />
+          <USelect
+            v-model="newScope"
+            :items="scopeItems"
+            size="sm"
+            class="w-32"
+          />
           <UButton
             size="sm"
             :loading="creating"
@@ -182,6 +202,13 @@ watch(
             Create token
           </UButton>
         </div>
+        <p
+          v-if="newScope === 'write'"
+          class="text-xs text-warning"
+        >
+          A write token can create and update this project's pages and tags. Read
+          only when a consumer has no business editing the dictionary.
+        </p>
 
         <div
           v-if="loadingTokens"
@@ -205,6 +232,14 @@ watch(
             <div class="flex flex-col gap-0.5 min-w-0">
               <div class="flex items-center gap-2">
                 <span class="text-sm font-medium truncate">{{ row.name }}</span>
+                <UBadge
+                  v-if="row.scope === 'write'"
+                  size="sm"
+                  color="warning"
+                  variant="subtle"
+                >
+                  Can write
+                </UBadge>
                 <UBadge
                   v-if="row.revokedAt"
                   size="sm"

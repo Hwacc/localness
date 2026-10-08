@@ -18,13 +18,16 @@ export function isDeliveryApiPath(path: string): boolean {
 
 /**
  * Any origin, because the credential is a bearer token and never a cookie: a
- * page that can read the response already had to hold the token. Read-only, so
- * GET is the only method a preflight may be granted.
+ * page that can read the response already had to hold the token. CORS decides
+ * what a browser is allowed to *send*, never what a token may *do* — the write
+ * routes are gated by the token's scope, and a non-browser caller ignores this
+ * header entirely. `content-type` is here because the write routes take JSON and
+ * multipart bodies, both of which preflight.
  */
 export const DELIVERY_CORS: H3CorsOptions = {
   origin: '*',
-  methods: ['GET'],
-  allowHeaders: ['authorization'],
+  methods: ['GET', 'POST', 'PATCH', 'OPTIONS'],
+  allowHeaders: ['authorization', 'content-type'],
 }
 
 /**

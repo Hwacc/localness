@@ -4,6 +4,8 @@ import { copyTextToClipboard } from '~/utils/clipboard'
 const props = defineProps<{
   token: string
   name: string
+  /** `read` or `write`; shown so the reader knows what they just handed out. */
+  scope?: string
   /**
    * Run when the modal is dismissed, before it closes. `overlay.create` keeps
    * the props it was opened with in the app-wide overlay store, and closing does
@@ -59,6 +61,25 @@ async function copy() {
           <span class="font-medium text-default">{{ props.name }}</span>
           is shown. The server keeps only a hash, so there is no way to display
           it again.
+        </p>
+        <p
+          v-if="props.scope"
+          class="text-sm"
+        >
+          <UBadge
+            size="sm"
+            :color="props.scope === 'write' ? 'warning' : 'neutral'"
+            variant="subtle"
+          >
+            {{ props.scope === 'write' ? 'Can write' : 'Read-only' }}
+          </UBadge>
+          <span class="ml-2 text-muted">
+            {{
+              props.scope === 'write'
+                ? 'it can create and update this project’s pages and tags.'
+                : 'it can only read this project’s published copy.'
+            }}
+          </span>
         </p>
         <div class="flex items-center gap-2">
           <code
