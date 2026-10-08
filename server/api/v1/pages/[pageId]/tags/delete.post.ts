@@ -1,5 +1,6 @@
 import { numericID } from '#server/helper/id'
 import { authenticateWriteRequest, touchApiToken } from '#server/helper/api-token'
+import { requireTokenPageAccess } from '#server/helper/api-token-project'
 import { readZodBody } from '#server/helper/validate'
 import { deletePageTags } from '#server/helper/api-write'
 import type { DeleteTagsResult } from '#shared/types/Import'
@@ -24,8 +25,13 @@ export default defineEventHandler(async (event): Promise<DeleteTagsResult> => {
     throw createError({ statusCode: 400, statusMessage: 'Missing page id' })
   }
   const body = await readZodBody(event, zApiV1TagDelete.parse)
+  const { projectId } = await requireTokenPageAccess(
+    token,
+    numericID(pageId),
+    getQuery(event).project
+  )
   const result = await deletePageTags({
-    projectId: token.projectId,
+    projectId,
     pageId: numericID(pageId),
     tagIds: body.tagIds,
   })

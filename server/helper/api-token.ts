@@ -16,8 +16,10 @@ import {
  * here instead of left to Nitro's auto-import: the alias that makes these tests
  * possible resolves the `h3` module, and an unimported global would not.
  *
- * A token names exactly one Project, so handing one to a consumer never widens
- * into "that Team's whole project list", including projects not yet created.
+ * A token belongs to a person and names the Projects it may reach. Which project
+ * a request is about, and whether this credential is still allowed there, is
+ * `api-token-project.ts` — deliberately a separate module, because that is the
+ * half that has to consult live membership rather than the row.
  */
 
 /**
@@ -69,10 +71,12 @@ export async function authenticateApiToken(plaintext: string | null) {
 }
 
 /**
- * The v1 credential path in one call: bearer header to the token row. That row
- * carries `projectId`, and it is where every delivery endpoint gets its project
- * from — the URL names no project, so there is no second answer that could
- * disagree with the credential.
+ * The v1 credential path in one call: bearer header to the token row.
+ *
+ * This only establishes *who* is calling. Which project they may address is a
+ * second question, and it is answered per request by `api-token-project.ts`
+ * rather than baked into the row — that is what makes the credential die with
+ * its owner's membership.
  */
 export async function authenticateDeliveryRequest(header: unknown) {
   return authenticateApiToken(bearerToken(header))
@@ -170,25 +174,60 @@ export function assertApiTokenPurgeable(row: { revokedAt?: Date | null }): void 
 }
 
 /**
- * Who may stop a credential. A member may revoke what they minted; a steward may
- * revoke anyone's. Erasing the row outright is a steward action and stays gated
- * in the route, because that destroys the record rather than stopping the token.
+ * Who may stop a whole credential: the person it belongs to, or a platform
+ * Admin.
+ *
+ * A project steward deliberately has no vote here. They used to, back when a
+ * token reached exactly one project and "that project's steward" was a single
+ * answer. A personal token spans projects, so letting the steward of one of them
+ * revoke it would let them cut off access to the others — authority they do not
+ * have. Their lever is `canDetachProjectFromToken` below, which reaches exactly
+ * as far as their own project.
  */
 export function canRevokeApiToken(
+  row: { createdBy: number },
+  actor: { userId: number; isAdmin: boolean }
+): boolean {
+  return actor.isAdmin || Number(row.createdBy) === Number(actor.userId)
+}
+
+export function assertApiTokenRevocable(
+  row: { createdBy: number },
+  actor: { userId: number; isAdmin: boolean }
+): void {
+  if (!canRevokeApiToken(row, actor)) {
+    throw createError({
+      statusCode: 403,
+      statusMessage: 'Only the token owner or a platform admin can revoke it',
+    })
+  }
+}
+
+/**
+ * Who may take *one project* out of a token's set: a steward of that project, or
+ * the token's owner.
+ *
+ * This exists so a steward is not left powerless against a leaked credential
+ * they cannot get the owner to revoke — otherwise their only lever would be
+ * removing the person from the team, a far bigger act. It is scoped to their own
+ * project on purpose: it must not touch the token's reach anywhere else.
+ */
+export function canDetachProjectFromToken(
   row: { createdBy: number },
   actor: { userId: number; isSteward: boolean }
 ): boolean {
   return actor.isSteward || Number(row.createdBy) === Number(actor.userId)
 }
 
-export function assertApiTokenRevocable(
+export function assertProjectDetachable(
   row: { createdBy: number },
   actor: { userId: number; isSteward: boolean }
 ): void {
-  if (!canRevokeApiToken(row, actor)) {
+  if (!canDetachProjectFromToken(row, actor)) {
     throw createError({
       statusCode: 403,
-      statusMessage: 'Only the token creator or a project steward can revoke it',
+      statusMessage:
+        'Only the token owner or a steward of this project can cut off its access',
     })
   }
 }

@@ -71,13 +71,13 @@ async function copy() {
             :color="props.scope === 'write' ? 'warning' : 'neutral'"
             variant="subtle"
           >
-            {{ props.scope === 'write' ? 'Can write' : 'Read-only' }}
+            {{ props.scope === 'write' ? 'Read & write' : 'Read-only' }}
           </UBadge>
           <span class="ml-2 text-muted">
             {{
               props.scope === 'write'
-                ? 'it can create and update this project’s pages and tags.'
-                : 'it can only read this project’s published copy.'
+                ? 'it can create and update pages and tags in the projects you picked.'
+                : 'it can only read published copy in the projects you picked.'
             }}
           </span>
         </p>

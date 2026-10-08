@@ -4,11 +4,19 @@ import { requireProjectAccess } from '#server/helper/access'
 
 /**
  * @route GET /api/projects/:id/api-tokens
- * @description This project's API tokens, newest first. Hashes never leave here.
+ * @description Which credentials can reach this project — a read-only audit.
  *
- * A member sees only what they minted; a steward sees the whole roster. That is
- * what makes revoking someone else's credential a deliberate act rather than a
- * guess at a name.
+ * Tokens are personal now and are managed at `/api/user/api-tokens`; this is the
+ * other direction of the same fact, and it belongs to the project. It answers
+ * "who has a way into my project", which a steward has to be able to ask.
+ *
+ * It shows **only this project's slice** of each token. A token that also reaches
+ * three other projects is reported here as reaching this one — the rest is not
+ * this project's business, and leaking it would turn an audit view into a map of
+ * someone else's access.
+ *
+ * A member sees the ones they minted; a steward sees everything reaching the
+ * project. Hashes never leave here.
  */
 export default defineEventHandler(async (event) => {
   const id = getRouterParam(event, 'id')
@@ -20,7 +28,7 @@ export default defineEventHandler(async (event) => {
 
   const rows = await prisma.apiToken.findMany({
     where: {
-      projectId,
+      projects: { some: { projectId } },
       ...(access.isSteward ? {} : { createdBy: access.userId }),
     },
     orderBy: { id: 'desc' },

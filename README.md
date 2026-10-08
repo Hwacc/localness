@@ -58,9 +58,9 @@ already see.
   repository: push/pull with preview, three-way merge, and UI-based conflict resolution.
 - 👥 **Teams & permissions** — teams with invite codes, owner/editor/viewer roles, and
   per-project owners.
-- 🔌 **Delivery API & MCP** — a read-only `v1` API (`meta` / `locales/:locale` / `bundle`)
-  protected by per-project API tokens, plus an MCP server so AI coding agents can query
-  keys directly.
+- 🔌 **Delivery API & MCP** — a `v1` API (`projects` / `meta` / `locales/:locale` / `bundle`,
+  plus a write surface a design tool imports frames through) protected by personal access
+  tokens, plus an MCP server so AI coding agents can query keys directly.
 - 🧩 **Skills** — attach project knowledge packages that AI agents consume through the API/MCP.
 - 🔔 **Notifications** — in-app notifications for team invitations and collaboration events.
 - 🔐 **Authentication** — local username/password accounts (scrypt-hashed), with optional
@@ -189,13 +189,19 @@ All configuration is environment-based; in Docker it comes from `.env.docker`
 
 ## API & MCP for Consumers
 
-Published translations are delivered read-only, per project, protected by API tokens:
+Published translations are delivered read-only, protected by personal access tokens. A token
+names the projects it may reach, and its reach is re-checked against the owner's team
+memberships on every request, so it stops working when they leave the team:
 
+- `GET /api/v1/projects` — which projects this token can address
 - `GET /api/v1/meta` — project metadata, locales, releases
 - `GET /api/v1/locales/:locale` — all published keys for one locale
 - `GET /api/v1/bundle` — the full published bundle
 
-An MCP endpoint (`/mcp`) exposes the same data to AI coding agents. See
+When a token reaches exactly one project, its requests name none — which is every token minted
+before tokens became personal, so nothing about those callers changed.
+
+An MCP endpoint (`/mcp?project=<id-or-name>`) exposes the same data to AI coding agents. See
 [`docs/run-book/12-api-mcp.md`](docs/run-book/12-api-mcp.md) (Chinese) for details.
 
 ## Documentation
