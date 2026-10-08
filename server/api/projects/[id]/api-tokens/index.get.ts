@@ -28,6 +28,7 @@ export default defineEventHandler(async (event) => {
       id: true,
       name: true,
       prefix: true,
+      scope: true,
       createdBy: true,
       createdAt: true,
       revokedAt: true,

@@ -45,6 +45,8 @@ export interface ITag {
   translation?: ITranslation
   pageID: ID
   i18nKey?: string
+  /** Set when a design tool drew this tag; null for tags drawn by hand. */
+  figmaNodeId?: string | null
   settings?: ITagSetting
 }
 
@@ -63,6 +65,7 @@ export class Tag implements ITag {
   updatedAt?: string | undefined
   translation?: ITranslation | undefined
   i18nKey?: string | undefined
+  figmaNodeId?: string | null
   settings?: ITagSetting
 
   constructor() {

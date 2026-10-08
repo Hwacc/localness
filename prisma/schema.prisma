@@ -215,6 +215,9 @@ model ApiToken {
   name       String
   tokenHash  String    @unique @map("token_hash")
   prefix     String
+  /// `read` or `write` (ApiTokenScope). Read-only by default: a caller has to
+  /// ask for a credential that can create Pages and Tags.
+  scope      String    @default("read")
   revokedAt  DateTime? @map("revoked_at")
   lastUsedAt DateTime? @map("last_used_at")
   project    Project   @relation(fields: [projectId], references: [id], onDelete: Cascade)
@@ -434,10 +437,17 @@ model Tag {
   pageID        Int          @map("page_id")
   i18nKeyId     Int?         @map("i18n_key_id")
   i18nKey       String?      @map("i18n_key")
+  /// The design-tool node this tag was drawn from. Null for tags drawn by hand
+  /// in the editor; it is what makes re-importing a frame idempotent rather than
+  /// a second copy of every tag.
+  figmaNodeId   String?      @map("figma_node_id")
   page          Page         @relation(fields: [pageID], references: [id], onDelete: Cascade)
   i18nKeyRecord I18nKey?     @relation(fields: [i18nKeyId], references: [id], onDelete: SetNull)
   settings      TagSettings?
   tagLogs       TagLog[]
+
+  /// SQLite treats NULLs as distinct, so hand-drawn tags never collide here.
+  @@unique([pageID, figmaNodeId])
 }
 
 model TagSettings {

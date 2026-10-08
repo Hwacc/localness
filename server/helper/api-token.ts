@@ -6,6 +6,7 @@ import {
   API_TOKEN_DISPLAY_PREFIX,
   API_TOKEN_PREFIX,
   API_TOKEN_TOUCH_INTERVAL_MS,
+  ApiTokenScope,
 } from '#shared/constants'
 
 /**
@@ -75,6 +76,52 @@ export async function authenticateApiToken(plaintext: string | null) {
  */
 export async function authenticateDeliveryRequest(header: unknown) {
   return authenticateApiToken(bearerToken(header))
+}
+
+/**
+ * An absent scope is read, never write. A row that somehow predates the column —
+ * or one written by a path that forgot to set it — must fail closed rather than
+ * become a credential that can rewrite the dictionary.
+ */
+export function tokenAllowsScope(
+  row: { scope?: string | null },
+  required: ApiTokenScope
+): boolean {
+  const scope = row.scope ?? ApiTokenScope.READ
+  if (required === ApiTokenScope.READ) {
+    return scope === ApiTokenScope.READ || scope === ApiTokenScope.WRITE
+  }
+  return scope === ApiTokenScope.WRITE
+}
+
+export function assertTokenScope(
+  row: { scope?: string | null },
+  required: ApiTokenScope
+): void {
+  if (!tokenAllowsScope(row, required)) {
+    throw createError({
+      statusCode: 403,
+      statusMessage: 'This API token is read-only',
+    })
+  }
+}
+
+/**
+ * The verb that pairs with `authenticateDeliveryRequest`: same 401s, plus the
+ * scope decision. Nothing in CORS enforces this — CORS only decides which
+ * requests a browser may send, and a non-browser caller ignores it entirely.
+ */
+export async function authenticateWriteRequest(header: unknown) {
+  const row = await authenticateDeliveryRequest(header)
+  assertTokenScope(row, ApiTokenScope.WRITE)
+  return row
+}
+
+/** Defaults to read: a caller has to ask for a credential that can write. */
+export function apiTokenScope(raw: unknown): ApiTokenScope {
+  if (raw === undefined || raw === null || raw === '') return ApiTokenScope.READ
+  if (raw === ApiTokenScope.READ || raw === ApiTokenScope.WRITE) return raw
+  throw createError({ statusCode: 400, statusMessage: 'Invalid API token scope' })
 }
 
 /**

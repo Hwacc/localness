@@ -186,6 +186,7 @@ const {
   deliveryLocale,
   deliveryMeta,
   deliveryBundle,
+  DELIVERY_CORS,
   isDeliveryApiPath,
   listDeliveryKeys,
   listUnpublishedDeliveryKeys,
@@ -228,6 +229,22 @@ describe('isDeliveryApiPath', () => {
     expect(isDeliveryApiPath('/api/v10/meta')).toBe(false)
     expect(isDeliveryApiPath('/api/projects')).toBe(false)
     expect(isDeliveryApiPath('/mcp')).toBe(false)
+  })
+})
+
+describe('DELIVERY_CORS', () => {
+  it('grants the write verbs, so a plugin iframe can send one', () => {
+    // The plugin's origin is `null` and every call carries Authorization, so
+    // both a JSON and a multipart write preflight has to be answered.
+    expect(DELIVERY_CORS.methods).toContain('GET')
+    expect(DELIVERY_CORS.methods).toContain('POST')
+    expect(DELIVERY_CORS.methods).toContain('PATCH')
+    expect(DELIVERY_CORS.allowHeaders).toContain('authorization')
+    expect(DELIVERY_CORS.allowHeaders).toContain('content-type')
+  })
+
+  it('stays open to any origin, because the credential is never a cookie', () => {
+    expect(DELIVERY_CORS.origin).toBe('*')
   })
 })
 

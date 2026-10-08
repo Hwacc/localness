@@ -7,6 +7,7 @@ const db = vi.hoisted(() => ({
     name: string
     tokenHash: string
     prefix: string
+    scope?: string | null
     revokedAt?: Date | null
   }>,
   updates: [] as Array<{ id: number; lastUsedAt: Date }>,
@@ -37,18 +38,24 @@ vi.mock('#server/libs/prisma', () => ({
 const {
   apiTokenName,
   apiTokenPrefix,
+  apiTokenScope,
   assertApiTokenPurgeable,
   assertApiTokenRevocable,
+  assertTokenScope,
   authenticateApiToken,
   authenticateDeliveryRequest,
+  authenticateWriteRequest,
   bearerToken,
   canRevokeApiToken,
   generateApiToken,
   hashApiToken,
   isApiTokenUsable,
+  tokenAllowsScope,
   touchApiToken,
 } = await import('#server/helper/api-token')
-const { API_TOKEN_TOUCH_INTERVAL_MS } = await import('#shared/constants')
+const { API_TOKEN_TOUCH_INTERVAL_MS, ApiTokenScope } = await import(
+  '#shared/constants'
+)
 
 beforeEach(() => {
   db.tokens = []
@@ -59,6 +66,7 @@ beforeEach(() => {
 
 function seed(overrides: Partial<{
   projectId: number
+  scope: string | null
   revokedAt: Date | null
 }> = {}) {
   const plaintext = generateApiToken()
@@ -68,6 +76,9 @@ function seed(overrides: Partial<{
     name: 'ci',
     tokenHash: hashApiToken(plaintext),
     prefix: apiTokenPrefix(plaintext),
+    // `in` so a test can seed a row that genuinely lacks the column, the way a
+    // row predating the migration would look.
+    ...('scope' in overrides ? { scope: overrides.scope } : {}),
     revokedAt: overrides.revokedAt ?? null,
   }
   db.tokens.push(row)
@@ -208,6 +219,95 @@ describe('authenticateDeliveryRequest', () => {
     await expect(
       authenticateDeliveryRequest('Basic bG5zX2FiYw==')
     ).rejects.toMatchObject({ statusCode: 401 })
+  })
+})
+
+describe('tokenAllowsScope', () => {
+  it('lets a write token do everything', () => {
+    expect(tokenAllowsScope({ scope: 'write' }, ApiTokenScope.READ)).toBe(true)
+    expect(tokenAllowsScope({ scope: 'write' }, ApiTokenScope.WRITE)).toBe(true)
+  })
+
+  it('stops a read token from writing', () => {
+    expect(tokenAllowsScope({ scope: 'read' }, ApiTokenScope.READ)).toBe(true)
+    expect(tokenAllowsScope({ scope: 'read' }, ApiTokenScope.WRITE)).toBe(false)
+  })
+
+  it('treats an absent scope as read, never write', () => {
+    // A row that predates the column must fail closed rather than become a
+    // credential that can rewrite the dictionary.
+    expect(tokenAllowsScope({}, ApiTokenScope.READ)).toBe(true)
+    expect(tokenAllowsScope({}, ApiTokenScope.WRITE)).toBe(false)
+    expect(tokenAllowsScope({ scope: null }, ApiTokenScope.WRITE)).toBe(false)
+  })
+
+  it('treats an unrecognised scope as read', () => {
+    expect(tokenAllowsScope({ scope: 'admin' }, ApiTokenScope.WRITE)).toBe(false)
+  })
+})
+
+describe('assertTokenScope', () => {
+  it('passes a write token', () => {
+    expect(() =>
+      assertTokenScope({ scope: 'write' }, ApiTokenScope.WRITE)
+    ).not.toThrow()
+  })
+
+  it('403s a read token writing', () => {
+    expect(
+      thrownStatus(() => assertTokenScope({ scope: 'read' }, ApiTokenScope.WRITE))
+    ).toBe(403)
+  })
+})
+
+describe('authenticateWriteRequest', () => {
+  it('resolves a write token to its row', async () => {
+    const { plaintext, row } = seed({ scope: 'write', projectId: 7 })
+    const token = await authenticateWriteRequest(`Bearer ${plaintext}`)
+    expect(token.id).toBe(row.id)
+    expect(token.projectId).toBe(7)
+  })
+
+  it('403s a read token', async () => {
+    const { plaintext } = seed({ scope: 'read' })
+    await expect(
+      authenticateWriteRequest(`Bearer ${plaintext}`)
+    ).rejects.toMatchObject({ statusCode: 403 })
+  })
+
+  it('403s a row without a scope, rather than letting it write', async () => {
+    const { plaintext } = seed({ scope: null })
+    await expect(
+      authenticateWriteRequest(`Bearer ${plaintext}`)
+    ).rejects.toMatchObject({ statusCode: 403 })
+  })
+
+  it('401s before it ever considers scope', async () => {
+    seed({ scope: 'write' })
+    await expect(authenticateWriteRequest(undefined)).rejects.toMatchObject({
+      statusCode: 401,
+    })
+    await expect(authenticateWriteRequest('Bearer lns_nope')).rejects.toMatchObject(
+      { statusCode: 401 }
+    )
+  })
+})
+
+describe('apiTokenScope', () => {
+  it('defaults to read, so a caller has to ask for write', () => {
+    expect(apiTokenScope(undefined)).toBe(ApiTokenScope.READ)
+    expect(apiTokenScope(null)).toBe(ApiTokenScope.READ)
+    expect(apiTokenScope('')).toBe(ApiTokenScope.READ)
+  })
+
+  it('accepts the two real scopes', () => {
+    expect(apiTokenScope('read')).toBe(ApiTokenScope.READ)
+    expect(apiTokenScope('write')).toBe(ApiTokenScope.WRITE)
+  })
+
+  it('400s anything else instead of silently downgrading', () => {
+    expect(thrownStatus(() => apiTokenScope('admin'))).toBe(400)
+    expect(thrownStatus(() => apiTokenScope(1))).toBe(400)
   })
 })
 

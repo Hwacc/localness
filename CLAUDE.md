@@ -14,12 +14,16 @@ pnpm dev                 # http://localhost:3000
 pnpm typecheck           # verification (not `pnpm build`)
 pnpm test                # unit tests
 pnpm exec prisma generate
-pnpm exec prisma migrate dev
+pnpm exec prisma migrate deploy   # apply locally — see below
 ```
 
 No public register. Users: `pnpm register` / `docker compose exec localness tsx scripts/register.ts`.
 
-Deploy is Docker only. The image runs `prisma migrate deploy` on boot. `pnpm dev` does not — a nitro plugin warns; apply locally with `migrate dev`.
+Deploy is Docker only. The image runs `prisma migrate deploy` on boot. `pnpm dev` does not — a nitro plugin warns; apply locally with `migrate deploy`.
+
+**Do not use `migrate dev` here.** It refuses with "`20260915020000_backfill_empty_project_owners` was modified after it was applied" and offers to reset the database. That migration landed as CRLF and a later comment edit changed the working-tree bytes, so Prisma's byte comparison fails even though content and data agree. `migrate deploy` skips that comparison, which is why the Docker image and local dev both use it.
+
+To author a new migration: generate the SQL with `pnpm exec prisma migrate diff --from-migrations ./prisma/migrations --to-schema prisma/schema.prisma --script`, write it into a timestamped folder, apply with `migrate deploy`, then confirm with the same command plus `--exit-code` (0 = no remaining diff). Prefer `ALTER TABLE ... ADD COLUMN` over a generated table redefine, and hand-quote any `Json` column default.
 
 ## Verify
 
