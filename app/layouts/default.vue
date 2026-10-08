@@ -16,6 +16,15 @@ onMounted(async () => {
   }
 })
 
+/**
+ * Pages whose content does not belong to a project, so the project switcher has
+ * nothing to switch and would only imply a scope that is not there.
+ *
+ * dashboard is the list of every project; api documents a credential that is
+ * personal and reaches whichever projects its owner picked.
+ */
+const projectAgnosticPages = ['dashboard', 'api']
+
 const navItems = [
   {
     icon: 'i-lucide:layout-dashboard',
@@ -129,7 +138,9 @@ const visibleNavItems = computed(() =>
           </div>
         </div>
         <div class="h-full min-w-0 overflow-hidden bg-default flex flex-col">
-          <AppWorkspaceBar v-if="route.name !== 'dashboard'" />
+          <AppWorkspaceBar
+            v-if="!projectAgnosticPages.includes(String(route.name))"
+          />
           <div class="flex-1 min-h-0 min-w-0 overflow-hidden">
             <slot />
           </div>

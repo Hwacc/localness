@@ -19,10 +19,12 @@ import {
 /**
  * The MCP face of the delivery API, served at `/mcp`.
  *
- * No tool takes a project, for the same reason `/api/v1` stopped carrying one in
- * its path: the credential *is* the project. The route resolves it once and
- * passes it through `authInfo.extra`, so the tools never re-derive it and cannot
- * disagree with the token that was actually checked.
+ * No tool takes a project. It is named in the endpoint's query string instead,
+ * so the tool list an agent reads is the same however many projects the token
+ * reaches, and one MCP server entry means one project. The route resolves it
+ * once, from `?project=` when the token reaches several, and passes it through
+ * `authInfo.extra` — so the tools never re-derive it and cannot disagree with
+ * what was actually authorized.
  *
  * Every tool delegates to the same `api-delivery` helpers the REST endpoints
  * use. That is deliberate — two ways to fetch copy that could drift is exactly

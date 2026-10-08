@@ -1,41 +1,46 @@
 import prisma from '#server/libs/prisma'
 import { numericID } from '#server/helper/id'
 import { requireProjectAccess } from '#server/helper/access'
-import { assertApiTokenRevocable } from '#server/helper/api-token'
+import { assertProjectDetachable } from '#server/helper/api-token'
 
 /**
  * @route DELETE /api/projects/:id/api-tokens/:tokenId
- * @description Revoke a token. The row is kept so `lastUsedAt` survives for
- * audit. Revoking twice is a no-op.
+ * @description Cut *this project* out of a token's reach.
  *
- * Any Team Member may revoke what they minted; a steward may revoke anyone's.
- * The ownership check runs before the already-revoked short-circuit, so probing
- * another member's token id cannot report back whether it exists.
+ * Not a revocation — the token keeps working everywhere else, and only its owner
+ * (or a platform admin) can stop it outright. This is the steward's lever, and
+ * it is deliberately the narrowest one that answers the case it exists for: a
+ * credential that can reach your project and whose owner will not revoke it, when
+ * removing the person from the team would be a much bigger act than the occasion
+ * calls for.
+ *
+ * Scoping it to this project is the point. A steward who could revoke the token
+ * outright would be cutting off projects they hold no authority over.
  */
 export default defineEventHandler(async (event) => {
   const id = getRouterParam(event, 'id')
-  const tokenId = getRouterParam(event, 'tokenId')
-  if (!id || !tokenId) {
+  const rawTokenId = getRouterParam(event, 'tokenId')
+  if (!id || !rawTokenId) {
     throw createError({ statusCode: 400, statusMessage: 'Missing id' })
   }
   const projectId = numericID(id)
-  const nTokenId = numericID(tokenId)
+  const tokenId = numericID(rawTokenId)
   const access = await requireProjectAccess(event, projectId)
 
-  const existing = await prisma.apiToken.findFirst({
-    where: { id: nTokenId, projectId },
+  const link = await prisma.apiTokenProject.findUnique({
+    where: { tokenId_projectId: { tokenId, projectId } },
+    select: { token: { select: { createdBy: true } } },
   })
-  if (!existing) {
+  if (!link) {
     throw createError({ statusCode: 404, statusMessage: 'Token not found' })
   }
+  assertProjectDetachable(link.token, {
+    userId: access.userId,
+    isSteward: access.isSteward,
+  })
 
-  assertApiTokenRevocable(existing, access)
-
-  if (existing.revokedAt) return { ok: true, alreadyRevoked: true }
-
-  await prisma.apiToken.update({
-    where: { id: nTokenId },
-    data: { revokedAt: new Date() },
+  await prisma.apiTokenProject.delete({
+    where: { tokenId_projectId: { tokenId, projectId } },
   })
   return { ok: true }
 })

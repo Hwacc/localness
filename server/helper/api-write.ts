@@ -16,9 +16,10 @@ import type {
  * only stands in for `createError`, so anything left in a `.ts` endpoint is
  * untestable. `createError` is imported from `h3` for the same reason.
  *
- * Project scoping is absolute: the token names the project, every page id is
- * checked against it, and a page of another project is a 404 rather than a 403
- * so it does not announce that it exists.
+ * Every function here takes the project as an argument, already authorized. The
+ * caller established it — from `?project=` or from the page it addresses — so
+ * what is left is the write itself, plus the one thing only this layer knows:
+ * that a page named in a request belongs to the project being written to.
  */
 
 /** What the editor uses for every tag it draws (`app/core/Editor.ts`). */

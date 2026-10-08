@@ -26,3 +26,23 @@ export interface DeliveryMeta {
   /** ISO 8601. */
   generatedAt: string
 }
+
+/** One project a token may address. */
+export interface DeliveryProjectRef {
+  id: number
+  name: string
+}
+
+/**
+ * `GET /api/v1/projects` — which projects this credential can address *now*.
+ *
+ * A token belongs to a person and may name several projects, so this is the
+ * discovery step when the credential itself cannot answer "which one": it is
+ * also the list `?project=` accepts. Projects whose team the owner has left are
+ * absent, so an empty list means the credential is spent.
+ */
+export interface DeliveryProjects {
+  projects: DeliveryProjectRef[]
+  /** ISO 8601. */
+  generatedAt: string
+}

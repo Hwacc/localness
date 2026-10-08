@@ -3,7 +3,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 const db = vi.hoisted(() => ({
   tokens: [] as Array<{
     id: number
-    projectId: number
+    createdBy: number
     name: string
     tokenHash: string
     prefix: string
@@ -41,11 +41,13 @@ const {
   apiTokenScope,
   assertApiTokenPurgeable,
   assertApiTokenRevocable,
+  assertProjectDetachable,
   assertTokenScope,
   authenticateApiToken,
   authenticateDeliveryRequest,
   authenticateWriteRequest,
   bearerToken,
+  canDetachProjectFromToken,
   canRevokeApiToken,
   generateApiToken,
   hashApiToken,
@@ -65,14 +67,14 @@ beforeEach(() => {
 })
 
 function seed(overrides: Partial<{
-  projectId: number
+  createdBy: number
   scope: string | null
   revokedAt: Date | null
 }> = {}) {
   const plaintext = generateApiToken()
   const row = {
     id: db.nextId++,
-    projectId: overrides.projectId ?? 1,
+    createdBy: overrides.createdBy ?? 3,
     name: 'ci',
     tokenHash: hashApiToken(plaintext),
     prefix: apiTokenPrefix(plaintext),
@@ -202,13 +204,16 @@ describe('authenticateApiToken', () => {
 })
 
 describe('authenticateDeliveryRequest', () => {
-  it('resolves the token to a row that carries the project', async () => {
-    // The URL names no project, so this row is the only place the endpoint can
-    // get one from.
-    const { plaintext, row } = seed({ projectId: 7 })
+  it('resolves the token to a row that carries its owner', async () => {
+    // The row no longer names a project: which projects it reaches is a set,
+    // and the authority behind that set is this user's live membership. So the
+    // owner id is the field everything downstream needs, and it is asserted
+    // here so a row that lost it cannot pass.
+    const { plaintext, row } = seed({ createdBy: 7 })
     const token = await authenticateDeliveryRequest(`Bearer ${plaintext}`)
     expect(token.id).toBe(row.id)
-    expect(token.projectId).toBe(7)
+    expect(token.createdBy).toBe(7)
+    expect('projectId' in token).toBe(false)
   })
 
   it('401s a header that is missing or is not a bearer', async () => {
@@ -262,10 +267,10 @@ describe('assertTokenScope', () => {
 
 describe('authenticateWriteRequest', () => {
   it('resolves a write token to its row', async () => {
-    const { plaintext, row } = seed({ scope: 'write', projectId: 7 })
+    const { plaintext, row } = seed({ scope: 'write', createdBy: 7 })
     const token = await authenticateWriteRequest(`Bearer ${plaintext}`)
     expect(token.id).toBe(row.id)
-    expect(token.projectId).toBe(7)
+    expect(token.createdBy).toBe(7)
   })
 
   it('403s a read token', async () => {
@@ -342,42 +347,70 @@ describe('touchApiToken', () => {
 })
 
 describe('canRevokeApiToken', () => {
-  const member = (userId: number, isSteward = false) => ({ userId, isSteward })
+  const actor = (userId: number, isAdmin = false) => ({ userId, isAdmin })
 
-  it('lets a member stop the credential they minted', () => {
-    expect(canRevokeApiToken({ createdBy: 3 }, member(3))).toBe(true)
+  it('lets the owner stop their own credential', () => {
+    expect(canRevokeApiToken({ createdBy: 3 }, actor(3))).toBe(true)
   })
 
   it('compares ids by value, not by type', () => {
-    expect(canRevokeApiToken({ createdBy: 3 }, member(Number('3')))).toBe(true)
+    expect(canRevokeApiToken({ createdBy: 3 }, actor(Number('3')))).toBe(true)
   })
 
-  it('refuses a token someone else minted', () => {
-    expect(canRevokeApiToken({ createdBy: 3 }, member(4))).toBe(false)
+  it('refuses a token someone else owns', () => {
+    expect(canRevokeApiToken({ createdBy: 3 }, actor(4))).toBe(false)
   })
 
-  it('lets a steward stop any token on the project', () => {
-    expect(canRevokeApiToken({ createdBy: 3 }, member(4, true))).toBe(true)
+  it('lets a platform admin stop any token', () => {
+    expect(canRevokeApiToken({ createdBy: 3 }, actor(4, true))).toBe(true)
   })
 })
 
 describe('assertApiTokenRevocable', () => {
-  it('passes a member acting on their own token', () => {
+  it('passes the owner', () => {
     expect(() =>
-      assertApiTokenRevocable(
-        { createdBy: 3 },
-        { userId: 3, isSteward: false }
-      )
+      assertApiTokenRevocable({ createdBy: 3 }, { userId: 3, isAdmin: false })
     ).not.toThrow()
   })
 
-  it('403s a member reaching for another member token', () => {
+  it('403s a stranger', () => {
     expect(
       thrownStatus(() =>
-        assertApiTokenRevocable(
-          { createdBy: 3 },
-          { userId: 4, isSteward: false }
-        )
+        assertApiTokenRevocable({ createdBy: 3 }, { userId: 4, isAdmin: false })
+      )
+    ).toBe(403)
+  })
+
+  it('has no opinion about projects, because a personal token has none', () => {
+    // The old rule was "creator or steward of *that* project", which stopped
+    // being answerable once a token spans projects: the steward of one of them
+    // must not be able to cut off the others. Their scoped lever is the separate
+    // detach rule below.
+    expect(canRevokeApiToken({ createdBy: 3 }, { userId: 4, isAdmin: false })).toBe(
+      false
+    )
+  })
+})
+
+describe('canDetachProjectFromToken', () => {
+  const actor = (userId: number, isSteward = false) => ({ userId, isSteward })
+
+  it('lets a steward of the project cut its access', () => {
+    expect(canDetachProjectFromToken({ createdBy: 3 }, actor(4, true))).toBe(true)
+  })
+
+  it('lets the owner cut a project out of their own token', () => {
+    expect(canDetachProjectFromToken({ createdBy: 3 }, actor(3))).toBe(true)
+  })
+
+  it('refuses a plain member who is neither', () => {
+    expect(canDetachProjectFromToken({ createdBy: 3 }, actor(4))).toBe(false)
+  })
+
+  it('403s through the assert form', () => {
+    expect(
+      thrownStatus(() =>
+        assertProjectDetachable({ createdBy: 3 }, { userId: 4, isSteward: false })
       )
     ).toBe(403)
   })

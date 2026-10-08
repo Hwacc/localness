@@ -132,6 +132,30 @@ export async function requireProjectRosterAccess(
   return { ...access, isAdmin: user?.role === UserRole.ADMIN }
 }
 
+/**
+ * Who is acting, with the platform role, and no project attached.
+ *
+ * For routes whose subject belongs to the *person* rather than to a project —
+ * personal API tokens being the only one so far. Every other gate here is
+ * project-rooted, so there is nothing to reuse: they all resolve a project
+ * first, and those routes have none.
+ *
+ * Being an Admin is a fact about the actor, not permission on its own; each
+ * route still decides what to do with it.
+ */
+export async function requireSessionActor(event: H3Event) {
+  const session = await requireUserSession(event)
+  const userId = numericID(session.user.id)
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+    select: { role: true },
+  })
+  if (!user) {
+    throw createError({ statusCode: 404, statusMessage: 'User not found' })
+  }
+  return { session, userId, isAdmin: user.role === UserRole.ADMIN }
+}
+
 export async function requirePageTeamMember(event: H3Event, pageId: number) {
   const page = await prisma.page.findUnique({
     where: { id: pageId },

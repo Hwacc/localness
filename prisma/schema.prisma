@@ -145,7 +145,7 @@ model Project {
   gitSyncLogs      GitSyncLog[]
   owners           ProjectOwner[]
   releases         ProjectRelease[]
-  apiTokens        ApiToken[]
+  apiTokenProjects ApiTokenProject[]
   skills           ProjectSkill[]
 
   @@index([teamId])
@@ -200,17 +200,20 @@ model ProjectOwner {
   @@index([projectId])
 }
 
-/// A read-only API credential for one Project. The presented token is never
-/// stored: `token_hash` is its deterministic sha256, which is what lets the
-/// auth path find the row with one indexed lookup instead of scanning and
-/// comparing every token. `prefix` exists only so the UI can tell two tokens
-/// apart after the plaintext is gone. Revoking is the only way a token stops
-/// working — there is no expiry, because nothing in the product sets one.
+/// A personal access token. The presented token is never stored: `token_hash` is
+/// its deterministic sha256, which is what lets the auth path find the row with
+/// one indexed lookup instead of scanning and comparing every token. `prefix`
+/// exists only so the UI can tell two tokens apart after the plaintext is gone.
+/// Revoking is the only way a token stops working — there is no expiry, because
+/// nothing in the product sets one.
+///
+/// It belongs to a person, not a project: which projects it may address is the
+/// `ApiTokenProject` set, and the authority behind that set is the owner's team
+/// membership *at request time*, so it stops working when they leave.
 model ApiToken {
   id         Int       @id @default(autoincrement())
   createdAt  DateTime  @default(now()) @map("created_at")
   updatedAt  DateTime  @updatedAt @map("updated_at")
-  projectId  Int       @map("project_id")
   createdBy  Int       @map("created_by")
   name       String
   tokenHash  String    @unique @map("token_hash")
@@ -220,11 +223,28 @@ model ApiToken {
   scope      String    @default("read")
   revokedAt  DateTime? @map("revoked_at")
   lastUsedAt DateTime? @map("last_used_at")
-  project    Project   @relation(fields: [projectId], references: [id], onDelete: Cascade)
   user       User      @relation(fields: [createdBy], references: [id], onDelete: Cascade)
+  projects   ApiTokenProject[]
 
-  @@index([projectId])
   @@index([createdBy])
+}
+
+/// The narrowing set: exactly which Projects a token may address. There is no
+/// `kind` — a single-project token is simply a set with one row.
+///
+/// Being in this set is necessary but not sufficient: the token's owner must
+/// *also* still be on the target project's team, checked per request. That is
+/// what stops a credential outliving its owner's membership, and it is why a
+/// project's steward can cut access from their side by removing a person rather
+/// than hunting for their tokens.
+model ApiTokenProject {
+  tokenId   Int      @map("token_id")
+  projectId Int      @map("project_id")
+  token     ApiToken @relation(fields: [tokenId], references: [id], onDelete: Cascade)
+  project   Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@id([tokenId, projectId])
+  @@index([projectId])
 }
 
 /// A Skill package shared inside one Project. The blob lives in OSS; this row

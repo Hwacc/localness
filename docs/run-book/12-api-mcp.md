@@ -2,64 +2,98 @@
 
 ## 这一章能做什么
 
-- 给 CI、别的服务或 agent 发一枚**只读** token
-- 用三个 HTTP 端点取这个项目的已发布文案
+- 给自己发一枚 token，给 CI、别的服务或 agent 用
+- 用 HTTP 端点取**你指定的项目**的已发布文案
 - 把同一枚 token 配进 MCP，让 agent 自己查，不用你写客户端
 
 ## 这一页在哪
 
 左侧栏的 **API**。页头写着：
 
-> Read-only access to this project's published copy. Drafts are never reachable with a token, and versioned by `release` only.
+> Access to published copy. Drafts are never reachable with a token, and versioned by `release` only. A token is read-only unless you mint it as `write`, which also lets a design tool import a frame as a page.
 
-**文档和 token 抽屉对所有 Team Member 可见**——消费这个项目的人不一定管这个项目。页面从上到下是：**Manage tokens** 按钮、**Authentication**、**Endpoints**（四个可复制的例子）、**From the browser or Node**、**MCP**。![1790221478500](image/12-api-mcp/1790221478500.png)
+**文档和 token 抽屉对所有 Team Member 可见**——消费这个项目的人不一定管这个项目。页面从上到下是：**Manage tokens** 按钮、**Authentication**、**Endpoints**（可复制的例子）、**Importing from a design tool**、**From the browser or Node**、**MCP**。![1790221478500](image/12-api-mcp/1790221478500.png)
+
+**这一页不随项目切换**：顶部没有 Workspace Bar（和 **Dashboard** 一样）。因为 token 属于**你**、由它自己指定能碰哪些项目，所以这一页没有任何内容属于「当前项目」。抽屉里每枚 token 都自带 `Team · 项目` 标签，比看顶部那条更准。
 
 ## 能取到什么，取不到什么
 
 |                               |                                                                                                                         |
 | ----------------------------- | ----------------------------------------------------------------------------------------------------------------------- |
-| **只读**                | 没有任何写接口。token 只能读                                                                                            |
 | **只有已发布**          | 草稿一律取不到。某条词条在这个语言还没发布，它就**不出现**，而不是返回空字符串                                    |
 | **不做回退**            | 缺失的 key**不会**用源语言或别的语言补上。调用方要自己决定缺了怎么显示——直接把 key 名露在界面上是最糟的那种处理 |
 | **只能按 release 收窄** | 没有别的筛选参数                                                                                                        |
+| **写入面只服务于导入**   | 只有 `write` token 能用，且只够建页面、画 Tag、清理——改不了词条文案                                                |
 
-**token 就是项目身份**：URL 里不写项目 id。好处是配置里少一份要对上的东西，代价是**贴错 token 不会报错，会静默读到另一个项目**。所以拿到的第一件事应该是调 `/api/v1/meta`，看它回的 `project` 名字是不是你要的那个——MCP 那边同理，`get_project_info` 就是干这个的。
+**token 属于你，不属于项目**：一枚 token 可以指定它能碰**哪些**项目。只指定一个时，请求里根本不用写项目名——**改动之前发的 token 全都是这种**，行为和以前一模一样。
 
-## token 的四条规矩
+指定了多个时，请求里要带上项目：`?project=<id 或名字>`。所以拿到一枚 token 的第一件事是调 `GET /api/v1/projects`，看它能碰哪些项目。MCP 那边同理，项目写在服务器 URL 上。
 
-| 动作           | 谁能做                                                                                                                                                   |
-| -------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 建             | **任何 Team Member**。不限于 Project Owner                                                                                                         |
-| 看列表         | **非 Project Owner 只看得见自己建的**；Project Owner 看全项目，每行还多显示建的人                                                                  |
-| 吊销           | **建的人**或 **Project Owner**                                                                                                               |
-| 硬删（Delete） | 只有**Project Owner**，而且只对**已经吊销**的行。它会连「这枚凭证存在过」的记录一起抹掉，和「停掉一枚凭证」是两回事，所以 Confirm 框里写明了 |
+**名字重了会报错，不会猜。** 项目名在系统里不唯一（两个 Team 可以各有一个 `Web`），所以名字必须唯一命中，否则回 409，改用 id。
+
+## token 的规矩
+
+| 动作                     | 谁能做                                                                                                                                                            |
+| ------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 建                       | **任何 Team Member**，但只能勾选**自己所在 Team 的项目**——token 不能给你自己没有的权限                                                                     |
+| 看列表                   | 在 **API** 页只看得到**自己建的**。项目侧那一列（谁能碰到我这个项目）由 Project Owner 在项目里看                                                          |
+| 吊销 / 硬删（Delete）    | **建的人自己**，或**平台管理员**。硬删只对**已经吊销**的行，它会连「这枚凭证存在过」的记录一起抹掉                                                       |
+| 把某个项目从 token 摘掉  | 该项目的 **Project Owner**，或 token 的主人。这条**只影响这一个项目**，token 在别处照旧。它是 Owner 遇到「成员不肯吊销自己的 token」时的杠杆 |
+
+**离队即失效。** 每请求都会核对「token 主人现在还是不是该项目 Team 的成员」。把人移出 Team，他那些指定了该项目的 token 立刻不能用，不需要谁去逐个吊销——列表里会标出来。
 
 **明文只出现一次。** 服务端只存哈希，建完弹窗里那一次没抄下来，就再也拿不回来了——只能吊销重发。
 
 ## 建一枚 token
 
-1. 页面上点 **Manage tokens**，右侧滑出 **API tokens** 抽屉（`Read-only credentials for this project.`）。
-2. 在输入框里写清楚它是干什么用的，占位文字就是建议：`What is it for, e.g. MCP`。名字是必填的。
-3. 点 **Create token**。
-4. 弹出的窗口标题是 **Copy this token now**，里面写着：`This is the only time <名字> is shown. The server keeps only a hash, so there is no way to display it again.` 点 **Copy**，然后 **Dismiss**。
+1. 页面上点 **Manage tokens**，右侧滑出 **API tokens** 抽屉。
+2. 写清楚它是干什么用的，占位文字就是建议：`What is it for, e.g. Figma plugin`。名字必填。
+3. 选 **Read-only** 还是 **Read & write**。默认只读——写权限要自己选。
+4. 勾选它**能碰哪些项目**（至少一个）。列表按 `Team · 项目` 显示。
+5. 点 **Create token**。
+6. 弹出的窗口标题是 **Copy this token now**，里面写着：`This is the only time <名字> is shown. The server keeps only a hash, so there is no way to display it again.` 点 **Copy**，然后 **Dismiss**。
 
 **这个窗口点不掉**——只能按 **Dismiss**，所以不会手一滑把还没抄的 token 弄丢。
 
 ![1790221535617](image/12-api-mcp/1790221535617.png)
 
-列表里每行显示名字、`<前缀>…`、`Created <时间> · Last used <时间>`；已经吊销的带一个 **Revoked** 徽标。**Revoke 点了就生效，没有二次确认**，想清楚再点。
+列表里每张卡片从上到下三块：
 
-## 三个 HTTP 端点
+1. **名字 + 徽标** —— 徽标是权限（**Read-only** / **Read & write**）和状态（**Revoked**）。名字下面那行 `<前缀>…` 是明文开头的 12 个字符，**同名 token 靠它区分**（拿去和你配置里那串比对）。右边是 **Revoke** / **Delete**。
+2. **Reaches** —— 它能碰的项目，每个一枚标签。**红色带 🔗̸ 的那个表示你已不在该 Team**，token 在那儿不工作；名字仍然显示出来，所以你知道是哪一个。
+3. `Created <时间> · Last used <时间>`。
+
+如果一枚 token **哪儿都去不了**（项目被删光，或你离开了它全部的 Team），卡片上会多一行黄色说明。部分失效不额外写说明——红色标签本身就说清了。
+
+**Revoke 点了就生效，没有二次确认**，想清楚再点。
+
+## HTTP 端点
 
 | 端点                            | 返回                                                                               |
 | ------------------------------- | ---------------------------------------------------------------------------------- |
+| `GET /api/v1/projects`        | **这枚 token 现在能碰哪些项目**。只凭 token 的调用方从这里开始                     |
 | `GET /api/v1/meta`            | 语言列表、`localeFallback`、可用的 release、以及**每个语言有多少条已发布** |
 | `GET /api/v1/locales/:locale` | 一个语言的扁平`{ key: text }`                                                    |
 | `GET /api/v1/bundle`          | 一次拿到全部语言：`{ locale: { key: text } }`                                    |
 
+**什么时候要带 `?project=`：数这枚 token 当初被指定了**几个**项目**（不是"现在还能碰到几个"）。
+
+| token 被指定了 | 要带吗 |
+| --- | --- |
+| **1 个** | **哪儿都不用带**。改动前发的 token 全是这种，行为和以前一模一样 |
+| **2 个及以上** | 凡是**请求本身推不出项目**的都要带：三个读端点、`POST /pages`、MCP 的 URL。不带报 400，并让你去看 `/api/v1/projects` |
+| **0 个**（项目被删光） | 带不带都是 403，这枚 token 已经没用 |
+
+`/api/v1/projects` 和 `POST /api/v1/uploads` **永远不带** —— 前者就是回答"能碰哪些"的那个答案本身，后者与项目无关。
+
+**按 page id 寻址的三条写路由永远不带**（`PATCH /pages/:pageId`、`GET /pages/:pageId/tags`、`POST .../tags/delete`）—— URL 里的 page 已经说明了项目。硬要带也可以，但**必须和 page 所属项目一致**，不一致报 400。
+
+**注意**：这里数的是**当初指定的个数**。你从其中一个 Team 离队后，个数不变，所以 `?project=` **仍然必须带** —— 带那个离队的报 403，带另一个正常。凭证当初被授予了两个项目，它不该替你挑一个。
+
 页面上每个端点都有一张卡片，写着它的用途和一条能直接复制的 `curl`：
 
-- **Project metadata** —— `Locales, fallback, the releases you can filter by, and how many keys are published per locale. A consumer that holds nothing but a token starts here — this is where it learns which project it serves.`
+- **Which projects may this token reach?** —— `A token belongs to you and may name several projects, so this is where a consumer starts: it lists what the credential can address, filtered by your current team memberships. An empty list means the token is spent.`
+- **Project metadata** —— `Locales, fallback, the releases you can filter by, and how many keys are published per locale. Add ?project= when the token reaches more than one.`
 - **One locale** —— `Flat { key: text } map of published copy. Missing keys stay missing on purpose.`
 - **Filtered to a release** —— `Narrow to the keys labelled with one release. Accepts the id or the name.`
 - **Every locale in one bundle** —— `All locales in a single round trip. Same shape, keyed by locale.`
@@ -90,14 +124,16 @@ Authorization: Bearer <token>
 {
   "mcpServers": {
     "localness": {
-      "url": "https://你的实例/mcp",
+      "url": "https://你的实例/mcp?project=<id 或名字>",
       "headers": { "Authorization": "Bearer <token>" }
     }
   }
 }
 ```
 
-**九个工具，全部只读，全都不收项目参数**——token 已经说了是哪个项目：
+**项目写在 URL 上，不写在工具参数里**——所以工具列表永远是同一套，一个 MCP 条目就代表一个项目。token 只指定了一个项目时，`?project=` 可以不写。
+
+**九个工具，全部只读**：
 
 | 工具                      | 干什么                                                                                                              |
 | ------------------------- | ------------------------------------------------------------------------------------------------------------------- |
@@ -125,13 +161,22 @@ Authorization: Bearer <token>
 | -------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `Missing API token`                        | 请求里没带`Authorization: Bearer <token>`                                                                                                                 |
 | `Invalid API token`                        | token 抄错了，或者根本不是这个实例发出的                                                                                                                    |
-| `API token revoked`                        | 这枚 token 被吊销了。找建它的人或 Project Owner 重发一枚                                                                                                    |
+| `API token revoked`                        | 这枚 token 被吊销了。自己重发一枚，或找平台管理员                                                                                                            |
+| `This API token is read-only`              | 用了 `read` token 调写入端点。建 token 时选 **Read & write**                                                                                                 |
+| `This token addresses several projects; pass ?project=` | 这枚 token 指定了多个项目，请求里必须写清楚是哪个。能填什么看`/api/v1/projects`                                                                     |
+| `?project= names a different project than page … belongs to` | 按 page id 寻址的路由不该带`?project=`。项目从 page 推，带了又和它对不上就是自相矛盾——去掉这个参数 |
+| `Project name "x" is ambiguous for this token` | 它指定的项目里有重名。改用项目 id                                                                                                                        |
+| `This token's owner is no longer a member of this project's team` | 建这枚 token 的人已经不在该项目的 Team 里了。这就是「离队即失效」                                                                        |
+| `This token is not attached to any project` | 它指定的项目被删光了。已经做不了任何事，重新建一枚                                                                                                          |
 | `Unknown release: v1`                      | `?release=` 的名字这个项目里没有。名字写错不会退回全量                                                                                                    |
-| 调`/meta` 返回的项目名不是你要的           | **token 贴错了**。URL 里没有项目 id，所以不会报错，只会读到另一个项目——这一页的 token 抽屉是按当前项目开的，确认一下 Workspace Bar 上是哪个项目再建 |
+| 调`/meta` 返回的项目名不是你要的           | `?project=` 写错了——**名字必须唯一命中**，有重名就得用 id。别猜，先调`/api/v1/projects`                                                            |
 | 关掉弹窗后 token 找不到了                    | 明文只有创建那一次。吊销重发                                                                                                                                |
 | 某条词条在接口里查不到                       | 它在这个语言还没**发布**。草稿取不到                                                                                                                  |
 | 某个语言少了半截 key                         | 那些 key 在这个语言没发布，API**不会**拿别的语言补上                                                                                                  |
 | **Revoke** 点错了                      | 没有二次确认，撤不回来。重新建一枚，名字里带上用途                                                                                                          |
-| 已经吊销的行点**Delete** 没反应        | 只有 Project Owner 能硬删                                                                                                                                   |
+| 已经吊销的行点**Delete** 没反应        | 只有 token 的主人本人或平台管理员能硬删                                                                                                                      |
+| token 列表里有一行标着「No projects」         | 它指定的项目被删了。这枚 token 已经没用，可以删掉                                                                                                            |
+| token 列表里有一行标着「You are no longer on the team」 | 你离开了它指定的 Team。它已经不工作；把项目重新加回来（或新建一枚）才能继续用                                                                      |
 | 配置里能读到 token，但浏览器里打不开那个地址 | 实例要挂在 HTTPS 后面；纯 HTTP 上跑 token 等于把凭证明文扔在线路上                                                                                          |
 | agent 说「没有这个 release」                 | 它没先调`get_project_info`。工具描述里写着 release 名从那里取                                                                                             |
+| agent 一直说找不到项目                       | MCP 的`url` 里没写 `?project=`，而这枚 token 指定了多个项目                                                                                              |

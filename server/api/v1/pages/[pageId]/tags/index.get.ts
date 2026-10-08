@@ -1,5 +1,6 @@
 import { numericID } from '#server/helper/id'
 import { authenticateWriteRequest, touchApiToken } from '#server/helper/api-token'
+import { requireTokenPageAccess } from '#server/helper/api-token-project'
 import { listPageTags } from '#server/helper/api-write'
 import type { ImportPageTags } from '#shared/types/Import'
 
@@ -17,7 +18,12 @@ export default defineEventHandler(async (event): Promise<ImportPageTags> => {
   if (!pageId) {
     throw createError({ statusCode: 400, statusMessage: 'Missing page id' })
   }
-  const result = await listPageTags(token.projectId, numericID(pageId))
+  const { projectId } = await requireTokenPageAccess(
+    token,
+    numericID(pageId),
+    getQuery(event).project
+  )
+  const result = await listPageTags(projectId, numericID(pageId))
   await touchApiToken(token)
   return result
 })
