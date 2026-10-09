@@ -4,7 +4,7 @@ import {
 } from '#server/helper/api-token'
 import { resolveTokenProject } from '#server/helper/api-token-project'
 import { deliveryMeta, resolveReleaseParam } from '#server/helper/api-delivery'
-import { tokenManagesReleases } from '#server/helper/api-author'
+import { tokenManagesReleases } from '#server/helper/api-capture'
 
 /**
  * Public read-only delivery API. Kept in `/api/v1` rather than reusing the UI

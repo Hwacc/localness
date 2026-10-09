@@ -2,20 +2,20 @@ import { createError } from 'h3'
 import prisma from '#server/libs/prisma'
 import { sourceLocaleOf } from '#server/helper/i18n'
 import { isProjectSteward } from '#server/helper/project-owner'
-import type { AuthorKeyHit, AuthorKeySearch, AuthorMatch, AuthorPage, AuthorTag } from '#shared/types/Import'
+import type { CaptureKeyHit, CaptureKeySearch, CaptureMatch, CapturePage, CaptureTag } from '#shared/types/Import'
 
 /**
- * Authoring reads for a design tool. Draft source text is visible here on
+ * Capture reads for a design tool. Draft source text is visible here on
  * purpose. `bundle` and `locales` stay published-only so a consumer of shipped
  * copy never receives a draft.
  */
 
 /** Layout whitespace is not wording, same rule the plugin used to apply locally. */
-export function normalizeAuthorText(text: string): string {
+export function normalizeCaptureText(text: string): string {
   return text.replace(/\s+/g, ' ').trim()
 }
 
-export interface AuthorSourceRow {
+export interface CaptureSourceRow {
   id: number
   key: string
   draftText: string | null
@@ -24,7 +24,7 @@ export interface AuthorSourceRow {
 }
 
 /** Draft wins. A published sentence is still a match when no draft has replaced it. */
-export function sourceWording(row: Pick<AuthorSourceRow, 'draftText' | 'publishedText'>): {
+export function sourceWording(row: Pick<CaptureSourceRow, 'draftText' | 'publishedText'>): {
   text: string
   draft: boolean
 } | null {
@@ -35,7 +35,7 @@ export function sourceWording(row: Pick<AuthorSourceRow, 'draftText' | 'publishe
   return null
 }
 
-export function toAuthorHit(row: AuthorSourceRow): AuthorKeyHit {
+export function toCaptureHit(row: CaptureSourceRow): CaptureKeyHit {
   const wording = sourceWording(row)
   return {
     id: row.id,
@@ -50,11 +50,11 @@ export function toAuthorHit(row: AuthorSourceRow): AuthorKeyHit {
  * Each submitted text keeps its place. Several keys sharing one wording all
  * come back — settling that is the person's job, not a release label's.
  */
-export function matchAuthorTexts(rows: AuthorSourceRow[], texts: string[]): AuthorMatch {
-  const byText = new Map<string, AuthorKeyHit[]>()
+export function matchCaptureTexts(rows: CaptureSourceRow[], texts: string[]): CaptureMatch {
+  const byText = new Map<string, CaptureKeyHit[]>()
   for (const row of rows) {
-    const hit = toAuthorHit(row)
-    const normalized = normalizeAuthorText(hit.sourceText)
+    const hit = toCaptureHit(row)
+    const normalized = normalizeCaptureText(hit.sourceText)
     if (!normalized) continue
     const bucket = byText.get(normalized)
     if (bucket) bucket.push(hit)
@@ -63,7 +63,7 @@ export function matchAuthorTexts(rows: AuthorSourceRow[], texts: string[]): Auth
   return {
     matches: texts.map((text) => ({
       text,
-      keys: byText.get(normalizeAuthorText(text)) ?? [],
+      keys: byText.get(normalizeCaptureText(text)) ?? [],
     })),
   }
 }
@@ -87,7 +87,7 @@ export async function assertTokenManagesReleases(userId: number, projectId: numb
   })
 }
 
-async function sourceRows(projectId: number): Promise<AuthorSourceRow[]> {
+async function sourceRows(projectId: number): Promise<CaptureSourceRow[]> {
   const locale = await sourceLocaleOf(projectId)
   const rows = await prisma.i18nKey.findMany({
     where: { projectId },
@@ -111,16 +111,16 @@ async function sourceRows(projectId: number): Promise<AuthorSourceRow[]> {
   }))
 }
 
-export async function matchAuthorLayers(projectId: number, texts: string[]): Promise<AuthorMatch> {
-  return matchAuthorTexts(await sourceRows(projectId), texts)
+export async function matchCaptureLayers(projectId: number, texts: string[]): Promise<CaptureMatch> {
+  return matchCaptureTexts(await sourceRows(projectId), texts)
 }
 
-export async function searchAuthorKeys(params: {
+export async function searchCaptureKeys(params: {
   projectId: number
   query: string
   offset?: number
   limit?: number
-}): Promise<AuthorKeySearch> {
+}): Promise<CaptureKeySearch> {
   const query = params.query.trim()
   const limit = Math.min(Math.max(params.limit ?? SEARCH_LIMIT, 1), 50)
   const offset = Math.max(params.offset ?? 0, 0)
@@ -163,7 +163,7 @@ export async function searchAuthorKeys(params: {
     }),
   ])
   const keys = rows.map((row) =>
-    toAuthorHit({
+    toCaptureHit({
       id: row.id,
       key: row.key,
       draftText: row.locales[0]?.draftText ?? null,
@@ -174,7 +174,7 @@ export async function searchAuthorKeys(params: {
   return { keys, total }
 }
 
-export async function readAuthorPage(projectId: number, pageId: number): Promise<AuthorPage> {
+export async function readCapturePage(projectId: number, pageId: number): Promise<CapturePage> {
   const locale = await sourceLocaleOf(projectId)
   const page = await prisma.page.findFirst({
     where: { id: pageId, projectID: projectId },
@@ -211,7 +211,7 @@ export async function readAuthorPage(projectId: number, pageId: number): Promise
     throw createError({ statusCode: 404, statusMessage: 'Page not found' })
   }
 
-  const tags: AuthorTag[] = page.tags.map((tag) => {
+  const tags: CaptureTag[] = page.tags.map((tag) => {
     const localeRow = tag.i18nKeyRecord?.locales[0]
     return {
       id: tag.id,

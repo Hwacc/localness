@@ -1,16 +1,16 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { matchAuthorTexts, type AuthorSourceRow } from '#server/helper/api-author'
+import { matchCaptureTexts, type CaptureSourceRow } from '#server/helper/api-capture'
 
-const row = (overrides: Partial<AuthorSourceRow> & Pick<AuthorSourceRow, 'id' | 'key'>): AuthorSourceRow => ({
+const row = (overrides: Partial<CaptureSourceRow> & Pick<CaptureSourceRow, 'id' | 'key'>): CaptureSourceRow => ({
   draftText: null,
   publishedText: null,
   releaseIds: [],
   ...overrides,
 })
 
-describe('matchAuthorTexts', () => {
+describe('matchCaptureTexts', () => {
   it('matches a unique draft and a unique published sentence', () => {
-    const result = matchAuthorTexts(
+    const result = matchCaptureTexts(
       [
         row({ id: 1, key: 'save', draftText: 'Save', releaseIds: [3] }),
         row({ id: 2, key: 'done', publishedText: 'Done' }),
@@ -24,7 +24,7 @@ describe('matchAuthorTexts', () => {
   })
 
   it('prefers the draft when both sides exist, and keeps every ambiguous hit', () => {
-    const result = matchAuthorTexts(
+    const result = matchCaptureTexts(
       [
         row({ id: 1, key: 'a', draftText: 'Hello', publishedText: 'Old' }),
         row({ id: 2, key: 'b', draftText: 'Hello' }),
@@ -36,7 +36,7 @@ describe('matchAuthorTexts', () => {
   })
 
   it('ignores line breaks when comparing', () => {
-    const result = matchAuthorTexts([row({ id: 1, key: 'wrap', draftText: 'Sign in' })], ['Sign\n  in'])
+    const result = matchCaptureTexts([row({ id: 1, key: 'wrap', draftText: 'Sign in' })], ['Sign\n  in'])
     expect(result.matches[0]?.keys.map((hit) => hit.key)).toEqual(['wrap'])
   })
 })
@@ -134,7 +134,7 @@ vi.mock('#server/libs/prisma', () => {
 })
 
 const { createPageWithTags, upsertPageWithTags } = await import('#server/helper/api-write')
-const { assertTokenManagesReleases } = await import('#server/helper/api-author')
+const { assertTokenManagesReleases } = await import('#server/helper/api-capture')
 
 beforeEach(() => {
   db.keys = []
@@ -146,7 +146,7 @@ beforeEach(() => {
   db.nextId = 1
 })
 
-describe('authoring writes', () => {
+describe('capture writes', () => {
   it('creates a draft key and does not publish it', async () => {
     const result = await createPageWithTags({
       projectId: 7,
