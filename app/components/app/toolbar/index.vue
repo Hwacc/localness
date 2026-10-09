@@ -7,6 +7,21 @@ import { SCALE_OPTIONS } from '#shared/constants'
 const { editor, ready, scale, mode, lineWidth, lineColor } =
   injectEditorContext()
 
+const pageStore = usePageStore()
+const autoSave = useAutoSave()
+const refreshing = ref(false)
+
+async function refreshPage() {
+  if (!validID(pageStore.curPage.id) || refreshing.value) return
+  refreshing.value = true
+  try {
+    await autoSave.ask()
+    await pageStore.reloadCurrentPage()
+  } finally {
+    refreshing.value = false
+  }
+}
+
 // scale
 const scaleText = computed(() => `${Math.trunc(scale.value * 100)}%`)
 function onScaleChange(type: 'plus' | 'minus' | 'set', s?: number) {
@@ -120,6 +135,17 @@ function onLineColorChange(c: string | undefined) {
           :model-value="lineColor"
           @update:model-value="onLineColorChange"
         />
+        <UTooltip text="Reload page">
+          <UButton
+            icon="i-lucide:refresh-cw"
+            size="md"
+            color="neutral"
+            variant="outline"
+            :loading="refreshing"
+            :disabled="!ready || !validID(pageStore.curPage.id)"
+            @click="refreshPage"
+          />
+        </UTooltip>
         <EditorHelpSlideover />
       </div>
     </div>

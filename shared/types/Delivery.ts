@@ -23,6 +23,11 @@ export interface DeliveryMeta {
     projectKeys: number
     publishedPerLocale: Record<string, number>
   }
+  /**
+   * Whether this token's owner may define release labels on the project.
+   * Attaching a label to a page or a key is separate, and does not need this.
+   */
+  canManageReleases: boolean
   /** ISO 8601. */
   generatedAt: string
 }
@@ -43,6 +48,16 @@ export interface DeliveryProjectRef {
  */
 export interface DeliveryProjects {
   projects: DeliveryProjectRef[]
+  /** ISO 8601. */
+  generatedAt: string
+}
+
+/**
+ * `GET /api/v1/keys` — names only; text is `/bundle`'s job. Load-bearing as a
+ * superset of that bundle's keys: omitting one there breaks a tie silently.
+ */
+export interface DeliveryKeys {
+  keys: string[]
   /** ISO 8601. */
   generatedAt: string
 }

@@ -4,6 +4,7 @@ import {
   entryMatchesReleaseFilter,
   pageMatchesReleaseFilter,
   releaseMembershipDiff,
+  releaseNamesForIds,
   resolveReleaseFilterValue,
 } from '#shared/utils/release'
 
@@ -31,6 +32,22 @@ describe('entryMatchesReleaseFilter', () => {
     expect(entryMatchesReleaseFilter([7], 7)).toBe(true)
     // A string comparison by substring would wrongly match "17" here.
     expect(entryMatchesReleaseFilter(['17'], 7)).toBe(false)
+  })
+})
+
+describe('releaseNamesForIds', () => {
+  it('joins the names in project order and skips unknown ids', () => {
+    expect(
+      releaseNamesForIds([2, 1], [
+        { id: 1, name: 'v1' },
+        { id: 2, name: 'v2' },
+      ])
+    ).toBe('v1, v2')
+  })
+
+  it('is empty when the entry has no labels', () => {
+    expect(releaseNamesForIds(undefined, [{ id: 1, name: 'v1' }])).toBe('')
+    expect(releaseNamesForIds([], [{ id: 1, name: 'v1' }])).toBe('')
   })
 })
 

@@ -510,8 +510,8 @@ export const API_V1_MAX_TAGS = 500
  * no `className` (the server writes the same constant the editor does), no
  * `settings`, no `releaseIds` — none of those are an importer's business, and
  * `zPage`'s mandatory settings blob is a form artifact rather than a contract.
- * `i18nKey` is a name the importer resolved from published copy; an unknown one
- * is left unbound instead of creating a key.
+ * `i18nKey` binds a key that already exists; an unknown name stays unbound.
+ * `keyName` is a new key to create, with `sourceText` written as its draft.
  */
 export const zApiV1Tag = z.object({
   figmaNodeId: z.string().min(1),
@@ -520,6 +520,15 @@ export const zApiV1Tag = z.object({
   width: z.number().nonnegative(),
   height: z.number().nonnegative(),
   i18nKey: zNilable(z.string()),
+  /** Present only when this layer should become a new draft key. */
+  keyName: z.string().trim().max(200).optional(),
+  /** The layer's wording. Written as draft source text for the bound key. */
+  sourceText: z.string().optional(),
+  /**
+   * Append `releaseId` from the page request onto this key. Absent means the
+   * key's labels stay as they are — a checked layer is not itself a label.
+   */
+  labelRelease: z.boolean().optional(),
 })
 export type ZApiV1Tag = z.infer<typeof zApiV1Tag>
 
@@ -527,6 +536,11 @@ export const zApiV1PageCreate = z.object({
   name: z.string().trim().min(1).max(200),
   image: z.string().min(1),
   tags: z.array(zApiV1Tag).max(API_V1_MAX_TAGS).default([]),
+  /**
+   * When set, the new page is labelled with it. A key is labelled only when its
+   * tag sets `labelRelease`. Omitted means no label. Never removes a label.
+   */
+  releaseId: z.number().int().positive().optional(),
 })
 export type ZApiV1PageCreate = z.infer<typeof zApiV1PageCreate>
 
@@ -535,6 +549,11 @@ export const zApiV1PageUpdate = z.object({
   name: z.string().trim().min(1).max(200).optional(),
   image: z.string().min(1).optional(),
   tags: z.array(zApiV1Tag).max(API_V1_MAX_TAGS).optional(),
+  /**
+   * Appends this label to the page. Keys are labelled only when their tag sets
+   * `labelRelease`. Labels already on a key are not removed.
+   */
+  releaseId: z.number().int().positive().optional(),
 })
 export type ZApiV1PageUpdate = z.infer<typeof zApiV1PageUpdate>
 
@@ -543,3 +562,9 @@ export const zApiV1TagDelete = z.object({
   tagIds: z.array(z.number().int().positive()).min(1).max(API_V1_MAX_TAGS),
 })
 export type ZApiV1TagDelete = z.infer<typeof zApiV1TagDelete>
+
+/** `POST /api/v1/match`. The texts are layer wordings, not key names. */
+export const zApiV1Match = z.object({
+  texts: z.array(z.string()).max(API_V1_MAX_TAGS),
+})
+export type ZApiV1Match = z.infer<typeof zApiV1Match>

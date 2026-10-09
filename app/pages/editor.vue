@@ -9,6 +9,7 @@ import { DEFAULT_LINE_COLOR, DEFAULT_LINE_WIDTH } from '#shared/constants'
 import { injectTaskContext } from '~/providers/TaskProvider.vue'
 import { Task } from '~/libs/task-queue'
 import { TranslationLinkModal } from '#components'
+import { entryMatchesReleaseFilter, releaseNameForExport } from '#shared/utils/release'
 
 definePageMeta({
   middleware: ['protected'],
@@ -18,7 +19,7 @@ definePageMeta({
 const pageStore = usePageStore()
 const { curPage, tagList } = storeToRefs(pageStore)
 const projectStore = useProjectStore()
-const { curProject } = storeToRefs(projectStore)
+const { curProject, curReleaseFilter, curReleases } = storeToRefs(projectStore)
 const tagStore = useTagStore()
 const ossImage = useOSSImage()
 const autoSave = useAutoSave()
@@ -102,10 +103,28 @@ watchEffect(() => {
   initImage()
 })
 
-watch(tagList, (tags) => {
-  if (editor.value?.ready) {
-    editor.value.setTags(tags)
-  }
+function tagsOnCanvas() {
+  return tagList.value.filter((tag) =>
+    entryMatchesReleaseFilter(tag.translation?.releaseIds, curReleaseFilter.value)
+  )
+}
+
+function syncCanvasTags() {
+  editor.value?.setTags(tagsOnCanvas())
+}
+
+function syncReleaseWatermark() {
+  editor.value?.setReleaseWatermark(
+    releaseNameForExport(curReleaseFilter.value, curReleases.value) ?? ''
+  )
+}
+
+watch([tagList, curReleaseFilter], () => {
+  if (editor.value?.ready) syncCanvasTags()
+})
+
+watch([curReleaseFilter, curReleases], () => {
+  if (editor.value?.ready) syncReleaseWatermark()
 })
 
 watch(
@@ -140,7 +159,8 @@ onMounted(async () => {
   })
   editor.value.on('image-loaded', () => {
     const _setTags = () => {
-      editor.value?.setTags(tagList.value)
+      editor.value?.setTags(tagsOnCanvas())
+      syncReleaseWatermark()
       if (validID(pendingTagId.value)) {
         editor.value?.selectTagById(pendingTagId.value)
         pendingTagId.value = undefined

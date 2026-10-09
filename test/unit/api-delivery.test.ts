@@ -183,6 +183,7 @@ vi.mock('#server/libs/prisma', () => ({
 const {
   deliveryKey,
   deliveryKeyLocales,
+  deliveryKeys,
   deliveryLocale,
   deliveryMeta,
   deliveryBundle,
@@ -471,6 +472,57 @@ describe('deliveryBundle', () => {
     expect(JSON.stringify(bundle)).toBe(
       JSON.stringify({ en: { a: 'A' }, zh: { b: '乙' } })
     )
+  })
+})
+
+describe('deliveryKeys', () => {
+  beforeEach(() => {
+    db.keys = [
+      { id: 1, key: 'alpha', releaseIds: [4] },
+      { id: 2, key: 'beta', releaseIds: [5] },
+      { id: 3, key: 'gamma', releaseIds: [] },
+    ]
+    db.values = [
+      { locale: 'en', keyId: 1, publishedText: 'A' },
+      { locale: 'ja', keyId: 2, publishedText: 'B' },
+      { locale: 'en', keyId: 3, publishedText: '' },
+    ]
+  })
+
+  it('lists every published key when no release is named', async () => {
+    expect(await deliveryKeys(1, null)).toEqual(['alpha', 'beta'])
+  })
+
+  it('narrows to one release', async () => {
+    expect(await deliveryKeys(1, 4)).toEqual(['alpha'])
+    expect(await deliveryKeys(1, 5)).toEqual(['beta'])
+  })
+
+  it('sorts by key, so the result is byte-stable', async () => {
+    db.keys = [
+      { id: 9, key: 'zulu', releaseIds: [] },
+      { id: 8, key: 'alpha', releaseIds: [] },
+    ]
+    db.values = [
+      { locale: 'en', keyId: 9, publishedText: 'Z' },
+      { locale: 'en', keyId: 8, publishedText: 'A' },
+    ]
+    expect(await deliveryKeys(1, null)).toEqual(['alpha', 'zulu'])
+  })
+
+  it('omits a key with no published text', async () => {
+    expect(await deliveryKeys(1, null)).not.toContain('gamma')
+  })
+
+  it('never misses a key the bundle offers', async () => {
+    for (const releaseId of [null, 4, 5]) {
+      const bundle = await deliveryBundle(1, releaseId, ['en', 'ja'])
+      const inBundle = new Set(
+        Object.values(bundle).flatMap((entries) => Object.keys(entries))
+      )
+      const listed = await deliveryKeys(1, releaseId)
+      for (const key of inBundle) expect(listed).toContain(key)
+    }
   })
 })
 

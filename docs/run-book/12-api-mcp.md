@@ -23,7 +23,7 @@
 | **只有已发布**          | 草稿一律取不到。某条词条在这个语言还没发布，它就**不出现**，而不是返回空字符串                                    |
 | **不做回退**            | 缺失的 key**不会**用源语言或别的语言补上。调用方要自己决定缺了怎么显示——直接把 key 名露在界面上是最糟的那种处理 |
 | **只能按 release 收窄** | 没有别的筛选参数                                                                                                        |
-| **写入面只服务于导入**   | 只有 `write` token 能用，且只够建页面、画 Tag、清理——改不了词条文案                                                |
+| **写入面服务于创作**   | 只有 `write` token 能建页面、画 Tag、把图层文字写入草稿源文、给 page / 词条挂发行。再导入会更新草稿，不改已发布文案。`/bundle` 和 `/locales` 仍然只返回已发布文案。建发行标签本身要 Project Owner |
 
 **token 属于你，不属于项目**：一枚 token 可以指定它能碰**哪些**项目。只指定一个时，请求里根本不用写项目名——**改动之前发的 token 全都是这种**，行为和以前一模一样。
 
@@ -74,7 +74,12 @@
 | `GET /api/v1/projects`        | **这枚 token 现在能碰哪些项目**。只凭 token 的调用方从这里开始                     |
 | `GET /api/v1/meta`            | 语言列表、`localeFallback`、可用的 release、以及**每个语言有多少条已发布** |
 | `GET /api/v1/locales/:locale` | 一个语言的扁平`{ key: text }`                                                    |
-| `GET /api/v1/bundle`          | 一次拿到全部语言：`{ locale: { key: text } }`                                    |
+| `GET /api/v1/bundle`          | 一次拿到全部语言：`{ locale: { key: text } }`。只有已发布 |
+| `GET /api/v1/keys/search?q=`  | 给绑定下拉用。key 和源文，**含草稿**，分页 |
+| `POST /api/v1/match`          | 一批图层文字对上哪些已有词条（草稿优先，否则已发布）。每个命中都返回 |
+| `GET /api/v1/pages/:id`       | 创作读：这一页的 tag、草稿源文、page 和词条上的发行标签 |
+| `POST /api/v1/releases`       | 新建发行标签。Project Owner，write token |
+| `POST /api/v1/release-membership` | 给 page 或词条追加 / 摘掉一个发行。不删内容 |
 
 **什么时候要带 `?project=`：数这枚 token 当初被指定了**几个**项目**（不是"现在还能碰到几个"）。
 
@@ -171,7 +176,7 @@ Authorization: Bearer <token>
 | `Unknown release: v1`                      | `?release=` 的名字这个项目里没有。名字写错不会退回全量                                                                                                    |
 | 调`/meta` 返回的项目名不是你要的           | `?project=` 写错了——**名字必须唯一命中**，有重名就得用 id。别猜，先调`/api/v1/projects`                                                            |
 | 关掉弹窗后 token 找不到了                    | 明文只有创建那一次。吊销重发                                                                                                                                |
-| 某条词条在接口里查不到                       | 它在这个语言还没**发布**。草稿取不到                                                                                                                  |
+| 某条词条在 `/bundle` 里查不到                       | 它在这个语言还没**发布**。草稿走 `GET /api/v1/pages/:id` 和 `GET /api/v1/keys/search`，不走 bundle |
 | 某个语言少了半截 key                         | 那些 key 在这个语言没发布，API**不会**拿别的语言补上                                                                                                  |
 | **Revoke** 点错了                      | 没有二次确认，撤不回来。重新建一枚，名字里带上用途                                                                                                          |
 | 已经吊销的行点**Delete** 没反应        | 只有 token 的主人本人或平台管理员能硬删                                                                                                                      |
