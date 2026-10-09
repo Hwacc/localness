@@ -7,6 +7,20 @@ import { isEmpty, orderBy } from 'lodash-es'
 import { TaskState } from '~/libs/task-queue/types'
 
 const { taskList } = injectTaskContext()
+const projectStore = useProjectStore()
+const autoSave = useAutoSave()
+const refreshing = ref(false)
+
+async function refreshPages() {
+  if (!validID(projectStore.curProject.id) || refreshing.value) return
+  refreshing.value = true
+  try {
+    await autoSave.ask()
+    await projectStore.reloadCurrentPages()
+  } finally {
+    refreshing.value = false
+  }
+}
 
 const enterTaskIndex = ref<number | null>(null)
 const clearTag = ref<number>(new Date().getTime())
@@ -44,6 +58,17 @@ function getTaskStateIcon(state: TaskState) {
 <template>
   <div class="flex items-center justify-between py-4 px-2 gap-2 shadow">
     <div class="flex-1 text-base font-bold overflow-hidden">Pages</div>
+    <UTooltip text="Reload pages">
+      <UButton
+        icon="i-lucide:refresh-cw"
+        size="sm"
+        color="neutral"
+        variant="ghost"
+        :loading="refreshing"
+        :disabled="!validID(projectStore.curProject.id)"
+        @click="refreshPages"
+      />
+    </UTooltip>
     <UPopover
       v-if="sortedTaskList.length > 0"
       :content="{ side: 'bottom', align: 'start' }"
