@@ -265,6 +265,32 @@ export const useProjectStore = defineStore('project', () => {
     return false
   }
 
+  /** The page list is whatever arrived with the project. Plugin uploads land after that. */
+  async function reloadCurrentPages() {
+    const id = curProject.value.id
+    if (!validID(id)) return
+    const list = await useApi<IProject[]>('/api/project')
+    const fresh = list?.find((project) => String(project.id) === String(id))
+    if (!fresh) return
+    const openId = pageStore.curPage.id
+    curProject.value = {
+      ...curProject.value,
+      name: fresh.name,
+      pages: fresh.pages,
+      releases: fresh.releases ?? curProject.value.releases,
+    }
+    projects.value = projects.value.map((project) =>
+      String(project.id) === String(id)
+        ? { ...project, name: fresh.name, pages: fresh.pages, releases: fresh.releases }
+        : project
+    )
+    ensureCurrentPageVisible()
+    const stillOpen = (fresh.pages ?? []).find((page) => String(page.id) === String(openId))
+    if (!stillOpen || String(pageStore.curPage.id) !== String(openId)) return
+    pageStore.curPage = { ...pageStore.curPage, ...stillOpen }
+    await pageStore.loadTags(openId)
+  }
+
   return {
     projects,
     teams,
@@ -277,6 +303,7 @@ export const useProjectStore = defineStore('project', () => {
     projectsByTeam,
     curTeamProjects,
     getProjects,
+    reloadCurrentPages,
     getTeams,
     createProject,
     updateProject,
