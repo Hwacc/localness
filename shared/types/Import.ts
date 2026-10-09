@@ -1,6 +1,6 @@
 /**
  * Response shapes of the write half of the public `/api/v1` API, plus the
- * authoring reads a design tool needs. They live in `shared` for the same
+ * capture reads a design tool needs. They live in `shared` for the same
  * reason `Delivery.ts` does: callers outside this repo (the design-tool plugin)
  * type against them, so changing a field here is a breaking change for those
  * callers. New fields are additions.
@@ -64,8 +64,8 @@ export interface DeleteTagsResult {
   ignored: number
 }
 
-/** A key the authoring picker and the text match can both return. Drafts included. */
-export interface AuthorKeyHit {
+/** A key the capture picker and the text match can both return. Drafts included. */
+export interface CaptureKeyHit {
   id: number
   key: string
   /** Source-language text: the draft when one exists, otherwise the published text. */
@@ -76,31 +76,31 @@ export interface AuthorKeyHit {
 }
 
 /** `GET /api/v1/keys/search` */
-export interface AuthorKeySearch {
-  keys: AuthorKeyHit[]
+export interface CaptureKeySearch {
+  keys: CaptureKeyHit[]
   total: number
 }
 
 /** `POST /api/v1/match`. One entry per submitted text, in the same order. */
-export interface AuthorMatch {
-  matches: Array<{ text: string; keys: AuthorKeyHit[] }>
+export interface CaptureMatch {
+  matches: Array<{ text: string; keys: CaptureKeyHit[] }>
 }
 
 /**
- * `GET /api/v1/pages/:id`. The page as an author sees it: draft source text and
+ * `GET /api/v1/pages/:id`. The page as capture sees it: draft source text and
  * the release labels on the page and on each tag's key. A tag has no labels of
  * its own — `releaseIds` are the bound key's.
  */
-export interface AuthorTag extends ImportedTag {
+export interface CaptureTag extends ImportedTag {
   draftText: string | null
   publishedText: string | null
   releaseIds: number[]
 }
 
-export interface AuthorPage {
+export interface CapturePage {
   pageId: number
   name: string
   image: string | null
   releaseIds: number[]
-  tags: AuthorTag[]
+  tags: CaptureTag[]
 }

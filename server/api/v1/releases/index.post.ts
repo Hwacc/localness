@@ -1,6 +1,6 @@
 import { authenticateWriteRequest, touchApiToken } from '#server/helper/api-token'
 import { resolveTokenProject } from '#server/helper/api-token-project'
-import { assertTokenManagesReleases } from '#server/helper/api-author'
+import { assertTokenManagesReleases } from '#server/helper/api-capture'
 import { createRelease, throwReleaseHttp } from '#server/helper/release'
 import { readZodBody } from '#server/helper/validate'
 import { zReleaseCreate } from '#shared/utils/schemas'
