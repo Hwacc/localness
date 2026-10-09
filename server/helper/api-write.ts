@@ -1,6 +1,10 @@
 import { createError } from 'h3'
 import prisma from '#server/libs/prisma'
+import { fpTranslation, DRAFT_KEY_PREFIX } from '#shared/utils'
+import { DEFAULT_LOCALE_FALLBACK } from '#shared/constants'
 import type { ZApiV1Tag } from '#shared/utils/schemas'
+import { writeSourceText } from '#server/helper/i18n'
+import { assertReleaseIdsInProject, setReleaseMembership, throwReleaseHttp } from '#server/helper/release'
 import type {
   CreatePageResult,
   DeleteTagsResult,
@@ -77,11 +81,9 @@ export async function assertPageInProject(pageId: number, projectId: number) {
 }
 
 /**
- * One query for every key a batch mentions. The importer only ever sends names
- * it read out of published copy, so they already exist as rows — which is why
- * this is a lookup and not `resolveTagI18n`, whose job is to *create* keys and
- * write source text. Importing must never do that; that is the key generator's
- * job. An unknown name is simply absent from the map and the tag stays unbound.
+ * One query for every key name a batch mentions. An `i18nKey` that is absent
+ * stays unbound — creation happens only for `keyName`, and only when that name
+ * is not already a row.
  */
 export async function resolveKeyIds(
   projectId: number,
@@ -109,13 +111,115 @@ export async function listPageTags(
   return { pageId, tags: rows.map(shapeTag) }
 }
 
+type KeyStore = {
+  i18nKey: {
+    create: (args: {
+      data: { projectId: number; key: string; fingerprint: string }
+    }) => Promise<{ id: number }>
+  }
+  localeValue: {
+    upsert: (args: unknown) => Promise<unknown>
+  }
+  i18nKeyRelease: {
+    create: (args: { data: { i18nKeyId: number; releaseId: number } }) => Promise<unknown>
+  }
+}
+
+/**
+ * The key this layer should use. A name in the request wins, including a
+ * `__draft_` key the caller picked. The wording only names a placeholder when
+ * the request did not name a key at all.
+ */
+export function keyChoice(tag: ZApiV1Tag): string | null {
+  const named = tag.keyName?.trim()
+  if (named) return named
+  const explicit = tag.i18nKey?.trim()
+  if (explicit) return explicit
+  const source = tag.sourceText?.trim()
+  if (source) return `${DRAFT_KEY_PREFIX}${fpTranslation(source)}`
+  return null
+}
+
+/**
+ * Bind a key that already exists, or create one. `i18nKey` never creates.
+ * `keyName` and a `__draft_` placeholder do. Source text is written onto the
+ * draft side whenever this layer carried wording.
+ */
+async function bindOrCreateKey(
+  store: KeyStore,
+  keyIds: Map<string, number>,
+  tag: ZApiV1Tag,
+  projectId: number,
+  sourceLocale: string,
+  releaseId: number | undefined
+): Promise<{ i18nKey: string | null; i18nKeyId: number | null }> {
+  const name = keyChoice(tag)
+  if (!name) return { i18nKey: null, i18nKeyId: null }
+  const found = keyIds.get(name)
+  const creating =
+    found === undefined &&
+    (Boolean(tag.keyName?.trim()) || name.startsWith(DRAFT_KEY_PREFIX))
+  if (found === undefined && !creating) return { i18nKey: null, i18nKeyId: null }
+
+  let keyId = found
+  if (keyId === undefined) {
+    const created = await store.i18nKey.create({
+      data: {
+        projectId,
+        key: name,
+        fingerprint: tag.sourceText?.trim() ? fpTranslation(tag.sourceText) : '',
+      },
+    })
+    keyId = created.id
+    keyIds.set(name, keyId)
+  }
+  if (tag.sourceText?.trim()) {
+    await writeSourceText(
+      {
+        projectId,
+        i18nKeyId: keyId,
+        text: tag.sourceText,
+        sourceLocale,
+      },
+      store as unknown as Pick<typeof prisma, 'localeValue'>
+    )
+  }
+  if (tag.labelRelease && releaseId !== undefined) {
+    await setReleaseMembership({
+      projectId,
+      releaseId,
+      kind: 'key',
+      ids: [keyId],
+      mode: 'add',
+    })
+  }
+  return { i18nKey: name, i18nKeyId: keyId }
+}
+
+async function stampPageRelease(projectId: number, pageId: number, releaseId: number | undefined) {
+  if (releaseId === undefined) return
+  try {
+    await assertReleaseIdsInProject({ projectId, releaseIds: [releaseId] })
+    await setReleaseMembership({
+      projectId,
+      releaseId,
+      kind: 'page',
+      ids: [pageId],
+      mode: 'add',
+    })
+  } catch (error) {
+    throwReleaseHttp(error)
+  }
+}
+
 export async function createPageWithTags(params: {
   projectId: number
   name: string
   image: string
   tags: ZApiV1Tag[]
+  releaseId?: number
 }): Promise<CreatePageResult> {
-  const { projectId, name, image, tags } = params
+  const { projectId, name, image, tags, releaseId } = params
   const project = await prisma.project.findUnique({
     where: { id: projectId },
     include: { settings: true },
@@ -123,9 +227,17 @@ export async function createPageWithTags(params: {
   if (!project) {
     throw createError({ statusCode: 404, statusMessage: 'Project not found' })
   }
+  if (releaseId !== undefined) {
+    try {
+      await assertReleaseIdsInProject({ projectId, releaseIds: [releaseId] })
+    } catch (error) {
+      throwReleaseHttp(error)
+    }
+  }
+  const sourceLocale = project.settings?.localeFallback || DEFAULT_LOCALE_FALLBACK
   const keyIds = await resolveKeyIds(
     projectId,
-    tags.map((tag) => tag.i18nKey)
+    tags.flatMap((tag) => [tag.i18nKey, tag.keyName, keyChoice(tag)])
   )
 
   return prisma.$transaction(async (tx) => {
@@ -146,9 +258,20 @@ export async function createPageWithTags(params: {
       },
     })
 
+    if (releaseId !== undefined) {
+      await tx.pageRelease.create({ data: { pageId: page.id, releaseId } })
+    }
+
     const created: ImportedTag[] = []
     for (const tag of tags) {
-      const keyId = tag.i18nKey ? (keyIds.get(tag.i18nKey) ?? null) : null
+      const bound = await bindOrCreateKey(
+        tx as unknown as KeyStore,
+        keyIds,
+        tag,
+        projectId,
+        sourceLocale,
+        releaseId
+      )
       const row = await tx.tag.create({
         data: {
           pageID: page.id,
@@ -162,8 +285,8 @@ export async function createPageWithTags(params: {
           width: tag.width,
           height: tag.height,
           figmaNodeId: tag.figmaNodeId,
-          i18nKey: keyId === null ? null : tag.i18nKey,
-          i18nKeyId: keyId,
+          i18nKey: bound.i18nKey,
+          i18nKeyId: bound.i18nKeyId,
         },
         select: TAG_FIELDS,
       })
@@ -178,12 +301,10 @@ export async function createPageWithTags(params: {
 }
 
 /**
- * Re-import. Geometry is the importer's; the key is the editor's, so an existing
- * tag's binding is never touched — a designer who re-pointed a tag at another
- * key by hand must keep that choice.
- *
- * Nothing is deleted. A tag whose node was not in this request comes back in
- * `stale` for the caller to act on deliberately.
+ * Re-import. Geometry and draft source follow the design. A formal key in the
+ * request is kept; a placeholder follows the wording, so a changed sentence
+ * leaves the old `__draft_` key. Nothing is deleted. A tag whose node was not
+ * in this request comes back in `stale` for the caller to act on deliberately.
  */
 export async function upsertPageWithTags(params: {
   projectId: number
@@ -191,9 +312,11 @@ export async function upsertPageWithTags(params: {
   name?: string
   image?: string
   tags?: ZApiV1Tag[]
+  releaseId?: number
 }): Promise<ImportPageResult> {
-  const { projectId, pageId, name, image, tags } = params
+  const { projectId, pageId, name, image, tags, releaseId } = params
   const page = await assertPageInProject(pageId, projectId)
+  await stampPageRelease(projectId, pageId, releaseId)
 
   if (name !== undefined || image !== undefined) {
     await prisma.page.update({
@@ -219,28 +342,42 @@ export async function upsertPageWithTags(params: {
   // "this frame has no text layers any more" — and every tag on the page is then
   // stale. Only an absent field is a request that never mentioned tags.
   if (tags !== undefined) {
+    const project = await prisma.project.findUnique({
+      where: { id: projectId },
+      select: { settings: { select: { localeFallback: true } } },
+    })
+    const sourceLocale = project?.settings?.localeFallback || DEFAULT_LOCALE_FALLBACK
     const keyIds = await resolveKeyIds(
       projectId,
-      tags.map((tag) => tag.i18nKey)
+      tags.flatMap((tag) => [tag.i18nKey, tag.keyName, keyChoice(tag)])
     )
     for (const tag of tags) {
       seen.add(tag.figmaNodeId)
       const current = byNode.get(tag.figmaNodeId)
+      const bound = await bindOrCreateKey(
+        prisma as unknown as KeyStore,
+        keyIds,
+        tag,
+        projectId,
+        sourceLocale,
+        releaseId
+      )
       if (current) {
         await prisma.tag.update({
           where: { id: current.id },
-          // Geometry only. `i18nKey`/`i18nKeyId` are absent by construction.
           data: {
             x: tag.x,
             y: tag.y,
             width: tag.width,
             height: tag.height,
+            ...(bound.i18nKeyId
+              ? { i18nKey: bound.i18nKey, i18nKeyId: bound.i18nKeyId }
+              : {}),
           },
         })
         updated += 1
         continue
       }
-      const keyId = tag.i18nKey ? (keyIds.get(tag.i18nKey) ?? null) : null
       const row = await prisma.tag.create({
         data: {
           pageID: pageId,
@@ -251,8 +388,8 @@ export async function upsertPageWithTags(params: {
           width: tag.width,
           height: tag.height,
           figmaNodeId: tag.figmaNodeId,
-          i18nKey: keyId === null ? null : tag.i18nKey,
-          i18nKeyId: keyId,
+          i18nKey: bound.i18nKey,
+          i18nKeyId: bound.i18nKeyId,
         },
         select: { id: true },
       })

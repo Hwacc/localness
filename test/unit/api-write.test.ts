@@ -380,9 +380,7 @@ describe('upsertPageWithTags', () => {
     expect(db.tags.find((row) => row.id === tag.id)).toMatchObject({ x: 111, y: 222 })
   })
 
-  it('never writes the binding on an existing tag', async () => {
-    // The key belongs to the editor. A designer who re-pointed this tag by hand
-    // must keep that choice, so the update body carries geometry and nothing else.
+  it('follows the key named in the request when that key exists', async () => {
     seedPage()
     seedTag({ figmaNodeId: '1:2', i18nKey: 'picked.by.hand', i18nKeyId: 55 })
     seedKey(200, 'home.title')
@@ -393,17 +391,9 @@ describe('upsertPageWithTags', () => {
       tags: [desired({ i18nKey: 'home.title' })],
     })
 
-    const tagWrites = db.writes.filter((write) => write.model === 'tag')
-    expect(tagWrites).toHaveLength(1)
-    expect(Object.keys(tagWrites[0]!.data).sort()).toEqual([
-      'height',
-      'width',
-      'x',
-      'y',
-    ])
     expect(db.tags[0]).toMatchObject({
-      i18nKey: 'picked.by.hand',
-      i18nKeyId: 55,
+      i18nKey: 'home.title',
+      i18nKeyId: 200,
     })
   })
 

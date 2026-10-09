@@ -112,6 +112,25 @@ export const usePageStore = defineStore('page', () => {
     }
   }
 
+  async function reloadCurrentPage() {
+    const id = curPage.value.id
+    if (!validID(id)) return
+    const fresh = await useApi<IPage>(`/api/page/${id}`)
+    if (fresh) {
+      curPage.value = {
+        ...curPage.value,
+        name: fresh.name ?? curPage.value.name,
+        image: fresh.image,
+      }
+      projectStore.curProject.pages = projectStore.curProject.pages?.map((page) =>
+        page.id === fresh.id
+          ? { ...page, name: fresh.name ?? page.name, image: fresh.image }
+          : page
+      )
+    }
+    await loadTags(id)
+  }
+
   async function setCurrentPage(page: IPage) {
     try {
       if (validID(page.id)) await loadTags(page.id)
@@ -150,6 +169,7 @@ export const usePageStore = defineStore('page', () => {
     curPage,
     tagList,
     loadTags,
+    reloadCurrentPage,
     setTags,
     createPage,
     updatePage,

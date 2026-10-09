@@ -7,7 +7,7 @@ import type {
   PropertyEvent,
   ImageEvent,
 } from 'leafer-ui'
-import { PointerEvent, Image, DragEvent } from 'leafer-ui'
+import { PointerEvent, Image, DragEvent, Text } from 'leafer-ui'
 import '@leafer-in/view'
 import '@leafer-in/viewport'
 import '@leafer-in/export'
@@ -26,6 +26,7 @@ import FuncBtnGroup from './buttons/FuncBtnGroup'
 import { FuncBtnType } from './buttons/FuncBtn'
 import EditorTag from './EditorTag'
 import { DEFAULT_LINE_COLOR, DEFAULT_LINE_WIDTH } from '#shared/constants'
+import type { ID } from '#shared/types'
 
 class Editor extends EditorInteraction {
   private tempTag: EditorTag | null = null
@@ -139,6 +140,7 @@ class Editor extends EditorInteraction {
         fill: 'transparent',
         zIndex: 10,
       })
+      this.layoutReleaseWatermark()
       this.autoFitImage()
     }
     if (!this.app.tree.ready) {
@@ -408,6 +410,9 @@ class Editor extends EditorInteraction {
     })
   }
 
+  private releaseWatermark: Text | null = null
+  private releaseWatermarkText = ''
+
   private renderTags(tags: ITag[]) {
     this.groupTag.clear()
     if (isEmpty(tags)) return
@@ -478,6 +483,51 @@ class Editor extends EditorInteraction {
       return
     }
     this.renderTags(tags)
+  }
+
+  /**
+   * The release being viewed, in the screenshot's bottom-right corner. Not a
+   * tag: it is not selectable, and it is absent for All releases.
+   */
+  public setReleaseWatermark(text: string) {
+    this.releaseWatermarkText = text.trim()
+    this.layoutReleaseWatermark()
+  }
+
+  private layoutReleaseWatermark() {
+    const text = this.releaseWatermarkText
+    if (!text) {
+      this.releaseWatermark?.remove()
+      this.releaseWatermark = null
+      return
+    }
+    const width = this.imageSrcSize.width || this.image.width || 0
+    const height = this.imageSrcSize.height || this.image.height || 0
+    if (!width || !height) return
+    const fontSize = Math.max(12, Math.round(Math.min(width, height) / 40))
+    const pad = Math.max(12, Math.round(fontSize * 0.6))
+    const options = {
+      text,
+      x: width - pad,
+      y: height - pad,
+      around: 'bottom-right' as const,
+      rotation: 0,
+      fontSize,
+      fontWeight: 'bold' as const,
+      fill: 'rgba(255,255,255,0.72)',
+      stroke: 'rgba(0,0,0,0.45)',
+      strokeWidth: Math.max(1, fontSize / 18),
+      textAlign: 'right' as const,
+      hittable: false,
+      editable: false,
+      zIndex: 1,
+    }
+    if (!this.releaseWatermark) {
+      this.releaseWatermark = new Text(options)
+      this.groupTree.add(this.releaseWatermark)
+    } else {
+      this.releaseWatermark.set(options)
+    }
   }
 
   public selectTagById(id: ID) {

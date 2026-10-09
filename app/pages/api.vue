@@ -226,8 +226,9 @@ async function copy(value: string, label: string) {
         <p class="text-sm text-muted">
           These need a <span class="text-default">write</span> token; a read
           token gets a 403. They only ever touch pages of the token's own
-          project. Importing never creates i18n keys — tag text that matches no
-          published key is left unbound for you to fill in.
+          project. A new key is created as a draft when the request names one.
+          Published copy (<span class="text-default">/bundle</span>,
+          <span class="text-default">/locales</span>) still omits drafts.
         </p>
         <div
           v-for="example in writeExamples"

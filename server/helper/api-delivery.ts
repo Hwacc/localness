@@ -167,7 +167,8 @@ function publishedKeyRows(
  */
 export async function deliveryMeta(
   projectId: number,
-  releaseId: number | null
+  releaseId: number | null,
+  canManageReleases = false
 ): Promise<DeliveryMeta | null> {
   // Resolved before the fan-out because the coverage groupBy filters on it.
   const locales = await projectLocales(projectId)
@@ -214,6 +215,7 @@ export async function deliveryMeta(
       projectKeys: totalKeys,
       publishedPerLocale,
     },
+    canManageReleases,
     generatedAt: new Date().toISOString(),
   }
 }
@@ -263,6 +265,25 @@ export async function deliveryBundle(
     if (entries) bundle[locale] = entries
   }
   return bundle
+}
+
+/**
+ * Every key the dictionary publishes, optionally narrowed to one release.
+ * Deliberately a superset of the bundle's keys: `catalogWhere` matches "some
+ * locale has published text" over all locales, the bundle only over the
+ * project's current ones. Extra keys are inert — they cannot appear among the
+ * bundle's candidates — but a missing one would fail to break a tie silently.
+ */
+export async function deliveryKeys(
+  projectId: number,
+  releaseId: number | null
+): Promise<string[]> {
+  const rows = await prisma.i18nKey.findMany({
+    where: catalogWhere(projectId, releaseId),
+    orderBy: { key: 'asc' },
+    select: { key: true },
+  })
+  return rows.map((row) => row.key)
 }
 
 /**

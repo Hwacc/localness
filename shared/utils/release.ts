@@ -25,6 +25,19 @@ export function pageMatchesReleaseFilter(
   return entryMatchesReleaseFilter(page.releaseIds, filter)
 }
 
+/** Names of the releases an entry carries, in the project's order. Empty when it has none. */
+export function releaseNamesForIds(
+  releaseIds: ID[] | undefined,
+  releases: Array<{ id: ID; name: string }> | undefined
+): string {
+  const ids = releaseIds ?? []
+  if (!ids.length) return ''
+  const names = (releases ?? []).flatMap((release) =>
+    ids.some((id) => String(id) === String(release.id)) ? [release.name] : []
+  )
+  return names.join(', ')
+}
+
 export function defaultReleaseIdForFilter(
   filter: ReleaseFilterValue
 ): number | undefined {

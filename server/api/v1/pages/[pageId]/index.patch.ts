@@ -3,6 +3,8 @@ import { authenticateWriteRequest, touchApiToken } from '#server/helper/api-toke
 import { requireTokenPageAccess } from '#server/helper/api-token-project'
 import { readZodBody } from '#server/helper/validate'
 import { upsertPageWithTags } from '#server/helper/api-write'
+import { discardReplacedPageImage } from '#server/helper/page-image'
+import prisma from '#server/libs/prisma'
 import type { ImportPageResult } from '#shared/types/Import'
 
 /**
@@ -28,16 +30,28 @@ export default defineEventHandler(async (event): Promise<ImportPageResult> => {
     throw createError({ statusCode: 400, statusMessage: 'Missing page id' })
   }
   const body = await readZodBody(event, zApiV1PageUpdate.parse)
+  const id = numericID(pageId)
   const { projectId } = await requireTokenPageAccess(
     token,
-    numericID(pageId),
+    id,
     getQuery(event).project
   )
+  const previous = await prisma.page.findFirst({
+    where: { id, projectID: projectId },
+    select: { image: true },
+  })
   const result = await upsertPageWithTags({
     projectId,
-    pageId: numericID(pageId),
+    pageId: id,
     ...body,
   })
+  if (body.image && previous?.image && body.image !== previous.image) {
+    try {
+      await discardReplacedPageImage(event.context.ossStorage, previous.image)
+    } catch (error) {
+      console.error(error)
+    }
+  }
   await touchApiToken(token)
   return result
 })

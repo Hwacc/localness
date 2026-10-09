@@ -4,6 +4,7 @@ import {
 } from '#server/helper/api-token'
 import { resolveTokenProject } from '#server/helper/api-token-project'
 import { deliveryMeta, resolveReleaseParam } from '#server/helper/api-delivery'
+import { tokenManagesReleases } from '#server/helper/api-author'
 
 /**
  * Public read-only delivery API. Kept in `/api/v1` rather than reusing the UI
@@ -28,7 +29,8 @@ export default defineEventHandler(async (event) => {
   const projectId = await resolveTokenProject(token, query.project)
   const releaseId = await resolveReleaseParam(projectId, query.release)
 
-  const result = await deliveryMeta(projectId, releaseId)
+  const canManageReleases = await tokenManagesReleases(token.createdBy, projectId)
+  const result = await deliveryMeta(projectId, releaseId, canManageReleases)
   if (!result) {
     throw createError({ statusCode: 404, statusMessage: 'Project not found' })
   }

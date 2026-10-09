@@ -110,7 +110,8 @@ class EditorTag extends Frame {
     this.remoteTag = { ...this.remoteTag, ...rTag }
     this.lock(rTag.settings?.locked ?? false)
     this.updateStyle(rTag.settings?.style)
-    this.updateLabelStyle(rTag.settings?.labelStyle)
+    if (rTag.settings?.labelStyle) this.updateLabelStyle(rTag.settings.labelStyle)
+    else this.drawI18nKey(this.remoteTag.settings?.labelStyle)
   }
 
   public updateStyle(rStyle?: Partial<ITagSetting['style']>) {
