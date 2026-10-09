@@ -77,7 +77,7 @@
 | `GET /api/v1/bundle`          | 一次拿到全部语言：`{ locale: { key: text } }`。只有已发布 |
 | `GET /api/v1/keys/search?q=`  | 给绑定下拉用。key 和源文，**含草稿**，分页 |
 | `POST /api/v1/match`          | 一批图层文字对上哪些已有词条（草稿优先，否则已发布）。每个命中都返回 |
-| `GET /api/v1/pages/:id`       | 创作读：这一页的 tag、草稿源文、page 和词条上的发行标签 |
+| `GET /api/v1/pages/:id`       | Capture 读：这一页的 tag、草稿源文、page 和词条上的发行标签。Preview 只读这份绑定，不在这里改 key |
 | `POST /api/v1/releases`       | 新建发行标签。Project Owner，write token |
 | `POST /api/v1/release-membership` | 给 page 或词条追加 / 摘掉一个发行。不删内容 |
 
