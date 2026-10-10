@@ -142,8 +142,8 @@ export function keyChoice(tag: ZApiV1Tag): string | null {
 
 /**
  * Bind a key that already exists, or create one. `i18nKey` never creates.
- * `keyName` and a `__draft_` placeholder do. Source text is written onto the
- * draft side whenever this layer carried wording.
+ * `keyName` and a `__draft_` placeholder do. Source text is written as the
+ * source language — draft and published — whenever this layer carried wording.
  */
 async function bindOrCreateKey(
   store: KeyStore,
@@ -180,6 +180,7 @@ async function bindOrCreateKey(
         i18nKeyId: keyId,
         text: tag.sourceText,
         sourceLocale,
+        publish: true,
       },
       store as unknown as Pick<typeof prisma, 'localeValue'>
     )
@@ -301,10 +302,11 @@ export async function createPageWithTags(params: {
 }
 
 /**
- * Re-import. Geometry and draft source follow the design. A formal key in the
- * request is kept; a placeholder follows the wording, so a changed sentence
- * leaves the old `__draft_` key. Nothing is deleted. A tag whose node was not
- * in this request comes back in `stale` for the caller to act on deliberately.
+ * Re-import. Geometry and the source sentence follow the design. A formal key
+ * in the request is kept; a placeholder follows the wording, so a changed
+ * sentence leaves the old `__draft_` key. Nothing is deleted. A tag whose node
+ * was not in this request comes back in `stale` for the caller to act on
+ * deliberately.
  */
 export async function upsertPageWithTags(params: {
   projectId: number
