@@ -99,6 +99,7 @@ export interface CaptureTag extends ImportedTag {
 
 export interface CapturePage {
   pageId: number
+  projectId: number
   name: string
   image: string | null
   releaseIds: number[]

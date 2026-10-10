@@ -180,6 +180,7 @@ export async function readCapturePage(projectId: number, pageId: number): Promis
     where: { id: pageId, projectID: projectId },
     select: {
       id: true,
+      projectID: true,
       name: true,
       image: true,
       releases: { select: { releaseId: true } },
@@ -232,6 +233,9 @@ export async function readCapturePage(projectId: number, pageId: number): Promis
 
   return {
     pageId: page.id,
+    // The where clause above already matched this project; `Page.projectID` is
+    // nullable in the schema, so the argument is the same value without the cast.
+    projectId,
     name: page.name,
     image: page.image,
     releaseIds: page.releases.map((release) => release.releaseId).sort((a, b) => a - b),
