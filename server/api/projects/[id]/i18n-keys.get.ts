@@ -12,6 +12,21 @@ import { DRAFT_KEY_PREFIX } from '#shared/utils'
  * is published. The comparison spans two columns, so Prisma's `where` cannot
  * express it and filtering client-side would break pagination.
  */
+/** A key with at least one non-source translation written against an older source sentence. */
+const OUTDATED_PREDICATE = `
+  EXISTS (
+    SELECT 1 FROM "LocaleValue" lv
+    JOIN "ProjectSettings" ps ON ps."project_id" = k."project_id"
+    WHERE lv."i18n_key_id" = k."id"
+      AND lv."locale" != ps."locale_fallback"
+      AND (
+        COALESCE(lv."draft_text", '') != ''
+        OR COALESCE(lv."published_text", '') != ''
+      )
+      AND lv."source_fingerprint" != k."fingerprint"
+  )
+`
+
 const DRAFT_PREDICATE = `
   NOT EXISTS (
     SELECT 1 FROM "LocaleValue" lv
@@ -71,7 +86,8 @@ export default defineEventHandler(async (event) => {
   const q = typeof query.q === 'string' ? query.q.trim() : ''
   const status =
     query.status === I18nKeyStatusFilter.DRAFT ||
-    query.status === I18nKeyStatusFilter.PUBLISHED
+    query.status === I18nKeyStatusFilter.PUBLISHED ||
+    query.status === I18nKeyStatusFilter.OUTDATED
       ? query.status
       : I18nKeyStatusFilter.ALL
   const from = isoBound(query.from)
@@ -91,7 +107,9 @@ export default defineEventHandler(async (event) => {
       `SELECT k."id" FROM "I18nKey" k WHERE k."project_id" = ? AND (${
         status === I18nKeyStatusFilter.DRAFT
           ? DRAFT_PREDICATE
-          : `NOT (${DRAFT_PREDICATE})`
+          : status === I18nKeyStatusFilter.OUTDATED
+            ? OUTDATED_PREDICATE
+            : `NOT (${DRAFT_PREDICATE})`
       })`,
       nID
     )

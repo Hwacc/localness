@@ -184,6 +184,10 @@ async function bindOrCreateKey(
       },
       store as unknown as Pick<typeof prisma, 'localeValue'>
     )
+    await prisma.i18nKey.update({
+      where: { id: keyId },
+      data: { fingerprint: fpTranslation(tag.sourceText.trim()) },
+    })
   }
   if (tag.labelRelease && releaseId !== undefined) {
     await setReleaseMembership({

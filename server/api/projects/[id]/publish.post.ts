@@ -49,7 +49,7 @@ export default defineEventHandler(async (event) => {
       .map(() => '("i18n_key_id" = ? AND "locale" = ?)')
       .join(' OR ')
     const updated = await prisma.$executeRawUnsafe(
-      `UPDATE "LocaleValue" SET "published_text" = "draft_text", "updated_at" = CURRENT_TIMESTAMP WHERE (${clause}) AND ${CHANGED_ONLY}`,
+      `UPDATE "LocaleValue" SET "published_text" = "draft_text", "source_fingerprint" = COALESCE((SELECT "fingerprint" FROM "I18nKey" WHERE "id" = "LocaleValue"."i18n_key_id"), ''), "updated_at" = CURRENT_TIMESTAMP WHERE (${clause}) AND ${CHANGED_ONLY}`,
       ...pairs.flatMap((p) => [p.id, p.locale])
     )
     return { updated }
@@ -74,13 +74,13 @@ export default defineEventHandler(async (event) => {
     }
     const placeholders = ownedIds.map(() => '?').join(',')
     updated = await prisma.$executeRawUnsafe(
-      `UPDATE "LocaleValue" SET "published_text" = "draft_text", "updated_at" = CURRENT_TIMESTAMP WHERE "i18n_key_id" IN (${placeholders})${localeClause} AND ${CHANGED_ONLY}`,
+      `UPDATE "LocaleValue" SET "published_text" = "draft_text", "source_fingerprint" = COALESCE((SELECT "fingerprint" FROM "I18nKey" WHERE "id" = "LocaleValue"."i18n_key_id"), ''), "updated_at" = CURRENT_TIMESTAMP WHERE "i18n_key_id" IN (${placeholders})${localeClause} AND ${CHANGED_ONLY}`,
       ...ownedIds,
       ...localeArgs
     )
   } else {
     updated = await prisma.$executeRawUnsafe(
-      `UPDATE "LocaleValue" SET "published_text" = "draft_text", "updated_at" = CURRENT_TIMESTAMP WHERE "i18n_key_id" IN (SELECT "id" FROM "I18nKey" WHERE "project_id" = ?)${localeClause} AND ${CHANGED_ONLY}`,
+      `UPDATE "LocaleValue" SET "published_text" = "draft_text", "source_fingerprint" = COALESCE((SELECT "fingerprint" FROM "I18nKey" WHERE "id" = "LocaleValue"."i18n_key_id"), ''), "updated_at" = CURRENT_TIMESTAMP WHERE "i18n_key_id" IN (SELECT "id" FROM "I18nKey" WHERE "project_id" = ?)${localeClause} AND ${CHANGED_ONLY}`,
       nID,
       ...localeArgs
     )

@@ -2,10 +2,12 @@
 import { TRANSLATION_LANGUAGES } from '#shared/constants'
 import {
   formatI18nKeyDisplay,
+  fpTranslation,
   isI18nKeyDraft,
   localeDraftWrite,
   resolveEditedKey,
 } from '#shared/utils'
+import { isTranslationOutdated } from '#shared/utils/outdated'
 import { releaseMembershipDiff } from '#shared/utils/release'
 
 /**
@@ -106,6 +108,20 @@ function localeMeta(code: string) {
 
 function draftOf(locale: string) {
   return props.row?.locales.find((l) => l.locale === locale)?.draftText ?? ''
+}
+
+function localeOutdated(locale: string) {
+  const row = props.row
+  const localeRow = row?.locales.find((item) => item.locale === locale)
+  if (!row || !localeRow) return false
+  return isTranslationOutdated({
+    locale,
+    sourceLocale: props.sourceLocale,
+    draftText: localeRow.draftText,
+    publishedText: localeRow.publishedText,
+    sourceFingerprint: localeRow.sourceFingerprint ?? '',
+    keyFingerprint: row.fingerprint ?? '',
+  })
 }
 
 /** Naming needs the text, exactly as the create dialog does: nothing to name without it. */
@@ -227,10 +243,20 @@ async function saveLocale(locale: string) {
   }
   const text = decision.body[locale]!
   const target = row.locales.find((l) => l.locale === locale)
+  const stamp = locale === props.sourceLocale ? undefined : (row.fingerprint ?? '')
   if (target) {
     target.draftText = text
+    if (stamp !== undefined) target.sourceFingerprint = stamp
   } else {
-    row.locales.push({ locale, draftText: text, publishedText: null })
+    row.locales.push({
+      locale,
+      draftText: text,
+      publishedText: null,
+      sourceFingerprint: stamp ?? '',
+    })
+  }
+  if (locale === props.sourceLocale && text.trim()) {
+    row.fingerprint = fpTranslation(text)
   }
   row.dirty = isI18nKeyDraft(row.locales)
   emit('cell-saved', row.id, locale)
@@ -459,6 +485,16 @@ defineExpose({ flushPendingSaves })
           forth.
         -->
         <UAccordion v-model="openLocales" type="multiple" :items="localeItems">
+          <template #trailing="{ item }">
+            <UBadge
+              v-if="localeOutdated(item.value)"
+              color="warning"
+              variant="subtle"
+              size="sm"
+            >
+              Outdated
+            </UBadge>
+          </template>
           <template #body="{ item }">
             <UTextarea
               v-model="texts[item.value]"

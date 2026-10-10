@@ -126,8 +126,17 @@ async function upsertDraft(
       locale: params.locale,
       draftText: params.text,
       publishedText: params.text,
+      ...(params.locale === params.sourceLocale
+        ? {}
+        : { sourceFingerprint: record.fingerprint }),
     },
-    update: { draftText: params.text, publishedText: params.text },
+    update: {
+      draftText: params.text,
+      publishedText: params.text,
+      ...(params.locale === params.sourceLocale
+        ? {}
+        : { sourceFingerprint: record.fingerprint }),
+    },
   })
 }
 
@@ -505,7 +514,12 @@ export async function applyPull(params: {
   let kept = 0
   const conflicts = 0
   await prisma.$transaction(async (tx) => {
-    for (const c of chosen) {
+    const ordered = [...chosen].sort((a, b) => {
+      const aSource = a.locale === sourceLocale ? 0 : 1
+      const bSource = b.locale === sourceLocale ? 0 : 1
+      return aSource - bSource
+    })
+    for (const c of ordered) {
       switch (c.decision) {
         case 'apply-theirs':
           // Preview already confirmed Git. Land it as the platform copy

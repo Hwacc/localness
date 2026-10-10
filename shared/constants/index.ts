@@ -25,6 +25,7 @@ export enum I18nKeyStatusFilter {
   ALL = 'all',
   DRAFT = 'draft',
   PUBLISHED = 'published',
+  OUTDATED = 'outdated',
 }
 
 export const DEFAULT_LOCALES = [

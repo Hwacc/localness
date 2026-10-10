@@ -90,6 +90,7 @@ const statusItems = [
   { label: 'All statuses', value: I18nKeyStatusFilter.ALL },
   { label: 'Draft', value: I18nKeyStatusFilter.DRAFT },
   { label: 'Published', value: I18nKeyStatusFilter.PUBLISHED },
+  { label: 'Outdated', value: I18nKeyStatusFilter.OUTDATED },
 ]
 
 /** Selected rows split by status — bulk actions only apply to one side each. */

@@ -104,6 +104,11 @@ vi.mock('#server/libs/prisma', () => {
         db.keys.push(row)
         return row
       },
+      update: async ({ where, data }: any) => {
+        const row = db.keys.find((key) => key.id === where.id)
+        if (row && data.fingerprint) row.fingerprint = data.fingerprint
+        return row
+      },
     },
     i18nKeyRelease: {
       findMany: async () => db.releases,
