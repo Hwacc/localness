@@ -75,6 +75,7 @@
 | `GET /api/v1/meta`            | 语言列表、`localeFallback`、可用的 release、以及**每个语言有多少条已发布** |
 | `GET /api/v1/locales/:locale` | 一个语言的扁平`{ key: text }`                                                    |
 | `GET /api/v1/bundle`          | 一次拿到全部语言：`{ locale: { key: text } }`。只有已发布 |
+| `GET /api/v1/outdated`        | 哪些语言的哪些 key 译文是对着旧源文翻的。只是标记，句子仍在 `/bundle` |
 | `GET /api/v1/keys/search?q=`  | 给绑定下拉用。key 和源文，**含草稿**，分页 |
 | `POST /api/v1/match`          | 一批图层文字对上哪些已有词条（草稿优先，否则已发布）。每个命中都返回 |
 | `GET /api/v1/pages/:id`       | Capture 读：这一页的 tag、草稿源文、page 和词条上的发行标签。Preview 只读这份绑定，不在这里改 key |

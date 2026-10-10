@@ -9,6 +9,12 @@ import type { IProjectRelease } from './Project'
 /** Published copy only: `{ locale: { key: text } }`, the map the JSON export uses. */
 export type DeliveryBundle = Record<string, Record<string, string>>
 
+/** `GET /api/v1/outdated` — locales whose published translation lags the source sentence. */
+export interface DeliveryOutdated {
+  /** locale → keys */
+  outdated: Record<string, string[]>
+}
+
 /** `GET /api/v1/meta` — what a caller holding only a token learns first. */
 export interface DeliveryMeta {
   project: { id: number; name: string }

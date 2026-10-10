@@ -290,7 +290,7 @@ describe('applyImport', () => {
     })
     expect(db.keys[0]!.locales).toEqual([
       { locale: 'en', draftText: 'A', publishedText: 'A' },
-      { locale: 'ja', draftText: 'エー', publishedText: 'エー' },
+      { locale: 'ja', draftText: 'エー', publishedText: 'エー', sourceFingerprint: '' },
     ])
     // The original text did not change, so neither does its fingerprint.
     expect(db.keys[0]!.fingerprint).toBe('')

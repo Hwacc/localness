@@ -204,6 +204,7 @@ async function loadImportContext(projectId: number) {
     select: {
       id: true,
       key: true,
+      fingerprint: true,
       locales: {
         select: { locale: true, draftText: true, publishedText: true },
       },
@@ -242,6 +243,7 @@ export async function applyImport(params: {
 
   const context = await loadImportContext(params.projectId)
   const preview = classifyImport({ payload: params.payload, ...context })
+  const existingByKey = new Map(context.existing.map((row) => [row.key, row]))
   const existingIdByKey = new Map(
     context.existing.map((row) => [row.key, row.id])
   )
@@ -273,6 +275,11 @@ export async function applyImport(params: {
                       locale,
                       draftText: text,
                       publishedText: text,
+                      ...(locale === preview.sourceLocale
+                        ? {}
+                        : {
+                            sourceFingerprint: fpTranslation(row.texts[preview.sourceLocale]!),
+                          }),
                     })),
                   },
                 },
@@ -289,7 +296,21 @@ export async function applyImport(params: {
                 result.unchanged += 1
                 break
               }
+              const source = row.changes.find(
+                (change) => change.locale === preview.sourceLocale
+              )
+              const fingerprint = source
+                ? fpTranslation(source.after)
+                : (existingByKey.get(row.key)?.fingerprint ?? '')
+              if (source) {
+                await tx.i18nKey.update({
+                  where: { id: i18nKeyId },
+                  data: { fingerprint },
+                })
+              }
               for (const change of row.changes) {
+                const stamp =
+                  change.locale === preview.sourceLocale ? {} : { sourceFingerprint: fingerprint }
                 await tx.localeValue.upsert({
                   where: {
                     i18nKeyId_locale: { i18nKeyId, locale: change.locale },
@@ -299,17 +320,9 @@ export async function applyImport(params: {
                     locale: change.locale,
                     draftText: change.after,
                     publishedText: change.after,
+                    ...stamp,
                   },
-                  update: { draftText: change.after, publishedText: change.after },
-                })
-              }
-              const source = row.changes.find(
-                (change) => change.locale === preview.sourceLocale
-              )
-              if (source) {
-                await tx.i18nKey.update({
-                  where: { id: i18nKeyId },
-                  data: { fingerprint: fpTranslation(source.after) },
+                  update: { draftText: change.after, publishedText: change.after, ...stamp },
                 })
               }
               result.updated += 1

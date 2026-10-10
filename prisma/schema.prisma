@@ -530,6 +530,8 @@ model LocaleValue {
   locale        String
   draftText     String?  @map("draft_text")
   publishedText String?  @map("published_text")
+  /// Source-text fingerprint this translation was written against. Empty on the source locale.
+  sourceFingerprint String @default("") @map("source_fingerprint")
   i18nKey       I18nKey  @relation(fields: [i18nKeyId], references: [id], onDelete: Cascade)
 
   @@unique([i18nKeyId, locale])

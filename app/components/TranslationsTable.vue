@@ -4,9 +4,11 @@ import type { TableColumn, TableRow } from '@nuxt/ui'
 import { TRANSLATION_LANGUAGES } from '#shared/constants'
 import {
   formatI18nKeyDisplay,
+  fpTranslation,
   localeDraftWrite,
   resolveEditedKey,
 } from '#shared/utils'
+import { isTranslationOutdated } from '#shared/utils/outdated'
 import {
   UBadge,
   UButton,
@@ -275,14 +277,20 @@ async function saveDraft(row: II18nKeyRow, locale: string, value: string) {
   // Mutated in place, not reloaded: the page reads these back to keep the bulk
   // bar's counts live, and a reload would drop the row selection.
   const localeRow = row.locales.find((l) => l.locale === locale)
+  const stamp = locale === props.sourceLocale ? undefined : (row.fingerprint ?? '')
   if (localeRow) {
     localeRow.draftText = value
+    if (stamp !== undefined) localeRow.sourceFingerprint = stamp
   } else {
     row.locales.push({
       locale,
       draftText: value,
       publishedText: null,
+      sourceFingerprint: stamp ?? '',
     })
+  }
+  if (locale === props.sourceLocale && value.trim()) {
+    row.fingerprint = fpTranslation(value)
   }
   row.dirty = isI18nKeyDraft(row.locales)
 }
@@ -407,21 +415,39 @@ function localeColumn(code: string): TableColumn<II18nKeyRow> {
     cell: ({ row }: { row: TableRow<II18nKeyRow> }) => {
       const original = row.original
       const published = !original.dirty
+      const localeRow = original.locales.find((item) => item.locale === code)
+      const outdated =
+        localeRow != null &&
+        isTranslationOutdated({
+          locale: code,
+          sourceLocale: props.sourceLocale,
+          draftText: localeRow.draftText,
+          publishedText: localeRow.publishedText,
+          sourceFingerprint: localeRow.sourceFingerprint ?? '',
+          keyFingerprint: original.fingerprint ?? '',
+        })
       return (
-        <UInput
-          modelValue={cellDraft(original, code)}
-          size="sm"
-          class="min-w-44"
-          disabled={published}
-          onUpdate:modelValue={(v: string) => {
-            if (published) return
-            setCellDraft(original, code, v ?? '')
-          }}
-          onBlur={() => {
-            if (published) return
-            saveDraft(original, code, cellDraft(original, code))
-          }}
-        />
+        <div class="flex items-center gap-1">
+          <UInput
+            modelValue={cellDraft(original, code)}
+            size="sm"
+            class="min-w-44"
+            disabled={published}
+            onUpdate:modelValue={(v: string) => {
+              if (published) return
+              setCellDraft(original, code, v ?? '')
+            }}
+            onBlur={() => {
+              if (published) return
+              saveDraft(original, code, cellDraft(original, code))
+            }}
+          />
+          {outdated ? (
+            <UBadge color="warning" variant="subtle" size="sm">
+              Outdated
+            </UBadge>
+          ) : null}
+        </div>
       )
     },
   } as TableColumn<II18nKeyRow>

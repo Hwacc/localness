@@ -7,6 +7,8 @@ export interface ILocaleValue {
   locale: string
   draftText: string | null
   publishedText: string | null
+  /** Source fingerprint this translation was written against. Empty on the source locale. */
+  sourceFingerprint?: string
 }
 
 export interface II18nKeyRow {
@@ -16,6 +18,8 @@ export interface II18nKeyRow {
   updatedAt: Date | string
   tagCount: number
   dirty: boolean
+  /** Fingerprint of the current source sentence. */
+  fingerprint?: string
   locales: ILocaleValue[]
   /** Release labels on this entry. Empty means Unassigned. */
   releaseIds?: ID[]

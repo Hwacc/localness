@@ -163,10 +163,12 @@ export function shapeI18nKeyRow(
     description: string | null
     updatedAt: Date
     gitSyncEnabled?: boolean
+    fingerprint?: string
     locales: Array<{
       locale: string
       draftText: string | null
       publishedText: string | null
+      sourceFingerprint?: string
     }>
     _count?: { tags: number }
     tagCount?: number
@@ -177,6 +179,7 @@ export function shapeI18nKeyRow(
     locale: locale.locale,
     draftText: locale.draftText,
     publishedText: locale.publishedText,
+    sourceFingerprint: locale.sourceFingerprint ?? '',
   }))
   return {
     id: row.id,
@@ -185,6 +188,7 @@ export function shapeI18nKeyRow(
     updatedAt: row.updatedAt,
     tagCount: row.tagCount ?? row._count?.tags ?? 0,
     dirty: isI18nKeyDraft(locales),
+    fingerprint: row.fingerprint ?? '',
     locales,
     /** Labels as plain ids, for the same reason pages carry them that way. */
     releaseIds: (row.releases ?? []).map((release) => release.releaseId),
@@ -272,8 +276,16 @@ export async function upsertLocaleDrafts(
   const entries = Object.entries(content).filter(
     ([locale, text]) => locale && text !== undefined
   )
+  if (!entries.length) return
+  const key = await prisma.i18nKey.findUnique({
+    where: { id: i18nKeyId },
+    select: { fingerprint: true, projectId: true },
+  })
+  const sourceLocale = key ? await sourceLocaleOf(key.projectId) : ''
   for (const [locale, text] of entries) {
     const draftText = text ?? null
+    const stamp =
+      key && locale !== sourceLocale ? { sourceFingerprint: key.fingerprint } : {}
     await prisma.localeValue.upsert({
       where: {
         i18nKeyId_locale: { i18nKeyId, locale },
@@ -283,9 +295,11 @@ export async function upsertLocaleDrafts(
         locale,
         draftText,
         publishedText: null,
+        ...stamp,
       },
       update: {
         draftText,
+        ...stamp,
       },
     })
   }

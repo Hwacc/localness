@@ -70,8 +70,8 @@ describe('shaping', () => {
 
     expect('origin' in row).toBe(false)
     expect(row.locales).toEqual([
-      locale('en', 'Save'),
-      locale('ja', '保存'),
+      { ...locale('en', 'Save'), sourceFingerprint: '' },
+      { ...locale('ja', '保存'), sourceFingerprint: '' },
     ])
   })
 
