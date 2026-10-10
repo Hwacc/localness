@@ -5,11 +5,13 @@ const db = vi.hoisted(() => ({
     create: Record<string, unknown>
     update: Record<string, unknown>
   }>,
+  existing: null as { draftText: string | null; publishedText?: string | null } | null,
 }))
 
 vi.mock('#server/libs/prisma', () => ({
   default: {
     localeValue: {
+      findUnique: async () => db.existing,
       upsert: async ({
         create,
         update,
@@ -39,6 +41,7 @@ const locale = (code: string, draftText: string | null) => ({
 
 beforeEach(() => {
   db.localeUpserts = []
+  db.existing = null
 })
 
 describe('sourceTextOf', () => {
@@ -141,6 +144,35 @@ describe('writeSourceText', () => {
       draftText: 'Save',
       publishedText: 'Save',
     })
+  })
+
+  it('clears a published sentence when the key must stay a draft', async () => {
+    await writeSourceText({
+      projectId: 7,
+      i18nKeyId: 12,
+      text: 'Save',
+      clearPublished: true,
+    })
+
+    expect(db.localeUpserts[0]?.update).toEqual({
+      draftText: 'Save',
+      publishedText: null,
+    })
+  })
+
+  it('writes nothing at all when the wording did not change', async () => {
+    // Capture leans on this: a repeat import must not re-publish a reverted
+    // draft or undo whatever the published side is doing on purpose.
+    db.existing = { draftText: 'Save', publishedText: null }
+    await writeSourceText({
+      projectId: 7,
+      i18nKeyId: 12,
+      text: 'Save',
+      publish: true,
+      clearPublished: true,
+    })
+
+    expect(db.localeUpserts).toEqual([])
   })
 
   it('writes nothing for an empty text', async () => {

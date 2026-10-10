@@ -113,7 +113,7 @@ function draftOf(locale: string) {
 function localeOutdated(locale: string) {
   const row = props.row
   const localeRow = row?.locales.find((item) => item.locale === locale)
-  if (!row || !localeRow) return false
+  if (!row || !localeRow || row.dirty) return false
   return isTranslationOutdated({
     locale,
     sourceLocale: props.sourceLocale,

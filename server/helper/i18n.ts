@@ -347,8 +347,9 @@ export function assertSourceLocale(locale: string, locales: string[]) {
 }
 
 /**
- * The source language's row *is* the original text. Draft side only; an empty text
- * writes nothing.
+ * The source language's row *is* the original text. An empty text writes
+ * nothing; neither does text identical to the draft already stored — that
+ * early return is load-bearing, see `publish` below.
  */
 export async function writeSourceText(
   params: {
@@ -357,20 +358,31 @@ export async function writeSourceText(
     text: string
     sourceLocale?: string
     /**
-     * Also write `publishedText`. Capture does this for the source language so
-     * the public API and Git push see the sentence from the design. Other
-     * locales are not touched. Editor saves leave this off.
+     * Also write `publishedText`. Capture does this for a named key so the
+     * public API and Git push see the source sentence. `__draft_` keys pass
+     * `clearPublished` instead and stay unpublished. Only ever applied when
+     * this call actually changes the wording: capture publishes its own
+     * edits, never re-publishes one a human reverted to draft.
      */
     publish?: boolean
+    /** Drop published source text. Capture uses this for `__draft_` keys. */
+    clearPublished?: boolean
   },
   db: Pick<typeof prisma, 'localeValue'> = prisma
 ) {
   if (!params.text) return
   const locale =
     params.sourceLocale ?? (await sourceLocaleOf(params.projectId))
-  const published = params.publish ? { publishedText: params.text } : {}
+  const where = { i18nKeyId_locale: { i18nKeyId: params.i18nKeyId, locale } }
+  const existing = await db.localeValue.findUnique({ where })
+  if (existing?.draftText === params.text) return
+  const published = params.publish
+    ? { publishedText: params.text }
+    : params.clearPublished
+      ? { publishedText: null }
+      : {}
   await db.localeValue.upsert({
-    where: { i18nKeyId_locale: { i18nKeyId: params.i18nKeyId, locale } },
+    where,
     create: {
       i18nKeyId: params.i18nKeyId,
       locale,

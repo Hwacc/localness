@@ -19,8 +19,15 @@ describe('isTranslationOutdated', () => {
     expect(isTranslationOutdated({ ...base, sourceFingerprint: 'new' })).toBe(false)
   })
 
-  it('ignores the source locale and empty translations', () => {
+  it('ignores the source locale', () => {
     expect(isTranslationOutdated({ ...base, locale: 'en' })).toBe(false)
+  })
+
+  it('ignores a draft key — it can still change', () => {
+    expect(isTranslationOutdated({ ...base, keyIsDraft: true })).toBe(false)
+  })
+
+  it('ignores an empty translation — missing is not outdated', () => {
     expect(
       isTranslationOutdated({ ...base, draftText: '', publishedText: null })
     ).toBe(false)
