@@ -417,6 +417,7 @@ function localeColumn(code: string): TableColumn<II18nKeyRow> {
       const published = !original.dirty
       const localeRow = original.locales.find((item) => item.locale === code)
       const outdated =
+        !original.dirty &&
         localeRow != null &&
         isTranslationOutdated({
           locale: code,

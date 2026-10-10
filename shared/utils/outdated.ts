@@ -9,7 +9,10 @@ export function isTranslationOutdated(input: {
   publishedText?: string | null
   sourceFingerprint: string
   keyFingerprint: string
+  /** A draft key can still change, so none of its translations are outdated. */
+  keyIsDraft?: boolean
 }): boolean {
+  if (input.keyIsDraft) return false
   if (input.locale === input.sourceLocale) return false
   const hasText = (input.draftText ?? '') !== '' || (input.publishedText ?? '') !== ''
   if (!hasText) return false

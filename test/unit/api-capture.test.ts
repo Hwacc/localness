@@ -122,7 +122,18 @@ vi.mock('#server/libs/prisma', () => {
       },
     },
     localeValue: {
-      upsert: async ({ create }: any) => {
+      findUnique: async ({ where }: any) => {
+        const { i18nKeyId, locale } = where.i18nKeyId_locale
+        return db.locales.find((row) => row.i18nKeyId === i18nKeyId && row.locale === locale) ?? null
+      },
+      upsert: async ({ create, update }: any) => {
+        const found = db.locales.find(
+          (row) => row.i18nKeyId === create.i18nKeyId && row.locale === create.locale
+        )
+        if (found) {
+          Object.assign(found, update)
+          return found
+        }
         db.locales.push(create)
         return create
       },
@@ -227,6 +238,7 @@ describe('capture writes', () => {
       ],
     })
     expect(first.tags[0]?.i18nKey).toBe(key)
+    expect(db.locales[0]).toMatchObject({ draftText: 'Save', publishedText: null })
     const second = await createPageWithTags({
       projectId: 7,
       name: 'Home',
@@ -331,6 +343,46 @@ describe('capture writes', () => {
     })
 
     expect(updated).toMatchObject({ i18nKey: requested, i18nKeyId: 15 })
+    // The placeholder path: written in place on the named draft key, never published.
+    expect(db.locales[0]).toMatchObject({ i18nKeyId: 15, draftText: 'Hello', publishedText: null })
+  })
+
+  it('leaves a reverted source alone when the wording did not change', async () => {
+    db.keys.push({ id: 9, projectId: 7, key: 'kept', fingerprint: '' })
+    db.locales.push({ i18nKeyId: 9, locale: 'en', draftText: 'Save', publishedText: null })
+    const prisma = (await import('#server/libs/prisma')).default as any
+    prisma.tag.findMany = async () => [
+      {
+        id: 3,
+        pageID: 12,
+        figmaNodeId: '1:1',
+        i18nKey: 'kept',
+        i18nKeyId: 9,
+        x: 0,
+        y: 0,
+        width: 1,
+        height: 1,
+      },
+    ]
+
+    await upsertPageWithTags({
+      projectId: 7,
+      pageId: 12,
+      tags: [
+        {
+          figmaNodeId: '1:1',
+          x: 0,
+          y: 0,
+          width: 1,
+          height: 1,
+          i18nKey: 'kept',
+          sourceText: 'Save',
+        },
+      ],
+    })
+
+    expect(db.locales).toHaveLength(1)
+    expect(db.locales[0]).toMatchObject({ draftText: 'Save', publishedText: null })
   })
 })
 

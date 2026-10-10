@@ -174,13 +174,15 @@ async function bindOrCreateKey(
     keyIds.set(name, keyId)
   }
   if (tag.sourceText?.trim()) {
+    const placeholder = name.startsWith(DRAFT_KEY_PREFIX)
     await writeSourceText(
       {
         projectId,
         i18nKeyId: keyId,
         text: tag.sourceText,
         sourceLocale,
-        publish: true,
+        publish: !placeholder,
+        clearPublished: placeholder,
       },
       store as unknown as Pick<typeof prisma, 'localeValue'>
     )

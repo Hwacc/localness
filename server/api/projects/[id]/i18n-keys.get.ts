@@ -12,21 +12,6 @@ import { DRAFT_KEY_PREFIX } from '#shared/utils'
  * is published. The comparison spans two columns, so Prisma's `where` cannot
  * express it and filtering client-side would break pagination.
  */
-/** A key with at least one non-source translation written against an older source sentence. */
-const OUTDATED_PREDICATE = `
-  EXISTS (
-    SELECT 1 FROM "LocaleValue" lv
-    JOIN "ProjectSettings" ps ON ps."project_id" = k."project_id"
-    WHERE lv."i18n_key_id" = k."id"
-      AND lv."locale" != ps."locale_fallback"
-      AND (
-        COALESCE(lv."draft_text", '') != ''
-        OR COALESCE(lv."published_text", '') != ''
-      )
-      AND lv."source_fingerprint" != k."fingerprint"
-  )
-`
-
 const DRAFT_PREDICATE = `
   NOT EXISTS (
     SELECT 1 FROM "LocaleValue" lv
@@ -37,6 +22,22 @@ const DRAFT_PREDICATE = `
     SELECT 1 FROM "LocaleValue" lv
     WHERE lv."i18n_key_id" = k."id"
       AND COALESCE(lv."draft_text", '') != COALESCE(lv."published_text", '')
+  )
+`
+
+/** A published key with a non-source translation written against an older source sentence. */
+const OUTDATED_PREDICATE = `
+  NOT (${DRAFT_PREDICATE})
+  AND EXISTS (
+    SELECT 1 FROM "LocaleValue" lv
+    JOIN "ProjectSettings" ps ON ps."project_id" = k."project_id"
+    WHERE lv."i18n_key_id" = k."id"
+      AND lv."locale" != ps."locale_fallback"
+      AND (
+        COALESCE(lv."draft_text", '') != ''
+        OR COALESCE(lv."published_text", '') != ''
+      )
+      AND lv."source_fingerprint" != k."fingerprint"
   )
 `
 

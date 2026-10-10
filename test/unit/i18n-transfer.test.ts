@@ -55,6 +55,8 @@ vi.mock('#server/libs/prisma', () => {
       },
     },
     localeValue: {
+      // The copy lands on a fresh key, so the source row is never already there.
+      findUnique: async () => null,
       createMany: async ({ data }: any) => {
         db.calls.push('localeValue.createMany')
         return { count: Array.isArray(data) ? data.length : 1 }
