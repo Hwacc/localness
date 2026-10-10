@@ -147,7 +147,7 @@ beforeEach(() => {
 })
 
 describe('capture writes', () => {
-  it('creates a draft key and does not publish it', async () => {
+  it('publishes the source sentence of a new key', async () => {
     const result = await createPageWithTags({
       projectId: 7,
       name: 'Home',
@@ -169,12 +169,12 @@ describe('capture writes', () => {
     })
 
     expect(result.tags[0]).toMatchObject({ i18nKey: 'home.save', i18nKeyId: 1 })
-    expect(db.locales[0]).toMatchObject({ draftText: 'Save', publishedText: null, locale: 'en' })
+    expect(db.locales[0]).toMatchObject({ draftText: 'Save', publishedText: 'Save', locale: 'en' })
     expect(db.releases).toEqual([{ i18nKeyId: 1, releaseId: 4 }])
     expect(db.pageReleases).toEqual([{ pageId: 12, releaseId: 4 }])
   })
 
-  it('updates the draft of an existing key instead of leaving the source alone', async () => {
+  it('publishes the source sentence of an existing key', async () => {
     db.keys.push({ id: 9, projectId: 7, key: 'home.save', fingerprint: '' })
     await createPageWithTags({
       projectId: 7,
@@ -197,7 +197,7 @@ describe('capture writes', () => {
     expect(db.locales[0]).toMatchObject({
       i18nKeyId: 9,
       draftText: 'Save',
-      publishedText: null,
+      publishedText: 'Save',
     })
     expect(db.releases).toEqual([])
   })
@@ -242,7 +242,7 @@ describe('capture writes', () => {
     expect(db.keys).toHaveLength(1)
   })
 
-  it('updates draft source on an existing tag and does not publish it', async () => {
+  it('publishes the new source sentence on an existing tag', async () => {
     const existing = {
       id: 3,
       pageID: 12,
@@ -280,7 +280,7 @@ describe('capture writes', () => {
     })
 
     expect(updated).toMatchObject({ x: 5, y: 6, width: 7, height: 8, i18nKey: 'kept', i18nKeyId: 9 })
-    expect(db.locales[0]).toMatchObject({ i18nKeyId: 9, draftText: 'Nope', publishedText: null })
+    expect(db.locales[0]).toMatchObject({ i18nKeyId: 9, draftText: 'Nope', publishedText: 'Nope' })
     expect(db.keys.find((key) => key.key === 'replaced')).toBeUndefined()
   })
 

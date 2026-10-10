@@ -342,21 +342,28 @@ export async function writeSourceText(
     i18nKeyId: number
     text: string
     sourceLocale?: string
+    /**
+     * Also write `publishedText`. Capture does this for the source language so
+     * the public API and Git push see the sentence from the design. Other
+     * locales are not touched. Editor saves leave this off.
+     */
+    publish?: boolean
   },
   db: Pick<typeof prisma, 'localeValue'> = prisma
 ) {
   if (!params.text) return
   const locale =
     params.sourceLocale ?? (await sourceLocaleOf(params.projectId))
+  const published = params.publish ? { publishedText: params.text } : {}
   await db.localeValue.upsert({
     where: { i18nKeyId_locale: { i18nKeyId: params.i18nKeyId, locale } },
     create: {
       i18nKeyId: params.i18nKeyId,
       locale,
       draftText: params.text,
-      publishedText: null,
+      publishedText: params.publish ? params.text : null,
     },
-    update: { draftText: params.text },
+    update: { draftText: params.text, ...published },
   })
 }
 

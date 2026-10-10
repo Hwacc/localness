@@ -511,7 +511,8 @@ export const API_V1_MAX_TAGS = 500
  * `settings`, no `releaseIds` — none of those are an importer's business, and
  * `zPage`'s mandatory settings blob is a form artifact rather than a contract.
  * `i18nKey` binds a key that already exists; an unknown name stays unbound.
- * `keyName` is a new key to create, with `sourceText` written as its draft.
+ * `keyName` is a new key to create; `sourceText` lands as its source language,
+ * draft and published (Capture publishes the wording from the design).
  */
 export const zApiV1Tag = z.object({
   figmaNodeId: z.string().min(1),
@@ -520,9 +521,9 @@ export const zApiV1Tag = z.object({
   width: z.number().nonnegative(),
   height: z.number().nonnegative(),
   i18nKey: zNilable(z.string()),
-  /** Present only when this layer should become a new draft key. */
+  /** Present only when this layer should create a new key. */
   keyName: z.string().trim().max(200).optional(),
-  /** The layer's wording. Written as draft source text for the bound key. */
+  /** The layer's wording. Written as the bound key's source text, draft and published. */
   sourceText: z.string().optional(),
   /**
    * Append `releaseId` from the page request onto this key. Absent means the

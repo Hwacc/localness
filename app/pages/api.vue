@@ -226,9 +226,10 @@ async function copy(value: string, label: string) {
         <p class="text-sm text-muted">
           These need a <span class="text-default">write</span> token; a read
           token gets a 403. They only ever touch pages of the token's own
-          project. A new key is created as a draft when the request names one.
-          Published copy (<span class="text-default">/bundle</span>,
-          <span class="text-default">/locales</span>) still omits drafts.
+          project. The source-language sentence from the design is published
+          immediately, so <span class="text-default">/bundle</span> and
+          <span class="text-default">/locales</span> return it. Other languages
+          stay as they were.
         </p>
         <div
           v-for="example in writeExamples"

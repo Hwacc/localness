@@ -129,6 +129,20 @@ describe('writeSourceText', () => {
     ])
   })
 
+  it('publishes the source sentence when asked', async () => {
+    await writeSourceText({
+      projectId: 7,
+      i18nKeyId: 12,
+      text: 'Save',
+      publish: true,
+    })
+
+    expect(db.localeUpserts[0]?.update).toEqual({
+      draftText: 'Save',
+      publishedText: 'Save',
+    })
+  })
+
   it('writes nothing for an empty text', async () => {
     await writeSourceText({
       projectId: 7,
