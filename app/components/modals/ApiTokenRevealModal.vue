@@ -81,9 +81,9 @@ async function copy() {
             }}
           </span>
         </p>
-        <div class="flex items-center gap-2">
+        <div class="flex items-start gap-2">
           <code
-            class="flex-1 min-w-0 truncate rounded bg-elevated/60 p-2 text-xs"
+            class="flex-1 min-w-0 break-all rounded bg-elevated/60 p-2 text-xs select-all"
             >{{ props.token }}</code
           >
           <UButton
