@@ -28,13 +28,19 @@ fi
 export LOCALNESS_IMAGE="${IMAGE_REPO}:${tag}"
 port="${LOCALNESS_PORT:-13000}"
 
+# sudo's env_reset strips custom variables, and a stripped LOCALNESS_IMAGE
+# silently falls back to :latest in docker-compose.yml — pass via argv instead.
+compose() {
+  sudo env LOCALNESS_IMAGE="$LOCALNESS_IMAGE" LOCALNESS_PORT="$port" docker compose "$@"
+}
+
 echo "Updating to ${LOCALNESS_IMAGE} (data volume is kept)"
 
 # Intranet hosts often time out on registry-1.docker.io. Fail the script
 # before `up` so a pull miss does not recreate the container on a stale tag.
 attempt=1
 while :; do
-  if sudo docker compose pull; then
+  if compose pull; then
     break
   fi
   if [ "$attempt" -ge "${LOCALNESS_PULL_RETRIES:-3}" ]; then
@@ -47,7 +53,7 @@ while :; do
   sleep 5
 done
 
-sudo docker compose up -d
+compose up -d
 
 # `up -d` returns as soon as the container exists. The entrypoint still has
 # to migrate, then Nitro has to listen — compose start_period is 40s for this.
@@ -60,12 +66,12 @@ while :; do
   fi
   if [ "$(date +%s)" -ge "$deadline" ]; then
     echo "Health: failed (no response from ${url} within ${LOCALNESS_HEALTH_WAIT:-90}s)" >&2
-    sudo docker compose ps >&2
-    sudo docker compose logs --tail 80 localness >&2
+    compose ps >&2
+    compose logs --tail 80 localness >&2
     exit 1
   fi
   sleep 2
 done
 
-sudo docker compose ps
+compose ps
 echo "Health: ${body}"
