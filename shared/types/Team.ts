@@ -62,3 +62,22 @@ export interface ITeamMemberCandidates {
   /** True when the search hit the result cap, so matches may be missing. */
   truncated: boolean
 }
+
+/**
+ * The caller's relationship to a searched team. `none` covers both "never
+ * asked" and "was rejected" — a rejected applicant may re-apply immediately.
+ */
+export type TeamSearchStatus = 'none' | 'applied' | 'member'
+
+export interface ITeamSearchResult {
+  id: ID
+  name: string
+  memberCount: number
+  status: TeamSearchStatus
+}
+
+export interface ITeamSearchResults {
+  teams: ITeamSearchResult[]
+  /** True when the search hit the result cap, so matches may be missing. */
+  truncated: boolean
+}

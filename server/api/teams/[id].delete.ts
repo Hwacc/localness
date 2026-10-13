@@ -43,15 +43,15 @@ export default defineEventHandler(async (event) => {
     })
   }
 
-  // `UserTeam` and `TeamInviteCode` both declare ON DELETE CASCADE on the Team
-  // relation, so they go with it. Pending TEAM_INVITE notifications do not:
-  // their teamId lives in the `payload` JSON with no foreign key, and accepting
-  // one after the team is gone fails on the membership insert. Drop them in the
-  // same transaction.
+  // `UserTeam`, `TeamInviteCode` and `TeamJoinRequest` all declare ON DELETE
+  // CASCADE on the Team relation, so they go with it. Pending TEAM_INVITE and
+  // TEAM_JOIN_REQUEST notifications do not: their teamId lives in the `payload`
+  // JSON with no foreign key, and acting on one after the team is gone fails on
+  // the membership insert. Drop them in the same transaction.
   await prisma.$transaction(async (tx) => {
     const pending = await tx.notification.findMany({
       where: {
-        type: NotificationType.TEAM_INVITE,
+        type: { in: [NotificationType.TEAM_INVITE, NotificationType.TEAM_JOIN_REQUEST] },
         action: NotificationAction.PENDING,
       },
       select: { id: true, payload: true },

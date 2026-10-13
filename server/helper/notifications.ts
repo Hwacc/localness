@@ -1,5 +1,10 @@
 import prisma from '#server/libs/prisma'
 import {
+  JOIN_REQUEST_DECIDE_MESSAGES,
+  joinRequestDecideRejectReason,
+} from '#server/helper/team-membership'
+import {
+  JoinRequestStatus,
   NotificationAction,
   NotificationType,
   TeamRole,
@@ -31,6 +36,31 @@ export function throwNotificationHttp(error: unknown): never {
     })
   }
   throw error
+}
+
+export type TeamJoinRequestPayload = {
+  teamId: number
+  teamName: string
+  applicantId: number
+  applicantName: string
+}
+
+export function parseTeamJoinRequestPayload(raw: unknown): TeamJoinRequestPayload {
+  if (!raw || typeof raw !== 'object') {
+    throw new NotificationError(500, 'Invalid join request payload')
+  }
+  const value = raw as Record<string, unknown>
+  const teamId = Number(value.teamId)
+  const applicantId = Number(value.applicantId)
+  if (!Number.isInteger(teamId) || !Number.isInteger(applicantId)) {
+    throw new NotificationError(500, 'Invalid join request payload')
+  }
+  return {
+    teamId,
+    teamName: String(value.teamName ?? ''),
+    applicantId,
+    applicantName: String(value.applicantName ?? ''),
+  }
 }
 
 export function parseTeamInvitePayload(raw: unknown): TeamInvitePayload {
@@ -90,6 +120,13 @@ export function payloadTeamId(payload: unknown): number | null {
   if (!payload || typeof payload !== 'object') return null
   const teamId = Number((payload as { teamId?: unknown }).teamId)
   return Number.isInteger(teamId) ? teamId : null
+}
+
+/** Same JSON-without-FK reason as `payloadTeamId`: finds one applicant's rows. */
+export function payloadApplicantId(payload: unknown): number | null {
+  if (!payload || typeof payload !== 'object') return null
+  const applicantId = Number((payload as { applicantId?: unknown }).applicantId)
+  return Number.isInteger(applicantId) ? applicantId : null
 }
 
 export async function createTeamInviteNotification(params: {
@@ -224,6 +261,13 @@ export async function deleteNotifications(userId: number, ids?: number[]) {
   return listNotifications(userId)
 }
 
+/**
+ * Only PENDING-action types are actionable; the NONE-action types
+ * (TEAM_JOIN_APPROVED / TEAM_JOIN_REJECTED) are rejected by the guard below
+ * before the switch, so they get no case.
+ */
+type ActableNotificationType = NotificationType.TEAM_INVITE | NotificationType.TEAM_JOIN_REQUEST
+
 export async function actOnNotification(params: {
   userId: number
   notificationId: number
@@ -237,7 +281,7 @@ export async function actOnNotification(params: {
       throw new NotificationError(404, 'Notification not found')
     }
 
-    const type = row.type as NotificationType
+    const type = row.type as ActableNotificationType
     switch (type) {
       case NotificationType.TEAM_INVITE: {
         if (params.action === NotificationAction.ACCEPTED) {
@@ -259,6 +303,111 @@ export async function actOnNotification(params: {
               },
             })
           }
+        }
+        break
+      }
+      case NotificationType.TEAM_JOIN_REQUEST: {
+        const payload = parseTeamJoinRequestPayload(row.payload)
+        const membership = await tx.userTeam.findUnique({
+          where: {
+            userId_teamId: { userId: params.userId, teamId: payload.teamId },
+          },
+        })
+        const request = await tx.teamJoinRequest.findUnique({
+          where: {
+            teamId_userId: {
+              teamId: payload.teamId,
+              userId: payload.applicantId,
+            },
+          },
+        })
+        if (!request) {
+          throw new NotificationError(404, JOIN_REQUEST_DECIDE_MESSAGES.missing)
+        }
+        const reason = joinRequestDecideRejectReason(request, membership?.role ?? null)
+        if (reason) {
+          throw new NotificationError(
+            reason === 'not-owner' ? 403 : 409,
+            JOIN_REQUEST_DECIDE_MESSAGES[reason]
+          )
+        }
+
+        const approved = params.action === NotificationAction.ACCEPTED
+        // Claim first: each owner holds their own notification row, so the
+        // PENDING guard above serializes nothing — this UPDATE is the race.
+        const claimed = await tx.teamJoinRequest.updateMany({
+          where: { id: request.id, status: JoinRequestStatus.PENDING },
+          data: {
+            status: approved
+              ? JoinRequestStatus.APPROVED
+              : JoinRequestStatus.REJECTED,
+            decidedAt: new Date(),
+            decidedBy: params.userId,
+          },
+        })
+        if (claimed.count === 0) {
+          throw new NotificationError(
+            409,
+            JOIN_REQUEST_DECIDE_MESSAGES['already-decided']
+          )
+        }
+
+        if (approved) {
+          const existing = await tx.userTeam.findUnique({
+            where: {
+              userId_teamId: {
+                userId: payload.applicantId,
+                teamId: payload.teamId,
+              },
+            },
+          })
+          if (!existing) {
+            await tx.userTeam.create({
+              data: {
+                userId: payload.applicantId,
+                teamId: payload.teamId,
+                role: TeamRole.MEMBER,
+              },
+            })
+          }
+        }
+
+        // The applicant hears either way (locked decision).
+        await tx.notification.create({
+          data: {
+            userId: payload.applicantId,
+            type: approved
+              ? NotificationType.TEAM_JOIN_APPROVED
+              : NotificationType.TEAM_JOIN_REJECTED,
+            title: 'Join request',
+            body: `Your request to join ${payload.teamName} was ${approved ? 'approved' : 'rejected'}`,
+            payload: { teamId: payload.teamId, teamName: payload.teamName },
+            action: NotificationAction.NONE,
+          },
+        })
+
+        // Sibling owners' pending rows for the same request resolve too —
+        // otherwise their Approve buttons stay live and only ever 409.
+        const siblings = await tx.notification.findMany({
+          where: {
+            userId: { not: params.userId },
+            type: NotificationType.TEAM_JOIN_REQUEST,
+            action: NotificationAction.PENDING,
+          },
+          select: { id: true, payload: true },
+        })
+        const siblingIds = siblings
+          .filter(
+            (n) =>
+              payloadTeamId(n.payload) === payload.teamId &&
+              payloadApplicantId(n.payload) === payload.applicantId
+          )
+          .map((n) => n.id)
+        if (siblingIds.length > 0) {
+          await tx.notification.updateMany({
+            where: { id: { in: siblingIds } },
+            data: { action: params.action, actedAt: new Date() },
+          })
         }
         break
       }

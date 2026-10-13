@@ -11,6 +11,18 @@ export enum TeamRole {
 
 export enum NotificationType {
   TEAM_INVITE = 'TEAM_INVITE',
+  // Only PENDING-action types are acted on: REQUEST goes to each OWNER and its
+  // accept/decline decides the request; APPROVED/REJECTED are informational
+  // rows for the applicant (action NONE).
+  TEAM_JOIN_REQUEST = 'TEAM_JOIN_REQUEST',
+  TEAM_JOIN_APPROVED = 'TEAM_JOIN_APPROVED',
+  TEAM_JOIN_REJECTED = 'TEAM_JOIN_REJECTED',
+}
+
+export enum JoinRequestStatus {
+  PENDING = 'pending',
+  APPROVED = 'approved',
+  REJECTED = 'rejected',
 }
 
 export enum NotificationAction {

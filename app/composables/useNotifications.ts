@@ -1,4 +1,4 @@
-import { NotificationAction } from '#shared/constants'
+import { NotificationAction, NotificationType } from '#shared/constants'
 
 const POLL_MS = 30_000
 
@@ -14,6 +14,7 @@ export function useNotifications() {
     'notifications:timer',
     () => null
   )
+  const hydrated = useState('notifications:hydrated', () => false)
 
   async function refresh() {
     if (!loggedIn.value) return
@@ -22,8 +23,23 @@ export function useNotifications() {
       pendingCount: number
     }>('/api/notifications')
     if (!res) return
+    const known = new Set(items.value.map((row) => Number(row.id)))
     items.value = res.items
     pendingCount.value = res.pendingCount
+    // The first load seeds the baseline; only rows that arrived afterwards are
+    // "new", so boot does not fire the side effect below.
+    if (!hydrated.value) {
+      hydrated.value = true
+      return
+    }
+    // An approved join request lands on the applicant as a fresh row — the
+    // teams list has to catch up, and only their own polling sees it.
+    const joined = res.items.some(
+      (row) =>
+        !known.has(Number(row.id)) &&
+        row.type === NotificationType.TEAM_JOIN_APPROVED
+    )
+    if (joined) await projectStore.getProjects()
   }
 
   async function markVisibleRead() {
@@ -123,6 +139,7 @@ export function useNotifications() {
     stopPolling()
     items.value = []
     pendingCount.value = 0
+    hydrated.value = false
   }
 
   if (import.meta.client) {

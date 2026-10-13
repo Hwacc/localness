@@ -404,6 +404,55 @@ async function loadInviteCandidates() {
   }
 }
 
+const teamSearch = ref('')
+const teamResults = ref<ITeamSearchResult[]>([])
+const teamSearching = ref(false)
+const teamSearchTruncated = ref(false)
+const applyingId = ref<number | null>(null)
+let teamSearchSeq = 0
+
+async function loadTeamSearch() {
+  const q = teamSearch.value.trim()
+  if (q.length < 2) {
+    teamResults.value = []
+    teamSearchTruncated.value = false
+    return
+  }
+  const seq = ++teamSearchSeq
+  teamSearching.value = true
+  try {
+    const res = await useApi<ITeamSearchResults>('/api/teams/search', {
+      // `query`, not string interpolation — same reason as the invite picker.
+      query: { q },
+    })
+    // A slower earlier request must not overwrite a newer one's results.
+    if (!res || seq !== teamSearchSeq) return
+    teamResults.value = res.teams
+    teamSearchTruncated.value = res.truncated
+  } finally {
+    if (seq === teamSearchSeq) teamSearching.value = false
+  }
+}
+
+const teamSearchDebounced = useDebounceFn(loadTeamSearch, 300)
+watch(teamSearch, () => teamSearchDebounced())
+
+async function applyToTeam(row: ITeamSearchResult) {
+  applyingId.value = Number(row.id)
+  try {
+    await useApi(`/api/teams/${row.id}/join-requests`, { method: 'POST' })
+    row.status = 'applied'
+    toast.add({
+      title: 'Join request sent',
+      description: row.name,
+      color: 'success',
+      icon: 'i-lucide:check',
+    })
+  } finally {
+    applyingId.value = null
+  }
+}
+
 const inviteSearchDebounced = useDebounceFn(loadInviteCandidates, 300)
 
 watch(inviteSearch, (value) => {
@@ -724,6 +773,74 @@ onMounted(async () => {
     <div class="flex-1 min-h-0 grid grid-cols-[18rem_minmax(0,1fr)]">
       <aside class="border-r border-default bg-default overflow-auto p-3">
         <p class="px-2 py-1.5 text-xs font-medium text-muted uppercase tracking-wide">
+          Find a team
+        </p>
+        <UInput
+          v-model="teamSearch"
+          size="sm"
+          class="w-full mb-2"
+          icon="i-lucide-search"
+          placeholder="Search teams"
+        />
+        <div
+          v-if="
+            teamSearch.trim().length >= 2 &&
+            teamResults.length === 0 &&
+            !teamSearching
+          "
+          class="px-2 py-2 text-sm text-muted"
+        >
+          No matching team
+        </div>
+        <div
+          v-for="team in teamResults"
+          :key="team.id"
+          class="rounded-lg px-3 py-2.5 mb-1 transition-colors"
+          :class="
+            isSelected(team.id)
+              ? 'bg-primary/10 text-highlighted'
+              : 'hover:bg-elevated'
+          "
+        >
+          <div class="flex items-center gap-2 min-w-0">
+            <div
+              class="font-medium truncate flex-1 min-w-0"
+              :class="team.status === 'member' ? 'cursor-pointer' : ''"
+              @click="team.status === 'member' && (selectedId = team.id)"
+            >
+              {{ team.name }}
+            </div>
+            <UBadge
+              v-if="team.status === 'member'"
+              color="neutral"
+              variant="subtle"
+              label="Joined"
+              size="xs"
+            />
+            <UButton
+              v-else-if="team.status === 'none'"
+              size="xs"
+              label="Apply"
+              :loading="applyingId === Number(team.id)"
+              @click="applyToTeam(team)"
+            />
+            <UBadge
+              v-else
+              color="neutral"
+              variant="subtle"
+              label="Applied"
+              size="xs"
+            />
+          </div>
+          <div class="mt-0.5 text-xs text-muted">
+            {{ team.memberCount }} members
+          </div>
+        </div>
+        <p v-if="teamSearchTruncated" class="px-2 pb-2 text-xs text-muted">
+          More matches — keep typing
+        </p>
+
+        <p class="px-2 py-1.5 mt-4 text-xs font-medium text-muted uppercase tracking-wide">
           Your teams
         </p>
         <div v-if="teams.length === 0" class="px-2 py-8 text-sm text-muted">

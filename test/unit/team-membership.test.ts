@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest'
-import { TeamRole } from '#shared/constants'
+import { JoinRequestStatus, TeamRole } from '#shared/constants'
 import {
+  joinRequestApplyRejectReason,
+  joinRequestDecideRejectReason,
   memberRemovalRejectReason,
   roleChangeRejectReason,
   teamDeleteRejectReason,
@@ -96,5 +98,113 @@ describe('teamDeleteRejectReason', () => {
     expect(teamDeleteRejectReason([owner(1), member(2)], 3, 1)).toBe(
       'has-members'
     )
+  })
+})
+
+describe('joinRequestApplyRejectReason', () => {
+  it('allows a stranger to apply', () => {
+    expect(
+      joinRequestApplyRejectReason({
+        isMember: false,
+        existingStatus: null,
+        ownerCount: 1,
+      })
+    ).toBeNull()
+  })
+
+  it('allows re-applying after a rejection', () => {
+    expect(
+      joinRequestApplyRejectReason({
+        isMember: false,
+        existingStatus: JoinRequestStatus.REJECTED,
+        ownerCount: 1,
+      })
+    ).toBeNull()
+  })
+
+  it('rejects a member', () => {
+    expect(
+      joinRequestApplyRejectReason({
+        isMember: true,
+        existingStatus: null,
+        ownerCount: 1,
+      })
+    ).toBe('already-member')
+  })
+
+  it('rejects a second pending request', () => {
+    expect(
+      joinRequestApplyRejectReason({
+        isMember: false,
+        existingStatus: JoinRequestStatus.PENDING,
+        ownerCount: 1,
+      })
+    ).toBe('already-pending')
+  })
+
+  it('fails closed when the team has no owner', () => {
+    expect(
+      joinRequestApplyRejectReason({
+        isMember: false,
+        existingStatus: null,
+        ownerCount: 0,
+      })
+    ).toBe('no-owner')
+  })
+
+  it('reports membership before the pending request', () => {
+    expect(
+      joinRequestApplyRejectReason({
+        isMember: true,
+        existingStatus: JoinRequestStatus.PENDING,
+        ownerCount: 1,
+      })
+    ).toBe('already-member')
+  })
+})
+
+describe('joinRequestDecideRejectReason', () => {
+  it('lets an owner decide a pending request', () => {
+    expect(
+      joinRequestDecideRejectReason({ status: JoinRequestStatus.PENDING }, TeamRole.OWNER)
+    ).toBeNull()
+  })
+
+  it('rejects a missing request', () => {
+    expect(joinRequestDecideRejectReason(null, TeamRole.OWNER)).toBe('missing')
+  })
+
+  // An OWNER demoted after the notification was sent still holds the row.
+  it('rejects a MEMBER acting on the request', () => {
+    expect(
+      joinRequestDecideRejectReason(
+        { status: JoinRequestStatus.PENDING },
+        TeamRole.MEMBER
+      )
+    ).toBe('not-owner')
+  })
+
+  it('rejects a non-member actor', () => {
+    expect(
+      joinRequestDecideRejectReason({ status: JoinRequestStatus.PENDING }, null)
+    ).toBe('not-owner')
+  })
+
+  it('rejects an already-decided request', () => {
+    expect(
+      joinRequestDecideRejectReason(
+        { status: JoinRequestStatus.APPROVED },
+        TeamRole.OWNER
+      )
+    ).toBe('already-decided')
+  })
+
+  it('checks the role before the status', () => {
+    expect(
+      joinRequestDecideRejectReason(
+        { status: JoinRequestStatus.APPROVED },
+        TeamRole.MEMBER
+      )
+    ).toBe('not-owner')
   })
 })

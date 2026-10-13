@@ -21,6 +21,7 @@ model User {
   avatar            String?
   passwordSetAt     DateTime?        @map("password_set_at")
   teams             UserTeam[]
+  joinRequests      TeamJoinRequest[]
   translationLog    TranslationLog[]
   tagLogs           TagLog[]
   pageLogs          PageLog[]
@@ -89,13 +90,14 @@ model Notification {
 }
 
 model Team {
-  id          Int              @id @default(autoincrement())
-  createdAt   DateTime         @default(now()) @map("created_at")
-  updatedAt   DateTime         @updatedAt @map("updated_at")
+  id          Int               @id @default(autoincrement())
+  createdAt   DateTime          @default(now()) @map("created_at")
+  updatedAt   DateTime          @updatedAt @map("updated_at")
   name        String
   members     UserTeam[]
   projects    Project[]
   inviteCodes TeamInviteCode[]
+  joinRequests TeamJoinRequest[]
 }
 
 model TeamInviteCode {
@@ -124,6 +126,24 @@ model UserTeam {
 
   @@id([userId, teamId])
   @@index([teamId])
+}
+
+/// A request to join a team, decided from the owners' inbox. One row per
+/// (team, user): a rejected request resets on re-apply. `decidedBy` is an
+/// audit value with no FK — the decider may leave the team later.
+model TeamJoinRequest {
+  id        Int       @id @default(autoincrement())
+  createdAt DateTime  @default(now()) @map("created_at")
+  teamId    Int       @map("team_id")
+  userId    Int       @map("user_id")
+  status    String    @default("pending")
+  decidedAt DateTime? @map("decided_at")
+  decidedBy Int?      @map("decided_by")
+  team      Team      @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([teamId, userId])
+  @@index([userId])
 }
 
 model Project {

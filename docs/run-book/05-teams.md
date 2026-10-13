@@ -3,6 +3,7 @@
 ## 这一章能做什么
 
 - 用邀请码进一个团队，或者同意别人发来的邀请
+- 搜索平台上的团队、申请加入，由 Team Owner 在 Inbox 里批准
 - Team Owner：生成、复制、撤销邀请码，按人邀请，改成员角色，移除成员
 - 知道离开、降级、移除、删团队分别在什么情况下会被拦下来
 
@@ -35,6 +36,18 @@
 这条路必须你点头才算数。Team Owner 发出邀请后，你在**铃铛 → Inbox** 里会看到一条 **Team invite**，正文是 `{谁} invited you to {队伍名} as Team Member`，点 **Accept** 或 **Decline**。处理过的行会显示 **Accepted** / **Declined**，没处理的显示 **Pending**。
 
 **Accept 之前你不属于这个队**，队里的项目一个也看不见。
+
+### 搜索申请加入，要 Team Owner 批准
+
+**Teams** 页左侧 **Find a team** 搜索框，输入至少 2 个字符，列出平台上的团队：名字 + 成员数。每行按你的状态显示：
+
+- **Apply** —— 点一下发出申请，弹 **Join request sent**，按钮变成 **Applied**。
+- **Applied** —— 已有一条还没处理的申请，不能再发第二条。
+- **Joined** —— 你已经是成员，点名字可直接选中该队。
+
+申请发出后，这个队的**每个 Team Owner** 的**铃铛 → Inbox** 里都会多一条 **Join request**（正文 `{你的名字} applied to join {队伍名}`），点 **Approve** 或 **Reject**。谁先处理谁生效，另一个人的行会直接变成已处理的结果，不会卡住。**Approve 之后你成为 Team Member**，左侧队伍列表里会出现这个队；无论批准还是拒绝，你都会在自己的 Inbox 里收到一条结果消息。**被拒绝可以立刻重新申请**，没有冷却。
+
+**注意**：Team Owner 在处理前如果把这条通知从 Inbox 里删掉（单删或 **Clear all**），申请就没有任何入口可以再批了——清 Inbox 前先看一眼有没有待处理的申请。
 
 ## Team Owner：邀请码
 
@@ -94,7 +107,7 @@
 
 ![1790218070894](image/05-teams/1790218070894.png)
 
-**Clear all 要小心。** 它的确认框写得很直白：`Delete every notification? Pending invites go too, and the sender is not told — you will need a new invite to join that team.` 也就是说，还没处理的邀请会被一起清掉，而且**不会通知邀请你的人**——他以为发了，你这边什么都没收到，只能请他重发一次。
+**Clear all 要小心。** 它的确认框写得很直白：`Delete every notification? Pending invites and join requests go too — an invite needs a new code, and a deleted join request has no way left to approve it.` 也就是说，还没处理的邀请和入队申请会被一起清掉：邀请不会通知发送者，只能请他重发；**入队申请则会失去唯一的批准入口**，申请的人只能重新申请一次。
 
 ## Project Owner 也在这一页
 
@@ -111,5 +124,6 @@ Project Owner 是什么、谁能任命，见第 6 章。
 | `Type at least 2 characters`                                           | 邀请搜索框里字太少                                                                                       |
 | `No matching user`                                                     | 搜不到人。对方得先有账号（第 3 章）；邮箱只参与匹配，列表里不显示                                        |
 | 发了邀请，对方说没收到                                                   | 邀请在对方的 Inbox 里，要点**Accept** 才入队；对方如果按过 **Clear all**，邀请就没了，得重发 |
+| 申请了团队，迟迟没人批 | 每个 Team Owner 的 Inbox 里都有这条 **Join request**，谁先处理谁生效；若有 Owner 在处理前删掉了通知，申请就没有入口了——清 Inbox 前看一眼 |
 | 邀请某人时选项是灰的                                                     | 选项下面写了原因：是你自己、他已经在队里、或者邀请还没处理                                               |
 | **Make member** / **Remove** / **Leave team** 按不下去 | 见上面那张「会被拦下来的情况」                                                                           |

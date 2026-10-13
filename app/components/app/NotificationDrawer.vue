@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { NotificationAction } from '#shared/constants'
+import { NotificationAction, NotificationType } from '#shared/constants'
 import { AlertModal } from '#components'
 
 const open = ref(false)
@@ -38,7 +38,7 @@ function confirmClearAll() {
     mode: 'delete',
     title: 'Clear Inbox',
     message:
-      'Delete every notification? Pending invites go too, and the sender is not told — you will need a new invite to join that team.',
+      'Delete every notification? Pending invites and join requests go too — an invite needs a new code, and a deleted join request has no way left to approve it.',
     okText: 'Clear',
     onOk: async (_mode, { close }) => {
       await clearAll()
@@ -47,12 +47,23 @@ function confirmClearAll() {
   })
 }
 
-function actionLabel(action: string) {
+/** Join requests read Approve/Reject; invites keep Accept/Decline. */
+function isJoinRequest(type: unknown) {
+  return type === NotificationType.TEAM_JOIN_REQUEST
+}
+
+function pendingLabels(type: unknown) {
+  return isJoinRequest(type)
+    ? { accept: 'Approve', decline: 'Reject' }
+    : { accept: 'Accept', decline: 'Decline' }
+}
+
+function actionLabel(action: string, type: unknown) {
   switch (action) {
     case NotificationAction.ACCEPTED:
-      return 'Accepted'
+      return isJoinRequest(type) ? 'Approved' : 'Accepted'
     case NotificationAction.DECLINED:
-      return 'Declined'
+      return isJoinRequest(type) ? 'Rejected' : 'Declined'
     case NotificationAction.PENDING:
       return 'Pending'
     case NotificationAction.NONE:
@@ -141,7 +152,7 @@ function actionLabel(action: string) {
           >
             <UButton
               size="xs"
-              label="Accept"
+              :label="pendingLabels(row.type).accept"
               :loading="actingId === row.id"
               @click="act(row.id, NotificationAction.ACCEPTED)"
             />
@@ -149,13 +160,13 @@ function actionLabel(action: string) {
               size="xs"
               color="neutral"
               variant="outline"
-              label="Decline"
+              :label="pendingLabels(row.type).decline"
               :disabled="actingId === row.id"
               @click="act(row.id, NotificationAction.DECLINED)"
             />
           </div>
           <p v-else class="mt-2 text-xs text-muted">
-            {{ actionLabel(String(row.action)) }}
+            {{ actionLabel(String(row.action), row.type) }}
           </p>
         </li>
       </ul>
