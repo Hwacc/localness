@@ -1,4 +1,4 @@
-import { TeamRole } from '#shared/constants'
+import { JoinRequestStatus, TeamRole } from '#shared/constants'
 
 /**
  * Membership rules for a Team, as pure functions over the current member list.
@@ -88,6 +88,41 @@ export function teamDeleteRejectReason(
   return null
 }
 
+export type JoinRequestApplyRejection = 'already-member' | 'already-pending' | 'no-owner'
+export type JoinRequestDecideRejection = 'missing' | 'not-owner' | 'already-decided'
+
+/**
+ * Why applying to this team must be refused, or null when allowed. A rejected
+ * request may be reset and re-applied, so only a live `pending` blocks. The
+ * owner check fails closed: the invariant says a team always has one, but if
+ * the data ever says otherwise the request would be undecidable forever.
+ */
+export function joinRequestApplyRejectReason(input: {
+  isMember: boolean
+  existingStatus: JoinRequestStatus | null
+  ownerCount: number
+}): JoinRequestApplyRejection | null {
+  if (input.isMember) return 'already-member'
+  if (input.existingStatus === JoinRequestStatus.PENDING) return 'already-pending'
+  if (input.ownerCount <= 0) return 'no-owner'
+  return null
+}
+
+/**
+ * Why deciding this request must be refused, or null when allowed. The role is
+ * re-checked at decision time: an OWNER demoted after the notification was
+ * sent still holds the pending row in their inbox.
+ */
+export function joinRequestDecideRejectReason(
+  request: { status: string } | null,
+  actorRole: string | null
+): JoinRequestDecideRejection | null {
+  if (!request) return 'missing'
+  if (actorRole !== TeamRole.OWNER) return 'not-owner'
+  if (request.status !== JoinRequestStatus.PENDING) return 'already-decided'
+  return null
+}
+
 export const ROLE_CHANGE_MESSAGES: Record<RoleChangeRejection, string> = {
   'not-member': 'Member not found',
   unchanged: 'Member already has this role',
@@ -103,4 +138,16 @@ export const TEAM_DELETE_MESSAGES: Record<TeamDeleteRejection, string> = {
   'not-member': 'Member not found',
   'has-members': 'Remove the other members before deleting this team',
   'has-projects': 'Delete this team’s projects before deleting the team',
+}
+
+export const JOIN_REQUEST_APPLY_MESSAGES: Record<JoinRequestApplyRejection, string> = {
+  'already-member': 'You are already on this team',
+  'already-pending': 'Request already pending',
+  'no-owner': 'This team has no owner to approve the request',
+}
+
+export const JOIN_REQUEST_DECIDE_MESSAGES: Record<JoinRequestDecideRejection, string> = {
+  missing: 'Join request not found',
+  'not-owner': 'Only a team owner can decide join requests',
+  'already-decided': 'Request already decided',
 }
