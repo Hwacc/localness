@@ -81,6 +81,12 @@ export enum ApiTokenScope {
   WRITE = 'write',
 }
 
+/**
+ * Days after `expiresAt` during which Plus keeps working while the UI warns.
+ * Not signed into the payload — per-customer adjustability is not worth a field.
+ */
+export const LICENSE_GRACE_DAYS = 30
+
 export enum GitSyncAdapter {
   LILT_SWBU = 'lilt-swbu',
 }

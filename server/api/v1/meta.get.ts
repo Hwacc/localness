@@ -5,6 +5,7 @@ import {
 import { resolveTokenProject } from '#server/helper/api-token-project'
 import { deliveryMeta, resolveReleaseParam } from '#server/helper/api-delivery'
 import { tokenManagesReleases } from '#server/helper/api-capture'
+import { licenseState } from '#server/helper/license'
 
 /**
  * Public read-only delivery API. Kept in `/api/v1` rather than reusing the UI
@@ -36,5 +37,16 @@ export default defineEventHandler(async (event) => {
   }
 
   await touchApiToken(token)
-  return result
+
+  // Spread here, not inside `deliveryMeta()`: that helper is a project-scoped
+  // prisma query, and instance-level facts have no business in it. `plus` is
+  // all a caller gets — customer and expiry never leave the session UI.
+  const { appVersion } = useRuntimeConfig(event).public
+  return {
+    ...result,
+    instance: {
+      version: appVersion,
+      plus: licenseState().plus,
+    },
+  }
 })
