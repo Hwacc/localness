@@ -13,11 +13,13 @@ import { LICENSE_GRACE_DAYS } from '#shared/constants'
  * rather than left to Nitro's auto-import.
  *
  * The public key is hardcoded on purpose: an overridable key is a key anyone
- * can replace with their own and self-sign. It is a placeholder until the first
- * real keypair is generated (`pnpm license:keygen`); an empty key makes every
- * verification fail, which lands the instance on the free tier — safe default.
+ * can replace with their own and self-sign. The matching private key lives in
+ * the issuer's password manager (`pnpm license:keygen`, 2026-10-16); losing it
+ * means no license can ever be signed again.
  */
-const LICENSE_PUBLIC_KEY = ''
+const LICENSE_PUBLIC_KEY = `-----BEGIN PUBLIC KEY-----
+MCowBQYDK2VwAyEAu5gkcJmEZ6WF86fKKM3YxfLRdmkn1HtOE9SHcoF9b98=
+-----END PUBLIC KEY-----`
 
 export interface LicensePayload {
   licenseId: string

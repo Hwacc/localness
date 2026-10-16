@@ -99,7 +99,6 @@ describe('verifyLicense', () => {
   })
 
   it('rejects when no public key is configured', () => {
-    // The in-repo constant is a placeholder until the first real keypair.
     expect(verifyLicense(signKey(makePayload()), '')).toBe(null)
   })
 })
