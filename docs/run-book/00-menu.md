@@ -1,6 +1,6 @@
 # Localness 操作手册
 
-<img alt="Localness 0.3.x" src="https://img.shields.io/badge/Localness-0.3.x-blue" />
+<img alt="Localness 0.4.x" src="https://img.shields.io/badge/Localness-0.4.x-blue" />
 
 Localness 的操作手册，全书按章分文件，一章一文件。
 
