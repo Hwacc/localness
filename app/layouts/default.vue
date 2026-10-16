@@ -40,6 +40,12 @@ const navItems = [
     to: '/translations',
   },
   {
+    icon: 'i-lucide:copy-check',
+    label: 'Consistency',
+    name: 'consistency',
+    to: '/consistency',
+  },
+  {
     icon: 'i-lucide:git-branch',
     label: 'LILT Git',
     name: 'git',

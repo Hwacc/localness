@@ -5,19 +5,9 @@
  * deployments. Not on the login page: no session there, and the customer name
  * must not appear on an unauthenticated surface.
  */
-type LicenseView = {
-  status: 'none' | 'invalid' | 'active' | 'grace' | 'expired'
-  plus: boolean
-  customer?: string
-  licenseId?: string
-  expiresAt?: string
-}
+const { state, load } = useLicenseState()
 
-const state = ref<LicenseView | null>(null)
-
-onMounted(async () => {
-  state.value = await $fetch<LicenseView>('/api/license')
-})
+onMounted(load)
 
 const visible = computed(
   () => state.value != null && state.value.status !== 'none'

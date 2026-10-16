@@ -807,6 +807,15 @@ onMounted(async () => {
   }
   // Before the first load, so a reload keeps this project's filters too.
   restoreFilters(curProject.value.id)
+  // A deep link (Consistency's "Find") overrides the remembered search for
+  // this visit only — written through the ignorable so it neither double-
+  // loads nor overwrites what this project's filters were.
+  const linkedQ = useRoute().query.q
+  if (typeof linkedQ === 'string' && linkedQ.trim()) {
+    qWatch.ignoreUpdates(() => {
+      q.value = linkedQ.trim()
+    })
+  }
   await loadKeys()
 })
 </script>

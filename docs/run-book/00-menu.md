@@ -13,7 +13,7 @@ Localness 的操作手册，全书按章分文件，一章一文件。
 | [1. 这份手册怎么用](01-how-to-use.md) | 写法约定、角色对照、按任务跳章的索引 |
 | [2. Localness 是什么](02-what-is-localness.md) | 定位、那条主路径、Page / Tag / 词条三个概念、Draft 与 Published |
 | [3. 登录与第一次进入](03-login.md) | 本地账号、Atlassian 登录、已有账号的绑定、主题、还没有团队时怎么办 |
-| [4. 界面总览](04-interface-overview.md) | 侧栏八个入口、Workspace Bar、当前项目在哪切、Dashboard 卡片排序 |
+| [4. 界面总览](04-interface-overview.md) | 侧栏九个入口、Workspace Bar、当前项目在哪切、Dashboard 卡片排序 |
 | [5. 团队](05-teams.md) | 邀请码、按人邀请、Inbox 里的同意与拒绝、角色变更、最后一个 Team Owner |
 | [6. 项目](06-projects.md) | 建项目与 Project Owner、项目设置（OCR、源语言、key 命名规范、Prompt）、页面继承与覆盖 |
 | [7. 发行标签（Release）](07-releases.md) | 建标签、按发行筛选、给页面和词条挂标签 |
@@ -25,3 +25,4 @@ Localness 的操作手册，全书按章分文件，一章一文件。
 | [13. Skills](13-skills.md) | 上传、编辑、删除给 agent 用的 skill 包 |
 | [14. 权限对照](14-permissions.md) | Team Member / Project Owner / Team Owner 分别能做什么，一张表 |
 | [15. 附录](15-appendix.md) | 名词表、常见问题、明确不在本手册范围内的事 |
+| [16. Plus 功能](16-plus.md) | Plus 状态徽章怎么看、Consistency 页查重复文案 |
