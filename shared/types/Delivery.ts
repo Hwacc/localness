@@ -34,6 +34,12 @@ export interface DeliveryMeta {
    * Attaching a label to a page or a key is separate, and does not need this.
    */
   canManageReleases: boolean
+  /**
+   * Instance-level facts, added by the endpoint rather than `deliveryMeta()`.
+   * Seed of capability negotiation: `plus` gates features, `version` lets a
+   * caller adapt. Never carries the customer or the expiry date.
+   */
+  instance?: { version: string; plus: boolean }
   /** ISO 8601. */
   generatedAt: string
 }

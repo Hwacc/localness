@@ -66,6 +66,7 @@ function setTheme(value: (typeof themeOptions)[number]['value']) {
           </p>
         </div>
         <VersionLine />
+        <PlusBadge />
       </section>
     </template>
   </USlideover>
