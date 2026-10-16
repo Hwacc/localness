@@ -30,6 +30,7 @@ run-tabbit.bat
 .env.*
 !.env.example
 !.env.docker.example
+sign-license.local.ps1
 
 
 # runtime files
