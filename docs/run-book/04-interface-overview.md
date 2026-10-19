@@ -40,7 +40,7 @@
 
 - **Team** 下拉：换团队，换完会自动选中那个团队里的一个项目。下拉旁边如果有 Team Owner 徽标，说明你是这个队的 Team Owner。
 - **项目条**：一格一个项目，点一下就切当前项目。这个团队还没有项目时显示 `No project in this team`。最右边的 **+** 是新建项目——Team Member 都能建，建完你就是它的 Project Owner（第 6 章）。
-- **发行筛选**下拉：**All releases** / 某个发行 / **Unassigned**；Project Owner 还会多一项 **Manage releases…**，直接跳到项目设置的 Releases 那一栏。这个筛选同时作用于编辑器侧栏、词条表和导出（第 7 章）。项目还没有发行标签时，非 Project Owner 看不到这个下拉。
+- **发行筛选**下拉：**All releases** / 某个发行 / **Unassigned**；Project Owner 还会多一项 **Manage releases…**，直接跳到项目设置的 Releases 那一栏。这个筛选同时作用于编辑器侧栏、词条表和导出（第 7 章）。下拉只在 **Editor** 和 **Translations** 页出现；Consistency 永远检查全部内容、Git 同步不看发行，所以这些页上不显示（之前选的发行仍记着，导出弹窗会写明当前范围）。项目还没有发行标签时，非 Project Owner 看不到这个下拉。
 - **Export**：导出当前项目（第 10 章）。
 - **Project settings**：只有 Project Owner 看得到（第 6 章）。
 

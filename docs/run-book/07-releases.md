@@ -52,7 +52,7 @@ flowchart TD
 
 ## 当前发行：一个下拉管三个地方
 
-Workspace Bar 靠右有一个发行下拉，选项依次是 **All releases**、每个发行名、**Unassigned**，Project Owner 还会多一项 **Manage releases…**。
+在 **Editor** 和 **Translations** 页，Workspace Bar 靠右有一个发行下拉（其他页不显示，因为它们不受发行影响），选项依次是 **All releases**、每个发行名、**Unassigned**，Project Owner 还会多一项 **Manage releases…**。
 
 这一项表达的是「我现在在看哪个发行」，选完立刻作用于三个地方：
 
