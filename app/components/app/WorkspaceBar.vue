@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { TeamRole } from '#shared/constants'
 
+const route = useRoute()
 const projectStore = useProjectStore()
 const {
   curProject,
@@ -27,12 +28,21 @@ const canCreate = computed(() => canCreateProject(curTeam.value))
 const canSettings = computed(() => canManageProjectSettings(curProject.value))
 
 /**
+ * Routes whose content the release filter actually narrows. Elsewhere (e.g.
+ * consistency scans everything, Git sync ignores releases) showing it would
+ * imply a scope that is not there.
+ */
+const RELEASE_SCOPED_ROUTES = new Set(['editor', 'translations'])
+
+/**
  * Shown once labels exist, and always for a steward — they are the one who can
  * create the first one, so hiding the dropdown from them would hide the only
  * route to it from here.
  */
 const showReleaseFilter = computed(
-  () => curReleases.value.length > 0 || canSettings.value
+  () =>
+    RELEASE_SCOPED_ROUTES.has(String(route.name)) &&
+    (curReleases.value.length > 0 || canSettings.value)
 )
 
 const releaseItems = computed(() => [
