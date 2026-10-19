@@ -61,6 +61,8 @@ export const zProject = z.object({
     keyMaxDepth: z.number().int().min(1).max(10).optional(),
     /** The language a key's original text lives in. Must be one of `locales`. */
     localeFallback: z.string().min(1).optional(),
+    /** Consistency lint switches by ruleId; an absent entry means enabled. */
+    lintRules: z.record(z.string(), z.boolean()).optional(),
   }),
 })
 export type ZProject = z.infer<typeof zProject>
@@ -293,6 +295,14 @@ export const zI18nGitSyncBulk = z.object({
   keyIds: z.array(z.number().int().positive()).min(1).max(500),
 })
 export type ZI18nGitSyncBulk = z.infer<typeof zI18nGitSyncBulk>
+
+/** Whitelist toggle on the Consistency page: groupId is opaque, rule-computed. */
+export const zConsistencyIgnore = z.object({
+  ruleId: z.string().min(1),
+  groupId: z.string().min(1),
+  ignored: z.boolean(),
+})
+export type ZConsistencyIgnore = z.infer<typeof zConsistencyIgnore>
 
 /** `.max` is a guard for hand-rolled callers: the UI can never select this many. */
 export const zI18nTransfer = z.object({

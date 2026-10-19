@@ -11,6 +11,7 @@ import {
   KEY_STYLES,
   slugKeyPrefix,
 } from '#shared/utils/key-convention'
+import { lintRuleCatalog } from '#shared/utils/consistency'
 
 type Mode = 'edit' | 'create'
 const {
@@ -58,6 +59,13 @@ const state = reactive({
     keyStyle: project.settings?.keyStyle ?? DEFAULT_KEY_CONVENTION.style,
     keyMaxDepth:
       project.settings?.keyMaxDepth ?? DEFAULT_KEY_CONVENTION.maxDepth,
+    // Materialize the default-on switches so saving writes explicit values.
+    lintRules: Object.fromEntries(
+      lintRuleCatalog.map(({ id }) => [
+        id,
+        project.settings?.lintRules?.[id] ?? true,
+      ])
+    ),
   },
 })
 
@@ -420,6 +428,22 @@ async function onSubmit(_: FormSubmitEvent<ZProject>) {
                 color="neutral"
                 icon="i-lucide:info"
                 description="Used when the AI names a key: what the generated key must look like. Leave the prefix empty for none."
+              />
+
+              <h3 class="pt-2 text-xs font-medium text-muted uppercase">
+                Consistency
+              </h3>
+              <USwitch
+                v-for="rule in lintRuleCatalog"
+                :key="rule.id"
+                v-model="state.settings.lintRules[rule.id]"
+                :label="rule.label"
+              />
+              <UAlert
+                variant="soft"
+                color="neutral"
+                icon="i-lucide:info"
+                description="Lint rules on the Consistency page (Plus). On = flag style issues as info — nothing is ever blocked."
               />
             </div>
           </template>

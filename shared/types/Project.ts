@@ -16,6 +16,8 @@ export interface IProjectSetting {
   keySeparator: string
   keyStyle: KeyStyle
   keyMaxDepth: number
+  /** Consistency lint switches by ruleId; absent entry = enabled. */
+  lintRules?: Record<string, boolean>
 }
 
 export interface IProjectOwner {

@@ -19,7 +19,8 @@ definePageMeta({
 const pageStore = usePageStore()
 const { curPage, tagList } = storeToRefs(pageStore)
 const projectStore = useProjectStore()
-const { curProject, curReleaseFilter, curReleases } = storeToRefs(projectStore)
+const { curProject, curReleaseFilter, curReleases, releaseScope, releaseScopeOverride } =
+  storeToRefs(projectStore)
 const tagStore = useTagStore()
 const ossImage = useOSSImage()
 const autoSave = useAutoSave()
@@ -49,9 +50,12 @@ async function applyEditorDeepLink() {
     /*
      * Searched among *all* pages, not `pageList`: the deep link names a page
      * explicitly, so a release filter hiding it must not make the link silently
-     * do nothing. When it is hidden, the filter is widened so the sider shows
-     * the page being edited instead of no selection at all.
+     * do nothing. When it is hidden, the visit's scope is widened — via the
+     * store override, never by writing the preference — so the sider shows the
+     * page being edited instead of no selection at all. Same model as the
+     * translations Find landing: visible, dismissable, preference untouched.
      */
+    projectStore.setReleaseScopeOverride(null)
     const page = (projectStore.curProject.pages ?? []).find(
       (p) => String(p.id) === String(pageId)
     )
@@ -59,7 +63,7 @@ async function applyEditorDeepLink() {
       const visible = projectStore.pageList.some(
         (p) => String(p.id) === String(page.id)
       )
-      if (!visible) projectStore.setReleaseFilter('all')
+      if (!visible) projectStore.setReleaseScopeOverride('all')
       await pageStore.setCurrentPage(page)
     }
   }
@@ -103,9 +107,16 @@ watchEffect(() => {
   initImage()
 })
 
+const releaseFilterLabel = computed(() => {
+  const value = curReleaseFilter.value
+  if (value === 'all') return 'All releases'
+  if (value === 'unassigned') return 'Unassigned'
+  return curReleases.value.find((release) => release.id === value)?.name ?? 'your filter'
+})
+
 function tagsOnCanvas() {
   return tagList.value.filter((tag) =>
-    entryMatchesReleaseFilter(tag.translation?.releaseIds, curReleaseFilter.value)
+    entryMatchesReleaseFilter(tag.translation?.releaseIds, releaseScope.value)
   )
 }
 
@@ -115,15 +126,15 @@ function syncCanvasTags() {
 
 function syncReleaseWatermark() {
   editor.value?.setReleaseWatermark(
-    releaseNameForExport(curReleaseFilter.value, curReleases.value) ?? ''
+    releaseNameForExport(releaseScope.value, curReleases.value) ?? ''
   )
 }
 
-watch([tagList, curReleaseFilter], () => {
+watch([tagList, releaseScope], () => {
   if (editor.value?.ready) syncCanvasTags()
 })
 
-watch([curReleaseFilter, curReleases], () => {
+watch([releaseScope, curReleases], () => {
   if (editor.value?.ready) syncReleaseWatermark()
 })
 
@@ -375,8 +386,35 @@ provideEditorContext({
 </script>
 
 <template>
-  <div class="flex h-full">
-    <EditorProvider>
+  <div class="flex flex-col h-full">
+    <UAlert
+      v-if="releaseScopeOverride && curReleaseFilter !== 'all'"
+      color="neutral"
+      variant="subtle"
+      icon="i-lucide:link"
+      orientation="horizontal"
+      title="Showing all releases"
+      class="shrink-0 border-b border-default"
+    >
+      <template #description>
+        Opened from a deep link — widened for this visit only. Your release
+        filter is untouched.
+      </template>
+      <template #actions>
+        <UButton
+          size="xs"
+          color="neutral"
+          variant="soft"
+          icon="i-lucide:rotate-ccw"
+          @click="projectStore.setReleaseScopeOverride(null)"
+        >
+          Restore {{ releaseFilterLabel }}
+        </UButton>
+      </template>
+    </UAlert>
+
+    <div class="flex flex-1 min-h-0">
+      <EditorProvider>
       <AppSider class="relative z-10" />
       <div class="relative flex-1 overflow-hidden flex flex-col">
         <AppToolbar />
@@ -396,6 +434,7 @@ provideEditorContext({
           <div ref="editor-container" class="size-full" />
         </div>
       </div>
-    </EditorProvider>
+      </EditorProvider>
+    </div>
   </div>
 </template>

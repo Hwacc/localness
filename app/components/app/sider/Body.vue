@@ -14,17 +14,17 @@ const projectStore = useProjectStore()
  */
 const { pageList } = storeToRefs(projectStore)
 
-/** True when a release filter is hiding pages, rather than their not existing. */
+/** True when the effective scope is hiding pages, rather than their not existing. */
 const releaseFilterHidesPages = computed(
   () =>
-    projectStore.curReleaseFilter !== 'all' &&
+    projectStore.releaseScope !== 'all' &&
     pageList.value.length === 0 &&
     (projectStore.curProject.pages ?? []).length > 0
 )
 
 const releaseFilterName = computed(() =>
   releaseFilterLabel(
-    projectStore.curReleaseFilter,
+    projectStore.releaseScope,
     projectStore.curProject.releases
   )
 )

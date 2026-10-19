@@ -26,9 +26,24 @@ definePageMeta({
 })
 
 const { $dayjs } = useNuxtApp()
+const route = useRoute()
 const projectStore = useProjectStore()
 const pageStore = usePageStore()
-const { curProject, curReleases, curReleaseFilter } = storeToRefs(projectStore)
+const {
+  curProject,
+  curReleases,
+  curReleaseFilter,
+  releaseScope,
+  releaseScopeOverride,
+} = storeToRefs(projectStore)
+
+// A Consistency "Find" deep link may widen this visit (`?scope=all`) without
+// touching the workspace preference — the override lives in the store (same
+// model as the editor's deep link), set before any watcher attaches, so the
+// first load is the only load.
+if (route.query.scope === 'all') {
+  projectStore.setReleaseScopeOverride('all')
+}
 const { loggedIn } = useUserSession()
 const toast = useToast()
 /** Only for the column-visibility menu, which lives in the filter bar. */
@@ -51,13 +66,20 @@ const sourceLocale = computed(
  */
 const query = useI18nKeyQuery({
   projectId: computed(() => curProject.value.id),
-  releaseFilter: curReleaseFilter,
+  releaseFilter: releaseScope,
   limit: 20,
   // The key table shows auto draft keys; see the option's own note.
   includeDraftKeys: true,
 })
 
 const { q, dateRange, page, total, rows, loading, loadCount, limit } = query
+
+const releaseFilterLabel = computed(() => {
+  const value = curReleaseFilter.value
+  if (value === 'all') return 'All releases'
+  if (value === 'unassigned') return 'Unassigned'
+  return curReleases.value.find((release) => release.id === value)?.name ?? 'your filter'
+})
 const statusFilter = query.status
 const includeDraftKeys = query.includeDraftKeys
 const hasDateRange = query.hasDateRange
@@ -705,21 +727,30 @@ function restoreFilters(projectId: ID) {
   })
 }
 
+/*
+ * One watcher on the effective scope: it covers the bar's own changes (the
+ * store clears a link's override when the bar is touched), the Restore button
+ * and deep-link widening alike. Ignorable so switching projects can drop a
+ * link's scope without triggering a second load.
+ */
+const scopeWatch = watchIgnorable(releaseScope, () => {
+  page.value = 1
+  loadKeys()
+})
+
 watch(
   () => curProject.value.id,
   (id) => {
     // The outgoing project is already saved — every filter change writes.
     restoreFilters(id)
+    // A link's scope belongs to the visit on the project it named.
+    scopeWatch.ignoreUpdates(() => {
+      projectStore.setReleaseScopeOverride(null)
+    })
     page.value = 1
     loadKeys()
   },
 )
-
-// The filter lives in the workspace bar, so this tab has to follow it.
-watch(curReleaseFilter, () => {
-  page.value = 1
-  loadKeys()
-})
 
 // Always scoped to explicit keys. The endpoint also accepts an empty body to
 // publish the whole project, but no UI offers that — bulk actions cover it.
@@ -809,8 +840,9 @@ onMounted(async () => {
   restoreFilters(curProject.value.id)
   // A deep link (Consistency's "Find") overrides the remembered search for
   // this visit only — written through the ignorable so it neither double-
-  // loads nor overwrites what this project's filters were.
-  const linkedQ = useRoute().query.q
+  // loads nor overwrites what this project's filters were. The visit's release
+  // scope (`?scope=all`) was read at setup, before any watcher attached.
+  const linkedQ = route.query.q
   if (typeof linkedQ === 'string' && linkedQ.trim()) {
     qWatch.ignoreUpdates(() => {
       q.value = linkedQ.trim()
@@ -857,6 +889,31 @@ onMounted(async () => {
     </header>
 
     <div class="flex-1 min-h-0 min-w-0 p-6 flex flex-col gap-4 overflow-hidden">
+      <UAlert
+        v-if="releaseScopeOverride && curReleaseFilter !== 'all'"
+        color="neutral"
+        variant="subtle"
+        icon="i-lucide:link"
+        orientation="horizontal"
+        title="Showing all releases"
+      >
+        <template #description>
+          Opened from a Consistency search — widened for this visit only. Your
+          release filter is untouched.
+        </template>
+        <template #actions>
+          <UButton
+            size="xs"
+            color="neutral"
+            variant="soft"
+            icon="i-lucide:rotate-ccw"
+            @click="projectStore.setReleaseScopeOverride(null)"
+          >
+            Restore {{ releaseFilterLabel }}
+          </UButton>
+        </template>
+      </UAlert>
+
       <div
         class="shrink-0 flex flex-wrap items-center gap-3 rounded-xl border border-default bg-default px-4 py-3"
       >
