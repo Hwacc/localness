@@ -8,6 +8,17 @@ export const useProjectStore = defineStore('project', () => {
   const curProject = ref<IProject>(emptyProject())
   const curTeamId = ref<ID | undefined>()
   const curReleaseFilter = ref<ReleaseFilterValue>('all')
+  /**
+   * A deep link can widen what this visit SEES (Consistency's Find / Open in
+   * editor) without writing the preference: every view reads `releaseScope`,
+   * never the raw filter. Cleared when the user touches the bar or the page
+   * that received the link dismisses it. Operations — export, new-entry
+   * defaults, the bar's own display — deliberately stay on the preference.
+   */
+  const releaseScopeOverride = ref<ReleaseFilterValue | null>(null)
+  const releaseScope = computed<ReleaseFilterValue>(
+    () => releaseScopeOverride.value ?? curReleaseFilter.value
+  )
   /** teamId -> this user's card order. Mirrors storage so both surfaces react. */
   const projectOrder = ref<Record<string, ID[]>>({})
   const pageStore = usePageStore()
@@ -15,10 +26,10 @@ export const useProjectStore = defineStore('project', () => {
   /** The project's release labels, in display order. */
   const curReleases = computed(() => curProject.value.releases ?? [])
 
-  /** The release filter applies everywhere at once, from the editor sider's list outward. */
+  /** The effective scope applies everywhere at once, from the editor sider's list outward. */
   const pageList = computed(() =>
     (curProject.value.pages ?? []).filter((page) =>
-      pageMatchesReleaseFilter(page, curReleaseFilter.value)
+      pageMatchesReleaseFilter(page, releaseScope.value)
     )
   )
 
@@ -72,7 +83,7 @@ export const useProjectStore = defineStore('project', () => {
 
   function applyPageForProject(project: IProject) {
     const pages = (project.pages ?? []).filter((page) =>
-      pageMatchesReleaseFilter(page, curReleaseFilter.value)
+      pageMatchesReleaseFilter(page, releaseScope.value)
     )
     if (isEmpty(pages)) {
       pageStore.setCurrentPage(emptyPage())
@@ -101,9 +112,15 @@ export const useProjectStore = defineStore('project', () => {
 
   /** Remembered per project; a page outside the new filter cannot stay selected. */
   function setReleaseFilter(value: ReleaseFilterValue) {
+    // Touching the bar is an explicit scope choice — it beats a link's scope.
+    releaseScopeOverride.value = null
     curReleaseFilter.value = value
     writeReleaseFilterForProject(curProject.value.id, value)
     ensureCurrentPageVisible()
+  }
+
+  function setReleaseScopeOverride(value: ReleaseFilterValue | null) {
+    releaseScopeOverride.value = value
   }
 
   function setCurrentProject(proj: IProject | ID) {
@@ -299,6 +316,9 @@ export const useProjectStore = defineStore('project', () => {
     curTeam,
     curReleases,
     curReleaseFilter,
+    releaseScope,
+    releaseScopeOverride,
+    setReleaseScopeOverride,
     pageList,
     projectsByTeam,
     curTeamProjects,

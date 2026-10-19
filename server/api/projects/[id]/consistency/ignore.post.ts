@@ -1,0 +1,61 @@
+import prisma from '#server/libs/prisma'
+import { numericID } from '#server/helper/id'
+import { requireTeamMember } from '#server/helper/access'
+import { requirePlus } from '#server/helper/license'
+import { readZodBody } from '#server/helper/validate'
+import { scanProjectConsistency } from '#server/helper/consistency'
+import { zConsistencyIgnore } from '#shared/utils/schemas'
+
+/**
+ * @route POST /api/projects/:id/consistency/ignore
+ * @description Whitelist a finding: `ignored: true` records the member
+ * snapshot (the report resurfaces the group when a NEW key joins it — R2),
+ * `ignored: false` restores. The snapshot comes from a fresh server-side scan,
+ * never from the client: a forged superset would silently swallow duplicates
+ * that do not exist yet. Deliberately opaque-id keyed with no key FK, so
+ * deleting or renaming keys never has to maintain this table.
+ * @access Private (team member, Plus license)
+ */
+export default defineEventHandler(async (event) => {
+  const id = getRouterParam(event, 'id')
+  if (!id) {
+    throw createError({ statusCode: 400, statusMessage: 'Missing id' })
+  }
+  const nID = numericID(id)
+  await requireTeamMember(event, nID)
+  requirePlus()
+
+  const body = await readZodBody(event, zConsistencyIgnore.parse)
+
+  if (!body.ignored) {
+    await prisma.consistencyIgnore.deleteMany({
+      where: { projectId: nID, ruleId: body.ruleId, groupId: body.groupId },
+    })
+    return { ignored: false }
+  }
+
+  const { findings } = await scanProjectConsistency(nID)
+  const finding = findings.find(
+    (f) => f.ruleId === body.ruleId && f.groupId === body.groupId
+  )
+  if (!finding) {
+    throw createError({
+      statusCode: 409,
+      statusMessage: 'Finding no longer present — refresh the report',
+    })
+  }
+  const keyIds = finding.keys.map((member) => member.keyId)
+
+  await prisma.consistencyIgnore.upsert({
+    where: {
+      projectId_ruleId_groupId: {
+        projectId: nID,
+        ruleId: body.ruleId,
+        groupId: body.groupId,
+      },
+    },
+    create: { projectId: nID, ruleId: body.ruleId, groupId: body.groupId, keyIds },
+    update: { keyIds },
+  })
+  return { ignored: true }
+})

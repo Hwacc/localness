@@ -167,6 +167,7 @@ model Project {
   releases         ProjectRelease[]
   apiTokenProjects ApiTokenProject[]
   skills           ProjectSkill[]
+  consistencyIgnores ConsistencyIgnore[]
 
   @@index([teamId])
 }
@@ -305,7 +306,27 @@ model ProjectSettings {
   keySeparator   String   @default("_") @map("key_separator")
   keyStyle       String   @default("snake_case") @map("key_style")
   keyMaxDepth    Int      @default(4) @map("key_max_depth")
+  /// Per-rule lint switches for the Consistency page. Absent ruleId = enabled
+  /// (default-on); the whole column defaults to empty so existing projects
+  /// pick up new rules without a backfill.
+  lintRules      Json     @default("{}") @map("lint_rules")
   project        Project  @relation(fields: [projectID], references: [id], onDelete: Cascade)
+}
+
+/// A whitelist row on the Consistency page: "stop surfacing this finding".
+/// Deliberately keyed by opaque ids with no FK to I18nKey (GitSyncConflict
+/// pattern) — deleting or renaming keys must not cascade-maintain this table.
+/// `keyIds` is the member snapshot the resurfacing rule compares against (R2).
+model ConsistencyIgnore {
+  id        Int      @id @default(autoincrement())
+  createdAt DateTime @default(now()) @map("created_at")
+  projectId Int      @map("project_id")
+  ruleId    String   @map("rule_id")
+  groupId   String   @map("group_id")
+  keyIds    Json     @map("key_ids")
+  project   Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@unique([projectId, ruleId, groupId])
 }
 
 model ProjectLog {
