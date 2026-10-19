@@ -304,6 +304,38 @@ export const zConsistencyIgnore = z.object({
 })
 export type ZConsistencyIgnore = z.infer<typeof zConsistencyIgnore>
 
+/** Resolve drawer: the members of one finding, by id. */
+export const zConsistencyKeysQuery = z.object({
+  keyIds: z
+    .string()
+    .transform((value) =>
+      value
+        .split(',')
+        .map((part) => Number(part))
+        .filter((n) => Number.isInteger(n) && n > 0)
+    )
+    .pipe(z.array(z.number()).min(1).max(50)),
+})
+
+/**
+ * Merge duplicates into one key. `picks` maps a locale to the key whose draft
+ * the keeper takes; omitted locales use the plan's default.
+ */
+export const zConsistencyMerge = z.object({
+  keeperId: z.number().int().positive(),
+  mergeKeyIds: z.array(z.number().int().positive()).min(1).max(50),
+  picks: z.record(z.string().min(1), z.number().int().positive()).default({}),
+})
+export type ZConsistencyMerge = z.infer<typeof zConsistencyMerge>
+
+/** Fix one locale of one key and publish it in the same write. */
+export const zConsistencyFix = z.object({
+  keyId: z.number().int().positive(),
+  locale: z.string().min(1),
+  text: z.string().refine((value) => value.trim() !== '', 'Text is required'),
+})
+export type ZConsistencyFix = z.infer<typeof zConsistencyFix>
+
 /** `.max` is a guard for hand-rolled callers: the UI can never select this many. */
 export const zI18nTransfer = z.object({
   mode: z.enum(['copy', 'move']),

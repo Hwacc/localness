@@ -12,12 +12,20 @@ const props = defineProps<{
   finding: ReportFinding
   /** Active locale filter; narrows the issue rows shown. */
   locales: string[]
+  projectId: ID
 }>()
 
-defineEmits<{ ignore: [] }>()
+const emit = defineEmits<{ ignore: []; changed: [] }>()
 
 const isDuplicate = computed(() => props.finding.category === 'duplicate')
 const lead = computed(() => props.finding.keys[0])
+
+/*
+ * One drawer resolves every finding in place: screenshots on the left, the
+ * category's action (merge / fix & publish / delete) on the right. The full
+ * pages stay one click away in its footer.
+ */
+const resolveOpen = ref(false)
 
 const issues = computed(() => findingIssueViews(props.finding, props.locales))
 
@@ -60,16 +68,29 @@ function pageSummary(member: ReportMember) {
       <span class="text-sm font-semibold">
         {{ ruleCopy[finding.ruleId]?.label ?? finding.ruleId }}
       </span>
-      <UButton
-        size="xs"
-        color="neutral"
-        variant="ghost"
-        icon="i-lucide:eye-off"
-        class="ml-auto shrink-0"
-        @click="$emit('ignore')"
-      >
-        Ignore
-      </UButton>
+      <span class="ml-auto flex items-center gap-1 shrink-0">
+        <UTooltip
+          text="Hidden until its keys or translations change — then it is checked again."
+        >
+          <UButton
+            size="xs"
+            color="neutral"
+            variant="ghost"
+            icon="i-lucide:check-check"
+            @click="emit('ignore')"
+          >
+            Not an issue
+          </UButton>
+        </UTooltip>
+        <UButton
+          size="xs"
+          color="primary"
+          icon="i-lucide:wrench"
+          @click="resolveOpen = true"
+        >
+          Resolve
+        </UButton>
+      </span>
     </div>
 
     <p
@@ -113,36 +134,6 @@ function pageSummary(member: ReportMember) {
             >
               draft
             </UBadge>
-            <span class="ml-auto flex items-center gap-1 shrink-0">
-              <UButton
-                v-if="member.sample"
-                size="xs"
-                color="neutral"
-                variant="ghost"
-                icon="i-lucide:frame"
-                :to="{
-                  path: '/editor',
-                  query: {
-                    pageId: String(member.sample.pageId),
-                    tagId: String(member.sample.tagId),
-                  },
-                }"
-              >
-                Open in editor
-              </UButton>
-              <UButton
-                size="xs"
-                color="neutral"
-                variant="ghost"
-                icon="i-lucide:search"
-                :to="{
-                  path: '/translations',
-                  query: { q: member.sourceText, scope: 'all' },
-                }"
-              >
-                Find
-              </UButton>
-            </span>
           </div>
           <p class="text-sm whitespace-pre-wrap break-words">
             {{ member.sourceText }}
@@ -172,36 +163,6 @@ function pageSummary(member: ReportMember) {
             >
               draft
             </UBadge>
-            <span class="ml-auto flex items-center gap-1 shrink-0">
-              <UButton
-                v-if="lead.sample"
-                size="xs"
-                color="neutral"
-                variant="ghost"
-                icon="i-lucide:frame"
-                :to="{
-                  path: '/editor',
-                  query: {
-                    pageId: String(lead.sample.pageId),
-                    tagId: String(lead.sample.tagId),
-                  },
-                }"
-              >
-                Open in editor
-              </UButton>
-              <UButton
-                size="xs"
-                color="neutral"
-                variant="ghost"
-                icon="i-lucide:search"
-                :to="{
-                  path: '/translations',
-                  query: { q: lead.sourceText, scope: 'all' },
-                }"
-              >
-                Find
-              </UButton>
-            </span>
           </div>
           <p class="text-sm whitespace-pre-wrap break-words">
             {{ lead.sourceText }}
@@ -261,4 +222,12 @@ function pageSummary(member: ReportMember) {
       </template>
     </div>
   </div>
+
+  <ConsistencyResolveSlideover
+    v-model:open="resolveOpen"
+    :project-id="projectId"
+    :finding="finding"
+    @changed="emit('changed')"
+    @ignore="emit('ignore')"
+  />
 </template>

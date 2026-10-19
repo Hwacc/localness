@@ -120,6 +120,19 @@ function tagsOnCanvas() {
   )
 }
 
+/*
+ * Page labels and key labels are independent: a linked page can be in scope
+ * while the linked box's key is not, and the canvas filters boxes by key. The
+ * link names that box explicitly, so widen the visit rather than select nothing.
+ */
+function revealPendingTag() {
+  const id = pendingTagId.value
+  if (!validID(id)) return
+  const exists = tagList.value.some((tag) => String(tag.id) === String(id))
+  const shown = tagsOnCanvas().some((tag) => String(tag.id) === String(id))
+  if (exists && !shown) projectStore.setReleaseScopeOverride('all')
+}
+
 function syncCanvasTags() {
   editor.value?.setTags(tagsOnCanvas())
 }
@@ -152,6 +165,7 @@ onMounted(async () => {
   if (validID(curPage.value.id)) {
     await pageStore.loadTags(curPage.value.id)
   }
+  revealPendingTag()
   const imageUrl = await ossImage.get(curPage.value?.image)
   const { Editor } = await import('~/core/Editor')
 
@@ -370,6 +384,9 @@ onMounted(async () => {
 })
 
 onBeforeUnmount(() => {
+  // A deep link's widening belongs to this visit only: leaving the editor
+  // restores the preference everywhere the store's scope is read.
+  projectStore.setReleaseScopeOverride(null)
   editor.value?.destroy()
   editor.value = undefined
 })
