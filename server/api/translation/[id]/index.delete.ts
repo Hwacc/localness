@@ -2,7 +2,7 @@ import { LogAction, LogStatus } from '#shared/constants/log'
 import prisma from '#server/libs/prisma'
 import { numericID } from '#server/helper/id'
 import { requireI18nKeyTeamMember } from '#server/helper/access'
-import { shapeI18nKey } from '#server/helper/i18n'
+import { purgeI18nKey, shapeI18nKey } from '#server/helper/i18n'
 import { isI18nKeyDraft } from '#shared/utils'
 
 /**
@@ -39,42 +39,7 @@ export default defineEventHandler(async (event) => {
   }
 
   try {
-    const tagIds = (
-      await prisma.tag.findMany({
-        where: { i18nKeyId: nID },
-        select: { id: true },
-      })
-    ).map((tag) => tag.id)
-
-    await prisma.$transaction(async (tx) => {
-      if (tagIds.length > 0) {
-        await tx.tagLog.updateMany({
-          where: { tagID: { in: tagIds } },
-          data: { tagID: null },
-        })
-        await tx.tag.deleteMany({
-          where: { id: { in: tagIds } },
-        })
-      }
-      await tx.translationLog.updateMany({
-        where: { i18nKeyId: nID },
-        data: { i18nKeyId: null },
-      })
-      // Conflicts are keyed by (projectId, key string), not by the key's id, and
-      // `resolveConflict` upserts the key back **by name** — so an open card left
-      // behind resurrects this key the next time someone resolves it on /git.
-      // Resolved rows are audit and stay.
-      await tx.gitSyncConflict.deleteMany({
-        where: {
-          projectId: existing.projectId,
-          key: existing.key,
-          status: 'open',
-        },
-      })
-      await tx.i18nKey.delete({
-        where: { id: nID },
-      })
-    })
+    await prisma.$transaction((tx) => purgeI18nKey(tx, existing))
 
     await prisma.translationLog.create({
       data: {

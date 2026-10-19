@@ -2,7 +2,7 @@ import type { ConsistencyRule } from '../types'
 import { detectLint, firstMatch } from './_lint'
 
 /** Unified ideographs, CJK ext A, kana, hangul. */
-const CJK = '\\u4e00-\\u9fff\\u3400-\\u4dbf\\u3040-\\u30ff\\uac00-\\ud7af'
+export const CJK = '\\u4e00-\\u9fff\\u3400-\\u4dbf\\u3040-\\u30ff\\uac00-\\ud7af'
 
 const ADJACENCY = new RegExp(`[${CJK}][A-Za-z0-9]|[A-Za-z0-9][${CJK}]`)
 

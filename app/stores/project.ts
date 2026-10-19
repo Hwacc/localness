@@ -121,9 +121,16 @@ export const useProjectStore = defineStore('project', () => {
 
   function setReleaseScopeOverride(value: ReleaseFilterValue | null) {
     releaseScopeOverride.value = value
+    // The same seam as the bar: a page outside the effective scope cannot stay
+    // selected, or the sider empties while the canvas keeps the old frame —
+    // exactly what a Restore in the editor used to leave behind.
+    ensureCurrentPageVisible()
   }
 
   function setCurrentProject(proj: IProject | ID) {
+    // A fresh project is a fresh context: a deep link's widening belongs to
+    // the visit on the project it named.
+    releaseScopeOverride.value = null
     if (typeof proj === 'object' && proj) {
       curProject.value = proj
     } else {

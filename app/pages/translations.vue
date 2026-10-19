@@ -29,21 +29,18 @@ const { $dayjs } = useNuxtApp()
 const route = useRoute()
 const projectStore = useProjectStore()
 const pageStore = usePageStore()
-const {
-  curProject,
-  curReleases,
-  curReleaseFilter,
-  releaseScope,
-  releaseScopeOverride,
-} = storeToRefs(projectStore)
+const { curProject, curReleases, curReleaseFilter } = storeToRefs(projectStore)
 
-// A Consistency "Find" deep link may widen this visit (`?scope=all`) without
-// touching the workspace preference — the override lives in the store (same
-// model as the editor's deep link), set before any watcher attaches, so the
-// first load is the only load.
-if (route.query.scope === 'all') {
-  projectStore.setReleaseScopeOverride('all')
-}
+/*
+ * A Consistency "Find" deep link may widen this visit (`?scope=all`) without
+ * touching the workspace preference. Deliberately page-local: the editor feeds
+ * its sider from a store-level override, but a Find landing here must not
+ * widen the editor after navigating away — each page owns its own widening.
+ */
+const deepLinkScopeAll = ref(route.query.scope === 'all')
+const listReleaseFilter = computed(() =>
+  deepLinkScopeAll.value ? ('all' as const) : curReleaseFilter.value
+)
 const { loggedIn } = useUserSession()
 const toast = useToast()
 /** Only for the column-visibility menu, which lives in the filter bar. */
@@ -66,7 +63,7 @@ const sourceLocale = computed(
  */
 const query = useI18nKeyQuery({
   projectId: computed(() => curProject.value.id),
-  releaseFilter: releaseScope,
+  releaseFilter: listReleaseFilter,
   limit: 20,
   // The key table shows auto draft keys; see the option's own note.
   includeDraftKeys: true,
@@ -728,25 +725,68 @@ function restoreFilters(projectId: ID) {
 }
 
 /*
- * One watcher on the effective scope: it covers the bar's own changes (the
- * store clears a link's override when the bar is touched), the Restore button
- * and deep-link widening alike. Ignorable so switching projects can drop a
- * link's scope without triggering a second load.
+ * The list's effective scope: a page-local deep-link widening on top of the
+ * workspace preference. Ignorable so switching projects can drop a link's
+ * scope without triggering a second load.
  */
-const scopeWatch = watchIgnorable(releaseScope, () => {
+const scopeWatch = watchIgnorable(listReleaseFilter, () => {
   page.value = 1
   loadKeys()
 })
+
+// The filter lives in the workspace bar, so this tab has to follow it — and
+// touching the bar is an explicit scope choice, so it beats a link's scope.
+// Only a change within one project counts: a hard load sets the project and
+// its remembered filter in one go, and that is not the user touching the bar.
+// The reload, when the effective scope changed, comes from `scopeWatch`.
+watch(
+  [curReleaseFilter, () => curProject.value.id],
+  ([, id], [, prevId]) => {
+    if (id === prevId) deepLinkScopeAll.value = false
+  },
+)
+
+/*
+ * A Consistency link names keys the report found regardless of any filter, so
+ * for this visit it searches its own text and lifts every list filter that
+ * could hide them — status, draft keys, dates. Written through the ignorables:
+ * nothing reloads twice, nothing is persisted until the user edits a filter.
+ * Applied once, to the first real project (a hard load sets it after mount).
+ */
+const linkedQ =
+  typeof route.query.q === 'string' ? route.query.q.trim() : ''
+let deepLinkApplied = false
+function applyDeepLink(projectId: ID) {
+  if (deepLinkApplied || !validID(projectId)) return
+  deepLinkApplied = true
+  if (!linkedQ && !deepLinkScopeAll.value) return
+  if (linkedQ) {
+    qWatch.ignoreUpdates(() => {
+      q.value = linkedQ
+    })
+  }
+  statusWatch.ignoreUpdates(() => {
+    statusFilter.value = I18nKeyStatusFilter.ALL
+    includeDraftKeys.value = true
+  })
+  dateWatch.ignoreUpdates(() => {
+    dateRange.value = { start: undefined, end: undefined } as typeof dateRange.value
+  })
+}
 
 watch(
   () => curProject.value.id,
   (id) => {
     // The outgoing project is already saved — every filter change writes.
     restoreFilters(id)
-    // A link's scope belongs to the visit on the project it named.
-    scopeWatch.ignoreUpdates(() => {
-      projectStore.setReleaseScopeOverride(null)
-    })
+    if (deepLinkApplied) {
+      // A link's scope belongs to the visit on the project it named.
+      scopeWatch.ignoreUpdates(() => {
+        deepLinkScopeAll.value = false
+      })
+    } else {
+      applyDeepLink(id)
+    }
     page.value = 1
     loadKeys()
   },
@@ -838,16 +878,7 @@ onMounted(async () => {
   }
   // Before the first load, so a reload keeps this project's filters too.
   restoreFilters(curProject.value.id)
-  // A deep link (Consistency's "Find") overrides the remembered search for
-  // this visit only — written through the ignorable so it neither double-
-  // loads nor overwrites what this project's filters were. The visit's release
-  // scope (`?scope=all`) was read at setup, before any watcher attached.
-  const linkedQ = route.query.q
-  if (typeof linkedQ === 'string' && linkedQ.trim()) {
-    qWatch.ignoreUpdates(() => {
-      q.value = linkedQ.trim()
-    })
-  }
+  applyDeepLink(curProject.value.id)
   await loadKeys()
 })
 </script>
@@ -890,7 +921,7 @@ onMounted(async () => {
 
     <div class="flex-1 min-h-0 min-w-0 p-6 flex flex-col gap-4 overflow-hidden">
       <UAlert
-        v-if="releaseScopeOverride && curReleaseFilter !== 'all'"
+        v-if="deepLinkScopeAll && curReleaseFilter !== 'all'"
         color="neutral"
         variant="subtle"
         icon="i-lucide:link"
@@ -898,8 +929,8 @@ onMounted(async () => {
         title="Showing all releases"
       >
         <template #description>
-          Opened from a Consistency search — widened for this visit only. Your
-          release filter is untouched.
+          Opened from Consistency — every release, status and date is shown for
+          this visit only. Your saved filters are untouched.
         </template>
         <template #actions>
           <UButton
@@ -907,7 +938,7 @@ onMounted(async () => {
             color="neutral"
             variant="soft"
             icon="i-lucide:rotate-ccw"
-            @click="projectStore.setReleaseScopeOverride(null)"
+            @click="deepLinkScopeAll = false"
           >
             Restore {{ releaseFilterLabel }}
           </UButton>

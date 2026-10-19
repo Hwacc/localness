@@ -538,13 +538,15 @@ function rowLocales(finding: ReportFinding) {
                 >
                   +{{ rowLocales(finding).length - MAX_LOCALE_BADGES }}
                 </span>
-                <UTooltip text="Ignore this finding">
+                <UTooltip
+                  text="Not an issue — hidden until its keys or translations change"
+                >
                   <UButton
                     size="xs"
                     color="neutral"
                     variant="ghost"
-                    icon="i-lucide:eye-off"
-                    aria-label="Ignore"
+                    icon="i-lucide:check-check"
+                    aria-label="Not an issue"
                     @click.stop="setIgnored(finding, true)"
                   />
                 </UTooltip>
@@ -587,7 +589,7 @@ function rowLocales(finding: ReportFinding) {
                   :class="open && 'rotate-90'"
                 />
                 <span class="text-sm font-semibold text-muted">
-                  Ignored findings
+                  Marked not an issue
                 </span>
                 <span class="text-xs text-muted">
                   {{ report.ignored.length }}
@@ -639,7 +641,9 @@ function rowLocales(finding: ReportFinding) {
             v-if="selected"
             :finding="selected"
             :locales="filter.locales"
+            :project-id="projectId"
             @ignore="setIgnored(selected, true)"
+            @changed="load"
           />
           <div
             v-else
@@ -648,8 +652,8 @@ function rowLocales(finding: ReportFinding) {
             <UIcon name="i-lucide:mouse-pointer-click" class="size-8" />
             <p class="text-sm">Select a finding to review it here.</p>
             <p class="text-xs">
-              ↑ ↓ browse · e ignore — deep links and highlights live in the
-              detail.
+              ↑ ↓ browse · e not an issue — Resolve opens the design and the
+              fix in a drawer.
             </p>
           </div>
         </main>

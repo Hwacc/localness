@@ -321,6 +321,43 @@ export async function deleteUnusedDraftI18nKey(id: number) {
 }
 
 /**
+ * Delete a key and everything that only exists because of it: its tags (tag
+ * logs keep their rows, unlinked), its open Git conflicts, and the key itself.
+ * Translation logs are unlinked, not deleted. Callers check draft-ness and
+ * write the DELETE log; run it inside their transaction.
+ */
+export async function purgeI18nKey(
+  db: Pick<
+    typeof prisma,
+    'tag' | 'tagLog' | 'translationLog' | 'gitSyncConflict' | 'i18nKey'
+  >,
+  key: { id: number; projectId: number; key: string }
+) {
+  const tagIds = (
+    await db.tag.findMany({ where: { i18nKeyId: key.id }, select: { id: true } })
+  ).map((tag) => tag.id)
+  if (tagIds.length > 0) {
+    await db.tagLog.updateMany({
+      where: { tagID: { in: tagIds } },
+      data: { tagID: null },
+    })
+    await db.tag.deleteMany({ where: { id: { in: tagIds } } })
+  }
+  await db.translationLog.updateMany({
+    where: { i18nKeyId: key.id },
+    data: { i18nKeyId: null },
+  })
+  // Conflicts are keyed by (projectId, key string), not by the key's id, and
+  // `resolveConflict` upserts the key back **by name** — so an open card left
+  // behind resurrects this key the next time someone resolves it on /git.
+  // Resolved rows are audit and stay.
+  await db.gitSyncConflict.deleteMany({
+    where: { projectId: key.projectId, key: key.key, status: 'open' },
+  })
+  await db.i18nKey.delete({ where: { id: key.id } })
+}
+
+/**
  * A project's source language: the locale a key's original text lives in. It is
  * also what Git pushes as `source/`, which locale leads the export's columns, and
  * what the delivery API reports as `localeFallback`.

@@ -45,6 +45,17 @@ export {
 export { publishedSnapshotText, singleKeyGroupId } from './group-id'
 export { partitionIgnored, type IgnoreRow } from './ignore'
 export {
+  isPublishedKey,
+  lintAutoFix,
+  mergeBlockReason,
+  planLocaleChoices,
+  recheckLocale,
+  resolveMergeWrites,
+  suggestKeeper,
+  type LocaleChoice,
+  type MergeCandidate,
+} from './resolve'
+export {
   allRules,
   categorySections,
   detectAll,
