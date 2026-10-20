@@ -1,3 +1,4 @@
+import { dialectSyntax, type I18nDialect } from './dialect'
 import type { ScanKeyLocale } from './types'
 
 /**
@@ -38,13 +39,19 @@ interface FamilyEntry {
 /**
  * Attach each key's family. A real family has at least two members, one of
  * them `_other` — a lone `button_other` is just a key name. `entries` may hold
- * siblings beyond `keys` (a drawer loads only the finding's members).
+ * siblings beyond `keys` (a drawer loads only the finding's members). A
+ * dialect without plural keys (vue-i18n) has no families: `step_one` /
+ * `step_other` there are two ordinary keys.
  */
 export function withPluralFamilies<T extends FamilyEntry>(
   keys: T[],
   sourceLocale: string,
-  entries: FamilyEntry[] = keys
+  {
+    dialect = 'auto',
+    entries = keys,
+  }: { dialect?: I18nDialect; entries?: FamilyEntry[] } = {}
 ): Array<T & { pluralFamily?: PluralFamily }> {
+  if (!dialectSyntax(dialect).pluralKeys) return keys
   const byBase = new Map<string, FamilyEntry[]>()
   for (const entry of entries) {
     const base = pluralBase(entry.key)

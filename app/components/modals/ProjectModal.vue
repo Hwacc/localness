@@ -11,7 +11,14 @@ import {
   KEY_STYLES,
   slugKeyPrefix,
 } from '#shared/utils/key-convention'
-import { lintRuleCatalog } from '#shared/utils/consistency'
+import {
+  DEFAULT_I18N_DIALECT,
+  i18nDialectItems,
+  lintRuleCatalog,
+  ruleSeverityItems,
+  severityRuleCatalog,
+  type RuleSeverity,
+} from '#shared/utils/consistency'
 
 type Mode = 'edit' | 'create'
 const {
@@ -66,8 +73,21 @@ const state = reactive({
         project.settings?.lintRules?.[id] ?? true,
       ])
     ),
+    i18nDialect: project.settings?.i18nDialect ?? DEFAULT_I18N_DIALECT,
+    ruleSeverity: Object.fromEntries(
+      severityRuleCatalog.map(({ id }) => [
+        id,
+        project.settings?.ruleSeverity?.[id] ?? 'error',
+      ])
+    ) as Record<string, RuleSeverity>,
   },
 })
+
+const dialectDescription = computed(
+  () =>
+    i18nDialectItems.find((item) => item.value === state.settings.i18nDialect)
+      ?.description
+)
 
 /**
  * The server seeds a new project's prefix from its name, so show what that
@@ -223,6 +243,17 @@ const tabsItems = computed(() => [
     slot: 'settings',
     value: 'settings',
   },
+  // Creating a project stores no Consistency settings, so edit only.
+  ...(mode === 'edit'
+    ? [
+        {
+          label: 'Consistency',
+          icon: 'i-lucide:list-checks',
+          slot: 'consistency',
+          value: 'consistency',
+        },
+      ]
+    : []),
   // Only for an existing project (a new one has no id yet) and only for a
   // Project Owner — everyone else gets the list read-only via the bar's filter.
   ...(canManageReleases.value
@@ -264,6 +295,7 @@ async function onSubmit(_: FormSubmitEvent<ZProject>) {
 <template>
   <UModal
     :title="title"
+    :ui="{ content: 'sm:max-w-2xl' }"
     @update:open="(isOpen) => !isOpen && emit('close', false)"
   >
     <template #body>
@@ -429,22 +461,74 @@ async function onSubmit(_: FormSubmitEvent<ZProject>) {
                 icon="i-lucide:info"
                 description="Used when the AI names a key: what the generated key must look like. Leave the prefix empty for none."
               />
+            </div>
+          </template>
+          <template #consistency>
+            <div class="flex flex-col gap-5">
+              <section class="flex flex-col gap-2">
+                <h3 class="text-xs font-medium text-muted uppercase">
+                  Message syntax
+                </h3>
+                <UFormField
+                  name="settings.i18nDialect"
+                  :description="dialectDescription"
+                >
+                  <USelect
+                    v-model="state.settings.i18nDialect"
+                    :items="i18nDialectItems"
+                    class="w-full"
+                  />
+                </UFormField>
+              </section>
 
-              <h3 class="text-xs font-medium text-muted uppercase">
-                Consistency
-              </h3>
-              <div class="grid grid-cols-2 gap-x-4 gap-y-1">
-                <USwitch
-                  v-for="rule in lintRuleCatalog"
+              <section class="flex flex-col gap-2">
+                <h3 class="text-xs font-medium text-muted uppercase">
+                  Rule severity
+                </h3>
+                <div
+                  v-for="rule in severityRuleCatalog"
                   :key="rule.id"
-                  v-model="state.settings.lintRules[rule.id]"
-                  :label="rule.label"
-                />
-              </div>
-              <p class="text-xs text-muted">
-                Lint rules on the Consistency page (Plus). On = flag style
-                issues as info — nothing is ever blocked.
-              </p>
+                  class="flex items-start justify-between gap-6"
+                >
+                  <div class="flex flex-col gap-0.5">
+                    <span class="text-sm font-medium text-default">
+                      {{ rule.label }}
+                    </span>
+                    <span class="text-xs text-muted">
+                      {{ rule.description }}
+                    </span>
+                  </div>
+                  <USelect
+                    v-model="state.settings.ruleSeverity[rule.id]"
+                    :items="ruleSeverityItems"
+                    class="w-32 shrink-0"
+                  />
+                </div>
+              </section>
+
+              <section class="flex flex-col gap-2">
+                <h3 class="text-xs font-medium text-muted uppercase">
+                  Lint rules
+                </h3>
+                <div class="grid grid-cols-2 gap-x-6 gap-y-2">
+                  <USwitch
+                    v-for="rule in lintRuleCatalog"
+                    :key="rule.id"
+                    v-model="state.settings.lintRules[rule.id]"
+                    :label="rule.label"
+                  />
+                </div>
+                <p class="text-xs text-muted">
+                  Style suggestions, flagged as info — nothing is ever blocked.
+                </p>
+              </section>
+
+              <UAlert
+                variant="soft"
+                color="neutral"
+                icon="i-lucide:info"
+                description="Applies to the Consistency page (Plus) and the live check in its Resolve drawer."
+              />
             </div>
           </template>
           <template #releases>

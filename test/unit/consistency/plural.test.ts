@@ -166,14 +166,16 @@ describe('i18next plural families', () => {
     const [few] = withPluralFamilies(
       [key({ key: 'items_few', locales: [published('ru', '')] })],
       'en',
-      [
-        { key: 'items_few', tagCount: 0, locales: [] },
-        {
-          key: 'items_other',
-          tagCount: 1,
-          locales: [published('en', '{{count}} in {{folder}}')],
-        },
-      ]
+      {
+        entries: [
+          { key: 'items_few', tagCount: 0, locales: [] },
+          {
+            key: 'items_other',
+            tagCount: 1,
+            locales: [published('en', '{{count}} in {{folder}}')],
+          },
+        ],
+      }
     )
     expect(
       recheckLocale('placeholders', few!, 'en', 'ru', '{{count}} в {{folder}}')

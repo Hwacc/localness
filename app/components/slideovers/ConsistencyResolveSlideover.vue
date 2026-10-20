@@ -5,6 +5,7 @@ import {
   findingIssueViews,
   isPublishedKey,
   autoFix,
+  DEFAULT_SCAN_SETTINGS,
   mergeBlockReason,
   memberBadges,
   outdatedOnSourceSave,
@@ -18,6 +19,7 @@ import {
   type LocaleChoice,
   type MergeCandidate,
   type ReportFinding,
+  type ScanSettings,
 } from '#shared/utils/consistency'
 
 /**
@@ -52,8 +54,8 @@ const busy = ref(false)
 const touched = ref(false)
 const sourceLocale = ref('')
 const members = ref<MemberData[]>([])
-/** The project's current lint switches, so the live check never contradicts them. */
-const lintRules = ref<Record<string, boolean>>({})
+/** The project's current Consistency settings, so the live check never contradicts them. */
+const scanSettings = ref<ScanSettings>(DEFAULT_SCAN_SETTINGS)
 
 const category = computed(() => props.finding?.category)
 const memberById = computed(
@@ -155,13 +157,13 @@ async function loadMembers() {
   }
   const res = await useApi<{
     sourceLocale: string
-    lintRules: Record<string, boolean>
+    settings: ScanSettings
     keys: MemberData[]
   }>(`/api/projects/${props.projectId}/consistency/keys`, {
     query: { keyIds: ids.join(',') },
   })
   sourceLocale.value = res?.sourceLocale ?? ''
-  lintRules.value = res?.lintRules ?? {}
+  scanSettings.value = res?.settings ?? DEFAULT_SCAN_SETTINGS
   members.value = res?.keys ?? []
 }
 
@@ -329,7 +331,7 @@ function liveIssue(locale: string): IssueView | null {
     sourceLocale.value,
     locale,
     texts.value[locale] ?? '',
-    lintRules.value
+    scanSettings.value
   )
   if (!hit) return null
   return findingIssueViews({ ...finding, meta: { ...finding.meta, issues: [hit] } })[0] ?? null
@@ -360,7 +362,8 @@ function autoFixOf(locale: string): string | null {
     member,
     sourceLocale.value,
     locale,
-    texts.value[locale] ?? ''
+    texts.value[locale] ?? '',
+    scanSettings.value
   )
 }
 

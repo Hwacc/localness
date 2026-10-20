@@ -8,11 +8,14 @@ import {
   type Token,
 } from './rules/extract'
 import { CJK } from './rules/lint-cjk-spacing'
-import type {
-  LintIssue,
-  MismatchIssue,
-  ScanKeyInput,
-  ScanKeyLocale,
+import type { I18nDialect } from './dialect'
+import {
+  DEFAULT_SCAN_SETTINGS,
+  type LintIssue,
+  type MismatchIssue,
+  type ScanKeyInput,
+  type ScanKeyLocale,
+  type ScanSettings,
 } from './types'
 
 /**
@@ -209,8 +212,9 @@ export function lintAutoFix(ruleId: string, text: string): string | null {
 /**
  * Re-run one rule against a key with `locale`'s published text replaced by
  * `text` — the live check under the editor. Returns that locale's issue, or
- * null when the edit passes. `lintRules` is the project's current switches:
- * a rule turned off since the scan must not keep reporting here.
+ * null when the edit passes. `settings` is the project's current Consistency
+ * settings: a rule switched off since the scan must not keep reporting here,
+ * and tokens are read in the project's dialect.
  */
 export function recheckLocale(
   ruleId: string,
@@ -218,19 +222,19 @@ export function recheckLocale(
   sourceLocale: string,
   locale: string,
   text: string,
-  lintRules: Record<string, boolean> = {}
+  settings: ScanSettings = DEFAULT_SCAN_SETTINGS
 ): MismatchIssue | LintIssue | null {
   const rule = allRules.find((candidate) => candidate.id === ruleId)
-  if (!rule) return null
+  if (!rule || settings.ruleSeverity[ruleId] === 'off') return null
   const locales = key.locales.some((row) => row.locale === locale)
     ? key.locales.map((row) =>
         row.locale === locale ? { ...row, publishedText: text } : row
       )
     : [...key.locales, { locale, draftText: text, publishedText: text }]
   const findings = rule.detect({
+    ...settings,
     projectId: 0,
     sourceLocale,
-    lintRules,
     keys: [{ ...key, locales }],
   })
   for (const finding of findings) {
@@ -250,18 +254,23 @@ export function recheckLocale(
  */
 const SWAPPABLE: Record<
   string,
-  { extract: (text: string) => Token[]; kind: (raw: string) => string }
+  {
+    extract: (text: string, dialect: I18nDialect) => Token[]
+    kind: (raw: string) => string
+  }
 > = {
   placeholders: {
     extract: extractPlaceholders,
     kind: (raw) =>
       raw.startsWith('@')
         ? 'linked'
-        : raw.startsWith('%')
-          ? 'printf'
-          : raw.startsWith('{{')
-            ? 'double'
-            : 'single',
+        : raw.startsWith('$t(')
+          ? 'nesting'
+          : raw.startsWith('%')
+            ? 'printf'
+            : raw.startsWith('{{')
+              ? 'double'
+              : 'single',
   },
   'urls-emails': {
     extract: extractUrlsEmails,
@@ -287,17 +296,18 @@ export function mismatchAutoFix(
   key: ScanKeyInput,
   sourceLocale: string,
   locale: string,
-  text: string
+  text: string,
+  settings: ScanSettings = DEFAULT_SCAN_SETTINGS
 ): string | null {
   const swap = SWAPPABLE[ruleId]
   if (!swap) return null
-  const issue = recheckLocale(ruleId, key, sourceLocale, locale, text)
+  const issue = recheckLocale(ruleId, key, sourceLocale, locale, text, settings)
   if (!issue || !('missing' in issue)) return null
   if (!issue.missing.length || issue.missing.length !== issue.extra.length) {
     return null
   }
 
-  const tokens = swap.extract(text)
+  const tokens = swap.extract(text, settings.dialect)
   const extras = issue.spans.flatMap(([start]) =>
     tokens.filter((token) => token.start === start)
   )
@@ -318,7 +328,7 @@ export function mismatchAutoFix(
   }
 
   // Plural/select texts list each wrong token once; every branch has it.
-  const everyCopy = hasBranches(text)
+  const everyCopy = hasBranches(text, settings.dialect)
   const replacements: Array<{ start: number; end: number; raw: string }> = []
   const used = new Map<string, number>()
   for (const extra of [...extras].sort((a, b) => a.start - b.start)) {
@@ -341,7 +351,9 @@ export function mismatchAutoFix(
     next = next.slice(0, start) + raw + next.slice(end)
   }
   if (next === text) return null
-  return recheckLocale(ruleId, key, sourceLocale, locale, next) ? null : next
+  return recheckLocale(ruleId, key, sourceLocale, locale, next, settings)
+    ? null
+    : next
 }
 
 /** The Resolve drawer's Auto-fix: lint rewrites or a mismatch swap. */
@@ -350,11 +362,12 @@ export function autoFix(
   key: ScanKeyInput,
   sourceLocale: string,
   locale: string,
-  text: string
+  text: string,
+  settings: ScanSettings = DEFAULT_SCAN_SETTINGS
 ): string | null {
   return ruleId.startsWith('lint.')
     ? lintAutoFix(ruleId, text)
-    : mismatchAutoFix(ruleId, key, sourceLocale, locale, text)
+    : mismatchAutoFix(ruleId, key, sourceLocale, locale, text, settings)
 }
 
 export interface FingerprintedLocale extends ScanKeyLocale {

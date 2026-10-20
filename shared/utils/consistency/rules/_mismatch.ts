@@ -1,3 +1,4 @@
+import type { I18nDialect } from '../dialect'
 import { publishedSnapshotText, singleKeyGroupId } from '../group-id'
 import { publishedWording } from '../text'
 import type {
@@ -57,7 +58,7 @@ function familyDiff(
 export function detectTokenMismatches(
   ctx: ScanContext,
   rule: { id: string; defaultSeverity: ConsistencyFinding['severity'] },
-  extract: (text: string) => Token[],
+  extract: (text: string, dialect: I18nDialect) => Token[],
   options: {
     skipTokenlessSource?: boolean
     /** Tokens a plural form may drop or add (`{{count}}`). */
@@ -66,6 +67,8 @@ export function detectTokenMismatches(
 ): ConsistencyFinding[] {
   const findings: ConsistencyFinding[] = []
   const optional = options.pluralOptional ?? (() => false)
+  const tokensOf = (text: string) => extract(text, ctx.dialect)
+  const branched = (text: string) => hasBranches(text, ctx.dialect)
   for (const key of ctx.keys) {
     const family = key.pluralFamily
     const own = publishedWording(key, ctx.sourceLocale)
@@ -75,11 +78,11 @@ export function detectTokenMismatches(
       : family?.sources.find((member) => member.key === family.otherKey)
     const source = own || fallback?.text || ''
     if (!source) continue
-    const sourceTokens = extract(source)
+    const sourceTokens = tokensOf(source)
     const familyValues = family
       ? new Set(
           family.sources.flatMap((member) =>
-            extract(member.text).map((token) => token.value)
+            tokensOf(member.text).map((token) => token.value)
           )
         )
       : null
@@ -92,10 +95,10 @@ export function detectTokenMismatches(
       if (!text) continue
       // Plural/select repeats tokens per branch; branch counts differ by language.
       const diff = familyValues
-        ? familyDiff(sourceTokens, familyValues, extract(text), optional)
-        : hasBranches(source) || hasBranches(text)
-          ? tokenDiff(uniqueByValue(sourceTokens), uniqueByValue(extract(text)))
-          : tokenDiff(sourceTokens, extract(text))
+        ? familyDiff(sourceTokens, familyValues, tokensOf(text), optional)
+        : branched(source) || branched(text)
+          ? tokenDiff(uniqueByValue(sourceTokens), uniqueByValue(tokensOf(text)))
+          : tokenDiff(sourceTokens, tokensOf(text))
       if (!diff) continue
       issues.push({
         locale: row.locale,

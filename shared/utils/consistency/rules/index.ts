@@ -40,6 +40,20 @@ export const lintRuleCatalog: Array<{ id: string; label: string }> = [
   { id: 'lint.french-spacing', label: 'French spacing' },
 ]
 
+/** Rules a project may re-grade or turn off (Project Settings → Consistency). */
+export const severityRuleCatalog: Array<{
+  id: string
+  label: string
+  description: string
+}> = [
+  {
+    id: 'numbers',
+    label: 'Numbers',
+    description:
+      'Digits a translation drops or changes. Dates and ordinals are often written differently per language — lower it if that is noise.',
+  },
+]
+
 export const categorySections: Record<
   FindingCategory,
   { title: string; description: string }
@@ -103,6 +117,14 @@ export function scopeOfCategory(category: FindingCategory) {
   return scope
 }
 
+/** Every rule's findings, graded by the project's severity overrides. */
 export function detectAll(ctx: ScanContext): ConsistencyFinding[] {
-  return allRules.flatMap((rule) => rule.detect(ctx))
+  return allRules.flatMap((rule) => {
+    const severity = ctx.ruleSeverity[rule.id]
+    if (severity === 'off') return []
+    const findings = rule.detect(ctx)
+    return severity
+      ? findings.map((finding) => ({ ...finding, severity }))
+      : findings
+  })
 }

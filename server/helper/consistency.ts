@@ -2,11 +2,15 @@ import prisma from '#server/libs/prisma'
 import { sourceLocaleOf } from '#server/helper/i18n'
 import {
   detectAll,
+  parseI18nDialect,
+  RULE_SEVERITY_VALUES,
   scanSourceText,
   withPluralFamilies,
   type ConsistencyFinding,
   type IgnoreRow,
+  type RuleSeverity,
   type ScanKeyInput,
+  type ScanSettings,
 } from '#shared/utils/consistency'
 
 export interface ConsistencyScan {
@@ -25,7 +29,7 @@ export async function scanProjectConsistency(
   projectId: number
 ): Promise<ConsistencyScan> {
   const sourceLocale = await sourceLocaleOf(projectId)
-  const [rows, lintRules, ignoreRows] = await Promise.all([
+  const [rows, settings, ignoreRows] = await Promise.all([
     prisma.i18nKey.findMany({
       where: { projectId },
       select: {
@@ -37,7 +41,7 @@ export async function scanProjectConsistency(
         },
       },
     }),
-    loadLintRules(projectId),
+    loadScanSettings(projectId),
     prisma.consistencyIgnore.findMany({
       where: { projectId },
       select: { ruleId: true, groupId: true, keyIds: true },
@@ -52,16 +56,17 @@ export async function scanProjectConsistency(
       ...scanSourceText(row.locales, sourceLocale),
       locales: row.locales,
     })),
-    sourceLocale
+    sourceLocale,
+    { dialect: settings.dialect }
   )
 
   return {
     sourceLocale,
     scannedKeys: rows.length,
     findings: detectAll({
+      ...settings,
       projectId,
       sourceLocale,
-      lintRules,
       keys,
     }),
     ignoreRows: ignoreRows.map((row) => ({
@@ -72,15 +77,17 @@ export async function scanProjectConsistency(
   }
 }
 
-/** Project lint switches by ruleId; absent entry = enabled. */
-export async function loadLintRules(
-  projectId: number
-): Promise<Record<string, boolean>> {
+/** The project's Consistency settings, normalized; missing row = defaults. */
+export async function loadScanSettings(projectId: number): Promise<ScanSettings> {
   const settings = await prisma.projectSettings.findUnique({
     where: { projectID: projectId },
-    select: { lintRules: true },
+    select: { lintRules: true, i18nDialect: true, ruleSeverity: true },
   })
-  return normalizeLintRules(settings?.lintRules)
+  return {
+    lintRules: normalizeLintRules(settings?.lintRules),
+    dialect: parseI18nDialect(settings?.i18nDialect),
+    ruleSeverity: normalizeRuleSeverity(settings?.ruleSeverity),
+  }
 }
 
 function normalizeLintRules(value: unknown): Record<string, boolean> {
@@ -90,6 +97,18 @@ function normalizeLintRules(value: unknown): Record<string, boolean> {
   const out: Record<string, boolean> = {}
   for (const [ruleId, enabled] of Object.entries(value)) {
     if (typeof enabled === 'boolean') out[ruleId] = enabled
+  }
+  return out
+}
+
+function normalizeRuleSeverity(value: unknown): Record<string, RuleSeverity> {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) {
+    return {}
+  }
+  const out: Record<string, RuleSeverity> = {}
+  for (const [ruleId, severity] of Object.entries(value)) {
+    const known = RULE_SEVERITY_VALUES.find((candidate) => candidate === severity)
+    if (known) out[ruleId] = known
   }
   return out
 }
