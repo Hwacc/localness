@@ -13,7 +13,7 @@ export const ruleCopy: Record<string, { label: string; hint: string }> = {
   },
   placeholders: {
     label: 'Placeholders',
-    hint: 'Every placeholder in the source ({name}, %s, {{count}}) must appear in each translation, spelled exactly the same — otherwise the app shows the raw token or the wrong value.',
+    hint: 'Every placeholder in the source ({name}, %s, {{count}}) must appear in each translation, spelled exactly the same — otherwise the app shows the raw token or the wrong value. Reordering with %1$s / %2$s is fine. Plural/select blocks are compared by the variables they use, so branch counts may differ per language.',
   },
   numbers: {
     label: 'Numbers',

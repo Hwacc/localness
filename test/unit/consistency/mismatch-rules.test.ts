@@ -55,6 +55,40 @@ describe('placeholders rule', () => {
     })
   })
 
+  it('treats positional printf as the same slot as plain printf', () => {
+    expect(
+      detect([
+        key({
+          sourceText: '%s of %s, %d left',
+          locales: [
+            published('en', '%s of %s, %d left'),
+            published('de', '%2$s von %1$s, %3$d übrig'),
+            published('fr', '%s sur %s, %1$d restant'),
+          ],
+        }),
+      ])
+    ).toHaveLength(0)
+  })
+
+  it('still flags a printf type swap and an out-of-range position', () => {
+    const findings = detect([
+      key({
+        sourceText: 'Hello %s',
+        locales: [
+          published('en', 'Hello %s'),
+          published('fr', 'Bonjour %1$d'),
+          published('de', 'Hallo %2$s'),
+        ],
+      }),
+    ])
+    expect(findings[0]!.meta).toMatchObject({
+      issues: [
+        { locale: 'fr', missing: ['%s'], extra: ['%1$d'] },
+        { locale: 'de', missing: ['%s'], extra: ['%2$s'] },
+      ],
+    })
+  })
+
   it('keeps placeholder case — {Name} and {name} are different variables', () => {
     const findings = detect([
       key({
@@ -118,6 +152,57 @@ describe('placeholders rule', () => {
         }),
       ])
     ).toHaveLength(0)
+  })
+})
+
+describe('ICU plural/select', () => {
+  const both = (keys: Parameters<typeof ctx>[0]) => [
+    ...placeholdersRule.detect(ctx(keys)),
+    ...numbersRule.detect(ctx(keys)),
+    ...htmlTagsRule.detect(ctx(keys)),
+  ]
+  const en =
+    'You have {count, plural, =0 {no <b>files</b>} one {{n} <b>file</b> of 10} other {{n} <b>files</b> of 10}}'
+
+  it('accepts different branch counts per language', () => {
+    expect(
+      both([
+        key({
+          sourceText: en,
+          locales: [
+            published('en', en),
+            published(
+              'ru',
+              'У вас {count, plural, one {{n} <b>файл</b> из 10} few {{n} <b>файла</b> из 10} many {{n} <b>файлов</b> из 10} other {{n} <b>файла</b> из 10}}'
+            ),
+            published('ja', '{count, plural, other {{n} 件の<b>ファイル</b>（10 件中）}}'),
+          ],
+        }),
+      ])
+    ).toEqual([])
+  })
+
+  it('still flags a renamed variable, a translated argument and a dropped block', () => {
+    const findings = placeholdersRule.detect(
+      ctx([
+        key({
+          sourceText: en,
+          locales: [
+            published('en', en),
+            published('de', 'Du hast {count, plural, one {{num} Datei} other {{num} Dateien}}'),
+            published('fr', 'Vous avez {nombre, plural, one {{n} fichier} other {{n} fichiers}}'),
+            published('es', 'Tienes 5 archivos'),
+          ],
+        }),
+      ])
+    )
+    expect(findings[0]!.meta).toMatchObject({
+      issues: [
+        { locale: 'de', missing: ['{n}'], extra: ['{num}'] },
+        { locale: 'fr', missing: ['{count}'], extra: ['{nombre}'] },
+        { locale: 'es', missing: ['{count}', '{n}'], extra: [] },
+      ],
+    })
   })
 })
 
