@@ -1,3 +1,4 @@
+import type { I18nDialect, RuleSeverity } from './dialect'
 import type { PluralFamily } from './plural'
 
 /**
@@ -82,11 +83,24 @@ export interface ScanKeyInput {
   pluralFamily?: PluralFamily
 }
 
-export interface ScanContext {
-  projectId: number
-  sourceLocale: string
+/** The project's Consistency settings — what a scan and a recheck both obey. */
+export interface ScanSettings {
   /** Lint rule switches; an absent entry means enabled (default-on). */
   lintRules: Record<string, boolean>
+  dialect: I18nDialect
+  /** Per-rule severity override; absent = the rule's default. */
+  ruleSeverity: Record<string, RuleSeverity>
+}
+
+export const DEFAULT_SCAN_SETTINGS: ScanSettings = {
+  lintRules: {},
+  dialect: 'auto',
+  ruleSeverity: {},
+}
+
+export interface ScanContext extends ScanSettings {
+  projectId: number
+  sourceLocale: string
   keys: ScanKeyInput[]
 }
 

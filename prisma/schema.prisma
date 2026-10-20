@@ -310,6 +310,11 @@ model ProjectSettings {
   /// (default-on); the whole column defaults to empty so existing projects
   /// pick up new rules without a backfill.
   lintRules      Json     @default("{}") @map("lint_rules")
+  /// Which i18n runtime's syntax Consistency reads: auto | vue-i18n | i18next.
+  i18nDialect    String   @default("auto") @map("i18n_dialect")
+  /// Consistency severity overrides by ruleId (error | warning | off).
+  /// Absent ruleId = the rule's default.
+  ruleSeverity   Json     @default("{}") @map("rule_severity")
   project        Project  @relation(fields: [projectID], references: [id], onDelete: Cascade)
 }
 

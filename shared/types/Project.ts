@@ -3,6 +3,7 @@ import type { IPage } from './Page'
 import type { ID } from '.'
 import type { ITeam } from './Team'
 import type { KeyStyle } from '../utils/key-convention'
+import type { I18nDialect, RuleSeverity } from '../utils/consistency/dialect'
 import { DEFAULT_KEY_CONVENTION, slugKeyPrefix } from '../utils/key-convention'
 
 export interface IProjectSetting {
@@ -18,6 +19,10 @@ export interface IProjectSetting {
   keyMaxDepth: number
   /** Consistency lint switches by ruleId; absent entry = enabled. */
   lintRules?: Record<string, boolean>
+  /** Which i18n runtime's syntax the Consistency checks read. */
+  i18nDialect?: I18nDialect
+  /** Consistency severity overrides by ruleId; absent = rule default. */
+  ruleSeverity?: Record<string, RuleSeverity>
 }
 
 export interface IProjectOwner {
@@ -39,7 +44,12 @@ export interface IProjectRelease {
 }
 
 /** Which Project Settings tab to open on. */
-export type ProjectSettingsTab = 'basic' | 'prompt' | 'settings' | 'releases'
+export type ProjectSettingsTab =
+  | 'basic'
+  | 'prompt'
+  | 'settings'
+  | 'consistency'
+  | 'releases'
 
 export interface IProject {
   id: ID

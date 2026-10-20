@@ -1,7 +1,8 @@
-import type {
-  ScanContext,
-  ScanKeyInput,
-  ScanKeyLocale,
+import {
+  DEFAULT_SCAN_SETTINGS,
+  type ScanContext,
+  type ScanKeyInput,
+  type ScanKeyLocale,
 } from '#shared/utils/consistency'
 
 let nextId = 1
@@ -26,9 +27,9 @@ export function ctx(
   extra: Partial<ScanContext> = {}
 ): ScanContext {
   return {
+    ...DEFAULT_SCAN_SETTINGS,
     projectId: 1,
     sourceLocale: 'en',
-    lintRules: {},
     keys,
     ...extra,
   }

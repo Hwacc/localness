@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import {
+  DEFAULT_SCAN_SETTINGS,
   lintAutoFix,
   mergeBlockReason,
   outdatedOnSourceSave,
@@ -181,7 +182,8 @@ describe('recheckLocale', () => {
     const lintKey = key({ locales: [published('en', 'Wait...')] })
     expect(
       recheckLocale('lint.ellipsis', lintKey, 'en', 'en', 'Wait...', {
-        'lint.ellipsis': false,
+        ...DEFAULT_SCAN_SETTINGS,
+        lintRules: { 'lint.ellipsis': false },
       })
     ).toBeNull()
   })
@@ -189,7 +191,8 @@ describe('recheckLocale', () => {
   it('keeps mismatch rules indifferent to lint switches', () => {
     expect(
       recheckLocale('placeholders', k, 'en', 'ja', '項目があります', {
-        'lint.ellipsis': false,
+        ...DEFAULT_SCAN_SETTINGS,
+        lintRules: { 'lint.ellipsis': false },
       })
     ).toMatchObject({ locale: 'ja' })
   })

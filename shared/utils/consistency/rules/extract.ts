@@ -7,6 +7,13 @@
  * `raw` is what the report shows and `start`/`end` drive the highlight.
  */
 
+import {
+  dialectSyntax,
+  I18N_DIALECTS,
+  type DialectSyntax,
+  type I18nDialect,
+} from '../dialect'
+
 export interface Token {
   value: string
   raw: string
@@ -14,8 +21,30 @@ export interface Token {
   end: number
 }
 
-const PLACEHOLDER_PATTERN =
-  /\{\{[^{}]+\}\}|\{[a-zA-Z_][\w.-]*\}|%(?:\d+\$)?[sdif]/g
+const DOUBLE_BRACE = String.raw`\{\{[^{}]+\}\}`
+/** A name or a list index (vue-i18n / MessageFormat `{0}`). */
+const SINGLE_BRACE = String.raw`\{(?:[a-zA-Z_][\w.-]*|\d+)\}`
+const PRINTF = String.raw`%(?:\d+\$)?[sdif]`
+
+/** `{{x}}` first, so a dialect reading both never splits it into `{x}`. */
+function placeholderPattern(syntax: DialectSyntax): RegExp {
+  const parts = [
+    ...(syntax.double ? [DOUBLE_BRACE] : []),
+    ...(syntax.single ? [SINGLE_BRACE] : []),
+    PRINTF,
+  ]
+  return new RegExp(parts.join('|'), 'g')
+}
+
+const PLACEHOLDER_PATTERNS = new Map(
+  I18N_DIALECTS.map((dialect) => [
+    dialect,
+    placeholderPattern(dialectSyntax(dialect)),
+  ])
+)
+
+/** Every syntax, for masking: hiding a literal is always safe there. */
+const PLACEHOLDER_PATTERN = PLACEHOLDER_PATTERNS.get('auto')!
 
 /** `{count, plural, …}` head; group 1 is the argument name. */
 const ICU_HEAD_PATTERN =
@@ -29,7 +58,8 @@ const ICU_SELECTOR_PATTERN = /=\d+(?=\s*\{)|offset\s*:\s*\d+/g
  * language has its own branch count (en 2, ru 4, ja 1). Texts carrying it are
  * compared by which tokens appear, not how often.
  */
-export function hasIcuBlock(text: string): boolean {
+export function hasIcuBlock(text: string, dialect: I18nDialect = 'auto'): boolean {
+  if (!dialectSyntax(dialect).icu) return false
   return new RegExp(ICU_HEAD_PATTERN.source).test(text)
 }
 
@@ -38,13 +68,17 @@ export function hasIcuBlock(text: string): boolean {
  * form and a different count per language. A literal pipe is written
  * `{'|'}`, so only a pipe outside braces is a branch separator.
  */
-export function hasPipeBranches(text: string): boolean {
+export function hasPipeBranches(
+  text: string,
+  dialect: I18nDialect = 'auto'
+): boolean {
+  if (!dialectSyntax(dialect).pipe) return false
   return text.replace(/\{[^{}]*\}/g, '').includes('|')
 }
 
 /** Plural/select text: compare which tokens appear, not how often. */
-export function hasBranches(text: string): boolean {
-  return hasIcuBlock(text) || hasPipeBranches(text)
+export function hasBranches(text: string, dialect: I18nDialect = 'auto'): boolean {
+  return hasIcuBlock(text, dialect) || hasPipeBranches(text, dialect)
 }
 
 const URL_PATTERN = /\bhttps?:\/\/\S+/gi
@@ -64,6 +98,12 @@ const TAG_PATTERN =
 /** vue-i18n linked messages: `@:common.save`, `@.lower:(common.save)`. */
 const LINKED_PATTERN =
   /@(?:\.\w+)?:(?:\(([\w.-]+)\)|([\w-]+(?:\.[\w-]+)*))/g
+
+/**
+ * i18next nesting: `$t(common.save)`, `$t(ns:key, { "count": {{n}} })`.
+ * Group 1 is the key; the options are the nested call's business.
+ */
+const NESTING_PATTERN = /\$t\(\s*([^\s,()]+)\s*(?:,[^()]*)?\)/g
 
 /** snake_case identifiers (key names, `__draft_x`): their digits are not content. */
 const IDENTIFIER_PATTERN = /\w*_\w*/g
@@ -102,9 +142,18 @@ const PRINTF_PATTERN = /^%(?:(\d+)\$)?([sdif])$/
  * `%1$s` is the same slot as `%s`. A position beyond the text's own printf
  * count cannot be filled and keeps its raw form, so it surfaces as extra.
  */
-export function extractPlaceholders(text: string): Token[] {
-  const icu = hasIcuBlock(text)
-  const found = tokens(text, PLACEHOLDER_PATTERN, (m) => {
+export function extractPlaceholders(
+  text: string,
+  dialect: I18nDialect = 'auto'
+): Token[] {
+  const syntax = dialectSyntax(dialect)
+  const icu = hasIcuBlock(text, dialect)
+  // A nested call's options are its own; masking keeps spans disjoint.
+  const nesting = syntax.nesting
+    ? tokens(text, NESTING_PATTERN, (m) => `$t(${m[1]})`)
+    : []
+  const body = nesting.length ? mask(text, NESTING_PATTERN) : text
+  const found = tokens(body, PLACEHOLDER_PATTERNS.get(dialect)!, (m) => {
     const value = m[0].replace(/\s+/g, '')
     // `one {{n} file}` is a branch holding `{n}`, never a `{{x}}` placeholder.
     return icu && value.startsWith('{{') ? value.slice(1, -1) : value
@@ -120,9 +169,11 @@ export function extractPlaceholders(text: string): Token[] {
     return { ...token, value: `%${type}` }
   })
   // The modifier (`@.lower:`) is per-language casing; the linked key is not.
-  const linked = tokens(text, LINKED_PATTERN, (m) => `@:${m[1] ?? m[2]}`)
-  if (linked.length) {
-    placeholders.push(...linked)
+  const linked = syntax.linked
+    ? tokens(text, LINKED_PATTERN, (m) => `@:${m[1] ?? m[2]}`)
+    : []
+  if (linked.length || nesting.length) {
+    placeholders.push(...linked, ...nesting)
     placeholders.sort((a, b) => a.start - b.start)
   }
   if (!icu) return placeholders
@@ -164,6 +215,7 @@ export function extractNumbers(text: string): Token[] {
   for (const pattern of [
     URL_PATTERN,
     EMAIL_PATTERN,
+    NESTING_PATTERN,
     PLACEHOLDER_PATTERN,
     TAG_PATTERN,
     LINKED_PATTERN,

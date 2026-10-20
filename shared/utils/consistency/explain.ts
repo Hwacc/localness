@@ -13,7 +13,7 @@ export const ruleCopy: Record<string, { label: string; hint: string }> = {
   },
   placeholders: {
     label: 'Placeholders',
-    hint: 'Every placeholder in the source ({name}, %s, {{count}}, linked @:common.save) must appear in each translation, spelled exactly the same — otherwise the app shows the raw token or the wrong value. Reordering with %1$s / %2$s is fine. Plural/select blocks (ICU, vue-i18n `a | b`) are compared by the variables they use, so branch counts may differ per language; i18next plural keys (_one, _other, _few…) are checked as one family, {{count}} optional per form, and a form the source lacks is checked against _other.',
+    hint: 'Every placeholder in the source ({name}, {0}, %s, {{count}}, linked @:common.save, nested $t(common.save)) must appear in each translation, spelled exactly the same — otherwise the app shows the raw token or the wrong value. Reordering with %1$s / %2$s is fine. Plural/select blocks (ICU, vue-i18n `a | b`) are compared by the variables they use, so branch counts may differ per language; i18next plural keys (_one, _other, _few…) are checked as one family, {{count}} optional per form, and a form the source lacks is checked against _other. Which syntax counts follows Project Settings → Consistency → Message syntax.',
   },
   numbers: {
     label: 'Numbers',

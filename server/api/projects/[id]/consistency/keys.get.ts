@@ -3,8 +3,9 @@ import { numericID } from '#server/helper/id'
 import { requireTeamMember } from '#server/helper/access'
 import { requirePlus } from '#server/helper/license'
 import { sourceLocaleOf } from '#server/helper/i18n'
-import { loadLintRules } from '#server/helper/consistency'
+import { loadScanSettings } from '#server/helper/consistency'
 import {
+  dialectSyntax,
   pluralBase,
   pluralSiblingNames,
   scanSourceText,
@@ -30,7 +31,7 @@ export default defineEventHandler(async (event) => {
 
   const { keyIds } = await getValidatedQuery(event, zConsistencyKeysQuery.parse)
   const sourceLocale = await sourceLocaleOf(nID)
-  const [rows, lintRules] = await Promise.all([
+  const [rows, settings] = await Promise.all([
     prisma.i18nKey.findMany({
       where: { projectId: nID, id: { in: keyIds } },
       select: {
@@ -50,19 +51,21 @@ export default defineEventHandler(async (event) => {
         },
       },
     }),
-    loadLintRules(nID),
+    loadScanSettings(nID),
   ])
   const byId = new Map(rows.map((row) => [row.id, row]))
 
   // The live recheck must see the plural family the scan saw.
-  const siblingNames = [
-    ...new Set(
-      rows.flatMap((row) => {
-        const base = pluralBase(row.key)
-        return base === null ? [] : pluralSiblingNames(base)
-      })
-    ),
-  ]
+  const siblingNames = dialectSyntax(settings.dialect).pluralKeys
+    ? [
+        ...new Set(
+          rows.flatMap((row) => {
+            const base = pluralBase(row.key)
+            return base === null ? [] : pluralSiblingNames(base)
+          })
+        ),
+      ]
+    : []
   const siblings = siblingNames.length
     ? await prisma.i18nKey.findMany({
         where: { projectId: nID, key: { in: siblingNames } },
@@ -95,14 +98,17 @@ export default defineEventHandler(async (event) => {
 
   return {
     sourceLocale,
-    lintRules,
-    keys: withPluralFamilies(keys, sourceLocale, [
-      ...keys,
-      ...siblings.map((sibling) => ({
-        key: sibling.key,
-        tagCount: sibling._count.tags,
-        locales: sibling.locales,
-      })),
-    ]),
+    settings,
+    keys: withPluralFamilies(keys, sourceLocale, {
+      dialect: settings.dialect,
+      entries: [
+        ...keys,
+        ...siblings.map((sibling) => ({
+          key: sibling.key,
+          tagCount: sibling._count.tags,
+          locales: sibling.locales,
+        })),
+      ],
+    }),
   }
 })

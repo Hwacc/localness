@@ -9,8 +9,21 @@ export type {
   ScanContext,
   ScanKeyInput,
   ScanKeyLocale,
+  ScanSettings,
   TextSpan,
 } from './types'
+export {
+  DEFAULT_I18N_DIALECT,
+  dialectSyntax,
+  i18nDialectItems,
+  I18N_DIALECTS,
+  parseI18nDialect,
+  RULE_SEVERITY_VALUES,
+  ruleSeverityItems,
+  type DialectSyntax,
+  type I18nDialect,
+  type RuleSeverity,
+} from './dialect'
 export {
   describeLint,
   describeMismatch,
@@ -37,7 +50,7 @@ export {
   type ReportMember,
   type ReportRuleGroup,
 } from './report-view'
-export { toMember } from './types'
+export { DEFAULT_SCAN_SETTINGS, toMember } from './types'
 export {
   normalizeConsistencyText,
   normalizeExact,
@@ -75,4 +88,5 @@ export {
   lintRuleCatalog,
   scopeSections,
   scopeOfCategory,
+  severityRuleCatalog,
 } from './rules'

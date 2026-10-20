@@ -9,6 +9,10 @@ import {
 } from '#shared/constants'
 import { KEY_STYLE_VALUES } from '#shared/utils/key-convention'
 import { IMPORT_MAX_KEYS } from '#shared/utils/i18n-import'
+import {
+  I18N_DIALECTS,
+  RULE_SEVERITY_VALUES,
+} from '#shared/utils/consistency/dialect'
 
 /** Accepts T | null | undefined, including a missing object key (Zod v4). */
 export function zNilable<T extends z.ZodType>(schema: T) {
@@ -63,6 +67,10 @@ export const zProject = z.object({
     localeFallback: z.string().min(1).optional(),
     /** Consistency lint switches by ruleId; an absent entry means enabled. */
     lintRules: z.record(z.string(), z.boolean()).optional(),
+    /** Which i18n runtime's syntax the Consistency checks read. */
+    i18nDialect: z.enum(I18N_DIALECTS).optional(),
+    /** Consistency severity overrides by ruleId; absent = rule default. */
+    ruleSeverity: z.record(z.string(), z.enum(RULE_SEVERITY_VALUES)).optional(),
   }),
 })
 export type ZProject = z.infer<typeof zProject>
