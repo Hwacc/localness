@@ -844,6 +844,12 @@ const title = computed(() => {
                   <ConsistencyHighlightedText :segments="liveIssue(locale)!.segments" />
                 </p>
               </template>
+              <p
+                v-else-if="liveIssue(locale)"
+                class="text-xs whitespace-pre-wrap wrap-break-word"
+              >
+                <ConsistencyHighlightedText :segments="liveIssue(locale)!.segments" />
+              </p>
               <UTextarea
                 v-model="texts[locale]"
                 :rows="2"
