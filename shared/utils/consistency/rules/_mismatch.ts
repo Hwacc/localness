@@ -7,10 +7,19 @@ import type {
   TextSpan,
 } from '../types'
 import { toMember } from '../types'
-import { tokenDiff, type Token } from './extract'
+import { hasIcuBlock, tokenDiff, type Token } from './extract'
 
 const spansOf = (tokens: Token[]): TextSpan[] =>
   tokens.map((token) => [token.start, token.end])
+
+function uniqueByValue(tokens: Token[]): Token[] {
+  const seen = new Set<string>()
+  return tokens.filter((token) => {
+    if (seen.has(token.value)) return false
+    seen.add(token.value)
+    return true
+  })
+}
 
 /**
  * Shared shape for the source↔translation token rules: one finding per key
@@ -39,7 +48,11 @@ export function detectTokenMismatches(
       if (row.locale === ctx.sourceLocale) continue
       const text = row.publishedText ?? ''
       if (!text) continue
-      const diff = tokenDiff(sourceTokens, extract(text))
+      // ICU repeats tokens per branch and branch counts differ by language.
+      const asSet = hasIcuBlock(source) || hasIcuBlock(text)
+      const diff = asSet
+        ? tokenDiff(uniqueByValue(sourceTokens), uniqueByValue(extract(text)))
+        : tokenDiff(sourceTokens, extract(text))
       if (!diff) continue
       issues.push({
         locale: row.locale,
