@@ -41,7 +41,12 @@ async function onSelectProject(p: IProject) {
       icon: 'i-lucide:x',
     }"
     :open="modelValue"
-    :ui="{ body: 'p-4 sm:p-4', header: 'p-4 sm:p-4' }"
+    :ui="{
+      content:
+        'sm:shadow-[16px_0_48px_-8px_rgb(0_0_0/0.75)] sm:ring-0 border-r border-accented',
+      body: 'p-4 sm:p-4',
+      header: 'p-4 sm:p-4',
+    }"
     @update:open="
       (isOpen) => {
         emit('update:modelValue', isOpen)

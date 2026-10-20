@@ -1,3 +1,5 @@
+import type { PluralFamily } from './plural'
+
 /**
  * Rule registry types for the consistency report. A finding is the unit the
  * page renders and the whitelist keys — one rule may produce group findings
@@ -76,6 +78,8 @@ export interface ScanKeyInput {
   /** An unpublished source edit on top of `sourceText`; display only. */
   pendingSourceText?: string
   locales: ScanKeyLocale[]
+  /** i18next plural siblings (`withPluralFamilies`); absent for plain keys. */
+  pluralFamily?: PluralFamily
 }
 
 export interface ScanContext {

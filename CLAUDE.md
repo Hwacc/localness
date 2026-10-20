@@ -48,3 +48,4 @@ Nuxt 4 · Vue 3 · Prisma (client → `prisma/client`) · SQLite · `@nuxt/ui` �
 - Editor lock is `settings.locked` / `tagLocked`, not Leafer `Box.locked`. Draw mode: `select: 'tap'` + `rectThrough` so a locked large tag still accepts new boxes.
 - Git GET never returns the token. Do not reuse `I18nMigrateConflict`. Full `/git` spec is in the vault.
 - Imports at top of file. Exhaustive `switch` with `default: never`. Do not commit or push unless asked.
+- Do not add a function whose body only returns another call. Call that function directly.

@@ -33,11 +33,37 @@ export function hasIcuBlock(text: string): boolean {
   return new RegExp(ICU_HEAD_PATTERN.source).test(text)
 }
 
+/**
+ * vue-i18n plural: `no apples | one apple | {count} apples`, a branch per
+ * form and a different count per language. A literal pipe is written
+ * `{'|'}`, so only a pipe outside braces is a branch separator.
+ */
+export function hasPipeBranches(text: string): boolean {
+  return text.replace(/\{[^{}]*\}/g, '').includes('|')
+}
+
+/** Plural/select text: compare which tokens appear, not how often. */
+export function hasBranches(text: string): boolean {
+  return hasIcuBlock(text) || hasPipeBranches(text)
+}
+
 const URL_PATTERN = /\bhttps?:\/\/\S+/gi
 
 const EMAIL_PATTERN = /[\w.+-]+@[\w-]+(?:\.[\w-]+)+/g
 
-const HTML_TAG_PATTERN = /<\/?([a-zA-Z][\w-]*)[^<>]*>/g
+/**
+ * Markup the app turns into elements: HTML (`<b>`, `<a href>`, `<br/>`),
+ * named rich-text components (react-i18next / FormatJS / Lingui `<bold>`),
+ * indexed `Trans` children (`<0>…</0>`, `<1/>`) and empty `<>…</>`.
+ * Groups: 1 closing slash, 2 index, 3 name, 4 self-closing slash. An index
+ * takes no attributes, so `x <5 and y>` is not a tag.
+ */
+const TAG_PATTERN =
+  /<(\/?)(?:(\d+)\s*|([a-zA-Z][\w-]*)(?:\s[^<>]*?)?)?(\/?)>/g
+
+/** vue-i18n linked messages: `@:common.save`, `@.lower:(common.save)`. */
+const LINKED_PATTERN =
+  /@(?:\.\w+)?:(?:\(([\w.-]+)\)|([\w-]+(?:\.[\w-]+)*))/g
 
 /** snake_case identifiers (key names, `__draft_x`): their digits are not content. */
 const IDENTIFIER_PATTERN = /\w*_\w*/g
@@ -93,6 +119,12 @@ export function extractPlaceholders(text: string): Token[] {
     }
     return { ...token, value: `%${type}` }
   })
+  // The modifier (`@.lower:`) is per-language casing; the linked key is not.
+  const linked = tokens(text, LINKED_PATTERN, (m) => `@:${m[1] ?? m[2]}`)
+  if (linked.length) {
+    placeholders.push(...linked)
+    placeholders.sort((a, b) => a.start - b.start)
+  }
   if (!icu) return placeholders
   // The ICU argument itself is a variable the app fills: `{count, plural…}`.
   const heads = [...text.matchAll(ICU_HEAD_PATTERN)].map((m) => {
@@ -114,9 +146,16 @@ export function extractUrlsEmails(text: string): Token[] {
   ]
 }
 
-/** Compared by tag name — `<b>` twice vs `<strong>` once is a name mismatch. */
-export function extractHtmlTags(text: string): Token[] {
-  return tokens(text, HTML_TAG_PATTERN, (m) => m[1]!.toLowerCase())
+/**
+ * Compared by name and shape: opening `0`, closing `/0`, self-closing `0/`
+ * count separately, so `<0>a<0>` against `<0>a</0>` reports the lost closer.
+ * HTML names are case-insensitive; `<>` / `</>` have an empty name.
+ */
+export function extractTags(text: string): Token[] {
+  return tokens(text, TAG_PATTERN, (m) => {
+    const name = m[2] ?? m[3]?.toLowerCase() ?? ''
+    return `${m[1]}${name}${m[4]}`
+  })
 }
 
 /** Digit sequences, after removing tokens whose digits are not content. */
@@ -126,6 +165,8 @@ export function extractNumbers(text: string): Token[] {
     URL_PATTERN,
     EMAIL_PATTERN,
     PLACEHOLDER_PATTERN,
+    TAG_PATTERN,
+    LINKED_PATTERN,
     IDENTIFIER_PATTERN,
     ...(hasIcuBlock(text) ? [ICU_SELECTOR_PATTERN] : []),
   ]) {

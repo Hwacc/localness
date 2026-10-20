@@ -4,7 +4,12 @@ import { requireTeamMember } from '#server/helper/access'
 import { requirePlus } from '#server/helper/license'
 import { sourceLocaleOf } from '#server/helper/i18n'
 import { loadLintRules } from '#server/helper/consistency'
-import { scanSourceText } from '#shared/utils/consistency'
+import {
+  pluralBase,
+  pluralSiblingNames,
+  scanSourceText,
+  withPluralFamilies,
+} from '#shared/utils/consistency'
 import { zConsistencyKeysQuery } from '#shared/utils/schemas'
 
 /**
@@ -49,23 +54,55 @@ export default defineEventHandler(async (event) => {
   ])
   const byId = new Map(rows.map((row) => [row.id, row]))
 
+  // The live recheck must see the plural family the scan saw.
+  const siblingNames = [
+    ...new Set(
+      rows.flatMap((row) => {
+        const base = pluralBase(row.key)
+        return base === null ? [] : pluralSiblingNames(base)
+      })
+    ),
+  ]
+  const siblings = siblingNames.length
+    ? await prisma.i18nKey.findMany({
+        where: { projectId: nID, key: { in: siblingNames } },
+        select: {
+          key: true,
+          _count: { select: { tags: true } },
+          locales: {
+            where: { locale: sourceLocale },
+            select: { locale: true, draftText: true, publishedText: true },
+          },
+        },
+      })
+    : []
+
+  const keys = keyIds.flatMap((keyId) => {
+    const row = byId.get(keyId)
+    if (!row) return []
+    return [
+      {
+        keyId: row.id,
+        key: row.key,
+        fingerprint: row.fingerprint,
+        createdAt: row.createdAt.toISOString(),
+        tagCount: row._count.tags,
+        ...scanSourceText(row.locales, sourceLocale),
+        locales: row.locales,
+      },
+    ]
+  })
+
   return {
     sourceLocale,
     lintRules,
-    keys: keyIds.flatMap((keyId) => {
-      const row = byId.get(keyId)
-      if (!row) return []
-      return [
-        {
-          keyId: row.id,
-          key: row.key,
-          fingerprint: row.fingerprint,
-          createdAt: row.createdAt.toISOString(),
-          tagCount: row._count.tags,
-          ...scanSourceText(row.locales, sourceLocale),
-          locales: row.locales,
-        },
-      ]
-    }),
+    keys: withPluralFamilies(keys, sourceLocale, [
+      ...keys,
+      ...siblings.map((sibling) => ({
+        key: sibling.key,
+        tagCount: sibling._count.tags,
+        locales: sibling.locales,
+      })),
+    ]),
   }
 })

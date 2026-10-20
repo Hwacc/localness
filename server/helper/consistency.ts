@@ -3,6 +3,7 @@ import { sourceLocaleOf } from '#server/helper/i18n'
 import {
   detectAll,
   scanSourceText,
+  withPluralFamilies,
   type ConsistencyFinding,
   type IgnoreRow,
   type ScanKeyInput,
@@ -43,13 +44,16 @@ export async function scanProjectConsistency(
     }),
   ])
 
-  const keys: ScanKeyInput[] = rows.map((row) => ({
-    keyId: row.id,
-    key: row.key,
-    tagCount: row._count.tags,
-    ...scanSourceText(row.locales, sourceLocale),
-    locales: row.locales,
-  }))
+  const keys: ScanKeyInput[] = withPluralFamilies(
+    rows.map((row) => ({
+      keyId: row.id,
+      key: row.key,
+      tagCount: row._count.tags,
+      ...scanSourceText(row.locales, sourceLocale),
+      locales: row.locales,
+    })),
+    sourceLocale
+  )
 
   return {
     sourceLocale,

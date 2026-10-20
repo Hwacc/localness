@@ -4,7 +4,7 @@ import { formatI18nKeyDisplay } from '#shared/utils'
 import {
   findingIssueViews,
   isPublishedKey,
-  lintAutoFix,
+  autoFix,
   mergeBlockReason,
   memberBadges,
   outdatedOnSourceSave,
@@ -13,6 +13,7 @@ import {
   ruleCopy,
   suggestKeeper,
   type FingerprintedLocale,
+  type PluralFamily,
   type IssueView,
   type LocaleChoice,
   type MergeCandidate,
@@ -42,6 +43,7 @@ type MemberData = MergeCandidate & {
   pendingSourceText?: string
   fingerprint: string
   locales: FingerprintedLocale[]
+  pluralFamily?: PluralFamily
 }
 
 const loading = ref(false)
@@ -348,11 +350,24 @@ function outdatedOnSave(locale: string): number {
   })
 }
 
+/** Lint rewrite or a one-for-one token swap; null when neither applies. */
+function autoFixOf(locale: string): string | null {
+  const finding = props.finding
+  const member = lead.value
+  if (!finding || !member) return null
+  return autoFix(
+    finding.ruleId,
+    member,
+    sourceLocale.value,
+    locale,
+    texts.value[locale] ?? ''
+  )
+}
+
 function proposeAutoFix(locale: string) {
-  if (!props.finding) return
   autoFixPreview.value = {
     ...autoFixPreview.value,
-    [locale]: lintAutoFix(props.finding.ruleId, texts.value[locale] ?? ''),
+    [locale]: autoFixOf(locale),
   }
 }
 
@@ -362,8 +377,7 @@ function applyAutoFix(locale: string) {
   autoFixPreview.value = { ...autoFixPreview.value, [locale]: null }
 }
 
-const canAutoFix = (locale: string) =>
-  !!props.finding && lintAutoFix(props.finding.ruleId, texts.value[locale] ?? '') !== null
+const canAutoFix = (locale: string) => autoFixOf(locale) !== null
 
 async function saveAndPublish(locale: string) {
   const member = lead.value
@@ -570,7 +584,7 @@ const title = computed(() => {
                   <input
                     type="radio"
                     name="consistency-keeper"
-                    class="accent-(--ui-primary)"
+                    class="accent-primary"
                     :checked="member.keyId === keeperId"
                     :aria-label="`Keep ${member.key}`"
                     @change="chooseKeeper(member.keyId)"
@@ -670,7 +684,7 @@ const title = computed(() => {
                 </div>
                 <p
                   v-if="choice.status === 'fill'"
-                  class="text-sm whitespace-pre-wrap break-words"
+                  class="text-sm whitespace-pre-wrap wrap-break-word"
                 >
                   {{ choice.options[0]!.text }}
                 </p>
@@ -681,13 +695,13 @@ const title = computed(() => {
                 >
                   <input
                     type="radio"
-                    class="mt-1 accent-(--ui-primary)"
+                    class="mt-1 accent-primary"
                     :name="`pick-${choice.locale}`"
                     :checked="option.keyIds.includes(pickOf(choice))"
                     @change="picks = { ...picks, [choice.locale]: option.keyIds[0]! }"
                   />
                   <span class="flex flex-col">
-                    <span class="whitespace-pre-wrap break-words">{{ option.text }}</span>
+                    <span class="whitespace-pre-wrap wrap-break-word">{{ option.text }}</span>
                     <span class="text-xs text-muted">{{ keysLabel(option.keyIds) }}</span>
                   </span>
                 </label>
@@ -731,12 +745,12 @@ const title = computed(() => {
               <code class="text-sm font-medium break-all">
                 {{ formatI18nKeyDisplay(lead.key) }}
               </code>
-              <p class="text-sm whitespace-pre-wrap break-words">
+              <p class="text-sm whitespace-pre-wrap wrap-break-word">
                 {{ lead.sourceText }}
               </p>
               <p
                 v-if="lead.pendingSourceText"
-                class="text-xs text-muted whitespace-pre-wrap break-words"
+                class="text-xs text-muted whitespace-pre-wrap wrap-break-word"
               >
                 Pending edit: “{{ lead.pendingSourceText }}”
               </p>
@@ -811,52 +825,22 @@ const title = computed(() => {
                   published
                 </UBadge>
               </div>
-              <p
-                v-if="outdatedOnSave(locale)"
-                class="text-xs text-muted flex items-center gap-1"
-              >
-                <UIcon name="i-lucide:info" class="shrink-0" />
-                Saving marks {{ outdatedOnSave(locale) }}
-                {{ outdatedOnSave(locale) === 1 ? 'other language' : 'other languages' }}
-                of this key as Outdated — re-translation clears them.
-              </p>
               <template v-if="liveIssue(locale)?.sourceSegments">
-                <div class="flex flex-col gap-1">
-                  <div class="flex items-center gap-2">
-                    <UBadge color="neutral" variant="outline" size="xs">
-                      {{ sourceLocale }}
-                    </UBadge>
-                    <span class="text-xs text-muted">
-                      Published source — marked text is missing from {{ locale }}
-                    </span>
-                  </div>
-                  <p class="text-xs text-muted whitespace-pre-wrap wrap-break-word">
-                    <ConsistencyHighlightedText :segments="liveIssue(locale)!.sourceSegments!" />
-                  </p>
-                </div>
-                <div class="flex flex-col gap-1">
-                  <div class="flex items-center gap-2">
-                    <UBadge color="neutral" variant="outline" size="xs">
-                      {{ locale }}
-                    </UBadge>
-                    <span class="text-xs text-muted">
-                      Published translation
-                      <template v-if="liveIssue(locale)!.segments.some((segment) => segment.hit)">
-                        — marked text is not in the source
-                      </template>
-                    </span>
-                  </div>
-                  <p class="text-xs whitespace-pre-wrap wrap-break-word">
-                    <ConsistencyHighlightedText :segments="liveIssue(locale)!.segments" />
-                  </p>
-                </div>
+                <p class="flex flex-wrap items-baseline gap-x-2 text-xs text-muted whitespace-pre-wrap wrap-break-word">
+                  <span class="font-medium shrink-0">
+                    {{ sourceLocale }}<template v-if="liveIssue(locale)!.sourceKey">
+                      · {{ liveIssue(locale)!.sourceKey }}</template>
+                  </span>
+                  <ConsistencyHighlightedText :segments="liveIssue(locale)!.sourceSegments!" />
+                </p>
+                <p
+                  v-if="liveIssue(locale)!.segments.some((segment) => segment.hit)"
+                  class="flex flex-wrap items-baseline gap-x-2 text-xs whitespace-pre-wrap wrap-break-word"
+                >
+                  <span class="font-medium text-muted shrink-0">Extra</span>
+                  <ConsistencyHighlightedText :segments="liveIssue(locale)!.segments" />
+                </p>
               </template>
-              <p
-                v-else-if="liveIssue(locale)"
-                class="text-xs whitespace-pre-wrap wrap-break-word"
-              >
-                <ConsistencyHighlightedText :segments="liveIssue(locale)!.segments" />
-              </p>
               <UTextarea
                 v-model="texts[locale]"
                 :rows="2"
@@ -882,6 +866,15 @@ const title = computed(() => {
                   </UButton>
                 </div>
               </div>
+              <p
+                v-if="outdatedOnSave(locale)"
+                class="text-xs text-muted flex items-center gap-1"
+              >
+                <UIcon name="i-lucide:info" class="shrink-0" />
+                Saving marks {{ outdatedOnSave(locale) }}
+                {{ outdatedOnSave(locale) === 1 ? 'other language' : 'other languages' }}
+                of this key as Outdated — re-translation clears them.
+              </p>
               <div class="flex items-center gap-2">
                 <UButton
                   v-if="canAutoFix(locale) && !autoFixPreview[locale]"

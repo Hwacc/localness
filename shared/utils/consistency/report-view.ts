@@ -194,6 +194,8 @@ export type IssueView = {
   segments: HighlightSegment[]
   /** Mismatch only: the published source with the missing tokens marked. */
   sourceSegments: HighlightSegment[] | null
+  /** The plural sibling the source came from (`items_other`), if not the key. */
+  sourceKey: string | null
 }
 
 /** Issue rows ready to render; `locales` (when non-empty) narrows the rows. */
@@ -206,6 +208,8 @@ export function findingIssueViews(
   )
   if (finding.category === 'mismatch') {
     const source = String(finding.meta?.source ?? '')
+    const sourceKey =
+      typeof finding.meta?.sourceKey === 'string' ? finding.meta.sourceKey : null
     return (issues as MismatchIssue[]).map((issue) => ({
       locale: issue.locale,
       message: describeMismatch(finding.ruleId, issue),
@@ -213,6 +217,7 @@ export function findingIssueViews(
       sourceSegments: issue.sourceSpans.length
         ? highlightSegments(source, issue.sourceSpans)
         : null,
+      sourceKey,
     }))
   }
   return (issues as LintIssue[]).map((issue) => ({
@@ -220,6 +225,7 @@ export function findingIssueViews(
     message: describeLint(finding.ruleId, issue, finding.meta),
     segments: highlightSegments(issue.text, issue.spans),
     sourceSegments: null,
+    sourceKey: null,
   }))
 }
 
