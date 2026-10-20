@@ -37,6 +37,10 @@ export interface ConsistencyMember {
   keyId: number
   key: string
   sourceText: string
+  /** Unpublished source edit on top of `sourceText`; display only. */
+  pendingSourceText?: string
+  /** Any locale has published text — code or the delivery API may read it. */
+  published: boolean
   tagCount: number
 }
 
@@ -64,8 +68,13 @@ export interface ScanKeyInput {
   keyId: number
   key: string
   tagCount: number
-  /** The key's original wording: source-locale draftText (v1 semantics). */
+  /**
+   * The key's live source wording (`scanSourceText`): published source, or
+   * the draft for a never-published key. Duplicates group on it.
+   */
   sourceText: string
+  /** An unpublished source edit on top of `sourceText`; display only. */
+  pendingSourceText?: string
   locales: ScanKeyLocale[]
 }
 
@@ -89,6 +98,8 @@ export function toMember(key: ScanKeyInput): ConsistencyMember {
     keyId: key.keyId,
     key: key.key,
     sourceText: key.sourceText,
+    ...(key.pendingSourceText ? { pendingSourceText: key.pendingSourceText } : {}),
+    published: key.locales.some((row) => (row.publishedText ?? '') !== ''),
     tagCount: key.tagCount,
   }
 }

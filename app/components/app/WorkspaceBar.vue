@@ -103,11 +103,11 @@ function onReleaseChange(value: string | number) {
           v-for="project in curTeamProjects"
           :key="project.id"
           type="button"
-          class="shrink-0 max-w-56 inline-flex items-center gap-1 rounded-md px-2.5 py-1 text-sm transition-colors"
+          class="shrink-0 max-w-56 inline-flex items-center gap-1 rounded-md border px-2.5 py-1 text-sm transition-colors"
           :class="
             isCurrent(project)
-              ? 'bg-elevated font-medium text-highlighted'
-              : 'text-muted hover:text-highlighted hover:bg-elevated/60'
+              ? 'border-primary bg-primary/10 font-medium text-highlighted'
+              : 'border-transparent text-muted hover:text-highlighted hover:bg-elevated/60'
           "
           @click="selectProject(project)"
         >

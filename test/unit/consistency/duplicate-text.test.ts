@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest'
+import { scanSourceText } from '#shared/utils/consistency'
 import { duplicateTextRule } from '#shared/utils/consistency/rules/duplicate-text'
 import { ctx, key, published } from './helpers'
 
@@ -140,5 +141,43 @@ describe('duplicate-text rule', () => {
     ])
     expect(findings[0]!.severity).toBe('warning')
     expect(findings[0]!.meta?.diverged).toBeUndefined()
+  })
+})
+
+describe('scanSourceText', () => {
+  const draft = (text: string) => ({ locale: 'en', draftText: text, publishedText: null })
+
+  it('uses the published source and surfaces an unpublished edit', () => {
+    expect(
+      scanSourceText(
+        [{ locale: 'en', draftText: 'Save file', publishedText: 'Save' }],
+        'en'
+      )
+    ).toEqual({ sourceText: 'Save', pendingSourceText: 'Save file' })
+  })
+
+  it('falls back to the draft for a never-published key', () => {
+    expect(scanSourceText([draft('Save')], 'en')).toEqual({ sourceText: 'Save' })
+  })
+
+  it('reports no pending edit when draft and published agree', () => {
+    expect(scanSourceText([published('en', 'Save')], 'en')).toEqual({
+      sourceText: 'Save',
+    })
+  })
+
+  it('groups on the live wording, not a pending edit', () => {
+    const live = key({
+      ...scanSourceText(
+        [{ locale: 'en', draftText: 'Cancel', publishedText: 'Save' }],
+        'en'
+      ),
+    })
+    const findings = detect([live, key({ sourceText: 'Save' })])
+    expect(findings).toHaveLength(1)
+    expect(findings[0]!.keys.find((m) => m.keyId === live.keyId)).toMatchObject({
+      sourceText: 'Save',
+      pendingSourceText: 'Cancel',
+    })
   })
 })

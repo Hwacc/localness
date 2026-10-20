@@ -25,10 +25,12 @@ export {
   groupReport,
   isReportFilterActive,
   matchesReportFilter,
+  memberBadges,
   severityCounts,
   worstSeverity,
   type HighlightSegment,
   type IssueView,
+  type MemberBadge,
   type ReportCategoryGroup,
   type ReportFilter,
   type ReportFinding,
@@ -41,6 +43,7 @@ export {
   normalizeExact,
   publishedWording,
   publishedWritings,
+  scanSourceText,
 } from './text'
 export { publishedSnapshotText, singleKeyGroupId } from './group-id'
 export { partitionIgnored, type IgnoreRow } from './ignore'
@@ -48,10 +51,12 @@ export {
   isPublishedKey,
   lintAutoFix,
   mergeBlockReason,
+  outdatedOnSourceSave,
   planLocaleChoices,
   recheckLocale,
   resolveMergeWrites,
   suggestKeeper,
+  type FingerprintedLocale,
   type LocaleChoice,
   type MergeCandidate,
 } from './resolve'
@@ -60,4 +65,6 @@ export {
   categorySections,
   detectAll,
   lintRuleCatalog,
+  scopeSections,
+  scopeOfCategory,
 } from './rules'

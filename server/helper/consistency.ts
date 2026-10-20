@@ -1,7 +1,8 @@
 import prisma from '#server/libs/prisma'
-import { sourceLocaleOf, sourceTextOf } from '#server/helper/i18n'
+import { sourceLocaleOf } from '#server/helper/i18n'
 import {
   detectAll,
+  scanSourceText,
   type ConsistencyFinding,
   type IgnoreRow,
   type ScanKeyInput,
@@ -23,7 +24,7 @@ export async function scanProjectConsistency(
   projectId: number
 ): Promise<ConsistencyScan> {
   const sourceLocale = await sourceLocaleOf(projectId)
-  const [rows, settings, ignoreRows] = await Promise.all([
+  const [rows, lintRules, ignoreRows] = await Promise.all([
     prisma.i18nKey.findMany({
       where: { projectId },
       select: {
@@ -35,10 +36,7 @@ export async function scanProjectConsistency(
         },
       },
     }),
-    prisma.projectSettings.findUnique({
-      where: { projectID: projectId },
-      select: { lintRules: true },
-    }),
+    loadLintRules(projectId),
     prisma.consistencyIgnore.findMany({
       where: { projectId },
       select: { ruleId: true, groupId: true, keyIds: true },
@@ -49,7 +47,7 @@ export async function scanProjectConsistency(
     keyId: row.id,
     key: row.key,
     tagCount: row._count.tags,
-    sourceText: sourceTextOf(row.locales, sourceLocale),
+    ...scanSourceText(row.locales, sourceLocale),
     locales: row.locales,
   }))
 
@@ -59,7 +57,7 @@ export async function scanProjectConsistency(
     findings: detectAll({
       projectId,
       sourceLocale,
-      lintRules: normalizeLintRules(settings?.lintRules),
+      lintRules,
       keys,
     }),
     ignoreRows: ignoreRows.map((row) => ({
@@ -68,6 +66,17 @@ export async function scanProjectConsistency(
       keyIds: normalizeKeyIds(row.keyIds),
     })),
   }
+}
+
+/** Project lint switches by ruleId; absent entry = enabled. */
+export async function loadLintRules(
+  projectId: number
+): Promise<Record<string, boolean>> {
+  const settings = await prisma.projectSettings.findUnique({
+    where: { projectID: projectId },
+    select: { lintRules: true },
+  })
+  return normalizeLintRules(settings?.lintRules)
 }
 
 function normalizeLintRules(value: unknown): Record<string, boolean> {

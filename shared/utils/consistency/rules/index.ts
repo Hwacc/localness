@@ -66,6 +66,43 @@ export const categorySections: Record<
   },
 }
 
+/**
+ * The two questions the report answers, each over its own text (2026-10-20):
+ * dictionary structure looks at every key, drafts and `__draft_` auto keys
+ * included; published copy looks only at what users see. The page marks each
+ * category header with its scope (icon + tooltip) so the scope is never
+ * implicit.
+ */
+export const scopeSections: Array<{
+  id: 'dictionary' | 'published'
+  title: string
+  description: string
+  categories: FindingCategory[]
+}> = [
+  {
+    id: 'dictionary',
+    title: 'Every key',
+    description:
+      'Checks every key, published or not — auto keys included. Compares the published source, or the draft if the key was never published.',
+    categories: ['duplicate', 'orphan'],
+  },
+  {
+    id: 'published',
+    title: 'Published only',
+    description:
+      'Checks only published text — what users see. Unpublished drafts are not checked.',
+    categories: ['mismatch', 'lint'],
+  },
+]
+
+export function scopeOfCategory(category: FindingCategory) {
+  const scope = scopeSections.find((candidate) =>
+    candidate.categories.includes(category)
+  )
+  if (!scope) throw new Error(`No scope for category ${category}`)
+  return scope
+}
+
 export function detectAll(ctx: ScanContext): ConsistencyFinding[] {
   return allRules.flatMap((rule) => rule.detect(ctx))
 }

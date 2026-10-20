@@ -1,3 +1,4 @@
+import { DRAFT_KEY_PREFIX } from '../index'
 import {
   describeLint,
   describeMismatch,
@@ -16,6 +17,8 @@ export type ReportMember = {
   keyId: number
   key: string
   sourceText: string
+  pendingSourceText?: string
+  published: boolean
   tagCount: number
   pages: string[]
   pageCount: number
@@ -102,7 +105,11 @@ export function matchesReportFilter(
   const query = filter.query.trim().toLowerCase()
   if (!query) return true
   const haystack = [
-    ...finding.keys.flatMap((member) => [member.key, member.sourceText]),
+    ...finding.keys.flatMap((member) => [
+      member.key,
+      member.sourceText,
+      member.pendingSourceText ?? '',
+    ]),
     ...rawIssues(finding).map((issue) => issue.text),
   ]
   return haystack.some((text) => text.toLowerCase().includes(query))
@@ -215,3 +222,44 @@ export function findingIssueViews(
     sourceSegments: null,
   }))
 }
+
+export type MemberBadge = {
+  label: 'Auto key' | 'Unpublished' | 'Pending edit'
+  color: 'neutral' | 'warning' | 'info'
+  title: string
+}
+
+/**
+ * What state a key is in, spelled out — never the bare word "draft", which
+ * read as "unpublished" while meaning the `__draft_` name. A published key with
+ * no pending edit gets no badge.
+ */
+export function memberBadges(member: {
+  key: string
+  published: boolean
+  pendingSourceText?: string
+}): MemberBadge[] {
+  const badges: MemberBadge[] = []
+  if (member.key.startsWith(DRAFT_KEY_PREFIX)) {
+    badges.push({
+      label: 'Auto key',
+      color: 'neutral',
+      title: 'Generated automatically (__draft_…) for a frame that had no key name. Rename it to a real key before shipping.',
+    })
+  } else if (!member.published) {
+    badges.push({
+      label: 'Unpublished',
+      color: 'warning',
+      title: 'Never published — code and the delivery API do not serve this key yet.',
+    })
+  }
+  if (member.pendingSourceText) {
+    badges.push({
+      label: 'Pending edit',
+      color: 'info',
+      title: 'The source has an unpublished edit. Checks use the published text until it is published.',
+    })
+  }
+  return badges
+}
+

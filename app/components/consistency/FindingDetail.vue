@@ -1,7 +1,8 @@
 <script setup lang="ts">
-import { DRAFT_KEY_PREFIX, formatI18nKeyDisplay } from '#shared/utils'
+import { formatI18nKeyDisplay } from '#shared/utils'
 import {
   findingIssueViews,
+  memberBadges,
   ruleCopy,
   type FindingSeverity,
   type ReportFinding,
@@ -40,10 +41,6 @@ function severityMeta(severity: FindingSeverity) {
     : severity === 'warning'
       ? { color: 'warning' as const, label: 'Warning' }
       : { color: 'neutral' as const, label: 'Info' }
-}
-
-function isDraftKey(key: string) {
-  return key.startsWith(DRAFT_KEY_PREFIX)
 }
 
 function pageSummary(member: ReportMember) {
@@ -127,16 +124,25 @@ function pageSummary(member: ReportMember) {
               {{ formatI18nKeyDisplay(member.key) }}
             </code>
             <UBadge
-              v-if="isDraftKey(member.key)"
-              color="neutral"
+              v-for="badge in memberBadges(member)"
+              :key="badge.label"
+              :color="badge.color"
               variant="subtle"
               size="xs"
+              :title="badge.title"
             >
-              draft
+              {{ badge.label }}
             </UBadge>
           </div>
           <p class="text-sm whitespace-pre-wrap break-words">
             {{ member.sourceText }}
+          </p>
+          <p
+            v-if="member.pendingSourceText"
+            class="text-xs text-muted whitespace-pre-wrap break-words"
+            title="Unpublished source edit — not checked until it is published."
+          >
+            → “{{ member.pendingSourceText }}”
           </p>
           <p class="text-xs text-muted">
             <template v-if="member.pageCount">
@@ -156,16 +162,25 @@ function pageSummary(member: ReportMember) {
               {{ formatI18nKeyDisplay(lead.key) }}
             </code>
             <UBadge
-              v-if="isDraftKey(lead.key)"
-              color="neutral"
+              v-for="badge in memberBadges(lead)"
+              :key="badge.label"
+              :color="badge.color"
               variant="subtle"
               size="xs"
+              :title="badge.title"
             >
-              draft
+              {{ badge.label }}
             </UBadge>
           </div>
           <p class="text-sm whitespace-pre-wrap break-words">
             {{ lead.sourceText }}
+          </p>
+          <p
+            v-if="lead.pendingSourceText"
+            class="text-xs text-muted whitespace-pre-wrap break-words"
+            title="Unpublished source edit — not checked until it is published."
+          >
+            → “{{ lead.pendingSourceText }}”
           </p>
           <p class="text-xs text-muted">
             <template v-if="lead.pageCount">

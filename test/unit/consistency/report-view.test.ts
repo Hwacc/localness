@@ -6,7 +6,11 @@ import {
   groupReport,
   isReportFilterActive,
   matchesReportFilter,
+  memberBadges,
+  scopeOfCategory,
+  scopeSections,
   severityCounts,
+  toMember,
   worstSeverity,
   type ReportFinding,
 } from '#shared/utils/consistency'
@@ -16,6 +20,7 @@ function member(key: string, sourceText: string) {
     keyId: key.length,
     key,
     sourceText,
+    published: true,
     tagCount: 0,
     pages: [],
     pageCount: 0,
@@ -195,5 +200,52 @@ describe('findingIssueViews', () => {
     expect(lint!.sourceSegments).toBeNull()
     expect(lint!.message).toContain('…')
     expect(findingIssueViews(orphan)).toEqual([])
+  })
+})
+
+describe('memberBadges', () => {
+  const labels = (input: Parameters<typeof memberBadges>[0]) =>
+    memberBadges(input).map((badge) => badge.label)
+
+  it('says nothing about a published key without pending edits', () => {
+    expect(labels({ key: 'save', published: true })).toEqual([])
+  })
+
+  it('names an auto-generated key by what it is, not "draft"', () => {
+    expect(labels({ key: '__draft_ab12', published: false })).toEqual(['Auto key'])
+  })
+
+  it('flags a never-published formal key and a pending source edit', () => {
+    expect(labels({ key: 'save', published: false })).toEqual(['Unpublished'])
+    expect(
+      labels({ key: 'save', published: true, pendingSourceText: 'Save file' })
+    ).toEqual(['Pending edit'])
+  })
+
+  it('derives published from any locale having published text', () => {
+    const base = { keyId: 1, key: 'k', tagCount: 0, sourceText: 'Hi' }
+    expect(
+      toMember({ ...base, locales: [{ locale: 'en', draftText: 'Hi', publishedText: null }] })
+        .published
+    ).toBe(false)
+    expect(
+      toMember({ ...base, locales: [{ locale: 'ja', draftText: 'やあ', publishedText: 'やあ' }] })
+        .published
+    ).toBe(true)
+  })
+})
+
+describe('scopeSections', () => {
+  it('places every category under exactly one scope', () => {
+    const all = scopeSections.flatMap((scope) => scope.categories)
+    expect([...all].sort()).toEqual(['duplicate', 'lint', 'mismatch', 'orphan'])
+    expect(new Set(all).size).toBe(all.length)
+  })
+
+  it('looks up each category scope', () => {
+    expect(scopeOfCategory('duplicate').id).toBe('dictionary')
+    expect(scopeOfCategory('orphan').id).toBe('dictionary')
+    expect(scopeOfCategory('mismatch').id).toBe('published')
+    expect(scopeOfCategory('lint').id).toBe('published')
   })
 })

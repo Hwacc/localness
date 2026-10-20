@@ -103,9 +103,10 @@ const navItems = [
             >
               <UButton
                 :class="[
-                  ' hover:text-green-600',
-                  route.name === item.name &&
-                    'text-green-400 hover:text-green-400',
+                  'border hover:text-green-600',
+                  route.name === item.name
+                    ? 'border-primary bg-primary/10 text-green-400 hover:text-green-400'
+                    : 'border-transparent',
                 ]"
                 :icon="item.icon"
                 size="md"
