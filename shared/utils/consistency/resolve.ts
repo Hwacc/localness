@@ -1,5 +1,12 @@
 import { DRAFT_KEY_PREFIX, fpTranslation } from '../index'
 import { allRules } from './rules'
+import {
+  extractPlaceholders,
+  extractTags,
+  extractUrlsEmails,
+  hasBranches,
+  type Token,
+} from './rules/extract'
 import { CJK } from './rules/lint-cjk-spacing'
 import type {
   LintIssue,
@@ -235,6 +242,119 @@ export function recheckLocale(
     if (hit) return hit
   }
   return null
+}
+
+/**
+ * Tokens one swap can stand in for each other: a `{n}` never replaces a
+ * `%s`, a closing tag never replaces an opening one.
+ */
+const SWAPPABLE: Record<
+  string,
+  { extract: (text: string) => Token[]; kind: (raw: string) => string }
+> = {
+  placeholders: {
+    extract: extractPlaceholders,
+    kind: (raw) =>
+      raw.startsWith('@')
+        ? 'linked'
+        : raw.startsWith('%')
+          ? 'printf'
+          : raw.startsWith('{{')
+            ? 'double'
+            : 'single',
+  },
+  'urls-emails': {
+    extract: extractUrlsEmails,
+    kind: (raw) => (raw.includes('://') ? 'url' : 'email'),
+  },
+  'html-tags': {
+    extract: extractTags,
+    kind: (raw) =>
+      raw.startsWith('</') ? 'close' : raw.endsWith('/>') ? 'self' : 'open',
+  },
+}
+
+/**
+ * One-for-one repair of a source↔translation mismatch: when the translation
+ * has exactly as many wrong tokens as it lacks, of the same kinds, each wrong
+ * token becomes the missing one in order (`{n}` → `{name}`, `<b>` →
+ * `<bold>`). Where to *insert* a lost token is a language decision, so pure
+ * gaps get no fix. The result must pass the rule's own recheck — a guess that
+ * would still fail is never offered.
+ */
+export function mismatchAutoFix(
+  ruleId: string,
+  key: ScanKeyInput,
+  sourceLocale: string,
+  locale: string,
+  text: string
+): string | null {
+  const swap = SWAPPABLE[ruleId]
+  if (!swap) return null
+  const issue = recheckLocale(ruleId, key, sourceLocale, locale, text)
+  if (!issue || !('missing' in issue)) return null
+  if (!issue.missing.length || issue.missing.length !== issue.extra.length) {
+    return null
+  }
+
+  const tokens = swap.extract(text)
+  const extras = issue.spans.flatMap(([start]) =>
+    tokens.filter((token) => token.start === start)
+  )
+  if (extras.length !== issue.extra.length) return null
+
+  const byKind = (raws: string[]) => {
+    const out = new Map<string, string[]>()
+    for (const raw of raws) {
+      out.set(swap.kind(raw), [...(out.get(swap.kind(raw)) ?? []), raw])
+    }
+    return out
+  }
+  const missingByKind = byKind(issue.missing)
+  const extraByKind = byKind(extras.map((token) => token.raw))
+  if (missingByKind.size !== extraByKind.size) return null
+  for (const [kind, raws] of extraByKind) {
+    if (missingByKind.get(kind)?.length !== raws.length) return null
+  }
+
+  // Plural/select texts list each wrong token once; every branch has it.
+  const everyCopy = hasBranches(text)
+  const replacements: Array<{ start: number; end: number; raw: string }> = []
+  const used = new Map<string, number>()
+  for (const extra of [...extras].sort((a, b) => a.start - b.start)) {
+    const kind = swap.kind(extra.raw)
+    const index = used.get(kind) ?? 0
+    used.set(kind, index + 1)
+    const raw = missingByKind.get(kind)![index]!
+    const targets = everyCopy
+      ? tokens.filter((token) => token.value === extra.value)
+      : [extra]
+    for (const target of targets) {
+      replacements.push({ start: target.start, end: target.end, raw })
+    }
+  }
+
+  let next = text
+  for (const { start, end, raw } of replacements.sort(
+    (a, b) => b.start - a.start
+  )) {
+    next = next.slice(0, start) + raw + next.slice(end)
+  }
+  if (next === text) return null
+  return recheckLocale(ruleId, key, sourceLocale, locale, next) ? null : next
+}
+
+/** The Resolve drawer's Auto-fix: lint rewrites or a mismatch swap. */
+export function autoFix(
+  ruleId: string,
+  key: ScanKeyInput,
+  sourceLocale: string,
+  locale: string,
+  text: string
+): string | null {
+  return ruleId.startsWith('lint.')
+    ? lintAutoFix(ruleId, text)
+    : mismatchAutoFix(ruleId, key, sourceLocale, locale, text)
 }
 
 export interface FingerprintedLocale extends ScanKeyLocale {

@@ -1,0 +1,22 @@
+---
+description: Do not add functions whose body only forwards to another call
+alwaysApply: true
+---
+
+# No pass-through functions
+
+Do not add a function, method, or arrow whose body only returns another call with the same arguments. Call that function at the use site.
+
+A rename, a Vue template helper, or a "clearer name" is not a reason to keep the wrapper.
+
+```ts
+// Bad — rowLocales exists only to call findingLocales
+function rowLocales(finding: ReportFinding) {
+  return findingLocales(finding)
+}
+
+// Good
+findingLocales(finding)
+```
+
+Keep a wrapper when its body does something else: maps or drops arguments, filters the result, catches errors, or satisfies an interface that must delegate.

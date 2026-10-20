@@ -354,7 +354,12 @@ defineExpose({ flushPendingSaves })
     :close="{ icon: 'i-lucide:x' }"
     :title="row ? formatI18nKeyDisplay(row.key) : 'Translation'"
     class="max-w-2xl"
-    :ui="{ body: 'p-4 sm:p-4', footer: 'p-4 sm:p-4' }"
+    :ui="{
+      content:
+        'sm:shadow-[-16px_0_48px_-8px_rgb(0_0_0/0.75)] sm:ring-0 border-l border-accented',
+      body: 'p-4 sm:p-4',
+      footer: 'p-4 sm:p-4',
+    }"
   >
     <template #body>
       <div v-if="row" class="flex flex-col gap-4">
@@ -392,6 +397,7 @@ defineExpose({ flushPendingSaves })
           </UBadge>
         </div>
 
+        <section class="flex flex-col gap-4 rounded-lg border border-default p-3">
         <UFormField label="Key">
           <div class="w-full flex flex-col gap-2">
             <div class="w-full flex items-center gap-2.5">
@@ -436,17 +442,25 @@ defineExpose({ flushPendingSaves })
           />
         </UFormField>
 
-        <UFormField
-          label="Git sync"
-          description="Off keeps this key out of pull and push. It is still served on the published API."
-        >
+        <div class="flex items-center justify-between gap-3">
+          <span class="inline-flex items-center gap-1.5 text-sm">
+            Git sync
+            <UTooltip text="Off keeps this key out of pull and push. It is still served on the published API.">
+              <UIcon name="i-lucide:info" class="size-3.5 text-muted" />
+            </UTooltip>
+          </span>
           <USwitch
             :model-value="row.gitSyncEnabled"
             :loading="gitSyncBusy"
             @update:model-value="emit('toggle-git-sync', row)"
           />
-        </UFormField>
+        </div>
+        </section>
 
+        <section class="flex flex-col gap-3 border-t border-default pt-4">
+          <h2 class="text-xs font-semibold uppercase tracking-wider text-muted">
+            Translations
+          </h2>
         <!--
           The source leads and stays open; the rest fold away so a ten-language
           key does not become one long scroll.
@@ -508,6 +522,7 @@ defineExpose({ flushPendingSaves })
             />
           </template>
         </UAccordion>
+        </section>
       </div>
     </template>
     <template #footer>

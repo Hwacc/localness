@@ -423,7 +423,11 @@ watch(open, (isOpen) => {
     description="Existing locale files land published and stay out of Git sync."
     side="right"
     :close="{ icon: 'i-lucide:x' }"
-    :ui="{ content: 'max-w-2xl', body: 'p-4 sm:p-4' }"
+    :ui="{
+      content:
+        'max-w-2xl sm:shadow-[-16px_0_48px_-8px_rgb(0_0_0/0.75)] sm:ring-0 border-l border-accented',
+      body: 'p-4 sm:p-4',
+    }"
   >
     <UButton
       size="sm"

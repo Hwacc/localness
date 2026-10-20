@@ -430,21 +430,21 @@ async function onSubmit(_: FormSubmitEvent<ZProject>) {
                 description="Used when the AI names a key: what the generated key must look like. Leave the prefix empty for none."
               />
 
-              <h3 class="pt-2 text-xs font-medium text-muted uppercase">
+              <h3 class="text-xs font-medium text-muted uppercase">
                 Consistency
               </h3>
-              <USwitch
-                v-for="rule in lintRuleCatalog"
-                :key="rule.id"
-                v-model="state.settings.lintRules[rule.id]"
-                :label="rule.label"
-              />
-              <UAlert
-                variant="soft"
-                color="neutral"
-                icon="i-lucide:info"
-                description="Lint rules on the Consistency page (Plus). On = flag style issues as info — nothing is ever blocked."
-              />
+              <div class="grid grid-cols-2 gap-x-4 gap-y-1">
+                <USwitch
+                  v-for="rule in lintRuleCatalog"
+                  :key="rule.id"
+                  v-model="state.settings.lintRules[rule.id]"
+                  :label="rule.label"
+                />
+              </div>
+              <p class="text-xs text-muted">
+                Lint rules on the Consistency page (Plus). On = flag style
+                issues as info — nothing is ever blocked.
+              </p>
             </div>
           </template>
           <template #releases>

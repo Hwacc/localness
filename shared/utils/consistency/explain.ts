@@ -13,7 +13,7 @@ export const ruleCopy: Record<string, { label: string; hint: string }> = {
   },
   placeholders: {
     label: 'Placeholders',
-    hint: 'Every placeholder in the source ({name}, %s, {{count}}) must appear in each translation, spelled exactly the same — otherwise the app shows the raw token or the wrong value. Reordering with %1$s / %2$s is fine. Plural/select blocks are compared by the variables they use, so branch counts may differ per language.',
+    hint: 'Every placeholder in the source ({name}, %s, {{count}}, linked @:common.save) must appear in each translation, spelled exactly the same — otherwise the app shows the raw token or the wrong value. Reordering with %1$s / %2$s is fine. Plural/select blocks (ICU, vue-i18n `a | b`) are compared by the variables they use, so branch counts may differ per language; i18next plural keys (_one, _other, _few…) are checked as one family, {{count}} optional per form, and a form the source lacks is checked against _other.',
   },
   numbers: {
     label: 'Numbers',
@@ -24,12 +24,12 @@ export const ruleCopy: Record<string, { label: string; hint: string }> = {
     hint: 'Links and email addresses from the source should survive translation unchanged — a dropped or edited one sends users nowhere.',
   },
   'html-tags': {
-    label: 'HTML tags',
-    hint: 'Markup tags in the source (<b>, <a>, <br>) should appear in each translation — a lost or extra tag breaks formatting or links.',
+    label: 'Tags',
+    hint: 'Tags in the source — HTML (<b>, <a>, <br/>), rich-text components (<bold>…</bold>) and indexed Trans tags (<0>…</0>, <1/>) — must appear in each translation, opened and closed the same way. A lost, extra or unclosed tag breaks formatting, links or the component it wraps; reordering is fine.',
   },
   'orphan-keys': {
     label: 'Orphan keys',
-    hint: 'No frame on any captured design references these keys. Often leftovers — but keys created directly in the dictionary are legitimately frameless.',
+    hint: 'No frame on any captured design references these keys (an i18next plural form counts as referenced when a sibling form is). Often leftovers — but keys created directly in the dictionary are legitimately frameless.',
   },
   'lint.ellipsis': {
     label: 'Ellipsis',
@@ -57,7 +57,7 @@ const TOKEN_NOUN: Record<string, string> = {
   placeholders: 'placeholder',
   numbers: 'number',
   'urls-emails': 'URL / email',
-  'html-tags': 'HTML tag',
+  'html-tags': 'tag',
 }
 
 function quoted(tokens: string[]): string {

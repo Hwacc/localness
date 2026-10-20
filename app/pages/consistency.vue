@@ -292,9 +292,6 @@ function headline(finding: ReportFinding) {
   return lead.key
 }
 
-function rowLocales(finding: ReportFinding) {
-  return findingLocales(finding)
-}
 </script>
 
 <template>
@@ -565,7 +562,7 @@ function rowLocales(finding: ReportFinding) {
                 </span>
                 <span class="flex items-center gap-1 shrink-0 ml-auto">
                   <UBadge
-                    v-for="locale in rowLocales(finding).slice(
+                    v-for="locale in findingLocales(finding).slice(
                       0,
                       MAX_LOCALE_BADGES,
                     )"
@@ -577,10 +574,10 @@ function rowLocales(finding: ReportFinding) {
                     {{ locale }}
                   </UBadge>
                   <span
-                    v-if="rowLocales(finding).length > MAX_LOCALE_BADGES"
+                    v-if="findingLocales(finding).length > MAX_LOCALE_BADGES"
                     class="text-xs text-muted"
                   >
-                    +{{ rowLocales(finding).length - MAX_LOCALE_BADGES }}
+                    +{{ findingLocales(finding).length - MAX_LOCALE_BADGES }}
                   </span>
                   <UTooltip
                     text="Not an issue — hidden until its keys or translations change"

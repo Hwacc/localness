@@ -213,6 +213,13 @@ function pageSummary(member: ReportMember) {
         >
           <div class="flex items-center gap-2">
             <span class="text-xs font-semibold">Source</span>
+            <span
+              v-if="issues[0].sourceKey"
+              class="text-xs text-muted"
+              title="The source language has no text for this plural form, so it is checked against the general form"
+            >
+              from {{ issues[0].sourceKey }}
+            </span>
           </div>
           <p class="text-xs text-muted whitespace-pre-wrap break-words">
             <ConsistencyHighlightedText :segments="issues[0].sourceSegments" />

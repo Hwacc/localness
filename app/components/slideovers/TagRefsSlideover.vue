@@ -65,7 +65,12 @@ function editSelected() {
     side="right"
     :close="{ icon: 'i-lucide:x' }"
     class="max-w-4xl"
-    :ui="{ body: 'p-0 sm:p-0', footer: 'p-4 sm:p-4' }"
+    :ui="{
+      content:
+        'sm:shadow-[-16px_0_48px_-8px_rgb(0_0_0/0.75)] sm:ring-0 border-l border-accented',
+      body: 'p-0 sm:p-0',
+      footer: 'p-4 sm:p-4',
+    }"
   >
     <template #body>
       <div class="flex h-[min(70vh,40rem)] min-h-80">

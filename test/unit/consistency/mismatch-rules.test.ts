@@ -392,4 +392,108 @@ describe('html-tags rule', () => {
       issues: [{ locale: 'ja', missing: ['<b>', '</b>'], extra: [] }],
     })
   })
+
+  it('compares indexed Trans tags, empty tags and named components', () => {
+    const source = 'Click <0>here</0>,<1/> read <>docs</> or <bold>this</bold>'
+    expect(
+      detect([
+        key({
+          sourceText: source,
+          locales: [
+            published('en', source),
+            published('de', '<bold>Das</bold>,<1/> <>Doku</> oder <0>hier</0>'),
+          ],
+        }),
+      ])
+    ).toHaveLength(0)
+    const findings = detect([
+      key({
+        sourceText: source,
+        locales: [
+          published('en', source),
+          published('ja', '<0>ここ</0>をクリック、<>ドキュメント</>、<bold>これ</bold>'),
+        ],
+      }),
+    ])
+    expect(findings[0]!.meta).toMatchObject({
+      issues: [{ locale: 'ja', missing: ['<1/>'], extra: [] }],
+    })
+  })
+
+  it('reports an unclosed tag by its shape', () => {
+    const findings = detect([
+      key({
+        sourceText: 'Read <0>docs</0>',
+        locales: [
+          published('en', 'Read <0>docs</0>'),
+          published('de', 'Lies <0>Doku<0>'),
+        ],
+      }),
+    ])
+    expect(findings[0]!.meta).toMatchObject({
+      issues: [{ locale: 'de', missing: ['</0>'], extra: ['<0>'] }],
+    })
+  })
+
+  it('does not read comparisons as tags', () => {
+    expect(
+      detect([
+        key({
+          sourceText: 'Use x <5 and y> 3',
+          locales: [
+            published('en', 'Use x <5 and y> 3'),
+            published('de', 'Nimm x < 5 und y > 3'),
+          ],
+        }),
+      ])
+    ).toHaveLength(0)
+  })
+})
+
+describe('tag and linked-message tokens elsewhere', () => {
+  it('numbers rule ignores indexed tag digits', () => {
+    expect(
+      numbersRule.detect(
+        ctx([
+          key({
+            sourceText: 'Click <0>here</0> to <1/> go',
+            locales: [
+              published('en', 'Click <0>here</0> to <1/> go'),
+              published('de', 'Klick <0>hier</0>'),
+            ],
+          }),
+        ])
+      )
+    ).toHaveLength(0)
+  })
+
+  it('placeholders rule compares vue-i18n linked keys, not modifiers', () => {
+    const detect = (keys: Parameters<typeof ctx>[0]) =>
+      placeholdersRule.detect(ctx(keys))
+    expect(
+      detect([
+        key({
+          sourceText: '@.capitalize:common.save first',
+          locales: [
+            published('en', '@.capitalize:common.save first'),
+            published('de', 'Zuerst @:(common.save).'),
+          ],
+        }),
+      ])
+    ).toHaveLength(0)
+    const findings = detect([
+      key({
+        sourceText: '@:common.save first',
+        locales: [
+          published('en', '@:common.save first'),
+          published('de', 'Zuerst @:common.store'),
+        ],
+      }),
+    ])
+    expect(findings[0]!.meta).toMatchObject({
+      issues: [
+        { locale: 'de', missing: ['@:common.save'], extra: ['@:common.store'] },
+      ],
+    })
+  })
 })

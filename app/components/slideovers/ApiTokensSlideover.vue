@@ -194,7 +194,11 @@ watch(open, (isOpen) => {
     description="Personal credentials that reach the projects you pick."
     side="right"
     :close="{ icon: 'i-lucide:x' }"
-    :ui="{ body: 'p-4 sm:p-4' }"
+    :ui="{
+      content:
+        'sm:shadow-[-16px_0_48px_-8px_rgb(0_0_0/0.75)] sm:ring-0 border-l border-accented',
+      body: 'p-4 sm:p-4',
+    }"
   >
     <UButton
       icon="i-lucide:key-round"

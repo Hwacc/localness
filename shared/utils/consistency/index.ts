@@ -46,11 +46,19 @@ export {
   scanSourceText,
 } from './text'
 export { publishedSnapshotText, singleKeyGroupId } from './group-id'
+export {
+  pluralBase,
+  pluralSiblingNames,
+  withPluralFamilies,
+  type PluralFamily,
+} from './plural'
 export { partitionIgnored, type IgnoreRow } from './ignore'
 export {
+  autoFix,
   isPublishedKey,
   lintAutoFix,
   mergeBlockReason,
+  mismatchAutoFix,
   outdatedOnSourceSave,
   planLocaleChoices,
   recheckLocale,
