@@ -2,7 +2,9 @@ import prisma from '#server/libs/prisma'
 import { numericID } from '#server/helper/id'
 import { requireTeamMember } from '#server/helper/access'
 import { requirePlus } from '#server/helper/license'
-import { sourceLocaleOf, sourceTextOf } from '#server/helper/i18n'
+import { sourceLocaleOf } from '#server/helper/i18n'
+import { loadLintRules } from '#server/helper/consistency'
+import { scanSourceText } from '#shared/utils/consistency'
 import { zConsistencyKeysQuery } from '#shared/utils/schemas'
 
 /**
@@ -23,23 +25,33 @@ export default defineEventHandler(async (event) => {
 
   const { keyIds } = await getValidatedQuery(event, zConsistencyKeysQuery.parse)
   const sourceLocale = await sourceLocaleOf(nID)
-  const rows = await prisma.i18nKey.findMany({
-    where: { projectId: nID, id: { in: keyIds } },
-    select: {
-      id: true,
-      key: true,
-      createdAt: true,
-      _count: { select: { tags: true } },
-      locales: {
-        select: { locale: true, draftText: true, publishedText: true },
-        orderBy: { locale: 'asc' },
+  const [rows, lintRules] = await Promise.all([
+    prisma.i18nKey.findMany({
+      where: { projectId: nID, id: { in: keyIds } },
+      select: {
+        id: true,
+        key: true,
+        fingerprint: true,
+        createdAt: true,
+        _count: { select: { tags: true } },
+        locales: {
+          select: {
+            locale: true,
+            draftText: true,
+            publishedText: true,
+            sourceFingerprint: true,
+          },
+          orderBy: { locale: 'asc' },
+        },
       },
-    },
-  })
+    }),
+    loadLintRules(nID),
+  ])
   const byId = new Map(rows.map((row) => [row.id, row]))
 
   return {
     sourceLocale,
+    lintRules,
     keys: keyIds.flatMap((keyId) => {
       const row = byId.get(keyId)
       if (!row) return []
@@ -47,9 +59,10 @@ export default defineEventHandler(async (event) => {
         {
           keyId: row.id,
           key: row.key,
+          fingerprint: row.fingerprint,
           createdAt: row.createdAt.toISOString(),
           tagCount: row._count.tags,
-          sourceText: sourceTextOf(row.locales, sourceLocale),
+          ...scanSourceText(row.locales, sourceLocale),
           locales: row.locales,
         },
       ]

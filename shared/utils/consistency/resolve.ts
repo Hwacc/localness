@@ -1,4 +1,4 @@
-import { DRAFT_KEY_PREFIX } from '../index'
+import { DRAFT_KEY_PREFIX, fpTranslation } from '../index'
 import { allRules } from './rules'
 import { CJK } from './rules/lint-cjk-spacing'
 import type {
@@ -202,14 +202,16 @@ export function lintAutoFix(ruleId: string, text: string): string | null {
 /**
  * Re-run one rule against a key with `locale`'s published text replaced by
  * `text` — the live check under the editor. Returns that locale's issue, or
- * null when the edit passes.
+ * null when the edit passes. `lintRules` is the project's current switches:
+ * a rule turned off since the scan must not keep reporting here.
  */
 export function recheckLocale(
   ruleId: string,
   key: ScanKeyInput,
   sourceLocale: string,
   locale: string,
-  text: string
+  text: string,
+  lintRules: Record<string, boolean> = {}
 ): MismatchIssue | LintIssue | null {
   const rule = allRules.find((candidate) => candidate.id === ruleId)
   if (!rule) return null
@@ -221,7 +223,7 @@ export function recheckLocale(
   const findings = rule.detect({
     projectId: 0,
     sourceLocale,
-    lintRules: {},
+    lintRules,
     keys: [{ ...key, locales }],
   })
   for (const finding of findings) {
@@ -233,4 +235,43 @@ export function recheckLocale(
     if (hit) return hit
   }
   return null
+}
+
+export interface FingerprintedLocale extends ScanKeyLocale {
+  sourceFingerprint: string
+}
+
+/**
+ * How many translations turn Outdated if the source locale is saved & published
+ * as `text` (the fix endpoint writes both columns). Mirrors the Outdated
+ * predicate: the fingerprint must actually change (it ignores whitespace), the
+ * key must not be a draft afterwards, and only translations with text that are
+ * currently up to date count — already-outdated rows don't change state.
+ */
+export function outdatedOnSourceSave(input: {
+  sourceLocale: string
+  fingerprint: string
+  locales: FingerprintedLocale[]
+  text: string
+}): number {
+  const { sourceLocale, fingerprint, text } = input
+  if (fpTranslation(text) === fingerprint) return 0
+  const after = input.locales.some((row) => row.locale === sourceLocale)
+    ? input.locales.map((row) =>
+        row.locale === sourceLocale ? { ...row, draftText: text, publishedText: text } : row
+      )
+    : [
+        ...input.locales,
+        { locale: sourceLocale, draftText: text, publishedText: text, sourceFingerprint: '' },
+      ]
+  const isDraft =
+    !after.some((row) => (row.publishedText ?? '') !== '') ||
+    after.some((row) => (row.draftText ?? '') !== (row.publishedText ?? ''))
+  if (isDraft) return 0
+  return after.filter(
+    (row) =>
+      row.locale !== sourceLocale &&
+      ((row.draftText ?? '') !== '' || (row.publishedText ?? '') !== '') &&
+      row.sourceFingerprint === fingerprint
+  ).length
 }

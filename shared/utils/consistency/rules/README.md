@@ -20,4 +20,4 @@
 
 ## 文本口径（2026-10-19 拍板）
 
-检查**只看 publishedText**（与 Outdated「只标已发布」一致）；duplicate 规则的 `sourceText` 保持 v1 语义 = 源语言 **draftText**（key 的原始措辞）。空文本一律跳过。
+检查**只看 publishedText**（与 Outdated「只标已发布」一致）。duplicate / orphan 用的 `sourceText` 是 key 的**线上原文**（`scanSourceText`，2026-10-20 改）：发布过的 key 取源语言 publishedText，从未发布的（含 `__draft_` 占位，永不发布）退回 draftText——所以占位 key 仍参与查重。已发布 key 上未发布的源文修改记为 `pendingSourceText`，**只在卡片上展示、不参与判定**，改草稿不会让分组漂移。空文本一律跳过。

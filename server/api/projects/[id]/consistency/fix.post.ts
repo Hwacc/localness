@@ -79,10 +79,12 @@ export default defineEventHandler(async (event) => {
 
   return {
     keyId: existing.id,
+    fingerprint,
     locales: after.map((row) => ({
       locale: row.locale,
       draftText: row.draftText,
       publishedText: row.publishedText,
+      sourceFingerprint: row.sourceFingerprint,
     })),
   }
 })

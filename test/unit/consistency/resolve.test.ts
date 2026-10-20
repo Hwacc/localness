@@ -2,12 +2,14 @@ import { describe, expect, it } from 'vitest'
 import {
   lintAutoFix,
   mergeBlockReason,
+  outdatedOnSourceSave,
   planLocaleChoices,
   recheckLocale,
   resolveMergeWrites,
   suggestKeeper,
   type MergeCandidate,
 } from '#shared/utils/consistency'
+import { fpTranslation } from '#shared/utils'
 import { key, published } from './helpers'
 
 const draft = (locale: string, text: string) => ({
@@ -173,5 +175,68 @@ describe('recheckLocale', () => {
       locale: 'en',
     })
     expect(recheckLocale('lint.ellipsis', lintKey, 'en', 'en', 'Wait…')).toBeNull()
+  })
+
+  it('stays silent for a rule the project has turned off', () => {
+    const lintKey = key({ locales: [published('en', 'Wait...')] })
+    expect(
+      recheckLocale('lint.ellipsis', lintKey, 'en', 'en', 'Wait...', {
+        'lint.ellipsis': false,
+      })
+    ).toBeNull()
+  })
+
+  it('keeps mismatch rules indifferent to lint switches', () => {
+    expect(
+      recheckLocale('placeholders', k, 'en', 'ja', '項目があります', {
+        'lint.ellipsis': false,
+      })
+    ).toMatchObject({ locale: 'ja' })
+  })
+})
+
+describe('outdatedOnSourceSave', () => {
+  const fp = fpTranslation('Save file')
+  const row = (locale: string, text: string | null, sourceFingerprint = fp) => ({
+    locale,
+    draftText: text,
+    publishedText: text,
+    sourceFingerprint,
+  })
+  const base = {
+    sourceLocale: 'en',
+    fingerprint: fp,
+    locales: [row('en', 'Save file', ''), row('de', 'Datei speichern'), row('ja', null)],
+  }
+
+  it('counts up-to-date translations with text when the wording changes', () => {
+    expect(outdatedOnSourceSave({ ...base, text: 'Save the file' })).toBe(1)
+  })
+
+  it('stays silent for a whitespace-only edit', () => {
+    expect(outdatedOnSourceSave({ ...base, text: 'Save  file ' })).toBe(0)
+  })
+
+  it('skips translations that are already outdated', () => {
+    expect(
+      outdatedOnSourceSave({
+        ...base,
+        locales: [...base.locales, row('fr', 'Enregistrer', 'old')],
+        text: 'Save the file',
+      })
+    ).toBe(1)
+  })
+
+  it('stays silent while the key remains a draft', () => {
+    expect(
+      outdatedOnSourceSave({
+        ...base,
+        locales: [
+          ...base.locales,
+          { locale: 'fr', draftText: 'Enregistrer', publishedText: null, sourceFingerprint: fp },
+        ],
+        text: 'Save the file',
+      })
+    ).toBe(0)
   })
 })

@@ -1,20 +1,22 @@
 <script setup lang="ts">
 import { AlertModal } from '#components'
-import { DRAFT_KEY_PREFIX, formatI18nKeyDisplay } from '#shared/utils'
+import { formatI18nKeyDisplay } from '#shared/utils'
 import {
   findingIssueViews,
   isPublishedKey,
   lintAutoFix,
   mergeBlockReason,
+  memberBadges,
+  outdatedOnSourceSave,
   planLocaleChoices,
   recheckLocale,
   ruleCopy,
   suggestKeeper,
+  type FingerprintedLocale,
   type IssueView,
   type LocaleChoice,
   type MergeCandidate,
   type ReportFinding,
-  type ScanKeyLocale,
 } from '#shared/utils/consistency'
 
 /**
@@ -35,7 +37,12 @@ const overlay = useOverlay()
 const toast = useToast()
 const confirmModal = overlay.create(AlertModal)
 
-type MemberData = MergeCandidate & { sourceText: string }
+type MemberData = MergeCandidate & {
+  sourceText: string
+  pendingSourceText?: string
+  fingerprint: string
+  locales: FingerprintedLocale[]
+}
 
 const loading = ref(false)
 const busy = ref(false)
@@ -43,6 +50,8 @@ const busy = ref(false)
 const touched = ref(false)
 const sourceLocale = ref('')
 const members = ref<MemberData[]>([])
+/** The project's current lint switches, so the live check never contradicts them. */
+const lintRules = ref<Record<string, boolean>>({})
 
 const category = computed(() => props.finding?.category)
 const memberById = computed(
@@ -142,11 +151,15 @@ async function loadMembers() {
     members.value = []
     return
   }
-  const res = await useApi<{ sourceLocale: string; keys: MemberData[] }>(
-    `/api/projects/${props.projectId}/consistency/keys`,
-    { query: { keyIds: ids.join(',') } }
-  )
+  const res = await useApi<{
+    sourceLocale: string
+    lintRules: Record<string, boolean>
+    keys: MemberData[]
+  }>(`/api/projects/${props.projectId}/consistency/keys`, {
+    query: { keyIds: ids.join(',') },
+  })
   sourceLocale.value = res?.sourceLocale ?? ''
+  lintRules.value = res?.lintRules ?? {}
   members.value = res?.keys ?? []
 }
 
@@ -173,8 +186,6 @@ watch(
     }
   }
 )
-
-const isDraftKey = (key: string) => key.startsWith(DRAFT_KEY_PREFIX)
 
 function revertToDraft(member: MemberData) {
   confirmModal.open({
@@ -315,7 +326,8 @@ function liveIssue(locale: string): IssueView | null {
     member,
     sourceLocale.value,
     locale,
-    texts.value[locale] ?? ''
+    texts.value[locale] ?? '',
+    lintRules.value
   )
   if (!hit) return null
   return findingIssueViews({ ...finding, meta: { ...finding.meta, issues: [hit] } })[0] ?? null
@@ -323,6 +335,18 @@ function liveIssue(locale: string): IssueView | null {
 
 const isEdited = (locale: string) =>
   (texts.value[locale] ?? '') !== publishedOf(lead.value, locale)
+
+/** Translations a source save would mark Outdated; zero keeps the hint silent. */
+function outdatedOnSave(locale: string): number {
+  const member = lead.value
+  if (!member || locale !== sourceLocale.value || !isEdited(locale)) return 0
+  return outdatedOnSourceSave({
+    sourceLocale: sourceLocale.value,
+    fingerprint: member.fingerprint,
+    locales: member.locales,
+    text: texts.value[locale] ?? '',
+  })
+}
 
 function proposeAutoFix(locale: string) {
   if (!props.finding) return
@@ -347,13 +371,15 @@ async function saveAndPublish(locale: string) {
   if (!member || !text.trim() || busy.value) return
   busy.value = true
   try {
-    const res = await useApi<{ locales: ScanKeyLocale[] }>(
+    const res = await useApi<{ fingerprint: string; locales: FingerprintedLocale[] }>(
       `/api/projects/${props.projectId}/consistency/fix`,
       { method: 'POST', body: { keyId: member.keyId, locale, text } }
     )
     if (res?.locales) {
       members.value = members.value.map((m) =>
-        m.keyId === member.keyId ? { ...m, locales: res.locales } : m
+        m.keyId === member.keyId
+          ? { ...m, fingerprint: res.fingerprint, locales: res.locales }
+          : m
       )
     }
     savedLocales.value = [...new Set([...savedLocales.value, locale])]
@@ -565,12 +591,18 @@ const title = computed(() => {
                     published
                   </UBadge>
                   <UBadge
-                    v-else-if="isDraftKey(member.key)"
-                    color="neutral"
+                    v-for="badge in memberBadges({
+                      key: member.key,
+                      published: isPublishedKey(member),
+                      pendingSourceText: member.pendingSourceText,
+                    })"
+                    :key="badge.label"
+                    :color="badge.color"
                     variant="subtle"
                     size="xs"
+                    :title="badge.title"
                   >
-                    draft
+                    {{ badge.label }}
                   </UBadge>
                   <span class="ml-auto text-xs text-muted shrink-0">
                     {{ member.tagCount }} {{ member.tagCount === 1 ? 'tag' : 'tags' }}
@@ -702,6 +734,12 @@ const title = computed(() => {
               <p class="text-sm whitespace-pre-wrap break-words">
                 {{ lead.sourceText }}
               </p>
+              <p
+                v-if="lead.pendingSourceText"
+                class="text-xs text-muted whitespace-pre-wrap break-words"
+              >
+                Pending edit: “{{ lead.pendingSourceText }}”
+              </p>
               <p class="text-xs text-muted">
                 {{ lead.locales.filter((row) => row.draftText).length }} language(s)
               </p>
@@ -774,11 +812,50 @@ const title = computed(() => {
                 </UBadge>
               </div>
               <p
-                v-if="liveIssue(locale)?.sourceSegments"
-                class="text-xs text-muted whitespace-pre-wrap break-words"
+                v-if="outdatedOnSave(locale)"
+                class="text-xs text-muted flex items-center gap-1"
               >
-                Source:
-                <ConsistencyHighlightedText :segments="liveIssue(locale)!.sourceSegments!" />
+                <UIcon name="i-lucide:info" class="shrink-0" />
+                Saving marks {{ outdatedOnSave(locale) }}
+                {{ outdatedOnSave(locale) === 1 ? 'other language' : 'other languages' }}
+                of this key as Outdated — re-translation clears them.
+              </p>
+              <template v-if="liveIssue(locale)?.sourceSegments">
+                <div class="flex flex-col gap-1">
+                  <div class="flex items-center gap-2">
+                    <UBadge color="neutral" variant="outline" size="xs">
+                      {{ sourceLocale }}
+                    </UBadge>
+                    <span class="text-xs text-muted">
+                      Published source — marked text is missing from {{ locale }}
+                    </span>
+                  </div>
+                  <p class="text-xs text-muted whitespace-pre-wrap wrap-break-word">
+                    <ConsistencyHighlightedText :segments="liveIssue(locale)!.sourceSegments!" />
+                  </p>
+                </div>
+                <div class="flex flex-col gap-1">
+                  <div class="flex items-center gap-2">
+                    <UBadge color="neutral" variant="outline" size="xs">
+                      {{ locale }}
+                    </UBadge>
+                    <span class="text-xs text-muted">
+                      Published translation
+                      <template v-if="liveIssue(locale)!.segments.some((segment) => segment.hit)">
+                        — marked text is not in the source
+                      </template>
+                    </span>
+                  </div>
+                  <p class="text-xs whitespace-pre-wrap wrap-break-word">
+                    <ConsistencyHighlightedText :segments="liveIssue(locale)!.segments" />
+                  </p>
+                </div>
+              </template>
+              <p
+                v-else-if="liveIssue(locale)"
+                class="text-xs whitespace-pre-wrap wrap-break-word"
+              >
+                <ConsistencyHighlightedText :segments="liveIssue(locale)!.segments" />
               </p>
               <UTextarea
                 v-model="texts[locale]"
@@ -786,17 +863,10 @@ const title = computed(() => {
                 autoresize
                 class="w-full"
               />
-              <p
-                v-if="liveIssue(locale)"
-                class="text-xs whitespace-pre-wrap break-words"
-              >
-                <ConsistencyHighlightedText :segments="liveIssue(locale)!.segments" />
-              </p>
               <div
                 v-if="autoFixPreview[locale]"
                 class="rounded-md bg-elevated px-2 py-1.5 text-xs flex flex-col gap-1"
               >
-                <p class="text-muted line-through whitespace-pre-wrap">{{ texts[locale] }}</p>
                 <p class="whitespace-pre-wrap">{{ autoFixPreview[locale] }}</p>
                 <div class="flex gap-1">
                   <UButton size="xs" color="primary" variant="soft" @click="applyAutoFix(locale)">

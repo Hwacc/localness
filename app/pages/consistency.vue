@@ -8,6 +8,8 @@ import {
   isReportFilterActive,
   matchesReportFilter,
   ruleCopy,
+  scopeOfCategory,
+  scopeSections,
   severityCounts,
   worstSeverity,
   type FindingCategory,
@@ -33,6 +35,12 @@ const CATEGORY_ORDER: FindingCategory[] = [
   'orphan',
 ]
 
+/** What each scope's header icon stands for; text lives in `scopeSections`. */
+const SCOPE_ICON: Record<(typeof scopeSections)[number]['id'], string> = {
+  dictionary: 'i-lucide:book-open',
+  published: 'i-lucide:eye',
+}
+
 const SEVERITIES: FindingSeverity[] = ['error', 'warning', 'info']
 
 /** Rows listed per category before "Show more". */
@@ -53,25 +61,10 @@ const locked = computed(() => license.value != null && !license.value.plus)
 
 function severityMeta(severity: FindingSeverity) {
   return severity === 'error'
-    ? {
-        color: 'error' as const,
-        label: 'Error',
-        icon: 'i-lucide:circle-x',
-        iconClass: 'text-error',
-      }
+    ? { color: 'error' as const, label: 'Error' }
     : severity === 'warning'
-      ? {
-          color: 'warning' as const,
-          label: 'Warning',
-          icon: 'i-lucide:triangle-alert',
-          iconClass: 'text-warning',
-        }
-      : {
-          color: 'neutral' as const,
-          label: 'Info',
-          icon: 'i-lucide:info',
-          iconClass: 'text-muted',
-        }
+      ? { color: 'warning' as const, label: 'Warning' }
+      : { color: 'neutral' as const, label: 'Info' }
 }
 
 function ruleLabel(ruleId: string) {
@@ -103,20 +96,22 @@ function toggleSeverity(severity: FindingSeverity) {
 
 const allFindings = computed(() => report.value?.findings ?? [])
 const visibleFindings = computed(() =>
-  allFindings.value.filter((finding) => matchesReportFilter(finding, filter))
+  allFindings.value.filter((finding) => matchesReportFilter(finding, filter)),
 )
-const groups = computed(() => groupReport(visibleFindings.value, CATEGORY_ORDER))
+const groups = computed(() =>
+  groupReport(visibleFindings.value, CATEGORY_ORDER),
+)
 const counts = computed(() => severityCounts(allFindings.value))
 
 const localeItems = computed(() =>
   [...new Set(allFindings.value.flatMap(findingLocales))]
     .sort()
-    .map((locale) => ({ label: locale, value: locale }))
+    .map((locale) => ({ label: locale, value: locale })),
 )
 const ruleItems = computed(() =>
   [...new Set(allFindings.value.map((finding) => finding.ruleId))]
     .map((ruleId) => ({ label: ruleLabel(ruleId), value: ruleId }))
-    .sort((a, b) => a.label.localeCompare(b.label))
+    .sort((a, b) => a.label.localeCompare(b.label)),
 )
 
 // ── Selection & paging ─────────────────────────────────────────────────────
@@ -133,7 +128,9 @@ function categoryDefaultOpen(findings: ReportFinding[]) {
 }
 
 function isCategoryOpen(category: FindingCategory, findings: ReportFinding[]) {
-  return openState.value[categoryNodeId(category)] ?? categoryDefaultOpen(findings)
+  return (
+    openState.value[categoryNodeId(category)] ?? categoryDefaultOpen(findings)
+  )
 }
 
 function toggleCategory(category: FindingCategory, findings: ReportFinding[]) {
@@ -150,8 +147,8 @@ const selected = computed(() => {
 /** Keyboard order: what the list would render, category by category. */
 const navigable = computed(() =>
   groups.value.flatMap((group) =>
-    pageOf(categoryNodeId(group.category), group.findings)
-  )
+    pageOf(categoryNodeId(group.category), group.findings),
+  ),
 )
 
 function pageOf(id: string, findings: ReportFinding[]) {
@@ -190,7 +187,10 @@ function moveSelection(delta: number) {
   const list = navigable.value
   if (!list.length) return
   const index = list.findIndex((f) => findingKey(f) === selectedKey.value)
-  const next = Math.min(Math.max((index === -1 ? 0 : index) + delta, 0), list.length - 1)
+  const next = Math.min(
+    Math.max((index === -1 ? 0 : index) + delta, 0),
+    list.length - 1,
+  )
   const target = list[next]
   if (target) {
     select(target)
@@ -227,7 +227,7 @@ onUnmounted(() => window.removeEventListener('keydown', onKeydown))
 async function loadReport() {
   if (!validID(projectId.value) || locked.value) return
   report.value = await useApi<ConsistencyReport>(
-    `/api/projects/${projectId.value}/consistency`
+    `/api/projects/${projectId.value}/consistency`,
   )
 }
 
@@ -252,7 +252,7 @@ watch(
     selectedKey.value = null
     clearFilter()
     load()
-  }
+  },
 )
 watch(visibleFindings, () => syncSelection())
 
@@ -284,10 +284,6 @@ async function setIgnored(finding: ReportFinding, ignored: boolean) {
   selectedKey.value = target ? findingKey(target) : null
   syncSelection()
 }
-
-const summarySeverities = computed(() =>
-  SEVERITIES.filter((severity) => counts.value[severity] > 0)
-)
 
 function headline(finding: ReportFinding) {
   const lead = finding.keys[0]
@@ -333,8 +329,15 @@ function rowLocales(finding: ReportFinding) {
           :key="category"
           class="flex flex-col gap-2"
         >
-          <h2 class="text-sm font-semibold">
+          <h2 class="text-sm font-semibold flex items-center gap-1.5">
+            <UIcon
+              :name="SCOPE_ICON[scopeOfCategory(category).id]"
+              class="size-3.5 text-muted"
+            />
             {{ categorySections[category].title }}
+            <span class="text-xs font-normal text-muted">
+              · {{ scopeOfCategory(category).title }}
+            </span>
           </h2>
           <p class="text-sm text-muted">
             {{ categorySections[category].description }}
@@ -370,9 +373,7 @@ function rowLocales(finding: ReportFinding) {
             @click="toggleSeverity(severity)"
           >
             {{ severityMeta(severity).label }}
-            <span class="tabular-nums opacity-70">{{
-              counts[severity]
-            }}</span>
+            <span class="tabular-nums opacity-70">{{ counts[severity] }}</span>
           </UButton>
         </div>
         <USelectMenu
@@ -416,32 +417,53 @@ function rowLocales(finding: ReportFinding) {
         <aside
           class="lg:w-96 shrink-0 border-b lg:border-b-0 lg:border-r border-default overflow-auto"
         >
-          <p
+          <div
             v-if="allFindings.length"
-            class="px-4 pt-3 text-sm text-muted flex items-center gap-2.5"
+            class="px-4 py-3 bg-elevated/40 border-b border-default flex flex-col gap-1.5"
           >
-            <span class="flex items-center gap-1.5">
-              <span
-                v-for="severity in summarySeverities"
-                :key="severity"
-                class="inline-flex items-center gap-0.5"
-              >
-                <UIcon
-                  :name="severityMeta(severity).icon"
-                  class="size-3.5"
-                  :class="severityMeta(severity).iconClass"
-                />
-                <span class="tabular-nums">{{ counts[severity] }}</span>
+            <div
+              class="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted"
+            >
+              <span class="inline-flex items-center gap-1">
+                <UIcon name="i-lucide:key-round" class="size-3.5" />
+                <span class="tabular-nums">{{ report.scannedKeys }}</span>
+                keys
               </span>
-            </span>
-            <span>
-              · {{ report.scannedKeys }} keys · {{ report.sourceLocale }}
-              <template v-if="filterActive">
-                · {{ visibleFindings.length }}/{{ allFindings.length }} shown
-              </template>
-            </span>
-          </p>
-          <p v-else class="px-4 pt-3 text-sm text-muted">
+              <span class="inline-flex items-center gap-1">
+                <UIcon name="i-lucide:languages" class="size-3.5" />
+                <span class="uppercase">
+                  {{ report.sourceLocale }} 
+                </span>
+                source language 
+              </span>
+              <span v-if="filterActive" class="inline-flex items-center gap-1">
+                <UIcon name="i-lucide:list-filter" class="size-3.5" />
+                <span class="tabular-nums">
+                  {{ visibleFindings.length }}/{{ allFindings.length }}
+                </span>
+                shown
+              </span>
+            </div>
+            <p
+              class="text-[11px] text-dimmed flex flex-wrap items-center gap-x-3 gap-y-0.5"
+            >
+              <span class="uppercase tracking-wide">Scope</span>
+              <UTooltip
+                v-for="scope in scopeSections"
+                :key="scope.id"
+                :text="scope.description"
+              >
+                <span class="inline-flex items-center gap-1">
+                  <UIcon :name="SCOPE_ICON[scope.id]" class="size-3" />
+                  {{ scope.title }}
+                </span>
+              </UTooltip>
+            </p>
+          </div>
+          <p
+            v-else
+            class="px-4 py-3 text-sm text-muted border-b border-default"
+          >
             No findings — scanned {{ report.scannedKeys }} keys in
             {{ report.sourceLocale }}.
           </p>
@@ -461,7 +483,7 @@ function rowLocales(finding: ReportFinding) {
             </UButton>
           </div>
 
-          <div v-for="group in groups" :key="group.category" class="mt-2">
+          <div v-for="group in groups" :key="group.category" class="pt-3">
             <button
               type="button"
               class="w-full px-4 py-1.5 flex items-center gap-2 text-left hover:bg-elevated/50"
@@ -471,9 +493,22 @@ function rowLocales(finding: ReportFinding) {
               <UIcon
                 name="i-lucide:chevron-right"
                 class="size-3.5 shrink-0 text-muted transition-transform"
-                :class="isCategoryOpen(group.category, group.findings) && 'rotate-90'"
+                :class="
+                  isCategoryOpen(group.category, group.findings) && 'rotate-90'
+                "
               />
-              <span class="text-xs font-semibold uppercase text-muted">
+              <UTooltip
+                :text="`${scopeOfCategory(group.category).title} — ${scopeOfCategory(group.category).description}`"
+              >
+                <UIcon
+                  :name="SCOPE_ICON[scopeOfCategory(group.category).id]"
+                  class="size-3.5 shrink-0 text-muted"
+                  :aria-label="scopeOfCategory(group.category).title"
+                />
+              </UTooltip>
+              <span
+                class="text-xs font-semibold uppercase tracking-wider text-highlighted"
+              >
                 {{ categorySections[group.category].title }}
               </span>
               <UBadge
@@ -486,91 +521,102 @@ function rowLocales(finding: ReportFinding) {
             </button>
 
             <template v-if="isCategoryOpen(group.category, group.findings)">
-            <button
-              v-for="finding in pageOf(
-                categoryNodeId(group.category),
-                group.findings
-              )"
-              :key="findingKey(finding)"
-              type="button"
-              :data-finding-key="findingKey(finding)"
-              class="w-full flex items-center gap-2 px-4 py-1.5 min-h-9 text-left border-l-2 transition-colors"
-              :class="
-                selectedKey === findingKey(finding)
-                  ? 'border-l-primary bg-elevated'
-                  : 'border-l-transparent hover:bg-elevated/50'
-              "
-              @click="select(finding)"
-            >
-              <span
-                class="size-2 rounded-full shrink-0"
-                :class="severityMeta(finding.severity).color === 'error' ? 'bg-error' : severityMeta(finding.severity).color === 'warning' ? 'bg-warning' : 'bg-accented'"
-                :title="finding.severity"
-              />
-              <span
-                v-if="finding.category !== 'duplicate'"
-                class="text-xs text-muted shrink-0 max-w-[35%] truncate"
+              <button
+                v-for="finding in pageOf(
+                  categoryNodeId(group.category),
+                  group.findings,
+                )"
+                :key="findingKey(finding)"
+                type="button"
+                :data-finding-key="findingKey(finding)"
+                class="w-full flex items-center gap-2 px-4 py-1.5 min-h-9 text-left rounded-md border transition-colors"
+                :class="
+                  selectedKey === findingKey(finding)
+                    ? 'border-primary bg-primary/10'
+                    : 'border-transparent hover:bg-elevated/50'
+                "
+                @click="select(finding)"
               >
-                {{ ruleLabel(finding.ruleId) }}
-              </span>
-              <span class="text-sm truncate min-w-0">
-                {{ headline(finding) }}
-              </span>
-              <span
-                v-if="finding.category === 'duplicate'"
-                class="text-xs text-muted shrink-0"
-              >
-                {{ finding.keys.length }} keys
-              </span>
-              <span class="flex items-center gap-1 shrink-0 ml-auto">
-                <UBadge
-                  v-for="locale in rowLocales(finding).slice(0, MAX_LOCALE_BADGES)"
-                  :key="locale"
-                  color="neutral"
-                  variant="outline"
-                  size="xs"
-                >
-                  {{ locale }}
-                </UBadge>
                 <span
-                  v-if="rowLocales(finding).length > MAX_LOCALE_BADGES"
-                  class="text-xs text-muted"
+                  class="size-2 rounded-full shrink-0"
+                  :class="
+                    severityMeta(finding.severity).color === 'error'
+                      ? 'bg-error'
+                      : severityMeta(finding.severity).color === 'warning'
+                        ? 'bg-warning'
+                        : 'bg-accented'
+                  "
+                  :title="finding.severity"
+                />
+                <span
+                  v-if="finding.category !== 'duplicate'"
+                  class="text-xs text-muted shrink-0 max-w-[35%] truncate"
                 >
-                  +{{ rowLocales(finding).length - MAX_LOCALE_BADGES }}
+                  {{ ruleLabel(finding.ruleId) }}
                 </span>
-                <UTooltip
-                  text="Not an issue — hidden until its keys or translations change"
+                <span class="text-sm truncate min-w-0">
+                  {{ headline(finding) }}
+                </span>
+                <span
+                  v-if="finding.category === 'duplicate'"
+                  class="text-xs text-muted shrink-0"
                 >
-                  <UButton
-                    size="xs"
+                  {{ finding.keys.length }} keys
+                </span>
+                <span class="flex items-center gap-1 shrink-0 ml-auto">
+                  <UBadge
+                    v-for="locale in rowLocales(finding).slice(
+                      0,
+                      MAX_LOCALE_BADGES,
+                    )"
+                    :key="locale"
                     color="neutral"
-                    variant="ghost"
-                    icon="i-lucide:check-check"
-                    aria-label="Not an issue"
-                    @click.stop="setIgnored(finding, true)"
-                  />
-                </UTooltip>
-              </span>
-            </button>
+                    variant="outline"
+                    size="xs"
+                  >
+                    {{ locale }}
+                  </UBadge>
+                  <span
+                    v-if="rowLocales(finding).length > MAX_LOCALE_BADGES"
+                    class="text-xs text-muted"
+                  >
+                    +{{ rowLocales(finding).length - MAX_LOCALE_BADGES }}
+                  </span>
+                  <UTooltip
+                    text="Not an issue — hidden until its keys or translations change"
+                  >
+                    <UButton
+                      size="xs"
+                      color="neutral"
+                      variant="ghost"
+                      icon="i-lucide:check-check"
+                      aria-label="Not an issue"
+                      @click.stop="setIgnored(finding, true)"
+                    />
+                  </UTooltip>
+                </span>
+              </button>
 
-            <div
-              v-if="
-                remainingOf(categoryNodeId(group.category), group.findings)
-              "
-              class="px-4 py-1.5"
-            >
-              <UButton
-                size="xs"
-                color="neutral"
-                variant="ghost"
-                icon="i-lucide:chevrons-down"
-                @click="showMore(categoryNodeId(group.category))"
+              <div
+                v-if="
+                  remainingOf(categoryNodeId(group.category), group.findings)
+                "
+                class="px-4 py-1.5"
               >
-                Show more ·
-                {{ remainingOf(categoryNodeId(group.category), group.findings) }}
-                left
-              </UButton>
-            </div>
+                <UButton
+                  size="xs"
+                  color="neutral"
+                  variant="ghost"
+                  icon="i-lucide:chevrons-down"
+                  @click="showMore(categoryNodeId(group.category))"
+                >
+                  Show more ·
+                  {{
+                    remainingOf(categoryNodeId(group.category), group.findings)
+                  }}
+                  left
+                </UButton>
+              </div>
             </template>
           </div>
 
@@ -625,14 +671,15 @@ function rowLocales(finding: ReportFinding) {
           </UCollapsible>
 
           <section
-            class="flex flex-col gap-1 border-t border-default mt-2 px-4 py-3"
+            class="m-4 rounded-lg border border-dashed border-default px-3 py-2 flex items-start gap-2 text-dimmed"
           >
-            <h2 class="text-sm font-semibold text-muted">
-              More checks coming
-            </h2>
-            <p class="text-xs text-muted">
-              Semantic similarity · Design vs dictionary
-            </p>
+            <UIcon name="i-lucide:sparkles" class="size-3.5 mt-0.5 shrink-0" />
+            <div class="flex flex-col">
+              <h2 class="text-xs font-medium">More checks coming</h2>
+              <p class="text-[11px] italic">
+                Semantic similarity · Design vs dictionary
+              </p>
+            </div>
           </section>
         </aside>
 
@@ -652,8 +699,8 @@ function rowLocales(finding: ReportFinding) {
             <UIcon name="i-lucide:mouse-pointer-click" class="size-8" />
             <p class="text-sm">Select a finding to review it here.</p>
             <p class="text-xs">
-              ↑ ↓ browse · e not an issue — Resolve opens the design and the
-              fix in a drawer.
+              ↑ ↓ browse · e not an issue — Resolve opens the design and the fix
+              in a drawer.
             </p>
           </div>
         </main>

@@ -795,11 +795,11 @@ onMounted(async () => {
         <div
           v-for="team in teamResults"
           :key="team.id"
-          class="rounded-lg px-3 py-2.5 mb-1 transition-colors"
+          class="rounded-lg border px-3 py-2.5 mb-1 transition-colors"
           :class="
             isSelected(team.id)
-              ? 'bg-primary/10 text-highlighted'
-              : 'hover:bg-elevated'
+              ? 'border-primary bg-primary/10 text-highlighted'
+              : 'border-transparent hover:bg-elevated'
           "
         >
           <div class="flex items-center gap-2 min-w-0">
@@ -850,11 +850,11 @@ onMounted(async () => {
           v-for="team in teams"
           :key="team.id"
           type="button"
-          class="w-full text-left rounded-lg px-3 py-2.5 mb-1 transition-colors"
+          class="w-full text-left rounded-lg border px-3 py-2.5 mb-1 transition-colors"
           :class="
             isSelected(team.id)
-              ? 'bg-primary/10 text-highlighted'
-              : 'hover:bg-elevated'
+              ? 'border-primary bg-primary/10 text-highlighted'
+              : 'border-transparent hover:bg-elevated'
           "
           @click="selectedId = team.id"
         >
