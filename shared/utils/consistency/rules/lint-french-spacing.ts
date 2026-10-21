@@ -8,6 +8,7 @@ export const lintFrenchSpacingRule: ConsistencyRule = {
   id: 'lint.french-spacing',
   defaultSeverity: 'info',
   category: 'lint',
+  granularity: 'key',
   detect: (ctx) =>
     detectLint(
       ctx,

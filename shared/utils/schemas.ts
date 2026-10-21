@@ -344,6 +344,12 @@ export const zConsistencyFix = z.object({
 })
 export type ZConsistencyFix = z.infer<typeof zConsistencyFix>
 
+/** Keys the drawer just wrote; their single-key findings are redone at once. */
+export const zConsistencyRecheckKeys = z.object({
+  keyIds: z.array(z.number().int().positive()).min(1).max(200),
+})
+export type ZConsistencyRecheckKeys = z.infer<typeof zConsistencyRecheckKeys>
+
 /** `.max` is a guard for hand-rolled callers: the UI can never select this many. */
 export const zI18nTransfer = z.object({
   mode: z.enum(['copy', 'move']),

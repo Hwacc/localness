@@ -9,6 +9,7 @@ export const placeholdersRule: ConsistencyRule = {
   id: 'placeholders',
   defaultSeverity: 'error',
   category: 'mismatch',
+  granularity: 'key',
   detect: (ctx) =>
     detectTokenMismatches(ctx, placeholdersRule, extractPlaceholders, {
       pluralOptional: (token) => COUNT_TOKENS.has(token.value),

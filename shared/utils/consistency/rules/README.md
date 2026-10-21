@@ -1,6 +1,6 @@
 # Consistency rules
 
-每条规则 `{ id, defaultSeverity, category, detect(ctx) }`，纯函数、零 IO：端点负责加载数据，这里只做判定。每个规则一个文件、各带单测（`test/unit/consistency/`）。
+每条规则 `{ id, defaultSeverity, category, granularity, detect(ctx) }`（`granularity`：只看单个 key 及其复数族的写 `key`，抽屉改完能立刻单 key 复查；跨 key 比较的写 `group`，只能等全量扫描），纯函数、零 IO：端点负责加载数据，这里只做判定。每个规则一个文件、各带单测（`test/unit/consistency/`）。
 
 ## 铁律
 

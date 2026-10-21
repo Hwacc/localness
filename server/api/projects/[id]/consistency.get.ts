@@ -2,7 +2,12 @@ import prisma from '#server/libs/prisma'
 import { numericID } from '#server/helper/id'
 import { requireTeamMember } from '#server/helper/access'
 import { requirePlus } from '#server/helper/license'
-import { scanProjectConsistency } from '#server/helper/consistency'
+import {
+  consistencyScans,
+  currentScanVersion,
+  loadIgnoreRows,
+  readConsistencySnapshot,
+} from '#server/helper/consistency'
 import {
   partitionIgnored,
   type ConsistencyFinding,
@@ -13,11 +18,12 @@ const MAX_PAGES_PER_MEMBER = 8
 
 /**
  * @route GET /api/projects/:id/consistency
- * @description The rule-registry report: duplicate source texts, source↔
- * translation token mismatches, lint and orphan findings — one scan, one
- * findings list. Read-only; it marks, never merges or blocks. Whitelisted
- * findings come back in `ignored` rather than disappearing, so the page can
- * offer a restore. Placeholder keys are included on purpose.
+ * @description The rule-registry report, read from the project's latest scan
+ * snapshot — it never scans on request. `report` is null before the first
+ * scan; `outdated` says keys, translations, tags or settings changed since,
+ * and `scan` is the background scan's state. Starting a scan is the client's
+ * call (POST …/consistency/scan). Whitelisted findings come back in `ignored`
+ * rather than disappearing, so the page can offer a restore.
  * @access Private (team member, Plus license)
  */
 export default defineEventHandler(async (event) => {
@@ -29,13 +35,30 @@ export default defineEventHandler(async (event) => {
   await requireTeamMember(event, nID)
   requirePlus()
 
-  const { sourceLocale, scannedKeys, findings: all, ignoreRows } =
-    await scanProjectConsistency(nID)
-  const { active, ignored: whitelisted } = partitionIgnored(all, ignoreRows)
+  const [snapshot, version, ignoreRows] = await Promise.all([
+    readConsistencySnapshot(nID),
+    currentScanVersion(nID),
+    loadIgnoreRows(nID),
+  ])
+  const scan = consistencyScans.status(nID)
+  if (!snapshot) return { report: null, outdated: true, scan }
 
-  const findings = await enrich(active, nID)
-  const ignored = await enrich(whitelisted, nID)
-  return { sourceLocale, scannedKeys, findings, ignored }
+  const { active, ignored: whitelisted } = partitionIgnored(
+    snapshot.findings,
+    ignoreRows
+  )
+  return {
+    report: {
+      sourceLocale: snapshot.sourceLocale,
+      scannedKeys: snapshot.scannedKeys,
+      scannedAt: snapshot.scannedAt.toISOString(),
+      durationMs: snapshot.durationMs,
+      findings: await enrich(active, nID),
+      ignored: await enrich(whitelisted, nID),
+    },
+    outdated: snapshot.version !== version,
+    scan,
+  }
 })
 
 type EnrichedFinding = Omit<ConsistencyFinding, 'keys'> & {

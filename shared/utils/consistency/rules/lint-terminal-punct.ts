@@ -45,6 +45,7 @@ export const lintTerminalPunctRule: ConsistencyRule = {
   id: 'lint.terminal-punct',
   defaultSeverity: 'info',
   category: 'lint',
+  granularity: 'key',
 
   detect(ctx): ConsistencyFinding[] {
     if (ctx.lintRules['lint.terminal-punct'] === false) return []

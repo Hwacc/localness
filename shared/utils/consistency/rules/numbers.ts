@@ -11,6 +11,7 @@ export const numbersRule: ConsistencyRule = {
   id: 'numbers',
   defaultSeverity: 'error',
   category: 'mismatch',
+  granularity: 'key',
   detect: (ctx) =>
     detectTokenMismatches(ctx, numbersRule, extractNumbers, {
       skipTokenlessSource: true,

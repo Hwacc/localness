@@ -6,5 +6,6 @@ export const urlsEmailsRule: ConsistencyRule = {
   id: 'urls-emails',
   defaultSeverity: 'error',
   category: 'mismatch',
+  granularity: 'key',
   detect: (ctx) => detectTokenMismatches(ctx, urlsEmailsRule, extractUrlsEmails),
 }

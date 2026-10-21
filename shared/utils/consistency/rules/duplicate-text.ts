@@ -39,6 +39,7 @@ export const duplicateTextRule: ConsistencyRule = {
   id: 'duplicate-text',
   defaultSeverity: 'warning',
   category: 'duplicate',
+  granularity: 'group',
 
   detect(ctx: ScanContext): ConsistencyFinding[] {
     const buckets = new Map<string, ScanKeyInput[]>()

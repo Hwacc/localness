@@ -2,6 +2,7 @@ import type {
   ConsistencyFinding,
   ConsistencyRule,
   FindingCategory,
+  RuleProgress,
   ScanContext,
 } from '../types'
 import { duplicateTextRule } from './duplicate-text'
@@ -30,6 +31,9 @@ export const allRules: ConsistencyRule[] = [
   lintTerminalPunctRule,
   lintFrenchSpacingRule,
 ]
+
+/** The rules a single-key recheck can redo — see `ConsistencyRule.granularity`. */
+export const keyRules = allRules.filter((rule) => rule.granularity === 'key')
 
 /** Presentation labels for the lint switches in project settings. */
 export const lintRuleCatalog: Array<{ id: string; label: string }> = [
@@ -117,13 +121,34 @@ export function scopeOfCategory(category: FindingCategory) {
   return scope
 }
 
-/** Every rule's findings, graded by the project's severity overrides. */
-export function detectAll(ctx: ScanContext): ConsistencyFinding[] {
-  return allRules.flatMap((rule) => {
+/**
+ * The rules' findings, graded by the project's severity overrides — every
+ * rule unless `rules` narrows it (the single-key recheck passes `key` rules).
+ * `onRule` reports after each rule — the background scan's bar and its log.
+ */
+export function detectAll(
+  ctx: ScanContext,
+  {
+    rules = allRules,
+    onRule,
+  }: {
+    rules?: ConsistencyRule[]
+    onRule?: (progress: RuleProgress) => void
+  } = {}
+): ConsistencyFinding[] {
+  return rules.flatMap((rule, index) => {
     const severity = ctx.ruleSeverity[rule.id]
-    if (severity === 'off') return []
-    const findings = rule.detect(ctx)
-    return severity
+    const startedAt = performance.now()
+    const findings = severity === 'off' ? [] : rule.detect(ctx)
+    onRule?.({
+      done: index + 1,
+      total: rules.length,
+      ruleId: rule.id,
+      findings: findings.length,
+      ms: performance.now() - startedAt,
+      off: severity === 'off',
+    })
+    return severity && severity !== 'off'
       ? findings.map((finding) => ({ ...finding, severity }))
       : findings
   })

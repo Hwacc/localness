@@ -5,6 +5,7 @@ export const lintDoubleSpaceRule: ConsistencyRule = {
   id: 'lint.double-space',
   defaultSeverity: 'info',
   category: 'lint',
+  granularity: 'key',
   detect: (ctx) =>
     detectLint(
       ctx,

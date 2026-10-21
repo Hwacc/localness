@@ -3,16 +3,16 @@ import { numericID } from '#server/helper/id'
 import { requireTeamMember } from '#server/helper/access'
 import { requirePlus } from '#server/helper/license'
 import { readZodBody } from '#server/helper/validate'
-import { scanProjectConsistency } from '#server/helper/consistency'
+import { snapshotFindingKeyIds } from '#server/helper/consistency'
 import { zConsistencyIgnore } from '#shared/utils/schemas'
 
 /**
  * @route POST /api/projects/:id/consistency/ignore
  * @description Whitelist a finding: `ignored: true` records the member
  * snapshot (the report resurfaces the group when a NEW key joins it — R2),
- * `ignored: false` restores. The snapshot comes from a fresh server-side scan,
+ * `ignored: false` restores. The members come from the latest scan snapshot,
  * never from the client: a forged superset would silently swallow duplicates
- * that do not exist yet. Deliberately opaque-id keyed with no key FK, so
+ * that do not exist yet. No rescan — ignoring is a whitelist edit. Deliberately opaque-id keyed with no key FK, so
  * deleting or renaming keys never has to maintain this table.
  * @access Private (team member, Plus license)
  */
@@ -34,17 +34,13 @@ export default defineEventHandler(async (event) => {
     return { ignored: false }
   }
 
-  const { findings } = await scanProjectConsistency(nID)
-  const finding = findings.find(
-    (f) => f.ruleId === body.ruleId && f.groupId === body.groupId
-  )
-  if (!finding) {
+  const keyIds = await snapshotFindingKeyIds(nID, body.ruleId, body.groupId)
+  if (!keyIds) {
     throw createError({
       statusCode: 409,
       statusMessage: 'Finding no longer present — refresh the report',
     })
   }
-  const keyIds = finding.keys.map((member) => member.keyId)
 
   await prisma.consistencyIgnore.upsert({
     where: {
