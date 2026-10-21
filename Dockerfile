@@ -82,6 +82,9 @@ COPY --from=runtime-deps /app/node_modules ./node_modules
 COPY --from=build /app/prisma ./prisma
 COPY --from=build /app/scripts ./scripts
 COPY --from=build /app/shared ./shared
+# The Consistency scan worker runs from source through tsx (not bundled by
+# Nitro); it imports only `shared/` by relative path.
+COPY --from=build /app/server/workers ./server/workers
 # The AI prompts are read from disk at runtime, and `server/` never reaches this
 # stage, so the defaults are copied out on their own. Mount a directory over
 # /app/prompts to replace them without rebuilding.

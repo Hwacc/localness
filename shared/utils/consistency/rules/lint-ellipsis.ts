@@ -5,6 +5,7 @@ export const lintEllipsisRule: ConsistencyRule = {
   id: 'lint.ellipsis',
   defaultSeverity: 'info',
   category: 'lint',
+  granularity: 'key',
   detect: (ctx) =>
     detectLint(
       ctx,

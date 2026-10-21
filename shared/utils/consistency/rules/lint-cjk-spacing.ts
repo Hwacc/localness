@@ -15,6 +15,7 @@ export const lintCjkSpacingRule: ConsistencyRule = {
   id: 'lint.cjk-spacing',
   defaultSeverity: 'info',
   category: 'lint',
+  granularity: 'key',
   detect: (ctx) =>
     detectLint(
       ctx,

@@ -168,6 +168,8 @@ model Project {
   apiTokenProjects ApiTokenProject[]
   skills           ProjectSkill[]
   consistencyIgnores ConsistencyIgnore[]
+  consistencySnapshot ConsistencySnapshot?
+  consistencySnapshotFindings ConsistencySnapshotFinding[]
 
   @@index([teamId])
 }
@@ -332,6 +334,38 @@ model ConsistencyIgnore {
   project   Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
 
   @@unique([projectId, ruleId, groupId])
+}
+
+/// The latest completed Consistency scan of a project. The report reads it
+/// instead of scanning on request; `version` is the content + settings stamp
+/// the scan started from, so a mismatch with the live stamp means "outdated".
+/// A running scan lives in memory only — a restart mid-scan leaves the
+/// previous snapshot in place.
+model ConsistencySnapshot {
+  projectId    Int      @id @map("project_id")
+  version      String
+  sourceLocale String   @map("source_locale")
+  scannedKeys  Int      @map("scanned_keys")
+  scannedAt    DateTime @map("scanned_at")
+  durationMs   Int      @map("duration_ms")
+  project      Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+}
+
+/// One finding of the snapshot, ignored or not — the whitelist is applied on
+/// read. `keys` / `meta` are JSON text written and read only by the scan
+/// helper; row id order is detection order.
+model ConsistencySnapshotFinding {
+  id        Int     @id @default(autoincrement())
+  projectId Int     @map("project_id")
+  ruleId    String  @map("rule_id")
+  groupId   String  @map("group_id")
+  severity  String
+  category  String
+  keys      String
+  meta      String?
+  project   Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@index([projectId, ruleId, groupId])
 }
 
 model ProjectLog {
@@ -514,6 +548,7 @@ model Tag {
 
   /// SQLite treats NULLs as distinct, so hand-drawn tags never collide here.
   @@unique([pageID, figmaNodeId])
+  @@index([i18nKeyId])
 }
 
 model TagSettings {

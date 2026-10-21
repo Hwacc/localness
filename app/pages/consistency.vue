@@ -16,6 +16,7 @@ import {
   type FindingSeverity,
   type ReportFilter,
   type ReportFinding,
+  type ScanStatus,
 } from '#shared/utils/consistency'
 
 definePageMeta({ middleware: ['protected'], ssr: false })
@@ -23,9 +24,27 @@ definePageMeta({ middleware: ['protected'], ssr: false })
 type ConsistencyReport = {
   sourceLocale: string
   scannedKeys: number
+  scannedAt: string
+  durationMs: number
   findings: ReportFinding[]
   ignored: ReportFinding[]
 }
+
+type ConsistencyResponse = {
+  /** The latest scan snapshot; null before the project's first scan. */
+  report: ConsistencyReport | null
+  outdated: boolean
+  scan: ScanStatus
+}
+
+const SCAN_POLL_MS = 1000
+
+/**
+ * Outdated reports rescan on their own, but only this many times in a row:
+ * a project edited during every scan must not keep the server busy forever.
+ * Re-check and a change from the drawer reset it.
+ */
+const MAX_AUTO_RESCANS = 3
 
 /** Registry order = report order; titles/descriptions come from the registry. */
 const CATEGORY_ORDER: FindingCategory[] = [
@@ -54,8 +73,13 @@ const projectId = computed(() => curProject.value?.id)
 
 const { state: license, load: loadLicense } = useLicenseState()
 
+const { $dayjs } = useNuxtApp()
+
 const loading = ref(false)
 const report = ref<ConsistencyReport | null>(null)
+const outdated = ref(false)
+const scan = ref<ScanStatus>({ state: 'idle' })
+const scanning = computed(() => scan.value.state === 'running')
 
 const locked = computed(() => license.value != null && !license.value.plus)
 
@@ -224,16 +248,91 @@ onUnmounted(() => window.removeEventListener('keydown', onKeydown))
 
 // ── Data ───────────────────────────────────────────────────────────────────
 
+let scanTimer: ReturnType<typeof setTimeout> | null = null
+let autoRescans = 0
+
+function stopScanWatch() {
+  if (scanTimer) clearTimeout(scanTimer)
+  scanTimer = null
+}
+
+/**
+ * Reads the snapshot; never scans by itself. An outdated or missing snapshot
+ * starts a background scan (bounded by MAX_AUTO_RESCANS) and the stale
+ * findings stay on screen until the new ones land.
+ */
 async function loadReport() {
-  if (!validID(projectId.value) || locked.value) return
-  report.value = await useApi<ConsistencyReport>(
-    `/api/projects/${projectId.value}/consistency`,
+  const id = projectId.value
+  if (!validID(id) || locked.value) return
+  const data = await useApi<ConsistencyResponse>(
+    `/api/projects/${id}/consistency`,
   )
+  if (id !== projectId.value) return
+  report.value = data.report
+  outdated.value = data.outdated
+  scan.value = data.scan
+  if (data.scan.state === 'running') {
+    watchScan()
+  } else if (
+    data.outdated &&
+    data.scan.state === 'idle' &&
+    autoRescans < MAX_AUTO_RESCANS
+  ) {
+    autoRescans += 1
+    await startScan()
+  }
+}
+
+async function startScan() {
+  const id = projectId.value
+  if (!validID(id)) return
+  stopScanWatch()
+  const status = await useApi<ScanStatus>(
+    `/api/projects/${id}/consistency/scan`,
+    { method: 'POST' },
+  )
+  if (id !== projectId.value) return
+  scan.value = status
+  watchScan()
+}
+
+function recheck() {
+  autoRescans = 0
+  void startScan()
+}
+
+/** Polls a running scan; once it stops, the report reloads from the snapshot. */
+function watchScan() {
+  stopScanWatch()
+  const id = projectId.value
+  if (!validID(id)) return
+  scanTimer = setTimeout(async () => {
+    scanTimer = null
+    try {
+      const status = await useApi<ScanStatus>(
+        `/api/projects/${id}/consistency/scan`,
+      )
+      if (id !== projectId.value) return
+      scan.value = status
+    } catch {
+      if (id === projectId.value) watchScan()
+      return
+    }
+    if (scan.value.state === 'running') {
+      watchScan()
+    } else {
+      await loadReport()
+      syncSelection()
+    }
+  }, SCAN_POLL_MS)
 }
 
 async function load() {
   loading.value = true
   report.value = null
+  outdated.value = false
+  scan.value = { state: 'idle' }
+  stopScanWatch()
   try {
     if (!license.value) await loadLicense()
     await loadReport()
@@ -244,45 +343,108 @@ async function load() {
 }
 
 onMounted(load)
+onUnmounted(stopScanWatch)
 watch(
   () => projectId.value,
   () => {
     shownState.value = {}
     openState.value = {}
     selectedKey.value = null
+    autoRescans = 0
     clearFilter()
     load()
   },
 )
 watch(visibleFindings, () => syncSelection())
 
+/**
+ * Drops a finding from the active list and keeps the cursor where it was —
+ * the next row moves up into the gap.
+ */
+function removeFinding(finding: ReportFinding) {
+  const current = report.value
+  if (!current) return
+  const key = findingKey(finding)
+  const index = navigable.value.findIndex((f) => findingKey(f) === key)
+  current.findings = current.findings.filter((f) => findingKey(f) !== key)
+  const next = navigable.value
+  const target = next[Math.min(index, next.length - 1)]
+  selectedKey.value = target ? findingKey(target) : null
+  syncSelection()
+}
+
 async function setIgnored(finding: ReportFinding, ignored: boolean) {
   if (!validID(projectId.value) || !report.value) return
-  const before = navigable.value
-  const index = before.findIndex((f) => findingKey(f) === findingKey(finding))
   try {
     await useApi(`/api/projects/${projectId.value}/consistency/ignore`, {
       method: 'POST',
       body: { ruleId: finding.ruleId, groupId: finding.groupId, ignored },
     })
   } catch {
-    // The finding changed since the scan (409): the fresh report is the truth.
+    // Not in the latest snapshot any more (409): reload it.
     await load()
     return
   }
   const current = report.value
-  const key = findingKey(finding)
   if (ignored) {
-    current.findings = current.findings.filter((f) => findingKey(f) !== key)
+    removeFinding(finding)
     current.ignored.push(finding)
   } else {
+    const key = findingKey(finding)
     current.ignored = current.ignored.filter((f) => findingKey(f) !== key)
     current.findings.push(finding)
   }
-  const next = navigable.value
-  const target = next[Math.min(index, next.length - 1)]
-  selectedKey.value = target ? findingKey(target) : null
+}
+
+/**
+ * The drawer wrote a fix or merge for the selected finding. Take it off the
+ * list right away and recheck its keys' single-key rules on the server: an
+ * unresolved mismatch comes straight back. The reload then sees the report
+ * outdated and starts the full scan for duplicates.
+ */
+async function onFindingChanged(finding: ReportFinding) {
+  removeFinding(finding)
+  outdated.value = true
+  autoRescans = 0
+  const id = projectId.value
+  try {
+    await useApi(`/api/projects/${id}/consistency/recheck-keys`, {
+      method: 'POST',
+      body: { keyIds: finding.keys.map((member) => member.keyId) },
+    })
+  } catch {
+    if (id === projectId.value) await startScan()
+    return
+  }
+  if (id !== projectId.value) return
+  await loadReport()
   syncSelection()
+}
+
+function scanLabel(status: ScanStatus) {
+  switch (status.state) {
+    case 'idle':
+      return ''
+    case 'failed':
+      return 'Scan failed'
+    case 'running':
+      switch (status.phase) {
+        case 'loading':
+          return 'Reading keys…'
+        case 'checking':
+          return `Checking rules ${status.done}/${status.total}`
+        case 'saving':
+          return 'Saving results…'
+        default: {
+          const unknown: never = status.phase
+          return unknown
+        }
+      }
+    default: {
+      const unknown: never = status
+      return unknown
+    }
+  }
 }
 
 function headline(finding: ReportFinding) {
@@ -297,10 +459,57 @@ function headline(finding: ReportFinding) {
 <template>
   <div class="h-full min-w-0 flex flex-col bg-muted">
     <header
-      class="shrink-0 px-6 py-5 bg-default border-b border-default flex items-baseline gap-3"
+      class="shrink-0 px-6 py-5 bg-default border-b border-default flex items-center gap-3"
     >
       <h1 class="text-xl font-semibold tracking-tight">Consistency</h1>
       <span class="text-sm text-muted truncate">{{ curProject?.name }}</span>
+
+      <div
+        v-if="validID(projectId) && !locked && !loading"
+        class="ml-auto shrink-0 flex items-center gap-3"
+      >
+        <div
+          v-if="scan.state === 'running'"
+          class="flex items-center gap-2 text-xs text-muted"
+        >
+          <UIcon name="i-lucide:loader-circle" class="size-3.5 animate-spin" />
+          <span class="tabular-nums">{{ scanLabel(scan) }}</span>
+          <UProgress
+            v-if="scan.phase === 'checking' && scan.total"
+            :model-value="scan.done"
+            :max="scan.total"
+            size="xs"
+            class="w-24"
+          />
+        </div>
+        <UTooltip v-else-if="scan.state === 'failed'" :text="scan.error">
+          <UBadge color="error" variant="subtle" icon="i-lucide:circle-alert">
+            Scan failed
+          </UBadge>
+        </UTooltip>
+        <UTooltip
+          v-else-if="report && outdated"
+          text="Keys, translations, tags or Consistency settings changed since this scan."
+        >
+          <UBadge color="warning" variant="subtle" icon="i-lucide:clock-alert">
+            Outdated
+          </UBadge>
+        </UTooltip>
+        <span v-if="report" class="text-xs text-dimmed tabular-nums">
+          Scanned {{ $dayjs(report.scannedAt).format('YYYY-MM-DD HH:mm') }}
+        </span>
+        <UButton
+          size="sm"
+          color="neutral"
+          variant="soft"
+          icon="i-lucide:refresh-cw"
+          :loading="scanning"
+          :disabled="scanning"
+          @click="recheck"
+        >
+          Re-check
+        </UButton>
+      </div>
     </header>
 
     <UAlert
@@ -350,7 +559,35 @@ function headline(finding: ReportFinding) {
       </div>
     </template>
 
-    <div v-else-if="loading" class="p-6 text-sm text-muted">Scanning…</div>
+    <div v-else-if="loading" class="p-6 text-sm text-muted">Loading…</div>
+
+    <div v-else-if="!report" class="p-6 flex flex-col gap-3 max-w-xl">
+      <UAlert
+        v-if="scan.state === 'failed'"
+        color="error"
+        variant="subtle"
+        icon="i-lucide:circle-alert"
+        title="The scan failed"
+        :description="scan.error"
+        :actions="[{ label: 'Retry', color: 'error', variant: 'soft', onClick: recheck }]"
+      />
+      <template v-else>
+        <p class="text-sm flex items-center gap-2">
+          <UIcon name="i-lucide:loader-circle" class="size-4 animate-spin" />
+          First scan of this project — {{ scanLabel(scan) || 'starting…' }}
+        </p>
+        <UProgress
+          v-if="scan.state === 'running' && scan.phase === 'checking' && scan.total"
+          :model-value="scan.done"
+          :max="scan.total"
+          size="sm"
+        />
+        <p class="text-xs text-muted">
+          Scans run in the background; later visits open the saved result at
+          once.
+        </p>
+      </template>
+    </div>
 
     <template v-else-if="report">
       <div
@@ -687,7 +924,7 @@ function headline(finding: ReportFinding) {
             :locales="filter.locales"
             :project-id="projectId"
             @ignore="setIgnored(selected, true)"
-            @changed="load"
+            @changed="onFindingChanged(selected)"
           />
           <div
             v-else

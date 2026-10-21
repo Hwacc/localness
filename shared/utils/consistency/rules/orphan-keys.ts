@@ -14,6 +14,7 @@ export const orphanKeysRule: ConsistencyRule = {
   id: 'orphan-keys',
   defaultSeverity: 'info',
   category: 'orphan',
+  granularity: 'key',
 
   detect(ctx): ConsistencyFinding[] {
     return ctx.keys

@@ -9,7 +9,10 @@ export type {
   ScanContext,
   ScanKeyInput,
   ScanKeyLocale,
+  RuleProgress,
+  ScanPhase,
   ScanSettings,
+  ScanStatus,
   TextSpan,
 } from './types'
 export {
@@ -85,6 +88,7 @@ export {
   allRules,
   categorySections,
   detectAll,
+  keyRules,
   lintRuleCatalog,
   scopeSections,
   scopeOfCategory,

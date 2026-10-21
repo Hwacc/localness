@@ -104,10 +104,48 @@ export interface ScanContext extends ScanSettings {
   keys: ScanKeyInput[]
 }
 
+/** A background scan's step: read the project, run the rules, save rows. */
+export type ScanPhase = 'loading' | 'checking' | 'saving'
+
+/** One rule finished — `detectAll`'s `onRule` payload. */
+export interface RuleProgress {
+  /** Rules finished so far / rules in this pass. */
+  done: number
+  total: number
+  ruleId: string
+  /** Findings this rule produced (0 when `off`). */
+  findings: number
+  ms: number
+  off: boolean
+}
+
+/**
+ * A project's background scan as the report sees it. Lives in server memory
+ * only; `failed` keeps the last error until the next start.
+ */
+export type ScanStatus =
+  | { state: 'idle' }
+  | {
+      state: 'running'
+      phase: ScanPhase
+      /** Rules finished / rule count during `checking`; 0/0 otherwise. */
+      done: number
+      total: number
+      startedAt: string
+    }
+  | { state: 'failed'; error: string; finishedAt: string }
+
 export interface ConsistencyRule {
   id: string
   defaultSeverity: FindingSeverity
   category: FindingCategory
+  /**
+   * `key`: each finding is about one key and depends only on that key (and
+   * its i18next plural family), so a single-key recheck can redo it right
+   * after an edit. `group`: findings compare keys across the project
+   * (duplicates) and only a full scan can rebuild them.
+   */
+  granularity: 'key' | 'group'
   detect(ctx: ScanContext): ConsistencyFinding[]
 }
 

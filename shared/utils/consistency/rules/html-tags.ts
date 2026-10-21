@@ -6,5 +6,6 @@ export const htmlTagsRule: ConsistencyRule = {
   id: 'html-tags',
   defaultSeverity: 'error',
   category: 'mismatch',
+  granularity: 'key',
   detect: (ctx) => detectTokenMismatches(ctx, htmlTagsRule, extractTags),
 }
