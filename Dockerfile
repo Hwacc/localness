@@ -22,7 +22,12 @@ RUN apt-get update \
 # better-sqlite3 ships no compiled binding and Prisma fetches no engines.
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml nuxt.config.ts prisma.config.ts tsconfig.json ./
 COPY prisma ./prisma
-RUN corepack enable && corepack prepare pnpm@10.11.0 --activate \
+# The store lives in a BuildKit cache mount so a lockfile change only downloads
+# the delta. It is not part of any layer, so the image content is unchanged and
+# CI (fresh runner, empty mount) simply falls back to a full download.
+RUN --mount=type=cache,id=pnpm-store,target=/pnpm/store \
+  corepack enable && corepack prepare pnpm@10.11.0 --activate \
+  && pnpm config set store-dir /pnpm/store \
   && pnpm install --frozen-lockfile
 
 # ---------- build ----------

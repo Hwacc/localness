@@ -351,21 +351,29 @@ model ConsistencySnapshot {
   project      Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
 }
 
-/// One finding of the snapshot, ignored or not — the whitelist is applied on
-/// read. `keys` / `meta` are JSON text written and read only by the scan
-/// helper; row id order is detection order.
+/// One finding of the snapshot. `keys` / `meta` are JSON text written and
+/// read only by the scan helper. The index columns come from `findingIndex`
+/// (shared) so the report filters, counts and pages in SQL; `ignored` is the
+/// whitelist applied at write time (scan, single-key recheck, ignore toggle).
 model ConsistencySnapshotFinding {
-  id        Int     @id @default(autoincrement())
-  projectId Int     @map("project_id")
-  ruleId    String  @map("rule_id")
-  groupId   String  @map("group_id")
-  severity  String
-  category  String
-  keys      String
-  meta      String?
-  project   Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  id           Int     @id @default(autoincrement())
+  projectId    Int     @map("project_id")
+  ruleId       String  @map("rule_id")
+  groupId      String  @map("group_id")
+  severity     String
+  category     String
+  keys         String
+  meta         String?
+  severityRank Int     @default(0) @map("severity_rank")
+  ruleOrder    Int     @default(0) @map("rule_order")
+  sortKey      String  @default("") @map("sort_key")
+  locales      String  @default("")
+  searchText   String  @default("") @map("search_text")
+  ignored      Boolean @default(false)
+  project      Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
 
   @@index([projectId, ruleId, groupId])
+  @@index([projectId, ignored, category, severityRank, ruleOrder, sortKey])
 }
 
 model ProjectLog {

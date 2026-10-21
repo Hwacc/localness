@@ -3,9 +3,10 @@ import {
   describeLint,
   describeMismatch,
   highlightSegments,
-  ruleCopy,
 } from './explain'
+import { allRules } from './rules'
 import type {
+  ConsistencyFinding,
   FindingCategory,
   FindingSeverity,
   LintIssue,
@@ -50,25 +51,40 @@ export const EMPTY_REPORT_FILTER: ReportFilter = {
   query: '',
 }
 
-const SEVERITY_RANK: Record<FindingSeverity, number> = {
-  error: 0,
-  warning: 1,
-  info: 2,
-}
+/** Category order on the page; also the registry's category order. */
+export const CATEGORY_ORDER: FindingCategory[] = [
+  'duplicate',
+  'mismatch',
+  'lint',
+  'orphan',
+]
 
-const RULE_ORDER = Object.keys(ruleCopy)
+export const SEVERITY_ORDER: FindingSeverity[] = ['error', 'warning', 'info']
+
+/** Rows per category on first load and per "Show more". */
+export const REPORT_PAGE_SIZE = 20
+
+/** Most rows one request returns (a reload keeps what was already shown). */
+export const REPORT_PAGE_MAX = 200
 
 export function findingKey(finding: Pick<ReportFinding, 'ruleId' | 'groupId'>) {
   return `${finding.ruleId} ${finding.groupId}`
 }
 
-function rawIssues(finding: ReportFinding): Array<MismatchIssue | LintIssue> {
+type IndexableFinding = Pick<
+  ConsistencyFinding,
+  'ruleId' | 'severity' | 'keys' | 'meta'
+>
+
+function rawIssues(
+  finding: Pick<ConsistencyFinding, 'meta'>
+): Array<MismatchIssue | LintIssue> {
   const issues = finding.meta?.issues
   return Array.isArray(issues) ? (issues as Array<MismatchIssue | LintIssue>) : []
 }
 
 /** Locales a finding is about: issue rows, or the diverged set of a duplicate. */
-export function findingLocales(finding: ReportFinding): string[] {
+export function findingLocales(finding: Pick<ConsistencyFinding, 'meta'>): string[] {
   const out = new Set(rawIssues(finding).map((issue) => issue.locale))
   const diverged = finding.meta?.diverged
   if (Array.isArray(diverged)) for (const locale of diverged) out.add(String(locale))
@@ -85,12 +101,71 @@ export function isReportFilterActive(filter: ReportFilter): boolean {
 }
 
 /**
- * A locale filter keeps only findings that involve one of those locales, so
- * locale-agnostic findings (plain duplicates, orphans) drop out — "show me ja"
- * means ja work.
+ * What the snapshot stores next to each finding so the server can filter,
+ * count and page in SQL: order fields, locales as `,ja,fr,` (so `,ja,` is an
+ * exact containment test) and a lowercased search haystack.
  */
-export function matchesReportFilter(
-  finding: ReportFinding,
+export type FindingIndex = {
+  severityRank: number
+  ruleOrder: number
+  sortKey: string
+  locales: string
+  searchText: string
+}
+
+/**
+ * Prisma's `contains` on SQLite is a bare LIKE: `%` and `_` stay wildcards.
+ * The stored `locales` / `searchText` and every pattern matched against them
+ * go through this, which maps both to private-use characters — then LIKE
+ * compares them literally. `fromLikeSafe` undoes it for display.
+ */
+const LIKE_WILDCARDS: Array<[string, string]> = [
+  ['%', '\uE000'],
+  ['_', '\uE001'],
+]
+
+export function likeSafe(text: string): string {
+  return LIKE_WILDCARDS.reduce((out, [raw, safe]) => out.replaceAll(raw, safe), text)
+}
+
+export function fromLikeSafe(text: string): string {
+  return LIKE_WILDCARDS.reduce((out, [raw, safe]) => out.replaceAll(safe, raw), text)
+}
+
+/** Joins the haystack parts; a search box cannot type it, so no match spans two. */
+const SEARCH_SEPARATOR = '\n'
+
+export function findingIndex(finding: IndexableFinding): FindingIndex {
+  const locales = findingLocales(finding)
+  const ruleOrder = allRules.findIndex((rule) => rule.id === finding.ruleId)
+  return {
+    severityRank: SEVERITY_ORDER.indexOf(finding.severity),
+    ruleOrder: ruleOrder === -1 ? allRules.length : ruleOrder,
+    sortKey: finding.keys[0]?.key ?? '',
+    locales: locales.length ? likeSafe(`,${locales.join(',')},`) : '',
+    searchText: likeSafe([
+      ...finding.keys.flatMap((member) => [
+        member.key,
+        member.sourceText,
+        member.pendingSourceText ?? '',
+      ]),
+      ...rawIssues(finding).map((issue) => issue.text),
+    ]
+      .filter(Boolean)
+      .join(SEARCH_SEPARATOR)
+      .toLowerCase()),
+  }
+}
+
+/**
+ * The report filter over a stored index — the exact predicate the server's
+ * query builds, kept here so tests pin its meaning. A locale filter keeps only
+ * findings that involve one of those locales, so locale-agnostic findings
+ * (plain duplicates, orphans) drop out — "show me ja" means ja work.
+ */
+export function matchesFindingIndex(
+  finding: Pick<ConsistencyFinding, 'ruleId' | 'severity'>,
+  index: FindingIndex,
   filter: ReportFilter
 ): boolean {
   if (filter.severities.length && !filter.severities.includes(finding.severity))
@@ -99,91 +174,21 @@ export function matchesReportFilter(
     return false
   if (
     filter.locales.length &&
-    !findingLocales(finding).some((locale) => filter.locales.includes(locale))
+    !filter.locales.some((locale) => index.locales.includes(localePattern(locale)))
   )
     return false
-  const query = filter.query.trim().toLowerCase()
-  if (!query) return true
-  const haystack = [
-    ...finding.keys.flatMap((member) => [
-      member.key,
-      member.sourceText,
-      member.pendingSourceText ?? '',
-    ]),
-    ...rawIssues(finding).map((issue) => issue.text),
-  ]
-  return haystack.some((text) => text.toLowerCase().includes(query))
+  const query = reportQueryNeedle(filter.query)
+  return !query || index.searchText.includes(likeSafe(query))
 }
 
-export type ReportRuleGroup = { ruleId: string; findings: ReportFinding[] }
-export type ReportCategoryGroup = {
-  category: FindingCategory
-  findings: ReportFinding[]
-  rules: ReportRuleGroup[]
+/** The search box text as matched against `searchText`; '' = no search. */
+export function reportQueryNeedle(query: string): string {
+  return query.trim().toLowerCase()
 }
 
-function bySeverityThenKey(a: ReportFinding, b: ReportFinding) {
-  return (
-    SEVERITY_RANK[a.severity] - SEVERITY_RANK[b.severity] ||
-    (a.keys[0]?.key ?? '').localeCompare(b.keys[0]?.key ?? '')
-  )
-}
-
-function worstRank(findings: ReportFinding[]) {
-  return Math.min(...findings.map((f) => SEVERITY_RANK[f.severity]))
-}
-
-/**
- * Category → rule → findings. Rules sort by their worst finding, then by
- * registry order; findings by severity, then key. Empty categories are dropped.
- */
-export function groupReport(
-  findings: ReportFinding[],
-  categoryOrder: FindingCategory[]
-): ReportCategoryGroup[] {
-  const out: ReportCategoryGroup[] = []
-  for (const category of categoryOrder) {
-    const inCategory = findings.filter((f) => f.category === category)
-    if (!inCategory.length) continue
-    const byRule = new Map<string, ReportFinding[]>()
-    for (const finding of inCategory) {
-      const list = byRule.get(finding.ruleId) ?? []
-      list.push(finding)
-      byRule.set(finding.ruleId, list)
-    }
-    const rules = [...byRule]
-      .map(([ruleId, list]) => ({
-        ruleId,
-        findings: [...list].sort(bySeverityThenKey),
-      }))
-      .sort(
-        (a, b) =>
-          worstRank(a.findings) - worstRank(b.findings) ||
-          RULE_ORDER.indexOf(a.ruleId) - RULE_ORDER.indexOf(b.ruleId)
-      )
-    out.push({
-      category,
-      findings: rules.flatMap((rule) => rule.findings),
-      rules,
-    })
-  }
-  return out
-}
-
-export function severityCounts(
-  findings: ReportFinding[]
-): Record<FindingSeverity, number> {
-  const counts: Record<FindingSeverity, number> = { error: 0, warning: 0, info: 0 }
-  for (const finding of findings) counts[finding.severity] += 1
-  return counts
-}
-
-export function worstSeverity(findings: ReportFinding[]): FindingSeverity | null {
-  if (!findings.length) return null
-  const rank = worstRank(findings)
-  return (Object.keys(SEVERITY_RANK) as FindingSeverity[]).find(
-    (severity) => SEVERITY_RANK[severity] === rank
-  )!
+/** What a locale filter looks for in the stored `locales`. */
+export function localePattern(locale: string): string {
+  return likeSafe(`,${locale},`)
 }
 
 export type HighlightSegment = { text: string; hit: boolean }

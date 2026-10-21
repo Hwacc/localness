@@ -14,20 +14,23 @@ import {
 import type { ScanWorkerMessage } from '#server/workers/consistency'
 import {
   allRules,
+  CATEGORY_ORDER,
   detectAll,
+  findingIndex,
+  findingKey,
   dialectSyntax,
   keyRules,
   parseI18nDialect,
+  partitionIgnored,
   pluralBase,
   pluralSiblingNames,
   RULE_SEVERITY_VALUES,
+  SEVERITY_ORDER,
   scanSourceText,
   withPluralFamilies,
   type ConsistencyFinding,
   type ConsistencyMember,
-  type FindingCategory,
   type RuleProgress,
-  type FindingSeverity,
   type IgnoreRow,
   type RuleSeverity,
   type ScanContext,
@@ -42,22 +45,9 @@ import {
 const WORKER_ENTRY = resolve(process.cwd(), 'server/workers/consistency.ts')
 
 /** Bump when the snapshot row format changes so old snapshots read outdated. */
-const SNAPSHOT_FORMAT = 1
+const SNAPSHOT_FORMAT = 2
 
 const SAVE_BATCH = 500
-
-const SEVERITIES: FindingSeverity[] = ['error', 'warning', 'info']
-const CATEGORIES: FindingCategory[] = ['duplicate', 'mismatch', 'lint', 'orphan']
-
-export interface ConsistencySnapshotView {
-  version: string
-  sourceLocale: string
-  scannedKeys: number
-  scannedAt: Date
-  durationMs: number
-  /** Every finding, ignored or not — the whitelist is applied on read. */
-  findings: ConsistencyFinding[]
-}
 
 /** The report's background scans; one per project at a time. */
 export const consistencyScans = createScanJobs(runScan)
@@ -65,8 +55,8 @@ export const consistencyScans = createScanJobs(runScan)
 /**
  * The stamp a snapshot is valid for: row stamps plus everything else that
  * changes findings — settings, source language and the rule code itself
- * (app version + commit). Ignore rows are not part of it: they are applied
- * on read, never baked into the snapshot.
+ * (app version + commit). Ignore rows are not part of it: each row's
+ * `ignored` is set when it is written and flipped by the ignore toggle.
  */
 export async function currentScanVersion(projectId: number): Promise<string> {
   const [stamp, settings, sourceLocale] = await Promise.all([
@@ -89,38 +79,25 @@ export async function currentScanVersion(projectId: number): Promise<string> {
     .digest('hex')
 }
 
-export async function readConsistencySnapshot(
-  projectId: number
-): Promise<ConsistencySnapshotView | null> {
-  const [snapshot, rows] = await Promise.all([
-    prisma.consistencySnapshot.findUnique({ where: { projectId } }),
-    prisma.consistencySnapshotFinding.findMany({
-      where: { projectId },
-      orderBy: { id: 'asc' },
-    }),
-  ])
-  if (!snapshot) return null
+/** One snapshot row back as a finding; null for a row this build cannot read. */
+export function parseSnapshotRow(row: {
+  ruleId: string
+  groupId: string
+  severity: string
+  category: string
+  keys: string
+  meta: string | null
+}): ConsistencyFinding | null {
+  const severity = SEVERITY_ORDER.find((value) => value === row.severity)
+  const category = CATEGORY_ORDER.find((value) => value === row.category)
+  if (!severity || !category) return null
   return {
-    version: snapshot.version,
-    sourceLocale: snapshot.sourceLocale,
-    scannedKeys: snapshot.scannedKeys,
-    scannedAt: snapshot.scannedAt,
-    durationMs: snapshot.durationMs,
-    findings: rows.flatMap((row) => {
-      const severity = SEVERITIES.find((value) => value === row.severity)
-      const category = CATEGORIES.find((value) => value === row.category)
-      if (!severity || !category) return []
-      return [
-        {
-          ruleId: row.ruleId,
-          severity,
-          category,
-          groupId: row.groupId,
-          keys: JSON.parse(row.keys),
-          ...(row.meta ? { meta: JSON.parse(row.meta) } : {}),
-        },
-      ]
-    }),
+    ruleId: row.ruleId,
+    severity,
+    category,
+    groupId: row.groupId,
+    keys: JSON.parse(row.keys),
+    ...(row.meta ? { meta: JSON.parse(row.meta) } : {}),
   }
 }
 
@@ -143,8 +120,11 @@ export async function snapshotFindingKeyIds(
   return members.map((member) => member.keyId)
 }
 
-export async function loadIgnoreRows(projectId: number): Promise<IgnoreRow[]> {
-  const rows = await prisma.consistencyIgnore.findMany({
+export async function loadIgnoreRows(
+  projectId: number,
+  client: Pick<typeof prisma, 'consistencyIgnore'> = prisma
+): Promise<IgnoreRow[]> {
+  const rows = await client.consistencyIgnore.findMany({
     where: { projectId },
     select: { ruleId: true, groupId: true, keyIds: true },
   })
@@ -333,12 +313,16 @@ async function saveSnapshot(
   }
   await prisma.$transaction(
     async (tx) => {
+      const ignored = ignoredFindingKeys(
+        findings,
+        await loadIgnoreRows(projectId, tx)
+      )
       await tx.consistencySnapshotFinding.deleteMany({ where: { projectId } })
       for (let start = 0; start < findings.length; start += SAVE_BATCH) {
         await tx.consistencySnapshotFinding.createMany({
           data: findings
             .slice(start, start + SAVE_BATCH)
-            .map((finding) => snapshotRow(projectId, finding)),
+            .map((finding) => snapshotRow(projectId, finding, ignored)),
         })
       }
       await tx.consistencySnapshot.upsert({
@@ -351,7 +335,11 @@ async function saveSnapshot(
   )
 }
 
-function snapshotRow(projectId: number, finding: ConsistencyFinding) {
+function snapshotRow(
+  projectId: number,
+  finding: ConsistencyFinding,
+  ignored: Set<string>
+) {
   return {
     projectId,
     ruleId: finding.ruleId,
@@ -360,7 +348,17 @@ function snapshotRow(projectId: number, finding: ConsistencyFinding) {
     category: finding.category,
     keys: JSON.stringify(finding.keys),
     meta: finding.meta ? JSON.stringify(finding.meta) : null,
+    ...findingIndex(finding),
+    ignored: ignored.has(findingKey(finding)),
   }
+}
+
+/** The whitelisted findings (`findingKey`) — stored as each row's `ignored`. */
+function ignoredFindingKeys(
+  findings: ConsistencyFinding[],
+  ignoreRows: IgnoreRow[]
+): Set<string> {
+  return new Set(partitionIgnored(findings, ignoreRows).ignored.map(findingKey))
 }
 
 /**
@@ -422,13 +420,17 @@ export async function recheckSnapshotKeys(
   })
 
   await prisma.$transaction(async (tx) => {
+    const ignored = ignoredFindingKeys(
+      fresh,
+      await loadIgnoreRows(projectId, tx)
+    )
     for (let start = 0; start < stale.length; start += SAVE_BATCH) {
       await tx.consistencySnapshotFinding.deleteMany({
         where: { id: { in: stale.slice(start, start + SAVE_BATCH) } },
       })
     }
     await tx.consistencySnapshotFinding.createMany({
-      data: fresh.map((finding) => snapshotRow(projectId, finding)),
+      data: fresh.map((finding) => snapshotRow(projectId, finding, ignored)),
     })
   })
   log.info(

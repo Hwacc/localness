@@ -325,6 +325,60 @@ export const zConsistencyKeysQuery = z.object({
     .pipe(z.array(z.number()).min(1).max(50)),
 })
 
+const zCsv = <T extends z.ZodType<unknown, string>>(item: T) =>
+  z
+    .string()
+    .optional()
+    .transform((value) =>
+      (value ?? '')
+        .split(',')
+        .map((part) => part.trim())
+        .filter(Boolean)
+    )
+    .pipe(z.array(item).max(100))
+
+const zReportSeverity = z.enum(['error', 'warning', 'info'])
+const zReportCategory = z.enum(['duplicate', 'mismatch', 'lint', 'orphan'])
+
+/** The Consistency report filter as query params; empty = no restriction. */
+const zConsistencyFilterQuery = z.object({
+  severities: zCsv(zReportSeverity),
+  locales: zCsv(z.string().max(64)),
+  ruleIds: zCsv(z.string().max(64)),
+  q: z.string().max(200).optional().default(''),
+})
+
+/**
+ * The report summary. `limits` (`duplicate:40,lint:20`) asks for more than the
+ * first page of a category — a reload keeps the rows already shown.
+ */
+export const zConsistencyReportQuery = zConsistencyFilterQuery.extend({
+  limits: zCsv(
+    z
+      .string()
+      .regex(/^(duplicate|mismatch|lint|orphan):\d{1,4}$/)
+      .transform((part) => {
+        const [category, count] = part.split(':')
+        return [zReportCategory.parse(category), Number(count)] as const
+      })
+  ),
+})
+export type ZConsistencyReportQuery = z.infer<typeof zConsistencyReportQuery>
+
+const zPageQuery = {
+  offset: z.coerce.number().int().min(0).default(0),
+  limit: z.coerce.number().int().min(1).max(200).default(20),
+}
+
+/** One more page of one category, under the same filter. */
+export const zConsistencyFindingsQuery = zConsistencyFilterQuery.extend({
+  category: zReportCategory,
+  ...zPageQuery,
+})
+
+/** One page of the whitelisted findings. */
+export const zConsistencyIgnoredQuery = z.object(zPageQuery)
+
 /**
  * Merge duplicates into one key. `picks` maps a locale to the key whose draft
  * the keeper takes; omitted locales use the plan's default.
