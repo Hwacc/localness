@@ -2,16 +2,17 @@ import { describe, expect, it } from 'vitest'
 import {
   EMPTY_REPORT_FILTER,
   findingIssueViews,
+  findingIndex,
   findingLocales,
-  groupReport,
+  fromLikeSafe,
+  likeSafe,
   isReportFilterActive,
-  matchesReportFilter,
+  matchesFindingIndex,
   memberBadges,
   scopeOfCategory,
   scopeSections,
-  severityCounts,
   toMember,
-  worstSeverity,
+  type ReportFilter,
   type ReportFinding,
 } from '#shared/utils/consistency'
 
@@ -115,6 +116,9 @@ const orphan: ReportFinding = {
 
 const all = [orphan, ellipsisFr, placeholdersDe, duplicate, numbersJa]
 
+const matches = (finding: ReportFinding, filter: ReportFilter) =>
+  matchesFindingIndex(finding, findingIndex(finding), filter)
+
 describe('report filter', () => {
   it('collects locales from issues and duplicate divergence', () => {
     expect(findingLocales(numbersJa)).toEqual(['fr', 'ja'])
@@ -124,17 +128,13 @@ describe('report filter', () => {
 
   it('treats the empty filter as inactive and matching everything', () => {
     expect(isReportFilterActive(EMPTY_REPORT_FILTER)).toBe(false)
-    expect(all.every((f) => matchesReportFilter(f, EMPTY_REPORT_FILTER))).toBe(
-      true
-    )
+    expect(all.every((f) => matches(f, EMPTY_REPORT_FILTER))).toBe(true)
   })
 
   it('filters by severity, rule, locale and query together', () => {
     const pick = (filter: Partial<typeof EMPTY_REPORT_FILTER>) =>
       all
-        .filter((f) =>
-          matchesReportFilter(f, { ...EMPTY_REPORT_FILTER, ...filter })
-        )
+        .filter((f) => matches(f, { ...EMPTY_REPORT_FILTER, ...filter }))
         .map((f) => f.groupId)
 
     expect(pick({ severities: ['error'] })).toEqual(['d', 'a'])
@@ -150,35 +150,55 @@ describe('report filter', () => {
   })
 })
 
-describe('groupReport', () => {
-  it('groups category → rule in registry order and drops empty categories', () => {
-    const groups = groupReport(all, ['duplicate', 'mismatch', 'lint', 'orphan'])
-    expect(groups.map((g) => g.category)).toEqual([
-      'duplicate',
-      'mismatch',
-      'lint',
-      'orphan',
-    ])
-    // numbers (error) outranks placeholders (warning) despite registry order
-    expect(groups[1]!.rules.map((r) => r.ruleId)).toEqual([
-      'numbers',
-      'placeholders',
-    ])
-    expect(groups[1]!.findings.map((f) => f.groupId)).toEqual(['a', 'c'])
-    expect(groupReport([orphan], ['duplicate', 'orphan'])).toHaveLength(1)
+describe('findingIndex', () => {
+  it('orders by severity, then registry rule order, then lead key', () => {
+    const index = findingIndex(numbersJa)
+    expect(index.severityRank).toBe(0)
+    expect(findingIndex(ellipsisFr).severityRank).toBe(1)
+    expect(findingIndex(orphan).severityRank).toBe(2)
+    expect(index.sortKey).toBe('retry_title')
+    expect(index.ruleOrder).toBeLessThan(findingIndex(ellipsisFr).ruleOrder)
   })
 
-  it('sorts findings inside a rule by severity, then key', () => {
-    const late = { ...placeholdersDe, groupId: 'z', severity: 'error' as const }
-    const [group] = groupReport([placeholdersDe, late], ['mismatch'])
-    expect(group!.rules[0]!.findings.map((f) => f.groupId)).toEqual(['z', 'c'])
+  it('puts an unknown rule after every registered one', () => {
+    const known = findingIndex(orphan).ruleOrder
+    const unknown = findingIndex({ ...orphan, ruleId: 'gone' }).ruleOrder
+    expect(unknown).toBeGreaterThan(known)
   })
 
-  it('counts severities and finds the worst', () => {
-    expect(severityCounts(all)).toEqual({ error: 2, warning: 2, info: 1 })
-    expect(worstSeverity([orphan, ellipsisFr])).toBe('warning')
-    expect(worstSeverity([orphan])).toBe('info')
-    expect(worstSeverity([])).toBeNull()
+  it('wraps locales in commas so one locale never matches another', () => {
+    expect(findingIndex(numbersJa).locales).toBe(',fr,ja,')
+    expect(findingIndex(orphan).locales).toBe('')
+    const zh = { ...duplicate, meta: { diverged: ['zh'] } }
+    expect(matches(zh, { ...EMPTY_REPORT_FILTER, locales: ['zh'] })).toBe(true)
+    expect(matches(duplicate, { ...EMPTY_REPORT_FILTER, locales: ['zh'] })).toBe(
+      false
+    )
+  })
+
+  it('keeps % and _ literal for the SQL LIKE behind contains', () => {
+    const index = findingIndex(duplicate)
+    expect(index.searchText).not.toContain('_')
+    expect(fromLikeSafe(index.locales)).toBe(',zh_cn,')
+    const zhXcn = { ...duplicate, keys: [member('okXa', 'OK')], meta: { diverged: ['zh-cn'] } }
+    expect(matches(zhXcn, { ...EMPTY_REPORT_FILTER, locales: ['zh_cn'] })).toBe(false)
+    expect(matches(zhXcn, { ...EMPTY_REPORT_FILTER, query: 'ok_' })).toBe(false)
+    expect(matches(duplicate, { ...EMPTY_REPORT_FILTER, query: 'ok_' })).toBe(true)
+    expect(likeSafe('50%_off')).not.toMatch(/[%_]/)
+    expect(fromLikeSafe(likeSafe('50%_off'))).toBe('50%_off')
+  })
+
+  it('searches lowercased keys, source, pending source and issue text', () => {
+    const pending = {
+      ...orphan,
+      keys: [{ ...member('unused', 'Never shown'), pendingSourceText: 'Hidden' }],
+    }
+    expect(findingIndex(pending).searchText).toBe('unused\nnever shown\nhidden')
+    expect(findingIndex(numbersJa).searchText).toContain('2 回再試行')
+    // the separator keeps a query from matching across two parts
+    expect(matches(pending, { ...EMPTY_REPORT_FILTER, query: 'shown hidden' })).toBe(
+      false
+    )
   })
 })
 

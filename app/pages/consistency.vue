@@ -1,17 +1,19 @@
 <script setup lang="ts">
+import { watchDebounced } from '@vueuse/core'
 import { validID } from '#shared/utils'
 import {
+  CATEGORY_ORDER,
   categorySections,
   findingKey,
   findingLocales,
-  groupReport,
   isReportFilterActive,
-  matchesReportFilter,
+  REPORT_PAGE_MAX,
+  REPORT_PAGE_SIZE,
+  reportQueryNeedle,
   ruleCopy,
   scopeOfCategory,
   scopeSections,
-  severityCounts,
-  worstSeverity,
+  SEVERITY_ORDER,
   type FindingCategory,
   type FindingSeverity,
   type ReportFilter,
@@ -21,13 +23,25 @@ import {
 
 definePageMeta({ middleware: ['protected'], ssr: false })
 
+/** One category under the filter: its total and the rows loaded so far. */
+type CategoryPage = {
+  category: FindingCategory
+  total: number
+  worst: FindingSeverity
+  findings: ReportFinding[]
+}
+
 type ConsistencyReport = {
   sourceLocale: string
   scannedKeys: number
   scannedAt: string
   durationMs: number
-  findings: ReportFinding[]
-  ignored: ReportFinding[]
+  /** Active findings, unfiltered; `counts` splits them by severity. */
+  total: number
+  counts: Record<FindingSeverity, number>
+  ignoredCount: number
+  facets: { locales: string[]; ruleIds: string[] }
+  categories: CategoryPage[]
 }
 
 type ConsistencyResponse = {
@@ -36,6 +50,8 @@ type ConsistencyResponse = {
   outdated: boolean
   scan: ScanStatus
 }
+
+type FindingsPage = { findings: ReportFinding[]; total: number }
 
 const SCAN_POLL_MS = 1000
 
@@ -46,24 +62,13 @@ const SCAN_POLL_MS = 1000
  */
 const MAX_AUTO_RESCANS = 3
 
-/** Registry order = report order; titles/descriptions come from the registry. */
-const CATEGORY_ORDER: FindingCategory[] = [
-  'duplicate',
-  'mismatch',
-  'lint',
-  'orphan',
-]
+const SEARCH_DEBOUNCE_MS = 300
 
 /** What each scope's header icon stands for; text lives in `scopeSections`. */
 const SCOPE_ICON: Record<(typeof scopeSections)[number]['id'], string> = {
   dictionary: 'i-lucide:book-open',
   published: 'i-lucide:eye',
 }
-
-const SEVERITIES: FindingSeverity[] = ['error', 'warning', 'info']
-
-/** Rows listed per category before "Show more". */
-const PAGE_SIZE = 20
 
 const MAX_LOCALE_BADGES = 3
 
@@ -118,22 +123,30 @@ function toggleSeverity(severity: FindingSeverity) {
     : [...filter.severities, severity]
 }
 
-const allFindings = computed(() => report.value?.findings ?? [])
-const visibleFindings = computed(() =>
-  allFindings.value.filter((finding) => matchesReportFilter(finding, filter)),
+/** The filter as the report endpoints read it; empty axes are left out. */
+function filterQuery() {
+  const query: Record<string, string> = {}
+  if (filter.severities.length) query.severities = filter.severities.join(',')
+  if (filter.locales.length) query.locales = filter.locales.join(',')
+  if (filter.ruleIds.length) query.ruleIds = filter.ruleIds.join(',')
+  const needle = reportQueryNeedle(filter.query)
+  if (needle) query.q = needle
+  return query
+}
+
+const groups = computed(() => report.value?.categories ?? [])
+const matched = computed(() =>
+  groups.value.reduce((sum, group) => sum + group.total, 0),
 )
-const groups = computed(() =>
-  groupReport(visibleFindings.value, CATEGORY_ORDER),
-)
-const counts = computed(() => severityCounts(allFindings.value))
 
 const localeItems = computed(() =>
-  [...new Set(allFindings.value.flatMap(findingLocales))]
-    .sort()
-    .map((locale) => ({ label: locale, value: locale })),
+  (report.value?.facets.locales ?? []).map((locale) => ({
+    label: locale,
+    value: locale,
+  })),
 )
 const ruleItems = computed(() =>
-  [...new Set(allFindings.value.map((finding) => finding.ruleId))]
+  (report.value?.facets.ruleIds ?? [])
     .map((ruleId) => ({ label: ruleLabel(ruleId), value: ruleId }))
     .sort((a, b) => a.label.localeCompare(b.label)),
 )
@@ -141,54 +154,60 @@ const ruleItems = computed(() =>
 // ── Selection & paging ─────────────────────────────────────────────────────
 
 const selectedKey = ref<string | null>(null)
-const shownState = ref<Record<string, number>>({})
 const openState = ref<Record<string, boolean>>({})
+const moreLoading = ref<FindingCategory | null>(null)
 
 const categoryNodeId = (category: FindingCategory) => `category:${category}`
 
 /** Only real user choices are stored; info-only categories start collapsed. */
-function categoryDefaultOpen(findings: ReportFinding[]) {
-  return worstSeverity(findings) !== 'info'
+function isCategoryOpen(group: CategoryPage) {
+  return openState.value[categoryNodeId(group.category)] ?? group.worst !== 'info'
 }
 
-function isCategoryOpen(category: FindingCategory, findings: ReportFinding[]) {
-  return (
-    openState.value[categoryNodeId(category)] ?? categoryDefaultOpen(findings)
-  )
+function toggleCategory(group: CategoryPage) {
+  openState.value[categoryNodeId(group.category)] = !isCategoryOpen(group)
 }
 
-function toggleCategory(category: FindingCategory, findings: ReportFinding[]) {
-  const id = categoryNodeId(category)
-  openState.value[id] = !isCategoryOpen(category, findings)
-}
+/** Keyboard order: the loaded rows, category by category. */
+const navigable = computed(() => groups.value.flatMap((group) => group.findings))
 
 const selected = computed(() => {
   const key = selectedKey.value
   if (!key) return null
-  return allFindings.value.find((f) => findingKey(f) === key) ?? null
+  return navigable.value.find((f) => findingKey(f) === key) ?? null
 })
 
-/** Keyboard order: what the list would render, category by category. */
-const navigable = computed(() =>
-  groups.value.flatMap((group) =>
-    pageOf(categoryNodeId(group.category), group.findings),
-  ),
-)
-
-function pageOf(id: string, findings: ReportFinding[]) {
-  return findings.slice(0, shownOf(id))
+function remainingOf(group: CategoryPage) {
+  return Math.max(0, group.total - group.findings.length)
 }
 
-function shownOf(id: string) {
-  return shownState.value[id] ?? PAGE_SIZE
-}
-
-function showMore(id: string) {
-  shownState.value[id] = shownOf(id) + PAGE_SIZE
-}
-
-function remainingOf(id: string, findings: ReportFinding[]) {
-  return Math.max(0, findings.length - shownOf(id))
+/** Next page of one category; rows a reload already brought are skipped. */
+async function showMore(group: CategoryPage) {
+  const id = projectId.value
+  if (!validID(id) || moreLoading.value) return
+  const seq = reportSeq
+  moreLoading.value = group.category
+  try {
+    const data = await useApi<FindingsPage>(
+      `/api/projects/${id}/consistency/findings`,
+      {
+        query: {
+          ...filterQuery(),
+          category: group.category,
+          offset: group.findings.length,
+          limit: REPORT_PAGE_SIZE,
+        },
+      },
+    )
+    if (seq !== reportSeq || id !== projectId.value) return
+    const target = groups.value.find((g) => g.category === group.category)
+    if (!target) return
+    const seen = new Set(target.findings.map(findingKey))
+    target.findings.push(...data.findings.filter((f) => !seen.has(findingKey(f))))
+    target.total = data.total
+  } finally {
+    moreLoading.value = null
+  }
 }
 
 /** Keep a selection whenever anything is visible; advance past ignores. */
@@ -207,7 +226,27 @@ function select(finding: ReportFinding) {
   selectedKey.value = findingKey(finding)
 }
 
-function moveSelection(delta: number) {
+/**
+ * ↓ on the last loaded row of a category with more on the server loads the
+ * next page first, so the cursor walks the category rather than skipping it.
+ */
+async function moveSelection(delta: number) {
+  const current = selected.value
+  const group = current
+    ? groups.value.find((g) => g.category === current.category)
+    : undefined
+  if (
+    delta > 0 &&
+    current &&
+    group &&
+    remainingOf(group) &&
+    findingKey(group.findings.at(-1)!) === findingKey(current)
+  ) {
+    const before = group.findings.length
+    await showMore(group)
+    const after = groups.value.find((g) => g.category === current.category)
+    if (!after || after.findings.length === before) return
+  }
   const list = navigable.value
   if (!list.length) return
   const index = list.findIndex((f) => findingKey(f) === selectedKey.value)
@@ -218,6 +257,7 @@ function moveSelection(delta: number) {
   const target = list[next]
   if (target) {
     select(target)
+    await nextTick()
     document
       .querySelector(`[data-finding-key="${findingKey(target)}"]`)
       ?.scrollIntoView({ block: 'nearest' })
@@ -236,7 +276,7 @@ function onKeydown(event: KeyboardEvent) {
   }
   if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
     event.preventDefault()
-    moveSelection(event.key === 'ArrowDown' ? 1 : -1)
+    void moveSelection(event.key === 'ArrowDown' ? 1 : -1)
   } else if (event.key === 'e' && selected.value) {
     event.preventDefault()
     setIgnored(selected.value, true)
@@ -250,27 +290,53 @@ onUnmounted(() => window.removeEventListener('keydown', onKeydown))
 
 let scanTimer: ReturnType<typeof setTimeout> | null = null
 let autoRescans = 0
+/** Bumped per report request; an older response is dropped. */
+let reportSeq = 0
+/** The filter the shown report was asked for, so a no-op change skips it. */
+let lastFilterKey = ''
 
 function stopScanWatch() {
   if (scanTimer) clearTimeout(scanTimer)
   scanTimer = null
 }
 
+function filterKey() {
+  return JSON.stringify(filterQuery())
+}
+
+/** Loaded rows per category beyond the first page — a reload keeps them. */
+function keptLimits() {
+  return groups.value
+    .filter((group) => group.findings.length > REPORT_PAGE_SIZE)
+    .map(
+      (group) =>
+        `${group.category}:${Math.min(group.findings.length, REPORT_PAGE_MAX)}`,
+    )
+    .join(',')
+}
+
 /**
  * Reads the snapshot; never scans by itself. An outdated or missing snapshot
  * starts a background scan (bounded by MAX_AUTO_RESCANS) and the stale
- * findings stay on screen until the new ones land.
+ * findings stay on screen until the new ones land. `keep` asks for as many
+ * rows per category as are shown now; a new filter starts from page one.
  */
-async function loadReport() {
+async function loadReport(keep = true) {
   const id = projectId.value
   if (!validID(id) || locked.value) return
+  const seq = ++reportSeq
+  lastFilterKey = filterKey()
+  const limits = keep ? keptLimits() : ''
   const data = await useApi<ConsistencyResponse>(
     `/api/projects/${id}/consistency`,
+    { query: { ...filterQuery(), ...(limits ? { limits } : {}) } },
   )
-  if (id !== projectId.value) return
+  if (seq !== reportSeq || id !== projectId.value) return
   report.value = data.report
   outdated.value = data.outdated
   scan.value = data.scan
+  syncSelection()
+  if (ignoredList.value) void loadIgnored()
   if (data.scan.state === 'running') {
     watchScan()
   } else if (
@@ -282,6 +348,19 @@ async function loadReport() {
     await startScan()
   }
 }
+
+function reloadForFilter() {
+  if (loading.value || !report.value || filterKey() === lastFilterKey) return
+  void loadReport(false)
+}
+
+watch(
+  () => [filter.severities, filter.locales, filter.ruleIds],
+  reloadForFilter,
+)
+watchDebounced(() => filter.query, reloadForFilter, {
+  debounce: SEARCH_DEBOUNCE_MS,
+})
 
 async function startScan() {
   const id = projectId.value
@@ -322,7 +401,6 @@ function watchScan() {
       watchScan()
     } else {
       await loadReport()
-      syncSelection()
     }
   }, SCAN_POLL_MS)
 }
@@ -330,13 +408,13 @@ function watchScan() {
 async function load() {
   loading.value = true
   report.value = null
+  ignoredList.value = null
   outdated.value = false
   scan.value = { state: 'idle' }
   stopScanWatch()
   try {
     if (!license.value) await loadLicense()
-    await loadReport()
-    syncSelection()
+    await loadReport(false)
   } finally {
     loading.value = false
   }
@@ -347,7 +425,6 @@ onUnmounted(stopScanWatch)
 watch(
   () => projectId.value,
   () => {
-    shownState.value = {}
     openState.value = {}
     selectedKey.value = null
     autoRescans = 0
@@ -355,7 +432,48 @@ watch(
     load()
   },
 )
-watch(visibleFindings, () => syncSelection())
+
+// ── Whitelist ──────────────────────────────────────────────────────────────
+
+/** "Marked not an issue", fetched when that section first opens. */
+const ignoredList = ref<ReportFinding[] | null>(null)
+const ignoredTotal = ref(0)
+const ignoredLoading = ref(false)
+
+/** Reloads the rows shown so far, or appends the next page with `more`. */
+async function loadIgnored(more = false) {
+  const id = projectId.value
+  if (!validID(id)) return
+  const loaded = ignoredList.value?.length ?? 0
+  ignoredLoading.value = true
+  try {
+    const data = await useApi<FindingsPage>(
+      `/api/projects/${id}/consistency/ignored`,
+      {
+        query: more
+          ? { offset: loaded, limit: REPORT_PAGE_SIZE }
+          : {
+              offset: 0,
+              limit: Math.min(Math.max(loaded, REPORT_PAGE_SIZE), REPORT_PAGE_MAX),
+            },
+      },
+    )
+    if (id !== projectId.value) return
+    if (more && ignoredList.value) {
+      const seen = new Set(ignoredList.value.map(findingKey))
+      ignoredList.value.push(...data.findings.filter((f) => !seen.has(findingKey(f))))
+    } else {
+      ignoredList.value = data.findings
+    }
+    ignoredTotal.value = data.total
+  } finally {
+    ignoredLoading.value = false
+  }
+}
+
+function onIgnoredOpen(open: boolean) {
+  if (open && !ignoredList.value) void loadIgnored()
+}
 
 /**
  * Drops a finding from the active list and keeps the cursor where it was —
@@ -366,7 +484,19 @@ function removeFinding(finding: ReportFinding) {
   if (!current) return
   const key = findingKey(finding)
   const index = navigable.value.findIndex((f) => findingKey(f) === key)
-  current.findings = current.findings.filter((f) => findingKey(f) !== key)
+  const group = current.categories.find((g) => g.category === finding.category)
+  if (group && group.findings.some((f) => findingKey(f) === key)) {
+    group.findings = group.findings.filter((f) => findingKey(f) !== key)
+    group.total = Math.max(0, group.total - 1)
+    current.total = Math.max(0, current.total - 1)
+    current.counts[finding.severity] = Math.max(
+      0,
+      current.counts[finding.severity] - 1,
+    )
+    if (!group.total) {
+      current.categories = current.categories.filter((g) => g !== group)
+    }
+  }
   const next = navigable.value
   const target = next[Math.min(index, next.length - 1)]
   selectedKey.value = target ? findingKey(target) : null
@@ -388,11 +518,20 @@ async function setIgnored(finding: ReportFinding, ignored: boolean) {
   const current = report.value
   if (ignored) {
     removeFinding(finding)
-    current.ignored.push(finding)
+    current.ignoredCount += 1
+    if (ignoredList.value) {
+      ignoredList.value.push(finding)
+      ignoredTotal.value += 1
+    }
   } else {
     const key = findingKey(finding)
-    current.ignored = current.ignored.filter((f) => findingKey(f) !== key)
-    current.findings.push(finding)
+    if (ignoredList.value) {
+      ignoredList.value = ignoredList.value.filter((f) => findingKey(f) !== key)
+      ignoredTotal.value = Math.max(0, ignoredTotal.value - 1)
+    }
+    current.ignoredCount = Math.max(0, current.ignoredCount - 1)
+    // Back into its sorted place under the current filter.
+    await loadReport()
   }
 }
 
@@ -418,7 +557,6 @@ async function onFindingChanged(finding: ReportFinding) {
   }
   if (id !== projectId.value) return
   await loadReport()
-  syncSelection()
 }
 
 function scanLabel(status: ScanStatus) {
@@ -591,23 +729,25 @@ function headline(finding: ReportFinding) {
 
     <template v-else-if="report">
       <div
-        v-if="allFindings.length"
+        v-if="report.total"
         class="shrink-0 px-6 py-3 bg-default border-b border-default flex flex-wrap items-center gap-2"
       >
         <div class="flex items-center gap-1">
           <UButton
-            v-for="severity in SEVERITIES"
+            v-for="severity in SEVERITY_ORDER"
             :key="severity"
             size="xs"
             :color="severityMeta(severity).color"
             :variant="filter.severities.includes(severity) ? 'soft' : 'ghost'"
             :disabled="
-              !counts[severity] && !filter.severities.includes(severity)
+              !report.counts[severity] && !filter.severities.includes(severity)
             "
             @click="toggleSeverity(severity)"
           >
             {{ severityMeta(severity).label }}
-            <span class="tabular-nums opacity-70">{{ counts[severity] }}</span>
+            <span class="tabular-nums opacity-70">{{
+              report.counts[severity]
+            }}</span>
           </UButton>
         </div>
         <USelectMenu
@@ -652,7 +792,7 @@ function headline(finding: ReportFinding) {
           class="lg:w-96 shrink-0 border-b lg:border-b-0 lg:border-r border-default overflow-auto"
         >
           <div
-            v-if="allFindings.length"
+            v-if="report.total"
             class="px-4 py-3 bg-elevated/40 border-b border-default flex flex-col gap-1.5"
           >
             <div
@@ -673,7 +813,7 @@ function headline(finding: ReportFinding) {
               <span v-if="filterActive" class="inline-flex items-center gap-1">
                 <UIcon name="i-lucide:list-filter" class="size-3.5" />
                 <span class="tabular-nums">
-                  {{ visibleFindings.length }}/{{ allFindings.length }}
+                  {{ matched }}/{{ report.total }}
                 </span>
                 shown
               </span>
@@ -703,7 +843,7 @@ function headline(finding: ReportFinding) {
           </p>
 
           <div
-            v-if="filterActive && !visibleFindings.length"
+            v-if="filterActive && !groups.length"
             class="m-4 rounded-xl border border-dashed border-default px-4 py-6 text-center text-sm text-muted"
           >
             No findings match these filters.
@@ -721,15 +861,13 @@ function headline(finding: ReportFinding) {
             <button
               type="button"
               class="w-full px-4 py-1.5 flex items-center gap-2 text-left hover:bg-elevated/50"
-              :aria-expanded="isCategoryOpen(group.category, group.findings)"
-              @click="toggleCategory(group.category, group.findings)"
+              :aria-expanded="isCategoryOpen(group)"
+              @click="toggleCategory(group)"
             >
               <UIcon
                 name="i-lucide:chevron-right"
                 class="size-3.5 shrink-0 text-muted transition-transform"
-                :class="
-                  isCategoryOpen(group.category, group.findings) && 'rotate-90'
-                "
+                :class="isCategoryOpen(group) && 'rotate-90'"
               />
               <UTooltip
                 :text="`${scopeOfCategory(group.category).title} — ${scopeOfCategory(group.category).description}`"
@@ -746,20 +884,17 @@ function headline(finding: ReportFinding) {
                 {{ categorySections[group.category].title }}
               </span>
               <UBadge
-                :color="severityMeta(worstSeverity(group.findings)!).color"
+                :color="severityMeta(group.worst).color"
                 variant="subtle"
                 size="xs"
               >
-                {{ group.findings.length }}
+                {{ group.total }}
               </UBadge>
             </button>
 
-            <template v-if="isCategoryOpen(group.category, group.findings)">
+            <template v-if="isCategoryOpen(group)">
               <button
-                v-for="finding in pageOf(
-                  categoryNodeId(group.category),
-                  group.findings,
-                )"
+                v-for="finding in group.findings"
                 :key="findingKey(finding)"
                 type="button"
                 :data-finding-key="findingKey(finding)"
@@ -831,23 +966,17 @@ function headline(finding: ReportFinding) {
                 </span>
               </button>
 
-              <div
-                v-if="
-                  remainingOf(categoryNodeId(group.category), group.findings)
-                "
-                class="px-4 py-1.5"
-              >
+              <div v-if="remainingOf(group)" class="px-4 py-1.5">
                 <UButton
                   size="xs"
                   color="neutral"
                   variant="ghost"
                   icon="i-lucide:chevrons-down"
-                  @click="showMore(categoryNodeId(group.category))"
+                  :loading="moreLoading === group.category"
+                  @click="showMore(group)"
                 >
                   Show more ·
-                  {{
-                    remainingOf(categoryNodeId(group.category), group.findings)
-                  }}
+                  {{ remainingOf(group) }}
                   left
                 </UButton>
               </div>
@@ -855,8 +984,9 @@ function headline(finding: ReportFinding) {
           </div>
 
           <UCollapsible
-            v-if="report.ignored.length"
+            v-if="report.ignoredCount"
             class="border-t border-default mt-2"
+            @update:open="onIgnoredOpen"
           >
             <template #default="{ open }">
               <button
@@ -872,14 +1002,17 @@ function headline(finding: ReportFinding) {
                   Marked not an issue
                 </span>
                 <span class="text-xs text-muted">
-                  {{ report.ignored.length }}
+                  {{ report.ignoredCount }}
                 </span>
               </button>
             </template>
             <template #content>
               <div class="flex flex-col gap-1 px-4 pb-3">
+                <p v-if="!ignoredList" class="text-xs text-muted px-3 py-1.5">
+                  Loading…
+                </p>
                 <div
-                  v-for="finding in report.ignored"
+                  v-for="finding in ignoredList ?? []"
                   :key="findingKey(finding)"
                   class="rounded-lg bg-elevated/50 px-3 py-1.5 flex items-center gap-2"
                 >
@@ -900,6 +1033,20 @@ function headline(finding: ReportFinding) {
                     Restore
                   </UButton>
                 </div>
+                <UButton
+                  v-if="ignoredList && ignoredList.length < ignoredTotal"
+                  size="xs"
+                  color="neutral"
+                  variant="ghost"
+                  icon="i-lucide:chevrons-down"
+                  class="self-start"
+                  :loading="ignoredLoading"
+                  @click="loadIgnored(true)"
+                >
+                  Show more ·
+                  {{ ignoredTotal - ignoredList.length }}
+                  left
+                </UButton>
               </div>
             </template>
           </UCollapsible>
