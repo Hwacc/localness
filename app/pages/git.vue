@@ -45,6 +45,8 @@ type GitSyncConflictRow = {
   oursText: string
   theirsText: string
   publishedText: string | null
+  /** Git's text translates this older source; Use Git lands it outdated. */
+  olderSourceText: string | null
 }
 
 type PullFile = {
@@ -1649,6 +1651,14 @@ function confirmRename(conflict: GitSyncConflictRow) {
             >
               Published (reference): {{ conflict.publishedText }}
             </p>
+            <UAlert
+              v-if="conflict.olderSourceText"
+              color="warning"
+              variant="subtle"
+              icon="i-lucide:history"
+              title="Git's text translates an older source"
+              :description="`Translated from: ${conflict.olderSourceText}. A newer batch is still with LILT. Use Git lands it marked outdated; an edited text counts as written against the current source.`"
+            />
             <UTextarea
               v-if="editingId === conflict.id"
               v-model="editText"

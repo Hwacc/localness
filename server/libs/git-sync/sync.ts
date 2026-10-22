@@ -191,6 +191,8 @@ async function upsertConflict(
     oursText: string
     theirsText: string
     publishedText: string | null
+    /** See `GitSyncConflict.olderSourceText`. */
+    olderSourceText?: string | null
   },
   db: PrismaLike = prisma
 ) {
@@ -211,6 +213,7 @@ async function upsertConflict(
       oursText: params.oursText,
       theirsText: params.theirsText,
       publishedText: params.publishedText,
+      olderSourceText: params.olderSourceText ?? null,
       status: 'open',
       mergedText: null,
     },
@@ -360,6 +363,7 @@ export async function previewPull(
           oursText: c.oursText,
           theirsText: c.theirsText,
           publishedText: c.publishedText,
+          olderSourceText: c.staleSource ? c.writtenAgainst : null,
         })
       }
       return {
@@ -1211,6 +1215,13 @@ export async function resolveConflict(params: {
       text: chosen,
       commitSha: params.commitSha ?? '',
       sourceLocale,
+      // Taking Git's translation of an older source lands it outdated. A
+      // merged text was edited with the warning in view, so it counts as
+      // written against the current source.
+      sourceFingerprint:
+        params.action === 'theirs' && conflict.olderSourceText != null
+          ? fpTranslation(conflict.olderSourceText)
+          : undefined,
     })
   }
   // Last seen Git stays the remote side. Use platform must not move base
