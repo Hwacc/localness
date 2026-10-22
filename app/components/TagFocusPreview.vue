@@ -1,4 +1,8 @@
 <script setup lang="ts">
+/**
+ * A read-only screenshot with its tag boxes, zoomed to fit the boxes (Focus)
+ * or the whole image (Fit). Used by the Resolve and Tags drawers.
+ */
 import { useResizeObserver } from '@vueuse/core'
 import { DEFAULT_LINE_COLOR, DEFAULT_LINE_WIDTH } from '#shared/constants'
 

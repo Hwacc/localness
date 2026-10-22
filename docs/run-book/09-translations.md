@@ -148,10 +148,10 @@
 
 ## 看这条词条被哪些框引用
 
-**Tags** 列的数字点一下，右侧滑出预览（标题 `Tags · <key>`，说明 `Read-only screenshot with boxes. Edit opens the Editor.`）：
+**Tags** 列的数字点一下，右侧滑出预览（标题 `Tags · <key>`，说明 `Read-only screenshot, zoomed to the boxes. Edit opens the Editor.`）：
 
 - 左边是 **Pages** 列表，每条写着这一页上有几个框。
-- 右边是那张截图，框按它自己的颜色画出来，外面还套一圈高亮边。
+- 右边是那张截图，框按它自己的颜色画出来。打开时自动放大到这一页上所有框的范围（最多 2.5 倍，四周留白）；右上角显示缩放比例，**Focus** / **Fit** 在聚焦框和看整张图之间切换。与 Consistency 的 Resolve 抽屉是同一个预览。
 - 这一页没有绑框时写 `No tags bound to a page.`
 - 底部 **Close** / **Edit**：**Edit** 跳到编辑器并选中那个框（第 8 章）。
 - 一条 key 在同一页上有**多个**框时，跳过去选中的是第一个。

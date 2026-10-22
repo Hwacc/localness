@@ -523,7 +523,7 @@ const title = computed(() => {
             <p v-else-if="!pages.length" class="text-sm text-muted p-6 text-center">
               Not drawn on any design.
             </p>
-            <ConsistencyDesignFocusPreview
+            <TagFocusPreview
               v-else-if="selectedPage"
               :key="selectedPage.id"
               :image="selectedPage.image"
