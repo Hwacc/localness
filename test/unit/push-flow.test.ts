@@ -1,4 +1,7 @@
-import { describe, expect, it, vi, beforeEach } from 'vitest'
+import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest'
+import { mkdtemp, mkdir, readFile, rm, writeFile } from 'node:fs/promises'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
 
 /**
  * `sync.ts` imports the Prisma singleton at module scope, so the client is
@@ -23,6 +26,8 @@ const db = vi.hoisted(() => ({
 const remote = vi.hoisted(() => ({
   /** Sha returned by `findCommitByTrailer`; null means "no prior batch". */
   orphanSha: null as string | null,
+  /** Clone dir handed to `run`; a real temp dir for `locale-files` cases. */
+  repoDir: '/tmp/fake-repo',
   written: [] as Record<string, string>[],
   commits: [] as string[],
   cloneDepth: undefined as number | undefined,
@@ -30,14 +35,14 @@ const remote = vi.hoisted(() => ({
   conflictsWritten: [] as Record<string, unknown>[],
 }))
 
-vi.mock('#server/libs/git-sync/git-remote', () => ({
+vi.mock('#server/libs/git-sync/remote/git-remote', () => ({
   remoteHeadSha: async () => 'sha-head',
   withClonedRepo: async (params: {
     depth?: number
     run: (dir: string, sha: string) => Promise<unknown>
   }) => {
     remote.cloneDepth = params.depth
-    return params.run('/tmp/fake-repo', 'sha-clone')
+    return params.run(remote.repoDir, 'sha-clone')
   },
   findCommitByTrailer: async () => remote.orphanSha,
   commitAndPush: async (params: { message: string }) => {
@@ -46,9 +51,9 @@ vi.mock('#server/libs/git-sync/git-remote', () => ({
   },
 }))
 
-vi.mock('#server/libs/git-sync/lilt-swbu', async (importOriginal) => {
+vi.mock('#server/libs/git-sync/layouts/lilt-swbu/batches', async (importOriginal) => {
   const actual =
-    await importOriginal<typeof import('#server/libs/git-sync/lilt-swbu')>()
+    await importOriginal<typeof import('#server/libs/git-sync/layouts/lilt-swbu/batches')>()
   return {
     ...actual,
     writeSourceBatch: async (params: { entries: Record<string, string> }) => {
@@ -58,6 +63,11 @@ vi.mock('#server/libs/git-sync/lilt-swbu', async (importOriginal) => {
     readMergedSourceLocale: async () => remote.source,
   }
 })
+
+vi.mock('#server/helper/api-delivery', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('#server/helper/api-delivery')>()),
+  projectLocales: async () => ['en', 'de'],
+}))
 
 vi.mock('#server/libs/prisma', () => {
   const tx = {
@@ -138,6 +148,7 @@ beforeEach(() => {
     id: 1,
     token: 'tok',
     enabled: true,
+    adapter: 'lilt-swbu',
     product: 'cortex',
     remoteUrl: 'https://example.test/w/r.git',
     branch: 'main',
@@ -155,6 +166,7 @@ beforeEach(() => {
   db.previewUpdates = []
   db.logs = []
   remote.orphanSha = null
+  remote.repoDir = '/tmp/fake-repo'
   remote.written = []
   remote.commits = []
   remote.cloneDepth = undefined
@@ -555,5 +567,72 @@ describe('applyPush', () => {
       triggeredBy: 't',
     })
     expect(remote.cloneDepth).toBeGreaterThan(1)
+  })
+})
+
+describe('locale-files adapter', () => {
+  const pendingFor = (keys: string[]) => ({
+    id: 1,
+    kind: 'push',
+    status: 'pending',
+    commitSha: '',
+    expiresAt: new Date(Date.now() + 60_000),
+    candidates: {
+      sourceLocale: 'en',
+      candidates: keys.map((k) => ({ key: k, baseText: '', text: 'text' })),
+    },
+  })
+  let sourcePath = ''
+
+  beforeEach(async () => {
+    remote.repoDir = await mkdtemp(join(tmpdir(), 'push-locale-files-'))
+    await mkdir(join(remote.repoDir, 'locales'))
+    sourcePath = join(remote.repoDir, 'locales', 'en.json')
+    await writeFile(sourcePath, '{\n  "home": {\n    "title": "Home"\n  },\n  "label": "Label"\n}\n')
+    db.binding = {
+      ...db.binding,
+      adapter: 'locale-files',
+      product: 'locales',
+      options: { pattern: '{locale}.json', format: 'nested-json' },
+    }
+  })
+
+  afterEach(async () => {
+    await rm(remote.repoDir, { recursive: true, force: true })
+  })
+
+  it('reads the source file as Git\'s side and flags keys it cannot hold', async () => {
+    db.keys = [key('home.title', 'Start'), key('label.sub', 'x'), key('new.key', 'y')]
+    db.bases = [{ key: 'home.title', baseText: 'Home' }]
+    const preview = await previewPush(2, 'tester')
+    const byKey = new Map(preview.candidates.map((c) => [c.key, c]))
+    expect(byKey.get('home.title')).toMatchObject({ reason: 'changed', theirsText: 'Home', eligible: true })
+    expect(byKey.get('label.sub')).toMatchObject({ reason: 'unwritable', eligible: false })
+    expect(byKey.get('new.key')).toMatchObject({ reason: 'new-key', eligible: true })
+    expect(preview.counts.unwritable).toBe(1)
+  })
+
+  it('rewrites the file in place, skips unwritable keys and records the real sha', async () => {
+    db.previews = [pendingFor(['home.title', 'label.sub', 'new.key'])]
+    db.keys = [key('home.title', 'Start'), key('label.sub', 'x'), key('new.key', 'y')]
+    db.bases = [{ key: 'home.title', baseText: 'Home' }]
+    const result = await applyPush({
+      projectId: 2,
+      previewId: 1,
+      selectedKeys: ['home.title', 'label.sub', 'new.key'],
+      triggeredBy: 't',
+    })
+    expect(result.filename).toBe('en.json')
+    expect(result.skipped).toEqual([{ key: 'label.sub', reason: 'unwritable' }])
+    expect(await readFile(sourcePath, 'utf8')).toBe(
+      '{\n  "home": {\n    "title": "Start"\n  },\n  "label": "Label",\n  "new": {\n    "key": "y"\n  }\n}\n'
+    )
+    expect(remote.written).toHaveLength(0)
+    expect(remote.commits[0]).toMatch(/^localness: update locales\/en\.json \(by t\)/)
+    const seen = db.bindingUpdates[0]!.seenFiles as { path: string; sha: string }[]
+    expect(seen).toHaveLength(1)
+    expect(seen[0]!.path).toBe('locales/en.json')
+    expect(seen[0]!.sha).toMatch(/^[0-9a-f]{40}$/)
+    expect(db.basesWritten.map((row) => row.key).sort()).toEqual(['home.title', 'new.key'])
   })
 })

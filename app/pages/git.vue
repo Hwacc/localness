@@ -1,8 +1,11 @@
 <script setup lang="ts">
 import type { TableColumn } from '@nuxt/ui'
 import {
+  GIT_SYNC_DEFAULT_PATTERN,
   GitCredentialKind,
+  GitSyncAdapter,
   GitSyncConflictStatus,
+  GitSyncFileFormat,
   GitSyncPullReason,
   GitSyncPushReason,
 } from '#shared/constants'
@@ -23,6 +26,7 @@ type GitSyncBindingPublic = {
   remoteUrl: string
   branch: string
   product: string
+  options: { pattern?: string; format?: string } | null
   credentialKind: string
   tokenConfigured: boolean
   lastPulledAt: string | null
@@ -135,11 +139,24 @@ const pushExpanded = ref<Record<string, boolean>>({})
 
 const form = reactive({
   enabled: true,
+  adapter: GitSyncAdapter.LILT_SWBU,
   product: '',
+  pattern: GIT_SYNC_DEFAULT_PATTERN,
+  format: GitSyncFileFormat.NESTED_JSON,
   credentialKind: GitCredentialKind.REPO_ACCESS_TOKEN,
   token: '',
   remoteUrl: '',
   branch: 'main',
+})
+
+const isLilt = computed(() => form.adapter === GitSyncAdapter.LILT_SWBU)
+
+/** LILT: the product folder. Locale files: `dir/pattern`, as the files are named. */
+const bindingTitle = computed(() => {
+  const binding = status.value?.binding
+  if (!binding) return ''
+  if (binding.adapter !== GitSyncAdapter.LOCALE_FILES) return binding.product
+  return `${binding.product}/${binding.options?.pattern || GIT_SYNC_DEFAULT_PATTERN}`
 })
 
 const projectId = computed(() => curProject.value.id)
@@ -176,7 +193,16 @@ const credentialItems = [
 
 function applyBindingToForm(binding: GitSyncBindingPublic | null) {
   form.enabled = binding?.enabled ?? true
+  form.adapter =
+    binding?.adapter === GitSyncAdapter.LOCALE_FILES
+      ? GitSyncAdapter.LOCALE_FILES
+      : GitSyncAdapter.LILT_SWBU
   form.product = binding?.product ?? ''
+  form.pattern = binding?.options?.pattern || GIT_SYNC_DEFAULT_PATTERN
+  form.format =
+    binding?.options?.format === GitSyncFileFormat.FLAT_JSON
+      ? GitSyncFileFormat.FLAT_JSON
+      : GitSyncFileFormat.NESTED_JSON
   form.credentialKind =
     binding?.credentialKind === GitCredentialKind.API_TOKEN
       ? GitCredentialKind.API_TOKEN
@@ -322,6 +348,7 @@ async function loadProducts() {
       {
         method: 'POST',
         body: {
+          adapter: form.adapter,
           remoteUrl: form.remoteUrl,
           branch: form.branch || 'main',
           credentialKind: form.credentialKind,
@@ -359,8 +386,10 @@ async function saveBinding() {
   }
   if (!form.product.trim()) {
     toast.add({
-      title: 'Product required',
-      description: 'Load products from the remote, then choose one.',
+      title: isLilt.value ? 'Product required' : 'Directory required',
+      description: isLilt.value
+        ? 'Load products from the remote, then choose one.'
+        : 'Type the folder that holds the locale files, e.g. src/locales.',
       color: 'warning',
     })
     return
@@ -368,7 +397,7 @@ async function saveBinding() {
   if (!configured.value && !form.token.trim()) {
     toast.add({
       title: 'Token required',
-      description: 'Paste a token to enable LILT Git sync.',
+      description: 'Paste a token to enable Git sync.',
       color: 'warning',
     })
     return
@@ -379,7 +408,11 @@ async function saveBinding() {
       method: 'PUT',
       body: {
         enabled: form.enabled,
-        product: form.product,
+        adapter: form.adapter,
+        product: form.product.trim(),
+        options: isLilt.value
+          ? undefined
+          : { pattern: form.pattern.trim() || undefined, format: form.format },
         credentialKind: form.credentialKind,
         token: form.token,
         remoteUrl: form.remoteUrl,
@@ -387,7 +420,7 @@ async function saveBinding() {
       },
     })
     toast.add({
-      title: 'LILT Git sync saved',
+      title: 'Git sync saved',
       color: 'success',
     })
     await loadAll()
@@ -503,6 +536,7 @@ const pushReasonItems = [
   { label: 'Unchanged', value: GitSyncPushReason.UNCHANGED },
   { label: 'No published text', value: GitSyncPushReason.NOT_PUBLISHED },
   { label: 'Auto draft key', value: GitSyncPushReason.DRAFT_KEY },
+  { label: 'Cannot be written', value: GitSyncPushReason.UNWRITABLE },
   { label: 'Git is ahead', value: GitSyncPushReason.REMOTE_CHANGED },
   { label: 'Conflict', value: GitSyncPushReason.CONFLICT },
 ]
@@ -530,6 +564,8 @@ const pushReasonLabel: Record<string, string> = {
   [GitSyncPushReason.UNCHANGED]: 'Unchanged since last push',
   [GitSyncPushReason.NOT_PUBLISHED]: 'No published source text',
   [GitSyncPushReason.DRAFT_KEY]: 'Auto draft key',
+  [GitSyncPushReason.UNWRITABLE]:
+    'Cannot be written — clashes with an existing key path in the file',
   [GitSyncPushReason.REMOTE_CHANGED]: 'Git is ahead — check to overwrite',
   [GitSyncPushReason.CONFLICT]: 'Conflict with Git source',
 }
@@ -655,6 +691,7 @@ function pushReasonColor(
       return 'primary'
     case GitSyncPushReason.REMOTE_CHANGED:
     case GitSyncPushReason.CONFLICT:
+    case GitSyncPushReason.UNWRITABLE:
       return 'warning'
     case GitSyncPushReason.UNCHANGED:
     case GitSyncPushReason.NOT_PUBLISHED:
@@ -704,7 +741,7 @@ async function startPull() {
     ) {
       toast.add({
         title: 'Nothing new to pull',
-        description: 'No new or changed batch files on the remote.',
+        description: 'No new or changed files on the remote.',
         color: 'neutral',
       })
     }
@@ -945,8 +982,8 @@ function startEdit(conflict: GitSyncConflictRow) {
 }
 
 /**
- * "Step aside": only the platform's copy can move, because the remote is an
- * append-only batch log that cannot express a removal. The name is typed by
+ * "Step aside": only the platform's copy moves — Git keeps its text under
+ * this key either way. The name is typed by
  * hand — a generated one would only be guessing at what the key means now.
  */
 function startRename(conflict: GitSyncConflictRow) {
@@ -965,11 +1002,11 @@ function confirmRename(conflict: GitSyncConflictRow) {
   <div class="h-full min-w-0 overflow-auto bg-muted">
     <header class="shrink-0 px-6 py-5 bg-default border-b border-default">
       <div class="flex items-center gap-2 min-w-0">
-        <h1 class="text-xl font-semibold tracking-tight">LILT Git sync</h1>
+        <h1 class="text-xl font-semibold tracking-tight">Git sync</h1>
         <ProjectOwnerBadge :project="curProject" :visible="isSteward" />
       </div>
       <p class="mt-1 text-sm text-muted">
-        Sync this project against a LILT product folder in Git. Pull confirmed
+        Sync this project against locale files in a Git repo. Pull confirmed
         Git text onto the platform (published). Push published source strings.
         Resolve conflicts here — not on Translations.
       </p>
@@ -981,7 +1018,7 @@ function confirmRename(conflict: GitSyncConflictRow) {
         color="neutral"
         variant="subtle"
         title="Select a project"
-        description="Pick a project in the workspace bar to configure LILT Git sync."
+        description="Pick a project in the workspace bar to configure Git sync."
       />
 
       <div
@@ -996,8 +1033,8 @@ function confirmRename(conflict: GitSyncConflictRow) {
           v-if="!isSteward"
           color="warning"
           variant="subtle"
-          title="LILT Git sync is not configured"
-          description="Contact a Project Owner to configure LILT Git sync."
+          title="Git sync is not configured"
+          description="Contact a Project Owner to configure Git sync."
         />
 
         <div
@@ -1006,10 +1043,10 @@ function confirmRename(conflict: GitSyncConflictRow) {
         >
           <!-- The page runs full width for the review tables; form fields are
                capped so inputs do not stretch across the whole screen. -->
-          <h2 class="font-semibold">Set up LILT Git sync</h2>
+          <h2 class="font-semibold">Set up Git sync</h2>
           <p class="max-w-3xl text-sm text-muted">
-            Fill the remote URL and token, then load products from that
-            repository. Git HTTPS usernames are filled by the server
+            Fill the remote URL and token, then say where the locale files
+            live in that repository. Git HTTPS usernames are filled by the server
             (<code>x-token-auth</code> for a repository Access Token,
             <code>x-bitbucket-api-token-auth</code> for a personal API token).
             Create a repo token under repository Settings → Security → Access
@@ -1050,33 +1087,17 @@ function confirmRename(conflict: GitSyncConflictRow) {
             <UFormField label="Branch" name="branch">
               <UInput v-model="form.branch" class="w-full" />
             </UFormField>
-            <UFormField label="Product" name="product">
-              <div class="flex flex-col gap-2 sm:flex-row sm:items-center">
-                <USelect
-                  v-model="form.product"
-                  class="w-full"
-                  :disabled="!productItems.length"
-                  placeholder="Load products from the remote"
-                  :items="productItems"
-                />
-                <UButton
-                  class="shrink-0"
-                  color="neutral"
-                  :loading="discovering"
-                  :disabled="!canDiscover"
-                  @click="loadProducts"
-                >
-                  Load products
-                </UButton>
-              </div>
-              <p
-                v-if="isHttpsRemoteUrl(form.remoteUrl) && !canDiscover"
-                class="text-xs text-muted"
-              >
-                Paste a token to enable Load products. Listing products clones
-                the remote.
-              </p>
-            </UFormField>
+            <GitSyncLayoutFields
+              v-model:adapter="form.adapter"
+              v-model:product="form.product"
+              v-model:pattern="form.pattern"
+              v-model:format="form.format"
+              :product-items="productItems"
+              :discovering="discovering"
+              :can-discover="canDiscover"
+              :show-discover-hint="isHttpsRemoteUrl(form.remoteUrl) && !canDiscover"
+              @load-products="loadProducts"
+            />
             <div>
               <UButton
                 :loading="saving"
@@ -1097,7 +1118,7 @@ function confirmRename(conflict: GitSyncConflictRow) {
           <div class="flex flex-wrap items-center justify-between gap-3">
             <div class="min-w-0">
               <h2 class="font-semibold">
-                {{ status.binding?.product }}
+                {{ bindingTitle }}
               </h2>
               <p class="mt-1 text-sm text-muted">
                 Last pull {{ formatTime(status.binding?.lastPulledAt) }} ·
@@ -1184,26 +1205,16 @@ function confirmRename(conflict: GitSyncConflictRow) {
               <UFormField label="Branch" name="branch">
                 <UInput v-model="form.branch" class="w-full" />
               </UFormField>
-              <UFormField label="Product" name="product">
-                <div class="flex flex-col gap-2 sm:flex-row sm:items-center">
-                  <USelect
-                    v-model="form.product"
-                    class="w-full"
-                    :disabled="!productItems.length"
-                    placeholder="Load products from the remote"
-                    :items="productItems"
-                  />
-                  <UButton
-                    class="shrink-0"
-                    color="neutral"
-                    :loading="discovering"
-                    :disabled="!canDiscover"
-                    @click="loadProducts"
-                  >
-                    Load products
-                  </UButton>
-                </div>
-              </UFormField>
+              <GitSyncLayoutFields
+                v-model:adapter="form.adapter"
+                v-model:product="form.product"
+                v-model:pattern="form.pattern"
+                v-model:format="form.format"
+                :product-items="productItems"
+                :discovering="discovering"
+                :can-discover="canDiscover"
+                @load-products="loadProducts"
+              />
               <UButton
                 class="w-full justify-center"
                 :loading="saving"
@@ -1261,7 +1272,7 @@ function confirmRename(conflict: GitSyncConflictRow) {
           </div>
 
           <div class="flex flex-col gap-2">
-            <h3 class="text-sm font-medium">Batch files</h3>
+            <h3 class="text-sm font-medium">Files</h3>
             <p v-if="!pullVisibleFiles.length" class="text-sm text-muted">
               No files to show.
             </p>

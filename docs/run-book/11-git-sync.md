@@ -1,29 +1,29 @@
-# 11. Git 同步（LILT Git）
+# 11. Git 同步
 
 ## 这一章能做什么
 
-- 把项目和公司 Git 仓里的一个 product 目录绑起来
+- 把项目和 Git 仓里存放语言文件的地方绑起来：LILT 的 product 目录，或者应用仓里的一个 locale 目录
 - **Pull**：把 Git 上领先的文案落到平台上
-- **Push**：把平台的已发布源语言推成远端的一个新批次文件
+- **Push**：把平台的已发布源语言推到远端（LILT 是一个新批次文件，Locale files 是原地改源语言文件）
 - 处理冲突卡片
 - 查同步历史
 
 ## 这一页在哪
 
-左侧栏的 **LILT Git**。页头写着 **LILT Git sync** 和这句话：
+左侧栏的 **Git sync**。页头写着 **Git sync** 和这句话：
 
-> Sync this project against a LILT product folder in Git. Pull confirmed Git text onto the platform (published). Push published source strings. Resolve conflicts here — not on Translations.
+> Sync this project against locale files in a Git repo. Pull confirmed Git text onto the platform (published). Push published source strings. Resolve conflicts here — not on Translations.
 
 **同步的事全在这一页做**，词条表上不出现任何 Git 操作。
 
 还没绑定时：
 
-- 你**不是**这个项目的 Project Owner：一条警告，`LILT Git sync is not configured` / `Contact a Project Owner to configure LILT Git sync.`
+- 你**不是**这个项目的 Project Owner：一条警告，`Git sync is not configured` / `Contact a Project Owner to configure Git sync.`
 - 你是 Project Owner：直接是这个项目的绑定表单。
 
 ## 绑定（Project Owner）
 
-表单五项：
+表单前四项是连接，后面是**布局（Layout）**，决定仓里的文件怎么读写：
 
 | 字段                 | 说明                                                                                                                                                                    |
 | -------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -31,7 +31,11 @@
 | **Token**      | 粘进去就行，占位文字写着`Paste token (never shown again)`——**存下之后再打开这一页是看不到的**，所以要换只能在 **Rotate token** 里粘一个新的             |
 | **Remote URL** | 必须是**HTTPS 的 clone 地址**（以 `.git` 结尾）。帮助文字：`Git clone HTTPS URL ending in .git. A Bitbucket /src/… browser page is converted automatically.` |
 | **Branch**     | 默认`main`                                                                                                                                                            |
-| **Product**    | 这个仓里哪个 product 目录。先点**Load products** 才会列出候选                                                                                                     |
+| **Layout**     | **LILT product folder**（只增不改的批次文件）或 **Locale files**（每个语言一个 JSON，原地更新）                                                                    |
+| **Product**    | 仅 LILT：这个仓里哪个 product 目录。先点**Load products** 才会列出候选                                                                                                |
+| **Directory**  | 仅 Locale files：放语言文件的目录，相对仓根，比如 `src/locales`。手填，没有 Load 按钮                                                                                   |
+| **File pattern** | 仅 Locale files：文件名模板，必须含一次 `{locale}`、以 `.json` 结尾。默认 `{locale}.json`，也可以是 `{locale}/messages.json`                                         |
+| **Format**     | 仅 Locale files：**Nested JSON**（`{ "home": { "title": … } }`）或 **Flat JSON**（`{ "home.title": … }`）。只影响文件里还没有的 key 写成什么样                         |
 
 **粘浏览器地址不用自己改**：在 Bitbucket / GitHub 上打开目录时地址栏里那种 `/src/main/…` 或 `/tree/main/…` 的链接，离开输入框时会自动变成 `.git` 结尾的 clone 地址，顺带把里面的分支填进 **Branch**。
 
@@ -41,9 +45,13 @@
 
 绑定好之后，卡片上显示 product 名字、`Last pull <时间> · Last push <时间>`（从没同步过写 `Never`），右上角是 **Pull** / **Push** / **History** / **Settings**。同一张卡片里 Settings 展开后就是这套字段外加一个 **Rotate token (leave blank to keep)**，改完点 **Save settings**。
 
-**一个项目只能绑一个 product**，换 product 就是在 Settings 里改。
+**一个项目只能绑一处**，换地方就是在 Settings 里改。切换 Layout 会清空 Product / Directory，要重新选或填。
+
+绑好之后卡片标题：LILT 显示 product 名字；Locale files 显示 `目录/文件模板`，比如 `src/locales/{locale}.json`。
 
 ## 远端长什么样
+
+### LILT product folder
 
 ```
 <product>/source/<YYYYMMDD>-<批次 id>_<源语言>.json
@@ -54,6 +62,19 @@
 
 远端 locale 用的是带地区的写法（`en-US`、`de-DE`），平台的代码是短的（`en`、`de`），中间有一张默认对照表，认不出来的时候，Pull 的文件列表里会写成 `unmapped (de-DE)`，这种文件不参与这次 Pull。
 
+### Locale files
+
+```
+<目录>/<文件模板，{locale} 换成语言>      比如 src/locales/en.json、src/locales/zh-CN.json
+```
+
+- **按项目的语言去找文件**：项目语言 `zh_cn` 对应文件名 `zh-CN`，`en` 就是 `en`（下划线换成连字符、地区大写）。目录里多出来的、不对应任何项目语言的文件**不读**。
+- 文件可以是嵌套的，也可以是扁平的，**混着写也行**：嵌套对象用 `.` 拼成 key（`home.title`），和 Translations 导入同一个规则。允许注释和尾逗号。
+- **Push 只改源语言那一个文件，原地改**：已有的 key 在原位置改值；新 key 追加到所属对象的末尾。**key 顺序、缩进、注释、换行符都保持不动**，所以 diff 只有改到的那几行。文件不存在就新建（连同模板里的子目录）。
+- 译文文件由下游（翻译平台或开发）改，平台只读。
+- 这种布局**不记录译文是翻哪一版源文的**，所以 Pull 里不会出现 **Older source** 徽章。
+- 源语言文件不是合法 JSON 时，Pull / Push 会直接报错并写明是哪个文件，不会覆盖它；译文文件坏了只是跳过那个文件。
+
 ## Pull：先预览，再落地
 
 点 **Pull** 不会直接改任何东西，先出一块 **Review pull** 面板：
@@ -61,7 +82,7 @@
 - 标题下面写着这次的范围：`3 of 5 file(s) · 8 of 12 change(s) selected.`
 - `Remote <commit 前 8 位> · expires <时间>`——预览有有效期，过期要重新拉。
 
-**Batch files**：这次涉及的远端文件，一条一个勾选框，后面写着来源和对应的平台语言（`New file` / `Content changed` / `Already pulled`）。**不勾的文件不会落地，下次 Pull 还会是候选**，不会被悄悄标记成「看过了」。
+**Files**：这次涉及的远端文件，一条一个勾选框，后面写着来源和对应的平台语言（`New file` / `Content changed` / `Already pulled`）。**不勾的文件不会落地，下次 Pull 还会是候选**，不会被悄悄标记成「看过了」。
 
 **Changes**：逐条 key 的变更，列是 **Key** / **Locale** / **Reason**（裁决结果）/ **Text**（Git 那边的文案）。可以按 key 或文案搜，也可以按裁决筛。展开一行能看到 **Git** 和 **Platform draft** 两份文案对照。
 
@@ -84,7 +105,7 @@
 
 **Older source（黄色徽章）**
 
-这条译文翻的是一句**已经被改过的旧源文**。典型场景：
+（只有 LILT 布局会出现。）这条译文翻的是一句**已经被改过的旧源文**。典型场景：
 1. 源文改过以后又 Push 了一批；
 2. LILT 先交回了上一批的译文；
 3. 新那一批还在翻。
@@ -116,6 +137,7 @@
 | **Unchanged since last push**          | 和远端一样，没什么可推                                   | 否，默认不显示 |
 | **No published source text**           | 这条 key 的源语言还没发布                                | 否，默认不显示 |
 | **Auto draft key**                     | `__draft_` 占位 key，永远不推                          | 否，默认不显示 |
+| **Cannot be written — clashes with an existing key path in the file** | 仅 Locale files：这条**新** key 在文件里放不下。比如文件里 `home` 是一句文案，新 key `home.sub` 就没地方写；或者 `home` 和 `home.sub` 两个新 key 互相冲突（两条都不写）。改 key 名或改 Format | 否，不能勾 |
 | **Git is ahead — check to overwrite** | Git 那边改了而平台没动。**勾上就是用平台覆盖 Git** | 否，但可以勾   |
 | **Conflict with Git source**           | 两边都改了，不能勾，去冲突卡片                           | 不能勾         |
 
@@ -123,9 +145,9 @@
 
 展开一行能看到 **Published source**（平台要推的）、**Git source**（远端现在的）和 **Last pushed**（上次推的是什么）。
 
-点 **Commit push** 之后，远端多出一个增量批次文件，提示是：
+点 **Commit push** 之后，LILT 远端多出一个增量批次文件；Locale files 则是源语言文件被原地更新。提示是：
 
-- 成功：`Push finished` / `5 keys → 20260923-6aa26c2e542cd9280fae24da_en-US.json`
+- 成功：`Push finished` / `5 keys → 20260923-6aa26c2e542cd9280fae24da_en-US.json`（Locale files 是 `5 keys → en.json`）
 - 有跳过的：后面跟一句 `· 2 skipped`；有冲突的跟 `· 1 conflict(s)`（标题变黄）
 - 没有可推的：`Nothing to push`
 - 远端其实已经有一模一样的批次了：`Already on Git — records updated` / `3 keys had already landed; platform records are now in sync`
@@ -170,7 +192,7 @@
 
 ## 历史
 
-**History** 打开 **LILT Git sync history**：
+**History** 打开 **Git sync history**：
 
 > What Pull, Push and conflict resolution actually did.
 > Previews are not recorded — only runs that landed something.
@@ -181,7 +203,7 @@
 
 | 你看到                                                | 原因                                                                                                    |
 | ----------------------------------------------------- | ------------------------------------------------------------------------------------------------------- |
-| `LILT Git sync is not configured`                   | 这个项目还没绑定。找 Project Owner                                                                      |
+| `Git sync is not configured`                        | 这个项目还没绑定。找 Project Owner                                                                      |
 | **Load products** 是灰的                        | 还没粘 token。列 product 会 clone 一次远端，所以必须先有凭证                                            |
 | 提示`Remote URL must be an https Git remote`        | 地址不是 HTTPS，或者解析不出仓名。Bitbucket / GitHub 的浏览地址会被自动转，转不出来就说明这条链接不是仓 |
 | **Push** 按钮按不动                             | 还有没解决的冲突卡片                                                                                    |
@@ -196,3 +218,9 @@
 | 词条表里某条 key 不出现在 Push 预览里                 | 它的 Git 同步开关关着（第 9 章），或者它是个`__draft_` 占位 key                                       |
 | Pull 下来的文案马上就出现在导出里了                   | 正常，Pull 的**Apply Git text** 写的是草稿 + 已发布                                               |
 | 远端`translated/` 里的语言一直不更新                | 那一侧由下游（LILT）写，平台只推`source/`                                                             |
+| Locale files：Push 预览里有 **Cannot be written**     | 新 key 和文件里已有的结构撞了（见上面 Push 原因表）。改 key 名，或者换 Flat JSON                         |
+| Locale files：Pull 里少了某个语言                     | 文件名对不上。确认文件叫 `zh-CN.json` 这种写法，并且项目里有这个语言                                    |
+| Locale files：`Directory must be a relative path…`  | 目录要写相对仓根的路径，不能以 `/` 开头、不能有 `..`                                                     |
+| Locale files：没有 **Load products** 按钮           | 正常。目录手填，任何文件夹都可能放语言文件，没法替你列                                                  |
+
+> 自部署时想接入其他 TMS 的仓库布局：见源码 `server/libs/git-sync/README.md`。

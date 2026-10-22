@@ -11,11 +11,10 @@ import {
   listRemoteFiles,
   parseLiltFilename,
   readBatchSources,
-  parseSeenFiles,
   readMergedSourceLocale,
-  seenFileMap,
   validateFlatJson,
-} from '#server/libs/git-sync/lilt-swbu'
+} from '#server/libs/git-sync/layouts/lilt-swbu/batches'
+import { parseSeenFiles, seenFileMap } from '#server/libs/git-sync/engine/seen-files'
 
 describe('parseSeenFiles', () => {
   it('reads the current { path, sha } shape', () => {

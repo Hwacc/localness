@@ -6,7 +6,8 @@ import {
   normalizeGitHttpsRemote,
   zGitSyncDiscoverProducts,
 } from '#shared/utils/schemas'
-import { discoverLiltProducts } from '#server/libs/git-sync/sync'
+import { GitSyncAdapter } from '#shared/constants'
+import { discoverProducts } from '#server/libs/git-sync/sync'
 
 /**
  * @route POST /api/projects/:id/git-sync/products
@@ -39,7 +40,8 @@ export default defineEventHandler(async (event) => {
       statusMessage: 'Remote URL must be an https Git remote',
     })
   }
-  return discoverLiltProducts({
+  return discoverProducts({
+    adapter: body.adapter ?? GitSyncAdapter.LILT_SWBU,
     remoteUrl: normalized.remoteUrl,
     branch: body.branch?.trim() || normalized.branch || existing?.branch || 'main',
     credentialKind: body.credentialKind,

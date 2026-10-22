@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { decideThreeWay } from '#server/libs/git-sync/three-way'
+import { decideThreeWay } from '#server/libs/git-sync/engine/three-way'
 
 describe('decideThreeWay', () => {
   it('aligns when both sides already agree', () => {

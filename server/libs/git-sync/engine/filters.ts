@@ -137,6 +137,7 @@ export function emptyPushCounts(): Record<GitSyncPushReason, number> {
     [GitSyncPushReason.DRAFT_KEY]: 0,
     [GitSyncPushReason.REMOTE_CHANGED]: 0,
     [GitSyncPushReason.CONFLICT]: 0,
+    [GitSyncPushReason.UNWRITABLE]: 0,
   }
 }
 

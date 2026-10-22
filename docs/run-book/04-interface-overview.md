@@ -16,7 +16,7 @@
 | **Editor**       | 截图、画框、填译文                 | 日常标注                   |
 | **Translations** | 当前项目的全部词条                 | 改草稿、发布、批量操作     |
 | **Consistency**  | 项目里的重复文案报告（Plus 功能，第 16 章） | 查同一句话被写成几个 key |
-| **LILT Git**     | 和公司 Git 仓对账                  | Pull、Push、处理冲突       |
+| **Git sync**     | 和 Git 仓里的语言文件对账          | Pull、Push、处理冲突       |
 | **Agent**        | 未开放                             | —                         |
 | **API**          | 对外只读接口和 token               | 给 CI、MCP 或 agent 取文案 |
 | **Skills**       | 当前项目下给 agent 用的 skill 文件 | 上传、维护 skill           |

@@ -3,6 +3,7 @@ import {
   GitCredentialKind,
   GitSyncAdapter,
   GitSyncConflictStatus,
+  GitSyncFileFormat,
   NotificationAction,
   OCR_LANGUAGES,
   TeamRole,
@@ -529,14 +530,21 @@ export function normalizeGitHttpsRemote(value: string): {
 
 export const zGitSyncBindingPut = z.object({
   enabled: z.boolean().optional(),
-  adapter: z.enum([GitSyncAdapter.LILT_SWBU]).optional(),
+  adapter: z.enum(GitSyncAdapter).optional(),
   remoteUrl: z
     .string()
     .trim()
     .min(1)
     .refine(isHttpsRemoteUrl, 'Remote URL must be an https Git remote'),
   branch: z.string().min(1).optional(),
-  product: z.string().min(1),
+  product: z.string().trim().min(1),
+  /** `locale-files` only; ignored by `lilt-swbu`. */
+  options: z
+    .object({
+      pattern: z.string().trim().min(1).max(200).optional(),
+      format: z.enum(GitSyncFileFormat).optional(),
+    })
+    .optional(),
   credentialKind: z.enum([
     GitCredentialKind.REPO_ACCESS_TOKEN,
     GitCredentialKind.API_TOKEN,
@@ -546,6 +554,7 @@ export const zGitSyncBindingPut = z.object({
 export type ZGitSyncBindingPut = z.infer<typeof zGitSyncBindingPut>
 
 export const zGitSyncDiscoverProducts = z.object({
+  adapter: z.enum(GitSyncAdapter).optional(),
   remoteUrl: z
     .string()
     .trim()

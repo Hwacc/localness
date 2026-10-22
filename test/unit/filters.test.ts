@@ -7,7 +7,7 @@ import {
   isPullProposed,
   isPushEligible,
   isPushSelectable,
-} from '#server/libs/git-sync/filters'
+} from '#server/libs/git-sync/engine/filters'
 import { fpTranslation } from '#shared/utils'
 import {
   GitSyncPullReason,
