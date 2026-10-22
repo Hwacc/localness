@@ -7,7 +7,7 @@ import {
   normalizeGitHttpsRemote,
   zGitSyncBindingPut,
 } from '#shared/utils/schemas'
-import { isLiltProduct } from '#server/libs/git-sync/lilt-swbu'
+import { gitSyncLayout } from '#server/libs/git-sync/layouts'
 import { publicGitSyncBinding } from '#server/libs/git-sync/sync'
 
 /**
@@ -21,11 +21,13 @@ export default defineEventHandler(async (event) => {
   const projectId = numericID(id)
   await requireProjectOwner(event, projectId)
   const body = await readZodBody(event, zGitSyncBindingPut.parse)
-  if (!isLiltProduct(body.product)) {
-    throw createError({
-      statusCode: 400,
-      statusMessage: 'Invalid product folder name',
-    })
+  const adapter = body.adapter ?? GitSyncAdapter.LILT_SWBU
+  const scopeError = gitSyncLayout(adapter).scopeError(
+    body.product,
+    body.options
+  )
+  if (scopeError) {
+    throw createError({ statusCode: 400, statusMessage: scopeError })
   }
   const existing = await prisma.gitSyncBinding.findUnique({
     where: { projectId },
@@ -53,19 +55,21 @@ export default defineEventHandler(async (event) => {
       create: {
         projectId,
         enabled: body.enabled ?? true,
-        adapter: body.adapter ?? GitSyncAdapter.LILT_SWBU,
+        adapter,
         remoteUrl,
         branch,
         product: body.product,
+        ...(body.options ? { options: body.options } : {}),
         credentialKind: body.credentialKind,
         token,
       },
       update: {
         enabled: body.enabled ?? true,
-        adapter: body.adapter ?? GitSyncAdapter.LILT_SWBU,
+        adapter,
         remoteUrl,
         branch,
         product: body.product,
+        ...(body.options ? { options: body.options } : {}),
         credentialKind: body.credentialKind,
         ...(body.token && body.token.trim() ? { token: body.token.trim() } : {}),
       },
@@ -79,7 +83,7 @@ export default defineEventHandler(async (event) => {
     if (code === 'P2002') {
       throw createError({
         statusCode: 409,
-        statusMessage: 'This product is already bound to another project',
+        statusMessage: 'This remote folder is already bound to another project',
       })
     }
     throw error

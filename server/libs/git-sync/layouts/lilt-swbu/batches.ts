@@ -1,15 +1,14 @@
 import { createError } from 'h3'
-import { createHash, randomBytes } from 'node:crypto'
+import { randomBytes } from 'node:crypto'
 import { readdir, readFile, writeFile, mkdir, stat } from 'node:fs/promises'
 import { relative, sep, join } from 'node:path'
-import type { GitSyncPullReason } from '#shared/constants'
-import { classifyFile } from './filters'
-import { remoteToLocale } from './credentials'
+import { classifyFile } from '../../engine/filters'
+import { blobSha } from '../../engine/seen-files'
+import type { RemoteFileInfo, RemoteLocaleMap } from '../types'
+import { remoteToLocale } from './locale-map'
 
 export const LILT_FILENAME =
   /^(\d{8})-(.+)_(.+)\.(json|txt)$/i
-
-export type RemoteLocaleMap = Map<string, Map<string, string>>
 
 /** Product folder names only — actual folders come from the remote. */
 export function isLiltProduct(product: string): boolean {
@@ -50,49 +49,6 @@ export async function listLiltProducts(
 
 export function toRepoRelPath(repoRoot: string, absPath: string): string {
   return relative(repoRoot, absPath).split(sep).join('/')
-}
-
-export type SeenFile = { path: string; sha: string }
-
-/**
- * Accepts both the legacy `string[]` shape and the current
- * `{ path, sha }[]` shape. Legacy rows get an empty sha, which reads as
- * "seen, content unknown" — see `classifyFile`.
- */
-export function parseSeenFiles(raw: unknown): SeenFile[] {
-  if (!Array.isArray(raw)) return []
-  const byPath = new Map<string, SeenFile>()
-  for (const item of raw) {
-    if (typeof item === 'string') {
-      if (item) byPath.set(item, { path: item, sha: '' })
-      continue
-    }
-    if (!item || typeof item !== 'object') continue
-    const path = (item as { path?: unknown }).path
-    const sha = (item as { sha?: unknown }).sha
-    if (typeof path !== 'string' || !path) continue
-    byPath.set(path, {
-      path,
-      sha: typeof sha === 'string' ? sha : '',
-    })
-  }
-  return [...byPath.values()]
-}
-
-export function seenFileMap(raw: unknown): Map<string, string> {
-  return new Map(parseSeenFiles(raw).map((f) => [f.path, f.sha]))
-}
-
-/**
- * Git's blob id for the file's exact bytes. Same value git itself stores,
- * so a rewritten file gets a different sha even if the path is unchanged.
- */
-export async function blobSha(path: string): Promise<string> {
-  const data = await readFile(path)
-  const header = Buffer.from(`blob ${data.length}\0`, 'utf8')
-  return createHash('sha1')
-    .update(Buffer.concat([header, data]))
-    .digest('hex')
 }
 
 export function parseLiltFilename(name: string): {
@@ -261,15 +217,6 @@ function fileSortKey(path: string): FileHit | null {
     path,
     sortKey: `${liltBatchSortKey(parsed.date, parsed.batchId)}-${path}`,
   }
-}
-
-export type RemoteFileInfo = {
-  relPath: string
-  sha: string
-  locale: string | null
-  remoteLocale: string
-  date: string
-  reason: GitSyncPullReason
 }
 
 /**

@@ -87,9 +87,24 @@ export enum ApiTokenScope {
  */
 export const LICENSE_GRACE_DAYS = 30
 
+/**
+ * How a Git remote lays out its locale files. `lilt-swbu`: append-only batch
+ * files under `<product>/source|translated/`. `locale-files`: one file per
+ * locale, rewritten in place (the shape Crowdin / Lokalise / Phrase use).
+ */
 export enum GitSyncAdapter {
   LILT_SWBU = 'lilt-swbu',
+  LOCALE_FILES = 'locale-files',
 }
+
+/** Key layout inside a `locale-files` JSON file. Reading accepts both. */
+export enum GitSyncFileFormat {
+  FLAT_JSON = 'flat-json',
+  NESTED_JSON = 'nested-json',
+}
+
+export const GIT_SYNC_LOCALE_PLACEHOLDER = '{locale}'
+export const GIT_SYNC_DEFAULT_PATTERN = `${GIT_SYNC_LOCALE_PLACEHOLDER}.json`
 
 export enum GitCredentialKind {
   REPO_ACCESS_TOKEN = 'repo_access_token',
@@ -151,6 +166,11 @@ export enum GitSyncPushReason {
   REMOTE_CHANGED = 'remote-changed',
   /** Platform and remote source both moved, and they disagree. */
   CONFLICT = 'conflict',
+  /**
+   * The file's layout cannot hold this key — in nested JSON, `a` and `a.b`
+   * cannot both be strings.
+   */
+  UNWRITABLE = 'unwritable',
 }
 
 /** A preview snapshot is only trusted for this long. */

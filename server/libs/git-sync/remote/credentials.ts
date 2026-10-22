@@ -2,7 +2,6 @@ import { createError } from 'h3'
 import {
   GitCredentialKind,
   GIT_HTTPS_SENTINEL,
-  LILT_DEFAULT_LOCALE_MAP,
 } from '#shared/constants'
 
 function parseCredentialKind(kind: string): GitCredentialKind {
@@ -42,35 +41,4 @@ export function authenticatedRemoteUrl(
   url.username = gitHttpsSentinel(kind)
   url.password = token
   return url.toString()
-}
-
-const inboundAliases: Record<string, string> = {
-  'zh-tw': 'zh_tw',
-  'zt-TW': 'zh_tw',
-  'zt-tw': 'zh_tw',
-}
-
-export function localeToRemote(
-  local: string,
-  override?: Record<string, string> | null
-): string {
-  if (override?.[local]) return override[local]
-  return LILT_DEFAULT_LOCALE_MAP[local] ?? local
-}
-
-export function remoteToLocale(
-  remote: string,
-  override?: Record<string, string> | null
-): string | null {
-  if (override) {
-    for (const [local, mapped] of Object.entries(override)) {
-      if (mapped.toLowerCase() === remote.toLowerCase()) return local
-    }
-  }
-  const aliased = inboundAliases[remote] ?? inboundAliases[remote.toLowerCase()]
-  if (aliased) return aliased
-  const hit = Object.entries(LILT_DEFAULT_LOCALE_MAP).find(
-    ([, bcp]) => bcp.toLowerCase() === remote.toLowerCase()
-  )
-  return hit?.[0] ?? null
 }

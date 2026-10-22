@@ -20,7 +20,7 @@ Localness 的操作手册，全书按章分文件，一章一文件。
 | [8. 编辑器：从截图到词条](08-editor.md) | 上传截图、三种画布模式、OCR、Tag Info、AI 命名 key、锁定、删除 |
 | [9. 词条表（Translations）](09-translations.md) | 建词条、改草稿、发布与撤回、引用预览、批量操作、跨项目 Copy / Move |
 | [10. 导出](10-export.md) | XLSX 与 JSON、只出已发布、未发布怎么算跳过 |
-| [11. Git 同步（LILT Git）](11-git-sync.md) | 绑定 product、Pull / Push 的预览与提交、冲突卡片、同步历史 |
+| [11. Git 同步](11-git-sync.md) | 绑定 LILT product 或 locale 目录、Pull / Push 的预览与提交、冲突卡片、同步历史 |
 | [12. 对外 API 与 MCP](12-api-mcp.md) | token 的创建与吊销、三个端点、按 release 过滤、MCP 只读工具 |
 | [13. Skills](13-skills.md) | 上传、编辑、删除给 agent 用的 skill 包 |
 | [14. 权限对照](14-permissions.md) | Team Member / Project Owner / Team Owner 分别能做什么，一张表 |

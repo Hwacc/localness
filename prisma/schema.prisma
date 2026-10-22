@@ -405,6 +405,9 @@ model GitSyncBinding {
   credentialKind String    @map("credential_kind")
   token          String    @default("")
   localeMap      Json?     @map("locale_map")
+  /// Adapter-specific settings. `locale-files`: `{ pattern, format }`.
+  /// Unused by `lilt-swbu`.
+  options        Json?
   seenFiles      Json?     @map("seen_files")
   lastPulledAt   DateTime? @map("last_pulled_at")
   lastPushedAt   DateTime? @map("last_pushed_at")

@@ -50,6 +50,7 @@ const pushReasonLabel: Record<string, string> = {
   [GitSyncPushReason.UNCHANGED]: 'Unchanged',
   [GitSyncPushReason.NOT_PUBLISHED]: 'No published text',
   [GitSyncPushReason.DRAFT_KEY]: 'Auto draft key',
+  [GitSyncPushReason.UNWRITABLE]: 'Cannot be written',
   [GitSyncPushReason.REMOTE_CHANGED]: 'Git is ahead',
   [GitSyncPushReason.CONFLICT]: 'Conflict',
 }
@@ -162,7 +163,7 @@ onMounted(() => {
 
 <template>
   <UModal
-    title="LILT Git sync history"
+    title="Git sync history"
     description="What Pull, Push and conflict resolution actually did."
     class="max-w-4xl"
     @update:open="(isOpen) => !isOpen && emit('close', false)"
@@ -244,10 +245,10 @@ onMounted(() => {
               </template>
               <template v-else-if="isPush(row)">
                 <p v-if="isPush(row)?.filename">
-                  Batch {{ isPush(row)?.filename }}
+                  File {{ isPush(row)?.filename }}
                 </p>
                 <p v-if="isPush(row)?.reconciled">
-                  Reconciled a batch already on the remote.
+                  Reconciled a push already on the remote.
                 </p>
                 <p v-if="skipEntries(isPush(row)!).length">
                   Skipped:

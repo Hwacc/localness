@@ -102,7 +102,7 @@ vi.mock('#server/libs/prisma', () => {
   }
 })
 
-vi.mock('#server/libs/git-sync/git-remote', () => ({
+vi.mock('#server/libs/git-sync/remote/git-remote', () => ({
   remoteHeadSha: async () => remote.headSha,
   withClonedRepo: async () => {
     throw new Error('apply must not clone when the head is unchanged')
@@ -156,6 +156,7 @@ beforeEach(() => {
     id: 1,
     token: 'tok',
     enabled: true,
+    adapter: 'lilt-swbu',
     product: 'cortex',
     remoteUrl: 'https://example.test/w/r.git',
     branch: 'main',

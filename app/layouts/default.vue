@@ -47,7 +47,7 @@ const navItems = [
   },
   {
     icon: 'i-lucide:git-branch',
-    label: 'LILT Git',
+    label: 'Git sync',
     name: 'git',
     to: '/git',
   },
