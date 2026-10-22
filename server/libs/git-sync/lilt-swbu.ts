@@ -357,6 +357,39 @@ function isProductSourcePath(relPath: string, product: string): boolean {
   return n.startsWith(`${product}/source/`)
 }
 
+/** The batch id in a LILT filename — what pairs `translated/` with `source/`. */
+export function liltBatchIdOf(relPath: string): string | null {
+  return parseLiltFilename(relPath.split(/[/\\]/).pop() ?? '')?.batchId ?? null
+}
+
+/**
+ * Source-locale text per batch id, from `product/source/` only. LILT copies a
+ * source batch's prefix onto its translated files, so this is the sentence a
+ * translation was written against — which may no longer be the key's source
+ * when a later batch changed it and is still out for translation. Pairs on
+ * the batch id alone: a translated file re-dated downstream still matches.
+ */
+export async function readBatchSources(
+  repoRoot: string,
+  files: RemoteFileInfo[],
+  product: string,
+  sourceLocale: string
+): Promise<Map<string, Map<string, string>>> {
+  const out = new Map<string, Map<string, string>>()
+  for (const file of files) {
+    if (file.locale !== sourceLocale || !isProductSourcePath(file.relPath, product)) continue
+    const batchId = liltBatchIdOf(file.relPath)
+    if (!batchId) continue
+    const { maps } = await readSelectedLocaleMaps(repoRoot, [file])
+    const texts = maps.get(sourceLocale)
+    if (!texts) continue
+    const batch = out.get(batchId) ?? new Map<string, string>()
+    for (const [key, text] of texts) batch.set(key, text)
+    out.set(batchId, batch)
+  }
+  return out
+}
+
 /**
  * Merged source-locale dictionary from `product/source/` only (not
  * `translated/`). Later filename wins, same order as Pull.

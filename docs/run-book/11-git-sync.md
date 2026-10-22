@@ -82,6 +82,17 @@
 - **Align base only** 只记基线，不改文案。
 - 落地完提示 `Published 5, kept 2, conflicts 0, files 3`。
 
+**Older source（黄色徽章）**
+
+这条译文翻的是一句**已经被改过的旧源文**。典型场景：
+1. 源文改过以后又 Push 了一批；
+2. LILT 先交回了上一批的译文；
+3. 新那一批还在翻。
+
+这种行**默认不勾**，勾文件、全选也不会带上它。展开能看到「Translated from (older source)」，也就是它当初翻的那句源文。
+
+真要先用它，可以手动勾上。落地后，这条译文在 Translations 里显示为过期（Outdated），等新批次的译文回来后，下次 Pull 会正常覆盖。
+
 **有没解决的冲突时 Apply pull 是按不动的**，先把卡片处理掉。
 
 **远端在你预览之后又变了**（别人推了一版），点 Apply 会告诉你 `Remote changed since preview — run a new preview`，这次预览作废，重新点一次 Pull。

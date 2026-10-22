@@ -20,6 +20,7 @@ import {
   classifyPull,
   classifyPush,
   emptyPushCounts,
+  flagStaleSources,
   isPushEligible,
 } from './filters'
 import { localeToRemote } from './credentials'
@@ -33,6 +34,8 @@ import {
   isLiltProduct,
   listLiltProducts,
   listRemoteFiles,
+  liltBatchIdOf,
+  readBatchSources,
   readMergedSourceLocale,
   readSelectedLocaleMaps,
   seenFileMap,
@@ -97,6 +100,11 @@ async function upsertDraft(
     commitSha: string
     /** The project's source language, resolved by the caller before its transaction. */
     sourceLocale: string
+    /**
+     * Fingerprint of the source this translation was written against, when
+     * known. Defaults to the key's current one.
+     */
+    sourceFingerprint?: string
   },
   db: PrismaLike = prisma
 ) {
@@ -117,6 +125,11 @@ async function upsertDraft(
           }
         : {},
   })
+  // A key with no source yet has nothing to be outdated against.
+  const writtenAgainst =
+    params.sourceFingerprint && record.fingerprint
+      ? params.sourceFingerprint
+      : record.fingerprint
   await db.localeValue.upsert({
     where: {
       i18nKeyId_locale: { i18nKeyId: record.id, locale: params.locale },
@@ -128,14 +141,14 @@ async function upsertDraft(
       publishedText: params.text,
       ...(params.locale === params.sourceLocale
         ? {}
-        : { sourceFingerprint: record.fingerprint }),
+        : { sourceFingerprint: writtenAgainst }),
     },
     update: {
       draftText: params.text,
       publishedText: params.text,
       ...(params.locale === params.sourceLocale
         ? {}
-        : { sourceFingerprint: record.fingerprint }),
+        : { sourceFingerprint: writtenAgainst }),
     },
   })
 }
@@ -259,6 +272,15 @@ export type PullCandidate = {
   theirsText: string
   publishedText: string | null
   decision: ThreeWayDecision
+  /**
+   * The source text of the batch this translation came from (paired by batch
+   * id). Null for the source locale, or when no matching `source/` batch has
+   * the key. Apply records its fingerprint as the translation's
+   * `sourceFingerprint`, so a translation of an older source shows outdated.
+   */
+  writtenAgainst: string | null
+  /** `writtenAgainst` is not the key's source any more: a newer batch is still out. */
+  staleSource: boolean
 }
 
 export type PullPreview = {
@@ -301,7 +323,8 @@ export async function previewPull(
       const allCandidates = await buildPullCandidates(
         projectId,
         repoDir,
-        files
+        files,
+        binding.product
       )
       const candidates = allCandidates.filter(
         (c) => c.decision === 'apply-theirs' || c.decision === 'conflict'
@@ -367,9 +390,12 @@ function countDecisions(
 async function buildPullCandidates(
   projectId: number,
   repoDir: string,
-  files: RemoteFileInfo[]
+  files: RemoteFileInfo[],
+  product: string
 ): Promise<PullCandidate[]> {
   const { maps: remote, origin } = await readSelectedLocaleMaps(repoDir, files)
+  const sourceLocale = await sourceLocaleOf(projectId)
+  const batchSources = await readBatchSources(repoDir, files, product, sourceLocale)
   const keys = await prisma.i18nKey.findMany({
     where: { projectId },
     include: { locales: true },
@@ -395,18 +421,27 @@ async function buildPullCandidates(
       })
       // A key kept out of Git sync takes no part at all.
       if (decision === null) continue
+      const relPath = origin.get(`${locale}\0${key}`) ?? ''
+      const batchId = locale === sourceLocale ? null : liltBatchIdOf(relPath)
       out.push({
         key,
         locale,
-        relPath: origin.get(`${locale}\0${key}`) ?? '',
+        relPath,
         baseText: base ?? '',
         oursText: ours ?? '',
         theirsText: theirs,
         publishedText: loc?.publishedText ?? null,
         decision,
+        writtenAgainst: (batchId && batchSources.get(batchId)?.get(key)) ?? null,
+        staleSource: false,
       })
     }
   }
+  flagStaleSources(
+    out,
+    sourceLocale,
+    new Map(keys.map((k) => [k.key, k.fingerprint]))
+  )
   return out
 }
 
@@ -532,6 +567,8 @@ export async function applyPull(params: {
               text: c.theirsText,
               commitSha,
               sourceLocale,
+              sourceFingerprint:
+                c.writtenAgainst != null ? fpTranslation(c.writtenAgainst) : undefined,
             },
             tx
           )
