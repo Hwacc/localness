@@ -61,7 +61,7 @@ function editSelected() {
   <USlideover
     v-model:open="open"
     :title="refs?.key ? `Tags · ${formatI18nKeyDisplay(refs.key)}` : 'Tag preview'"
-    description="Read-only screenshot with boxes. Edit opens the Editor."
+    description="Read-only screenshot, zoomed to the boxes. Edit opens the Editor."
     side="right"
     :close="{ icon: 'i-lucide:x' }"
     class="max-w-4xl"
@@ -101,9 +101,10 @@ function editSelected() {
             <p class="text-xs text-muted">{{ page.tags.length }} box(es)</p>
           </button>
         </aside>
-        <div class="flex-1 min-w-0 overflow-auto p-3 flex items-start justify-center bg-muted">
-          <TagRefsPreview
+        <div class="flex-1 min-w-0 bg-muted">
+          <TagFocusPreview
             v-if="selectedPage"
+            :key="selectedPage.id"
             :image="selectedPage.image"
             :tags="selectedPage.tags"
           />
