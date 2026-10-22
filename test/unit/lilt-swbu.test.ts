@@ -6,8 +6,11 @@ import {
   buildSourceFilename,
   liltBatchId,
   liltBatchInstant,
+  liltBatchIdOf,
   liltBatchSortKey,
+  listRemoteFiles,
   parseLiltFilename,
+  readBatchSources,
   parseSeenFiles,
   readMergedSourceLocale,
   seenFileMap,
@@ -204,6 +207,42 @@ describe('readMergedSourceLocale', () => {
       expect(merged.get('cortex_mobile_title')).toBe('KEEP FROM OLD BATCH')
       expect(merged.get('other_key')).toBe('still here')
       expect(merged.get('localness_inc_merge_probe')).toBe('NEW ONLY')
+    } finally {
+      await rm(root, { recursive: true, force: true })
+    }
+  })
+})
+
+describe('liltBatchIdOf', () => {
+  it('reads the batch id from a nested path', () => {
+    expect(liltBatchIdOf('cortex/translated/20261020-abc123_ja-JP.json')).toBe('abc123')
+  })
+
+  it('is null for a non-LILT name', () => {
+    expect(liltBatchIdOf('cortex/source/readme.json')).toBeNull()
+  })
+})
+
+describe('readBatchSources', () => {
+  it('maps each source batch id to its own text, paired by id alone', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'lilt-batch-'))
+    try {
+      const src = join(root, 'cortex', 'source')
+      const out = join(root, 'cortex', 'translated')
+      await mkdir(src, { recursive: true })
+      await mkdir(out, { recursive: true })
+      await writeFile(join(src, '20261020-aaa_en-US.json'), JSON.stringify({ btn_save: 'Save' }))
+      await writeFile(
+        join(src, '20261021-bbb_en-US.json'),
+        JSON.stringify({ btn_save: 'Save changes' })
+      )
+      // A translated file never counts as a batch source, even in the source locale.
+      await writeFile(join(out, '20261022-aaa_en-US.json'), JSON.stringify({ btn_save: 'X' }))
+      const files = await listRemoteFiles(root, 'cortex')
+      const batches = await readBatchSources(root, files, 'cortex', 'en')
+      expect(batches.get('aaa')?.get('btn_save')).toBe('Save')
+      expect(batches.get('bbb')?.get('btn_save')).toBe('Save changes')
+      expect(batches.size).toBe(2)
     } finally {
       await rm(root, { recursive: true, force: true })
     }

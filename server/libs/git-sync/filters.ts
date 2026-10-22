@@ -3,7 +3,7 @@ import {
   GitSyncPushReason,
 } from '#shared/constants'
 import type { ThreeWayDecision } from '#shared/types/GitSync'
-import { DRAFT_KEY_PREFIX } from '#shared/utils'
+import { DRAFT_KEY_PREFIX, fpTranslation } from '#shared/utils'
 import { decideThreeWay } from './three-way'
 
 /**
@@ -93,6 +93,39 @@ export function classifyPull(params: {
   if ((params.ours ?? '') === theirs) return null
   if (params.base != null && params.base === theirs) return null
   return 'conflict'
+}
+
+/**
+ * Flags pull rows translated from a source the key no longer has — the case
+ * where a later batch changed the source and its translation is still out, so
+ * merge order surfaces the older batch's text. Compared against the key's
+ * source as it will be after this pull: a Git source edit applied in the same
+ * pull beats the platform's current fingerprint. A key with no source yet
+ * (`''`) is never stale.
+ */
+export function flagStaleSources(
+  rows: {
+    key: string
+    locale: string
+    decision: ThreeWayDecision
+    theirsText: string
+    writtenAgainst: string | null
+    staleSource: boolean
+  }[],
+  sourceLocale: string,
+  keyFingerprints: Map<string, string>
+): void {
+  const sourceAfter = new Map<string, string>()
+  for (const row of rows) {
+    if (row.locale === sourceLocale && row.decision === 'apply-theirs') {
+      sourceAfter.set(row.key, fpTranslation(row.theirsText))
+    }
+  }
+  for (const row of rows) {
+    if (row.writtenAgainst === null) continue
+    const current = sourceAfter.get(row.key) ?? keyFingerprints.get(row.key) ?? ''
+    row.staleSource = current !== '' && fpTranslation(row.writtenAgainst) !== current
+  }
 }
 
 export function emptyPushCounts(): Record<GitSyncPushReason, number> {

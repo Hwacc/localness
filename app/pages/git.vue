@@ -65,6 +65,10 @@ type PullCandidate = {
   theirsText: string
   publishedText: string | null
   decision: ThreeWayDecision
+  /** Source text of the batch this translation came from, when known. */
+  writtenAgainst?: string | null
+  /** Translated from an older source; a newer batch is still out. */
+  staleSource?: boolean
 }
 
 type PullPreview = {
@@ -399,6 +403,14 @@ function isPullActionable(c: PullCandidate) {
   return c.decision === 'apply-theirs'
 }
 
+/**
+ * Bulk selection skips translations of an older source: applying one would
+ * publish text for a sentence the key no longer has. Still checkable by hand.
+ */
+function isPullBulkSelectable(c: PullCandidate) {
+  return isPullActionable(c) && !c.staleSource
+}
+
 function isPushRowSelectable(c: PushCandidate) {
   return (
     c.eligible || c.reason === GitSyncPushReason.REMOTE_CHANGED
@@ -567,7 +579,7 @@ function setPullFileSelected(relPath: string, on: boolean | 'indeterminate') {
     (c) => c.relPath === relPath
   )
   if (on === true) {
-    const add = fromFile.filter(isPullActionable).map(candidateId)
+    const add = fromFile.filter(isPullBulkSelectable).map(candidateId)
     pullKeySel.value = [...new Set([...pullKeySel.value, ...add])]
     return
   }
@@ -576,7 +588,7 @@ function setPullFileSelected(relPath: string, on: boolean | 'indeterminate') {
 }
 
 function selectVisiblePull(on: boolean) {
-  const ids = pullTableRows.value.filter(isPullActionable).map(candidateId)
+  const ids = pullTableRows.value.filter(isPullBulkSelectable).map(candidateId)
   if (on) {
     pullKeySel.value = [...new Set([...pullKeySel.value, ...ids])]
     return
@@ -596,7 +608,7 @@ function selectVisiblePush(on: boolean) {
 }
 
 function pullHeaderChecked(): boolean | 'indeterminate' {
-  const ids = pullTableRows.value.filter(isPullActionable).map(candidateId)
+  const ids = pullTableRows.value.filter(isPullBulkSelectable).map(candidateId)
   if (!ids.length) return false
   const n = ids.filter((id) => pullKeySel.value.includes(id)).length
   if (n === 0) return false
@@ -675,7 +687,7 @@ async function startPull() {
       )
       .map((f) => f.relPath)
     pullKeySel.value = preview.candidates
-      .filter(isPullActionable)
+      .filter(isPullBulkSelectable)
       .map(candidateId)
     pullQuery.value = ''
     pullDecisionFilter.value = 'all'
@@ -1337,15 +1349,29 @@ function confirmRename(conflict: GitSyncConflictRow) {
                   </code>
                 </template>
                 <template #decision-cell="{ row }">
-                  <UBadge
-                    variant="subtle"
-                    :color="decisionColor(row.original.decision)"
-                  >
-                    {{
-                      decisionLabel[row.original.decision] ??
-                      row.original.decision
-                    }}
-                  </UBadge>
+                  <div class="flex flex-wrap items-center gap-1">
+                    <UBadge
+                      variant="subtle"
+                      :color="decisionColor(row.original.decision)"
+                    >
+                      {{
+                        decisionLabel[row.original.decision] ??
+                        row.original.decision
+                      }}
+                    </UBadge>
+                    <UTooltip
+                      v-if="row.original.staleSource"
+                      text="Translated from an older source text. A newer batch is still with LILT, so this row is not selected by default. If applied, it lands marked outdated."
+                    >
+                      <UBadge
+                        variant="subtle"
+                        color="warning"
+                        icon="i-lucide:history"
+                      >
+                        Older source
+                      </UBadge>
+                    </UTooltip>
+                  </div>
                 </template>
                 <template #text-cell="{ row }">
                   <p
@@ -1383,6 +1409,19 @@ function confirmRename(conflict: GitSyncConflictRow) {
                         class="text-sm text-muted whitespace-pre-wrap break-words"
                       >
                         {{ row.original.oursText || '—' }}
+                      </p>
+                    </div>
+                    <div
+                      v-if="row.original.staleSource && row.original.writtenAgainst"
+                      class="md:col-span-2"
+                    >
+                      <p class="text-xs font-medium mb-1 text-warning">
+                        Translated from (older source)
+                      </p>
+                      <p
+                        class="text-sm text-muted whitespace-pre-wrap break-words"
+                      >
+                        {{ row.original.writtenAgainst }}
                       </p>
                     </div>
                   </div>

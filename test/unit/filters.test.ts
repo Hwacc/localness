@@ -3,10 +3,12 @@ import {
   classifyFile,
   classifyPull,
   classifyPush,
+  flagStaleSources,
   isPullProposed,
   isPushEligible,
   isPushSelectable,
 } from '#server/libs/git-sync/filters'
+import { fpTranslation } from '#shared/utils'
 import {
   GitSyncPullReason,
   GitSyncPushReason,
@@ -179,5 +181,53 @@ describe('classifyFile', () => {
     expect(isPullProposed(GitSyncPullReason.NEW_FILE)).toBe(true)
     expect(isPullProposed(GitSyncPullReason.CHANGED_FILE)).toBe(true)
     expect(isPullProposed(GitSyncPullReason.SEEN_FILE)).toBe(false)
+  })
+})
+
+describe('flagStaleSources', () => {
+  const row = (over: Partial<Parameters<typeof flagStaleSources>[0][number]>) => ({
+    key: 'btn_save',
+    locale: 'ja',
+    decision: 'apply-theirs' as const,
+    theirsText: '保存',
+    writtenAgainst: 'Save' as string | null,
+    staleSource: false,
+    ...over,
+  })
+
+  it('flags a translation of a source the key has since changed', () => {
+    const rows = [row({})]
+    flagStaleSources(rows, 'en', new Map([['btn_save', fpTranslation('Save changes')]]))
+    expect(rows[0]!.staleSource).toBe(true)
+  })
+
+  it('leaves a translation of the current source alone', () => {
+    const rows = [row({ theirsText: '変更を保存', writtenAgainst: 'Save changes' })]
+    flagStaleSources(rows, 'en', new Map([['btn_save', fpTranslation('Save changes')]]))
+    expect(rows[0]!.staleSource).toBe(false)
+  })
+
+  it('compares against a source edit landing in the same pull', () => {
+    const rows = [
+      row({ locale: 'en', theirsText: 'Save', writtenAgainst: null }),
+      row({}),
+    ]
+    flagStaleSources(rows, 'en', new Map([['btn_save', fpTranslation('Save changes')]]))
+    expect(rows[1]!.staleSource).toBe(false)
+  })
+
+  it('ignores a source row that is not applied', () => {
+    const rows = [
+      row({ locale: 'en', decision: 'keep-ours', theirsText: 'Save', writtenAgainst: null }),
+      row({}),
+    ]
+    flagStaleSources(rows, 'en', new Map([['btn_save', fpTranslation('Save changes')]]))
+    expect(rows[1]!.staleSource).toBe(true)
+  })
+
+  it('never flags without a known batch source or a key source', () => {
+    const rows = [row({ writtenAgainst: null }), row({ key: 'new_key' })]
+    flagStaleSources(rows, 'en', new Map([['btn_save', fpTranslation('Save changes')]]))
+    expect(rows.map((r) => r.staleSource)).toEqual([false, false])
   })
 })
