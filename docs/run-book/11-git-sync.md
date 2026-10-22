@@ -93,6 +93,10 @@
 
 真要先用它，可以手动勾上。落地后，这条译文在 Translations 里显示为过期（Outdated），等新批次的译文回来后，下次 Pull 会正常覆盖。
 
+如果同一条译文在平台上也改过，它会变成冲突卡片。卡片上会出现黄色提示「Git's text translates an older source」，并写明它当初翻的源文：
+- 选 **Use Git**：落地后同样显示为过期；
+- 选 **Edit** 并保存你改过的文本：视为已按当前源文处理，不显示过期。
+
 **有没解决的冲突时 Apply pull 是按不动的**，先把卡片处理掉。
 
 **远端在你预览之后又变了**（别人推了一版），点 Apply 会告诉你 `Remote changed since preview — run a new preview`，这次预览作废，重新点一次 Pull。

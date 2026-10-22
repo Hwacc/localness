@@ -476,6 +476,10 @@ model GitSyncConflict {
   theirsText    String   @map("theirs_text")
   publishedText String?  @map("published_text")
   mergedText    String?  @map("merged_text")
+  /// Set when `theirsText` is a translation of a source the key no longer has
+  /// (paired by LILT batch id): the sentence it was written against. Use Git
+  /// records its fingerprint so the translation lands outdated. Null otherwise.
+  olderSourceText String? @map("older_source_text")
   status        String   @default("open")
   project       Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
 
