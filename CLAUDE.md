@@ -1,6 +1,8 @@
 # Localness
 
-Screenshot tagging + i18n key store. **Not** a headless CMS.
+The step before a TMS: screenshot tagging, i18n key store, and hand-off to the TMS through Git. Built for designers and developers, not translators. **Not** a TMS and **not** a headless CMS.
+
+Before adding a feature, ask: does it help a designer or developer, or a translator? Translator work (workbench, review flow, TM, glossary, QA for translators) belongs to the TMS.
 
 Product memory: Obsidian vault `项目/Localness.md` and `项目/Localness/`. Read those before non-trivial work; write decisions back there. **Do not duplicate narrative in this file.** No secrets, `.env` values, or internal URLs in the repo or vault.
 
@@ -11,7 +13,8 @@ Product memory: Obsidian vault `项目/Localness.md` and `项目/Localness/`. Re
 ```bash
 pnpm install
 pnpm dev                 # http://localhost:3000
-pnpm typecheck           # verification (not `pnpm build`)
+pnpm typecheck           # verification (not `pnpm build`); TS 7 for server/shared/node + vue-tsc for app
+pnpm typecheck:full      # `nuxt typecheck` (runs prepare first, slow); see Verify
 pnpm test                # unit tests
 pnpm exec prisma generate
 pnpm exec prisma migrate deploy   # apply locally — see below
@@ -28,6 +31,8 @@ To author a new migration: generate the SQL with `pnpm exec prisma migrate diff 
 ## Verify
 
 `pnpm typecheck` + `pnpm test`. Do not run `pnpm test:api` or `pnpm build` to check work. Do not drive the browser. After UI changes, list short manual test points (route, click, expected).
+
+`pnpm typecheck` reads the generated `.nuxt/tsconfig.*.json` and does not run `nuxt prepare`. After changing `nuxt.config`, modules, auto-imports, or the Prisma schema, run `pnpm typecheck:full` (or `pnpm exec nuxt prepare`) first so `.nuxt` types are refreshed. CI uses `typecheck:full`. `typecheck:fast` (server/shared/node only, TS 7 via the `typescript-7` alias) is a partial check; never treat it as a full pass. Keep `typescript` on 5.x — vue-tsc needs its JS API.
 
 ## Layout
 

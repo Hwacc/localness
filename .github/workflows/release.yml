@@ -37,7 +37,7 @@ jobs:
 
       - run: pnpm install --frozen-lockfile
       - run: pnpm exec prisma generate
-      - run: pnpm typecheck
+      - run: pnpm typecheck:full
       - run: pnpm test
 
   changelog:

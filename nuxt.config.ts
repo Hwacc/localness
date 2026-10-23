@@ -187,6 +187,8 @@ export default defineNuxtConfig({
         emitDecoratorMetadata: true,
         // Nuxt defaults to module: "preserve", which rejects import() and import.meta.
         module: 'ESNext',
+        skipLibCheck: true,
+        incremental: true,
       },
     },
   },

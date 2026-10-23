@@ -8,6 +8,7 @@ import { fileURLToPath } from 'node:url'
 export default defineConfig({
   test: {
     environment: 'node',
+    experimental: { fsModuleCache: true },
     include: ['test/unit/**/*.test.ts'],
   },
   resolve: {
