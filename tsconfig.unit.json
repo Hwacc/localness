@@ -1,0 +1,19 @@
+{
+  "compilerOptions": {
+    "target": "ESNext",
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "noEmit": true,
+    "skipLibCheck": true,
+    "strict": false,
+    "types": ["node"],
+    "paths": {
+      "#server/*": ["./server/*"],
+      "#shared": ["./shared"],
+      "#shared/*": ["./shared/*"],
+      "~~": ["."],
+      "~~/*": ["./*"]
+    }
+  },
+  "include": ["test/**/*.ts"]
+}

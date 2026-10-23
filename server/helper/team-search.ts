@@ -1,5 +1,4 @@
 import prisma from '#server/libs/prisma'
-import { normalizeSearchQuery } from '#server/helper/user-search'
 import { JoinRequestStatus } from '#shared/constants'
 import type {
   ITeamSearchResult,
