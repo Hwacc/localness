@@ -2,7 +2,7 @@
   "name": "localness",
   "version": "0.4.9",
   "private": true,
-  "description": "CMS for UI screenshots, tags, and i18n keys.",
+  "description": "The step before your TMS: tag UI screenshots, own your i18n keys, hand off clean source text.",
   "type": "module",
   "license": "Elastic-2.0",
   "author": "Hwacc",
@@ -17,7 +17,10 @@
   },
   "scripts": {
     "build": "nuxt build",
-    "typecheck": "nuxt typecheck",
+    "typecheck": "pnpm typecheck:fast && pnpm typecheck:app",
+    "typecheck:app": "vue-tsc --noEmit -p .nuxt/tsconfig.app.json",
+    "typecheck:full": "nuxt typecheck",
+    "typecheck:fast": "node node_modules/typescript-7/bin/tsc --noEmit --incremental false -p .nuxt/tsconfig.server.json && node node_modules/typescript-7/bin/tsc --noEmit --incremental false -p .nuxt/tsconfig.shared.json && node node_modules/typescript-7/bin/tsc --noEmit --incremental false -p .nuxt/tsconfig.node.json",
     "test": "vitest run",
     "test:watch": "vitest",
     "test:api": "vitest run --config vitest.config.api.ts",
@@ -110,6 +113,7 @@
     "readline": "^1.3.0",
     "tailwindcss": "^4.3.3",
     "typescript": "^5.8.3",
+    "typescript-7": "npm:typescript@^7.0.2",
     "vitest": "^5.0.0",
     "vue-component-type-helpers": "^3.1.8",
     "vue-tsc": "^3.3.11"

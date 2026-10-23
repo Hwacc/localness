@@ -1,0 +1,12 @@
+---
+description: Which typecheck to run, and when .nuxt types must be refreshed first
+alwaysApply: true
+---
+
+# Typecheck
+
+`pnpm typecheck` is the default check. It runs `typecheck:fast` (TS 7 on server, shared, and node) and `typecheck:app` (vue-tsc). It reads `.nuxt/tsconfig.*.json` and does not run `nuxt prepare`.
+
+After changing `nuxt.config`, modules, auto-imports, or the Prisma schema, run `pnpm typecheck:full` (or `pnpm exec nuxt prepare`) before `pnpm typecheck`, so `.nuxt` types are refreshed. CI uses `typecheck:full`.
+
+`typecheck:fast` alone is not a full pass. Do not run `pnpm build` or `pnpm test:api` to verify a change. Keep `typescript` on 5.x — vue-tsc needs its JS API.
