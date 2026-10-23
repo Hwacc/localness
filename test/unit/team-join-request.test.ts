@@ -1,9 +1,17 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { JoinRequestStatus, NotificationAction, NotificationType, TeamRole } from '#shared/constants'
+import {
+  JoinRequestStatus,
+  NotificationAction,
+  NotificationType,
+  TeamRole,
+} from '#shared/constants'
 
 const db = vi.hoisted(() => ({
   team: null as { id: number; name: string } | null,
-  usersById: {} as Record<number, { username: string; nickname: string | null }>,
+  usersById: {} as Record<
+    number,
+    { username: string; nickname: string | null }
+  >,
   membership: null as { role: string } | null,
   existingRequest: null as { id: number; status: string } | null,
   ownerRows: [] as Array<{ userId: number }>,
@@ -32,7 +40,11 @@ vi.mock('#server/libs/prisma', () => {
       },
     },
     notification: {
-      createMany: async ({ data }: { data: Array<Record<string, unknown>> }) => {
+      createMany: async ({
+        data,
+      }: {
+        data: Array<Record<string, unknown>>
+      }) => {
         db.notificationsCreatedMany = data
         return { count: data.length }
       },
@@ -53,7 +65,7 @@ vi.mock('#server/libs/prisma', () => {
   }
 })
 
-const { JoinRequestError, applyToTeamJoinRequest } = await import(
+const { applyToTeamJoinRequest } = await import(
   '#server/helper/team-join-request'
 )
 
@@ -91,14 +103,14 @@ describe('applyToTeamJoinRequest', () => {
   it('rejects a member', async () => {
     db.membership = { role: TeamRole.MEMBER }
     await expect(
-      applyToTeamJoinRequest({ userId: 9, teamId: 7 })
+      applyToTeamJoinRequest({ userId: 9, teamId: 7 }),
     ).rejects.toMatchObject({ statusCode: 409 })
   })
 
   it('rejects a second pending request', async () => {
     db.existingRequest = { id: 11, status: JoinRequestStatus.PENDING }
     await expect(
-      applyToTeamJoinRequest({ userId: 9, teamId: 7 })
+      applyToTeamJoinRequest({ userId: 9, teamId: 7 }),
     ).rejects.toMatchObject({
       statusCode: 409,
       message: 'Request already pending',
@@ -128,7 +140,7 @@ describe('applyToTeamJoinRequest', () => {
   it('rejects a team with no owner', async () => {
     db.ownerRows = []
     await expect(
-      applyToTeamJoinRequest({ userId: 9, teamId: 7 })
+      applyToTeamJoinRequest({ userId: 9, teamId: 7 }),
     ).rejects.toMatchObject({
       statusCode: 409,
       message: 'This team has no owner to approve the request',
@@ -138,14 +150,14 @@ describe('applyToTeamJoinRequest', () => {
   it('rejects a missing team', async () => {
     db.team = null
     await expect(
-      applyToTeamJoinRequest({ userId: 9, teamId: 7 })
+      applyToTeamJoinRequest({ userId: 9, teamId: 7 }),
     ).rejects.toMatchObject({ statusCode: 404 })
   })
 
   it('maps a lost unique race to a pending 409', async () => {
     db.createThrows = Object.assign(new Error('unique'), { code: 'P2002' })
     await expect(
-      applyToTeamJoinRequest({ userId: 9, teamId: 7 })
+      applyToTeamJoinRequest({ userId: 9, teamId: 7 }),
     ).rejects.toMatchObject({
       statusCode: 409,
       message: 'Request already pending',
@@ -155,7 +167,7 @@ describe('applyToTeamJoinRequest', () => {
   it('passes other create errors through', async () => {
     db.createThrows = new Error('boom')
     await expect(
-      applyToTeamJoinRequest({ userId: 9, teamId: 7 })
+      applyToTeamJoinRequest({ userId: 9, teamId: 7 }),
     ).rejects.toBeInstanceOf(Error)
   })
 })

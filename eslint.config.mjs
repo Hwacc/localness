@@ -1,5 +1,6 @@
 // @ts-check
 import withNuxt from './.nuxt/eslint.config.mjs'
+import oxlint from 'eslint-plugin-oxlint'
 
 export default withNuxt(
   // Your custom configs here
@@ -15,5 +16,7 @@ export default withNuxt(
       'vue/html-self-closing': 'off',
       'import/first': 'off',
     },
-  }
+  },
+  // Must stay last: turns off the ESLint rules that oxlint already enforces.
+  ...oxlint.buildFromOxlintConfigFile('./.oxlintrc.json'),
 )

@@ -4,5 +4,13 @@
   // file is saved. Pointing it at nothing silences it without turning on
   // terminal env injection, which would leak our Nuxt/Prisma secrets into
   // every integrated terminal.
-  "python.envFile": ""
+  "python.envFile": "",
+
+  // oxlint runs in the editor via the oxc extension; the formatter stays off
+  // so Prettier / ESLint keep owning formatting.
+  "oxc.enable": true,
+  "oxc.enable.oxlint": true,
+  "oxc.enable.oxfmt": false,
+  "oxc.configPath": ".oxlintrc.json",
+  "oxc.lint.run": "onType"
 }

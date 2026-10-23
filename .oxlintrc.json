@@ -1,0 +1,17 @@
+{
+  "$schema": "./node_modules/oxlint/configuration_schema.json",
+  "plugins": ["typescript", "unicorn", "import"],
+  "categories": { "correctness": "error" },
+  "rules": {
+    "no-console": "off",
+    "no-unused-expressions": "off",
+    "no-shadow-restricted-names": "off",
+    "no-unused-vars": ["error", { "argsIgnorePattern": "^_", "varsIgnorePattern": "^_", "caughtErrorsIgnorePattern": "^_" }],
+    "typescript/no-explicit-any": "off",
+    "typescript/no-unused-expressions": "off",
+    "unicorn/no-empty-file": "off",
+    "unicorn/no-useless-spread": "off",
+    "unicorn/no-useless-fallback-in-spread": "off"
+  },
+  "ignorePatterns": ["prisma/client/**", ".nuxt/**", ".output/**", "node_modules/**"]
+}

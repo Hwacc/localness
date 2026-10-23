@@ -15,6 +15,8 @@ pnpm install
 pnpm dev                 # http://localhost:3000
 pnpm typecheck           # verification (not `pnpm build`); TS 7 for server/shared/node + vue-tsc for app
 pnpm typecheck:full      # `nuxt typecheck` (runs prepare first, slow); see Verify
+pnpm lint:fast           # oxlint (~1s); config in .oxlintrc.json
+pnpm lint                # eslint (Vue templates, formatting); rules oxlint already covers are turned off via eslint-plugin-oxlint
 pnpm test                # unit tests
 pnpm exec prisma generate
 pnpm exec prisma migrate deploy   # apply locally — see below
