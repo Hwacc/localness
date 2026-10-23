@@ -3,10 +3,9 @@ import type { DropdownMenuItem } from '@nuxt/ui'
 import {
   DEFAULT_LOCALE_FALLBACK,
   I18nKeyStatusFilter,
-  TRANSLATION_LANGUAGES,
 } from '#shared/constants'
 import { formatI18nKeyDisplay, parseLocales } from '#shared/utils'
-import type { I18nKeySlideover, TranslationsTable } from '#components'
+import type { TranslationsKeyDetail } from '#components'
 import {
   AlertModal,
   I18nKeyModal,
@@ -43,8 +42,7 @@ const listReleaseFilter = computed(() =>
 )
 const { loggedIn } = useUserSession()
 const toast = useToast()
-/** Only for the column-visibility menu, which lives in the filter bar. */
-const table = useTemplateRef<InstanceType<typeof TranslationsTable>>('table')
+const router = useRouter()
 
 const localeCodes = computed(() =>
   parseLocales(curProject.value.settings?.locales),
@@ -64,7 +62,7 @@ const sourceLocale = computed(
 const query = useI18nKeyQuery({
   projectId: computed(() => curProject.value.id),
   releaseFilter: listReleaseFilter,
-  limit: 20,
+  limit: 50,
   // The key table shows auto draft keys; see the option's own note.
   includeDraftKeys: true,
 })
@@ -145,57 +143,87 @@ function openCreate() {
 }
 
 /*
- * The drawer is mounted rather than opened through `useOverlay`: an overlay is
- * unmounted on close, and this one has to keep its prev/next position and stay
- * reachable for the flush that precedes publishing.
+ * The key the inspector shows. Focus is not selection: clicking a row reads it,
+ * the checkbox picks it for a bulk action. Seeded from `?key=` so a refresh, a
+ * shared link or a Consistency jump lands on the same key.
  */
-const drawerOpen = ref(false)
-const drawerRowId = ref<ID | null>(null)
-const keyDrawer =
-  useTemplateRef<InstanceType<typeof I18nKeySlideover>>('keyDrawer')
+const focusedId = ref<ID | null>(
+  typeof route.query.key === 'string' && route.query.key
+    ? route.query.key
+    : null,
+)
+const detail =
+  useTemplateRef<InstanceType<typeof TranslationsKeyDetail>>('detail')
 
-/** Found by id, not held: a reload replaces the row object it was opened with. */
-const drawerRow = computed(
+/** Found by id, not held: a reload replaces the row object it was focused with. */
+const focusedRow = computed(
   () =>
-    rows.value.find((r) => String(r.id) === String(drawerRowId.value)) ?? null,
+    rows.value.find((r) => String(r.id) === String(focusedId.value)) ?? null,
 )
-const drawerIndex = computed(() =>
-  rows.value.findIndex((r) => String(r.id) === String(drawerRowId.value)),
-)
+
+/** A focused key the reload no longer holds falls back to the first one. */
+watch(loadCount, () => {
+  if (!focusedRow.value) focusedId.value = rows.value[0]?.id ?? null
+})
+
+watch(focusedId, (id) => {
+  const key = id == null ? undefined : String(id)
+  if (route.query.key === key) return
+  router.replace({ query: { ...route.query, key } })
+})
 
 /**
- * The table and the drawer both save without being awaited, and publishing
- * copies whatever draft the server holds, so every in-flight write lands first.
+ * The inspector saves without being awaited, and publishing copies whatever
+ * draft the server holds, so every in-flight write lands first.
  */
 async function flushPendingWrites() {
-  await Promise.allSettled([
-    table.value?.flushPendingSaves(),
-    keyDrawer.value?.flushPendingSaves(),
-  ])
+  await detail.value?.flushPendingSaves()
 }
 
-async function openEdit(row: II18nKeyRow) {
-  if (!validID(curProject.value.id)) return
-  /*
-   * The click that got here was the row's pencil, so it blurred whatever cell
-   * had focus and that save is still in flight. Filling now would show the value
-   * the user just replaced, and the drawer's next blur would write it back.
-   */
-  await flushPendingWrites()
-  drawerRowId.value = row.id
-  drawerOpen.value = true
+function moveFocus(delta: -1 | 1) {
+  const index = rows.value.findIndex(
+    (r) => String(r.id) === String(focusedId.value),
+  )
+  const next = rows.value[Math.min(Math.max(index + delta, 0), rows.value.length - 1)]
+  if (next) focusedId.value = next.id
 }
 
-function navigateDrawer(delta: -1 | 1) {
-  const next = rows.value[drawerIndex.value + delta]
-  if (!next) return
-  drawerRowId.value = next.id
+function toggleFocusedSelection() {
+  const id = focusedRow.value?.id
+  if (id == null) return
+  const key = String(id)
+  const rest = Object.fromEntries(
+    Object.entries(rowSelection.value).filter(([k]) => k !== key),
+  )
+  rowSelection.value = rowSelection.value[key] ? rest : { ...rest, [key]: true }
 }
 
-/** A write from the drawer makes the table's own copy of that cell stale. */
-function onCellSaved(rowId: ID, locale: string) {
-  table.value?.clearCellDraft(rowId, locale)
+/** The Consistency review keys: ↑ ↓ move, a letter acts. Typing is never taken. */
+function onKeydown(event: KeyboardEvent) {
+  if (event.metaKey || event.ctrlKey || event.altKey) return
+  const target = event.target as HTMLElement | null
+  if (
+    target &&
+    (target.tagName === 'INPUT' ||
+      target.tagName === 'TEXTAREA' ||
+      target.tagName === 'SELECT' ||
+      target.isContentEditable)
+  ) {
+    return
+  }
+  // A dialog or a drawer over the page owns the keyboard.
+  if (document.querySelector('[role="dialog"]')) return
+  if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
+    event.preventDefault()
+    moveFocus(event.key === 'ArrowDown' ? 1 : -1)
+  } else if (event.key === 'x') {
+    event.preventDefault()
+    toggleFocusedSelection()
+  }
 }
+
+onMounted(() => window.addEventListener('keydown', onKeydown))
+onUnmounted(() => window.removeEventListener('keydown', onKeydown))
 
 function openUnpublish(row: II18nKeyRow) {
   if (row.dirty || !validID(curProject.value.id)) return
@@ -603,33 +631,10 @@ function openDelete(row: II18nKeyRow) {
   })
 }
 
-const columnsDropdownItems = computed<DropdownMenuItem[]>(() => {
-  const api = table.value?.tableApi
-  if (!api) return []
-  const allColumns: any[] = api.getAllColumns()
-  return allColumns
-    .filter((col) => col.getCanHide())
-    .map((col) => {
-      const trans = TRANSLATION_LANGUAGES.find((lang) => lang.value === col.id)
-      return {
-        type: 'checkbox' as const,
-        label: trans?.short || col.id,
-        icon: trans?.icon,
-        checked: col.getIsVisible(),
-        onUpdateChecked(checked: boolean) {
-          table.value?.tableApi?.getColumn(col.id)?.toggleVisibility(!!checked)
-        },
-        onSelect(e: Event) {
-          e.preventDefault()
-        },
-      }
-    })
-})
-
 /**
  * Every load drops the selection: the loaded set may no longer hold those ids.
- * The table clears its own cell overrides and rename input off `loadCount`,
- * which is bumped only when rows actually land.
+ * The inspector refills its fields off `loadCount`, which is bumped only when
+ * rows actually land.
  */
 async function loadKeys() {
   rowSelection.value = {}
@@ -639,13 +644,6 @@ async function loadKeys() {
 function onPageChange(next: number) {
   page.value = next
   loadKeys()
-}
-
-/** A rename bumps `updatedAt`, so the row is swapped in place, not reloaded. */
-function onRowUpdated(updated: II18nKeyRow) {
-  rows.value = rows.value.map((candidate) =>
-    String(candidate.id) === String(updated.id) ? updated : candidate,
-  )
 }
 
 function onRowPublish(row: II18nKeyRow) {
@@ -784,6 +782,8 @@ watch(
       scopeWatch.ignoreUpdates(() => {
         deepLinkScopeAll.value = false
       })
+      // So does its key; the reload focuses the new project's first one.
+      focusedId.value = null
     } else {
       applyDeepLink(id)
     }
@@ -885,20 +885,12 @@ onMounted(async () => {
 
 <template>
   <div class="h-full min-w-0 overflow-hidden flex flex-col bg-muted">
+    <!-- Header, filter strip and panes follow the Consistency page. -->
     <header
-      class="shrink-0 px-6 py-4 bg-default border-b border-default flex items-center justify-between gap-4"
+      class="shrink-0 px-6 py-5 bg-default border-b border-default flex items-center gap-3"
     >
-      <div class="min-w-0 flex items-baseline gap-2">
-        <h1 class="text-lg font-semibold tracking-tight">Translations</h1>
-        <span v-if="validID(curProject.id)" class="truncate text-sm text-muted">
-          {{ curProject.name }}
-        </span>
-        <ProjectOwnerBadge
-          :project="curProject"
-          :visible="Boolean(curProject.isSteward)"
-        />
-      </div>
-      <div class="shrink-0 flex items-center gap-2">
+      <h1 class="text-xl font-semibold tracking-tight">Translations</h1>
+      <div class="ml-auto shrink-0 flex items-center gap-2">
         <ImportKeysSlideover
           v-if="canManageProjectSettings(curProject)"
           :project-id="curProject.id"
@@ -910,7 +902,7 @@ onMounted(async () => {
         <UButton
           size="sm"
           color="neutral"
-          variant="outline"
+          variant="soft"
           label="New translation"
           icon="i-lucide:plus"
           :disabled="!validID(curProject.id)"
@@ -919,217 +911,217 @@ onMounted(async () => {
       </div>
     </header>
 
-    <div class="flex-1 min-h-0 min-w-0 p-6 flex flex-col gap-4 overflow-hidden">
-      <UAlert
-        v-if="deepLinkScopeAll && curReleaseFilter !== 'all'"
-        color="neutral"
-        variant="subtle"
-        icon="i-lucide:link"
-        orientation="horizontal"
-        title="Showing all releases"
-      >
-        <template #description>
-          Opened from Consistency — every release, status and date is shown for
-          this visit only. Your saved filters are untouched.
-        </template>
-        <template #actions>
-          <UButton
-            size="xs"
-            color="neutral"
-            variant="soft"
-            icon="i-lucide:rotate-ccw"
-            @click="deepLinkScopeAll = false"
-          >
-            Restore {{ releaseFilterLabel }}
-          </UButton>
-        </template>
-      </UAlert>
+    <UAlert
+      v-if="deepLinkScopeAll && curReleaseFilter !== 'all'"
+      class="shrink-0 rounded-none border-b border-default px-6 py-2.5"
+      color="neutral"
+      variant="soft"
+      icon="i-lucide:link"
+      orientation="horizontal"
+      title="Showing all releases"
+    >
+      <template #description>
+        Opened from Consistency — every release, status and date is shown for
+        this visit only. Your saved filters are untouched.
+      </template>
+      <template #actions>
+        <UButton
+          size="xs"
+          color="neutral"
+          variant="soft"
+          icon="i-lucide:rotate-ccw"
+          @click="deepLinkScopeAll = false"
+        >
+          Restore {{ releaseFilterLabel }}
+        </UButton>
+      </template>
+    </UAlert>
 
-      <div
-        class="shrink-0 flex flex-wrap items-center gap-3 rounded-xl border border-default bg-default px-4 py-3"
+    <div
+      class="shrink-0 px-6 py-3 bg-default border-b border-default flex flex-wrap items-center gap-2"
+    >
+      <UInput
+        v-model="q"
+        size="sm"
+        class="w-56"
+        icon="i-lucide:search"
+        placeholder="Search key or text"
+      />
+      <USelectMenu
+        v-model="statusFilter"
+        :items="statusItems"
+        value-key="value"
+        size="sm"
+        class="w-40"
+        :search-input="false"
+      />
+      <UPopover>
+        <UButton
+          size="sm"
+          color="neutral"
+          variant="outline"
+          icon="i-lucide:calendar"
+          :label="dateRangeLabel"
+        />
+        <template #content>
+          <div class="p-2 flex flex-col gap-2">
+            <UCalendar
+              v-model="dateRange"
+              range
+              :number-of-months="2"
+              :is-date-unavailable="
+                (date: DateValue) =>
+                  date.compare(today(getLocalTimeZone())) > 0
+              "
+            />
+            <UButton
+              block
+              size="xs"
+              color="neutral"
+              variant="ghost"
+              label="Clear"
+              :disabled="!hasDateRange"
+              @click="clearDateRange"
+            />
+          </div>
+        </template>
+      </UPopover>
+      <UTooltip
+        text="Placeholder keys the editor creates for an unbound tag (__draft_…). Uncheck to hide them. This is not the Draft status filter."
+        :content="{ side: 'top' }"
       >
-        <UInput
-          v-model="q"
-          class="w-72"
-          icon="i-lucide:search"
-          placeholder="Search key or text"
+        <UCheckbox
+          v-model="includeDraftKeys"
+          label="Show __draft_ keys"
+          class="items-center"
+          :ui="{ label: 'text-xs whitespace-nowrap' }"
         />
-        <USelectMenu
-          v-model="statusFilter"
-          :items="statusItems"
-          value-key="value"
-          class="w-44"
-          :search-input="false"
+      </UTooltip>
+      <div class="ml-auto flex items-center gap-2">
+        <UButton
+          size="sm"
+          color="neutral"
+          variant="ghost"
+          icon="i-lucide:refresh-cw"
+          aria-label="Reload"
+          :loading="loading"
+          @click="loadKeys"
         />
-        <UPopover>
+      </div>
+    </div>
+
+    <div
+      v-if="selectedRows.length"
+      class="shrink-0 px-6 py-2 bg-primary/10 border-b border-primary/30 flex flex-wrap items-center gap-3"
+    >
+      <p class="min-w-0 text-sm">
+        <span class="font-medium">{{ selectedRows.length }} selected</span>
+        <span
+          v-if="selectedDraftIds.length && selectedPublishedIds.length"
+          class="text-xs text-muted"
+        >
+          · {{ selectedDraftIds.length }} draft ·
+          {{ selectedPublishedIds.length }} published
+        </span>
+      </p>
+      <div class="ml-auto flex flex-wrap items-center justify-end gap-2">
+        <!-- The one action a selection usually leads to. -->
+        <UTooltip
+          :text="
+            selectedPublishableIds.length
+              ? 'Publish the selected drafts'
+              : 'Nothing to publish — no draft text differs from what is published'
+          "
+        >
           <UButton
+            size="sm"
+            color="primary"
+            icon="i-lucide:check-check"
+            :loading="publishing"
+            :disabled="selectedPublishableIds.length === 0"
+            @click="publishKeys(selectedPublishableIds)"
+          >
+            Publish {{ selectedPublishableIds.length || '' }}
+          </UButton>
+        </UTooltip>
+        <!-- One popover rather than the select + add + remove it replaced. -->
+        <UPopover v-if="curReleases.length">
+          <UButton
+            size="sm"
             color="neutral"
             variant="outline"
-            icon="i-lucide:calendar"
-            :label="dateRangeLabel"
-          />
+            icon="i-lucide:tag"
+            :loading="bulkReleasing"
+          >
+            Release
+          </UButton>
           <template #content>
-            <div class="p-2 flex flex-col gap-2">
-              <UCalendar
-                v-model="dateRange"
-                range
-                :number-of-months="2"
-                :is-date-unavailable="
-                  (date: DateValue) =>
-                    date.compare(today(getLocalTimeZone())) > 0
-                "
+            <div class="w-64 p-3 flex flex-col gap-3">
+              <p class="text-sm font-medium">Release labels</p>
+              <USelectMenu
+                v-model="bulkReleaseId"
+                class="w-full"
+                :items="bulkReleaseItems"
+                value-key="value"
+                placeholder="Pick a release"
               />
-              <UButton
-                block
-                size="xs"
-                color="neutral"
-                variant="ghost"
-                label="Clear"
-                :disabled="!hasDateRange"
-                @click="clearDateRange"
-              />
+              <div class="flex items-center gap-2">
+                <UButton
+                  class="flex-1 justify-center"
+                  size="xs"
+                  icon="i-lucide:tag"
+                  label="Add"
+                  :loading="bulkReleasing"
+                  :disabled="!bulkReleaseId"
+                  @click="setBulkRelease('add')"
+                />
+                <UButton
+                  class="flex-1"
+                  size="xs"
+                  color="neutral"
+                  variant="outline"
+                  icon="i-lucide:tag-off"
+                  label="Remove"
+                  :disabled="!bulkReleaseId || bulkReleasing"
+                  @click="setBulkRelease('remove')"
+                />
+              </div>
+              <p class="text-xs text-muted">
+                Applies to all {{ selectedRows.length }} selected.
+              </p>
             </div>
           </template>
         </UPopover>
-        <UTooltip
-          text="Placeholder keys the editor creates for an unbound tag (__draft_…). Uncheck to hide them. This is not the Draft status filter."
-          :content="{ side: 'top' }"
-        >
-          <UCheckbox
-            v-model="includeDraftKeys"
-            label="Show __draft_ keys"
-            class="items-center"
-            :ui="{ label: 'text-xs whitespace-nowrap' }"
-          />
-        </UTooltip>
-        <div class="ml-auto flex items-center gap-2">
-          <UDropdownMenu
-            :items="columnsDropdownItems"
-            :content="{ align: 'end' }"
-            :ui="{ group: 'max-h-64 overflow-auto' }"
-          >
-            <UButton
-              label="Columns"
-              color="neutral"
-              variant="outline"
-              trailing-icon="i-lucide-chevron-down"
-            />
-          </UDropdownMenu>
+        <UDropdownMenu :items="bulkMenuItems">
           <UButton
+            size="sm"
+            color="neutral"
+            variant="outline"
+            icon="i-lucide:ellipsis"
+            square
+            aria-label="More actions"
+          />
+        </UDropdownMenu>
+        <UTooltip text="Clear selection">
+          <UButton
+            size="sm"
             color="neutral"
             variant="ghost"
-            icon="i-lucide:refresh-cw"
-            :loading="loading"
-            @click="loadKeys"
+            icon="i-lucide:x"
+            square
+            aria-label="Clear selection"
+            @click="rowSelection = {}"
           />
-        </div>
+        </UTooltip>
       </div>
+    </div>
 
-      <div
-        v-if="selectedRows.length"
-        class="shrink-0 flex flex-wrap items-center gap-3 rounded-xl border border-primary/40 bg-default px-4 py-3"
-      >
-        <div class="min-w-0">
-          <p class="text-sm font-medium">{{ selectedRows.length }} selected</p>
-          <p
-            v-if="selectedDraftIds.length && selectedPublishedIds.length"
-            class="text-xs text-muted"
-          >
-            {{ selectedDraftIds.length }} draft ·
-            {{ selectedPublishedIds.length }} published
-          </p>
-        </div>
-        <div class="ml-auto flex flex-wrap items-center justify-end gap-2">
-          <!-- The one action a selection usually leads to. -->
-          <UTooltip
-            :text="
-              selectedPublishableIds.length
-                ? 'Publish the selected drafts'
-                : 'Nothing to publish — no draft text differs from what is published'
-            "
-          >
-            <UButton
-              color="primary"
-              icon="i-lucide:check-check"
-              :loading="publishing"
-              :disabled="selectedPublishableIds.length === 0"
-              @click="publishKeys(selectedPublishableIds)"
-            >
-              Publish {{ selectedPublishableIds.length || '' }}
-            </UButton>
-          </UTooltip>
-          <!-- One popover rather than the select + add + remove it replaced. -->
-          <UPopover v-if="curReleases.length">
-            <UButton
-              color="neutral"
-              variant="outline"
-              icon="i-lucide:tag"
-              :loading="bulkReleasing"
-            >
-              Release
-            </UButton>
-            <template #content>
-              <div class="w-64 p-3 flex flex-col gap-3">
-                <p class="text-sm font-medium">Release labels</p>
-                <USelectMenu
-                  v-model="bulkReleaseId"
-                  class="w-full"
-                  :items="bulkReleaseItems"
-                  value-key="value"
-                  placeholder="Pick a release"
-                />
-                <div class="flex items-center gap-2">
-                  <UButton
-                    class="flex-1 justify-center"
-                    size="xs"
-                    icon="i-lucide:tag"
-                    label="Add"
-                    :loading="bulkReleasing"
-                    :disabled="!bulkReleaseId"
-                    @click="setBulkRelease('add')"
-                  />
-                  <UButton
-                    class="flex-1"
-                    size="xs"
-                    color="neutral"
-                    variant="outline"
-                    icon="i-lucide:tag-off"
-                    label="Remove"
-                    :disabled="!bulkReleaseId || bulkReleasing"
-                    @click="setBulkRelease('remove')"
-                  />
-                </div>
-                <p class="text-xs text-muted">
-                  Applies to all {{ selectedRows.length }} selected.
-                </p>
-              </div>
-            </template>
-          </UPopover>
-          <UDropdownMenu :items="bulkMenuItems">
-            <UButton
-              color="neutral"
-              variant="outline"
-              icon="i-lucide:ellipsis"
-              square
-              aria-label="More actions"
-            />
-          </UDropdownMenu>
-          <UTooltip text="Clear selection">
-            <UButton
-              color="neutral"
-              variant="ghost"
-              icon="i-lucide:x"
-              square
-              aria-label="Clear selection"
-              @click="rowSelection = {}"
-            />
-          </UTooltip>
-        </div>
-      </div>
-
-      <TranslationsTable
-        ref="table"
+    <!-- Stacks below `lg`, like the Consistency review. -->
+    <div class="flex-1 min-h-0 min-w-0 flex flex-col lg:flex-row">
+      <TranslationsKeyList
+        v-model:focused="focusedId"
         v-model:row-selection="rowSelection"
+        class="max-h-[45%] lg:max-h-none lg:w-96 shrink-0 border-b lg:border-b-0 lg:border-r border-default"
         :page="page"
         :project-id="curProject.id"
         :rows="rows"
@@ -1138,35 +1130,24 @@ onMounted(async () => {
         :limit="limit"
         :locale-codes="localeCodes"
         :source-locale="sourceLocale"
-        :releases="curReleases"
-        :publishing="publishing"
-        :git-sync-busy-id="gitSyncPending"
-        :load-count="loadCount"
         @update:page="onPageChange"
-        @row-updated="onRowUpdated"
-        @edit="openEdit"
-        @delete="openDelete"
-        @publish="onRowPublish"
-        @unpublish="openUnpublish"
-        @toggle-git-sync="onRowToggleGitSync"
       />
-
-      <!-- Teleports to <body>, so nesting it in this column costs no layout. -->
-      <I18nKeySlideover
-        ref="keyDrawer"
-        v-model:open="drawerOpen"
-        :project-id="curProject.id"
-        :row="drawerRow"
-        :locale-codes="localeCodes"
-        :source-locale="sourceLocale"
-        :git-sync-busy-id="gitSyncPending"
-        :index="drawerIndex"
-        :total="rows.length"
-        @navigate="navigateDrawer"
-        @cell-saved="onCellSaved"
-        @toggle-git-sync="onRowToggleGitSync"
-        @unpublish="openUnpublish"
-      />
+      <main class="flex-1 min-h-0 min-w-0 overflow-auto bg-default">
+        <TranslationsKeyDetail
+          ref="detail"
+          :project-id="curProject.id"
+          :row="focusedRow"
+          :locale-codes="localeCodes"
+          :source-locale="sourceLocale"
+          :git-sync-busy-id="gitSyncPending"
+          :publishing="publishing"
+          :load-count="loadCount"
+          @publish="onRowPublish"
+          @unpublish="openUnpublish"
+          @delete="openDelete"
+          @toggle-git-sync="onRowToggleGitSync"
+        />
+      </main>
     </div>
   </div>
 </template>

@@ -70,7 +70,7 @@ Project Owner 管的是这一个项目：项目设置、发行标签的增删改
 
 **Source language** 是原文存在哪个语言下。界面上的说明写得很清楚：`Each key keeps its original text in this language; Git pushes and exports read that copy.`
 
-它只能从这个项目的语言集合里选。语言集合是建项目时定好的一组，默认 10 种：`en`、`zh_cn`、`zh_tw`、`ja`、`ko`、`ru`、`fr`、`de`、`es`、`pt`——词条表里一列一个语言，就是这组。**界面上目前没有改这个集合的入口**，要加语言得找管理员。
+它只能从这个项目的语言集合里选。语言集合是建项目时定好的一组，默认 10 种：`en`、`zh_cn`、`zh_tw`、`ja`、`ko`、`ru`、`fr`、`de`、`es`、`pt`——词条表里每条词条的那排圆点、详情里的那些语言，就是这组。**界面上目前没有改这个集合的入口**，要加语言得找管理员。
 
 ### key 命名规范
 

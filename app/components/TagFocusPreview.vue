@@ -1,7 +1,8 @@
 <script setup lang="ts">
 /**
  * A read-only screenshot with its tag boxes, zoomed to fit the boxes (Focus)
- * or the whole image (Fit). Used by the Resolve and Tags drawers.
+ * or the whole image (Fit). Used by the Resolve and Tags drawers, and as the
+ * Translations inspector's thumbnail.
  */
 import { useResizeObserver } from '@vueuse/core'
 import { DEFAULT_LINE_COLOR, DEFAULT_LINE_WIDTH } from '#shared/constants'
@@ -11,6 +12,8 @@ const props = defineProps<{
   tags: II18nKeyRefTag[]
   /** Tags to frame in focus mode; empty frames every tag. */
   focusIds?: II18nKeyRefTag['id'][]
+  /** A thumbnail: no zoom controls, and a smaller padding around the boxes. */
+  compact?: boolean
 }>()
 
 const MAX_ZOOM = 2.5
@@ -60,7 +63,10 @@ const region = computed(() => {
   const top = Math.min(...framed.value.map((t) => t.y))
   const right = Math.max(...framed.value.map((t) => t.x + t.width))
   const bottom = Math.max(...framed.value.map((t) => t.y + t.height))
-  const pad = Math.max(MIN_PAD, Math.max(right - left, bottom - top) * PAD_RATIO)
+  const pad = Math.max(
+    props.compact ? MIN_PAD / 2 : MIN_PAD,
+    Math.max(right - left, bottom - top) * PAD_RATIO
+  )
   const x = Math.max(0, left - pad)
   const y = Math.max(0, top - pad)
   return {
@@ -153,6 +159,7 @@ const boxes = computed(() => {
         />
       </div>
       <div
+        v-if="!compact"
         class="absolute top-2 right-2 flex items-center gap-1 rounded-md bg-default/80 backdrop-blur p-0.5 ring ring-default"
       >
         <span class="px-1.5 text-xs text-muted tabular-nums">{{ zoomPercent }}%</span>

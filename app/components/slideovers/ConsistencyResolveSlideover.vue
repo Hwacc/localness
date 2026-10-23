@@ -442,7 +442,8 @@ function deleteOrphan() {
 
 /*
  * Duplicates search their shared sentence so every member lists together; a
- * single-key finding searches its key name, which no other key shares.
+ * single-key finding searches its key name, which no other key shares. `key`
+ * focuses the member being looked at in the Translations inspector.
  */
 const translationsLink = computed(() => {
   const lead = props.finding?.keys[0]
@@ -450,7 +451,15 @@ const translationsLink = computed(() => {
     props.finding?.category === 'duplicate'
       ? lead?.sourceText || lead?.key
       : lead?.key
-  return { path: '/translations', query: { q: q ?? '', scope: 'all' } }
+  const keyId = focusKeyId.value ?? lead?.keyId
+  return {
+    path: '/translations',
+    query: {
+      q: q ?? '',
+      scope: 'all',
+      ...(keyId != null ? { key: String(keyId) } : {}),
+    },
+  }
 })
 
 function openInEditor() {
