@@ -210,7 +210,7 @@ describe('atlassian JIT and bind', () => {
     expect(user.password).toBe('hashed-random')
     expect(user.passwordSetAt).toBeUndefined()
     expect(db.identities).toHaveLength(1)
-    expect(db.identities[0].providerAccountId).toBe('acc-1')
+    expect(db.identities[0]?.providerAccountId).toBe('acc-1')
   })
 
   it('logs in by account_id and does not merge a local user with the same email', async () => {

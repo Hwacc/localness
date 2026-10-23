@@ -360,8 +360,8 @@ describe('parseI18nKeyContent', () => {
       'demo_b_btn',
       'demo_c_btn',
     ])
-    expect(alternatives?.[0].confidence).toBeUndefined()
-    expect(alternatives?.[1].confidence).toBe(0.7)
+    expect(alternatives?.[0]?.confidence).toBeUndefined()
+    expect(alternatives?.[1]?.confidence).toBe(0.7)
   })
 
   it('is not confused by brackets used inside a value', () => {
@@ -661,14 +661,14 @@ describe('I18nKeyGenerateAgent over HTTP', () => {
     for (const field of ['enable_thinking', 'thinking_budget', 'top_k']) {
       expect(sent[0]).toHaveProperty(field)
     }
-    expect(sent[0].response_format).toEqual({ type: 'json_object' })
-    expect(sent[0].max_tokens).toBeGreaterThan(0)
+    expect(sent[0]!.response_format).toEqual({ type: 'json_object' })
+    expect(sent[0]!.max_tokens).toBeGreaterThan(0)
   })
 
   it('sends the user turn with the convention and no tag id', async () => {
     await new I18nKeyGenerateAgent().generateI18nKey(BASE)
 
-    const userTurn = sent[0].messages[1].content as string
+    const userTurn = sent[0]!.messages[1].content as string
     expect(userTurn).toContain('Key convention:')
     expect(userTurn).toContain('prefix: demo')
     expect(userTurn).toContain('Sign in')

@@ -46,7 +46,7 @@ describe('verifyLicense', () => {
 
   it('rejects a payload tampered by one byte', () => {
     const key = signKey(makePayload())
-    const [payloadSegment, signatureSegment] = key.split('.')
+    const [payloadSegment = '', signatureSegment] = key.split('.')
     // The signature covers the segment bytes, so any edit breaks it.
     const at = Math.floor(payloadSegment.length / 2)
     const original = payloadSegment[at]!

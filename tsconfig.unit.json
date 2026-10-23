@@ -1,19 +1,17 @@
 {
+  // Tests import server code, so they are checked with the server's Nitro
+  // context and settings: auto-imports (createError, shared types) and the h3
+  // path alias. `include` replaces the base's, so its Nitro type files are
+  // listed again.
+  "extends": "./.nuxt/tsconfig.server.json",
   "compilerOptions": {
-    "target": "ESNext",
-    "module": "ESNext",
-    "moduleResolution": "bundler",
-    "noEmit": true,
-    "skipLibCheck": true,
-    "strict": false,
-    "types": ["node"],
-    "paths": {
-      "#server/*": ["./server/*"],
-      "#shared": ["./shared"],
-      "#shared/*": ["./shared/*"],
-      "~~": ["."],
-      "~~/*": ["./*"]
-    }
+    "types": ["node"]
   },
-  "include": ["test/**/*.ts"]
+  "include": [
+    ".nuxt/types/nitro-nuxt.d.ts",
+    ".nuxt/types/nitro.d.ts",
+    "server/**/*",
+    "shared/**/*.d.ts",
+    "test/unit/**/*.ts"
+  ]
 }

@@ -39,3 +39,6 @@ runtime/uploads/*
 !runtime/uploads/welcome.png
 runtime/db/*
 !runtime/db/.gitkeep
+
+# TypeScript incremental build state (tsconfig.unit.json inherits incremental)
+*.tsbuildinfo

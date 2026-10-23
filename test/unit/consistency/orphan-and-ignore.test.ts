@@ -31,6 +31,7 @@ describe('partitionIgnored (R2/R3)', () => {
       keyId,
       key: `k${keyId}`,
       sourceText: 'x',
+      published: false,
       tagCount: 1,
     })),
   })
