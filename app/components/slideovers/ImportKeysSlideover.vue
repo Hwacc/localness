@@ -432,7 +432,7 @@ watch(open, (isOpen) => {
     <UButton
       size="sm"
       color="neutral"
-      variant="outline"
+      variant="soft"
       label="Import"
       icon="i-lucide:upload"
       :disabled="!validID(projectId)"

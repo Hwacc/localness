@@ -600,7 +600,6 @@ function headline(finding: ReportFinding) {
       class="shrink-0 px-6 py-5 bg-default border-b border-default flex items-center gap-3"
     >
       <h1 class="text-xl font-semibold tracking-tight">Consistency</h1>
-      <span class="text-sm text-muted truncate">{{ curProject?.name }}</span>
 
       <div
         v-if="validID(projectId) && !locked && !loading"

@@ -101,8 +101,9 @@ and MCP tools read. You can keep editing drafts without changing what consumers 
   and prefill the source text.
 - 🤖 **AI-assisted key naming** — suggest i18n key names from the tag's context via any
   OpenAI-compatible endpoint, with per-feature configuration overrides.
-- 🌐 **Key table** — a key × locale matrix with autosave, per-locale publish, version
-  history, batch paste-import, and references back to the tags using a key.
+- 🌐 **Key table** — a key list read by name and source text, with per-locale coverage dots,
+  and an inspector beside it: screenshot context, source, every translation (autosaved),
+  releases and Git sync. Bulk publish, import, and AI naming for placeholder keys.
 - 🧹 **Consistency checks** (Plus) — scan a project for duplicate source text under different
   keys, translations whose placeholders, numbers, or tags no longer match the source, style
   issues, and orphan keys; fix them from a review drawer.
