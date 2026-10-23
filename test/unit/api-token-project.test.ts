@@ -34,7 +34,7 @@ vi.mock('#server/libs/prisma', () => {
           field === 'projectId'
             ? row.projectId
             : (db.projects.find((p) => p.id === row.projectId) as any)?.[
-                Object.keys((order as any)[field])[0]
+                Object.keys((order as any)[field])[0]!
               ]
         const left = pick(a)
         const right = pick(b)

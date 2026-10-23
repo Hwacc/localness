@@ -254,7 +254,7 @@ describe('shapeKeyDuplicates', () => {
       shapeKeyDuplicates(
         [{ key: 'demo_a_btn', sourceText: '  Sign in  ' }],
         'Sign in'
-      )[0].sameSourceText
+      )[0]?.sameSourceText
     ).toBe(true)
   })
 

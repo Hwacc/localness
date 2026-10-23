@@ -54,7 +54,7 @@ describe('releaseNamesForIds', () => {
 describe('pageMatchesReleaseFilter', () => {
   it('reads the page labels', () => {
     expect(pageMatchesReleaseFilter({ releaseIds: [4] } as IPage, 4)).toBe(true)
-    expect(pageMatchesReleaseFilter({ releaseIds: [] } as IPage, 4)).toBe(false)
+    expect(pageMatchesReleaseFilter({ releaseIds: [] as ID[] } as IPage, 4)).toBe(false)
   })
 
   it('treats a page with no releaseIds key as unlabelled', () => {
