@@ -1,22 +1,10 @@
 import type { ID } from '../types'
 import type { IPage } from '../types/Page'
 import type { IProjectRelease } from '../types/Project'
+import { entryMatchesReleaseFilter, type ReleaseFilterValue } from '../contract/rules'
 
-/**
- * Which release the workspace is looking at: `'all'`, `'unassigned'`, or one
- * release's id. The client twin of the server's `ReleaseFilter`.
- */
-export type ReleaseFilterValue = 'all' | 'unassigned' | number
-
-export function entryMatchesReleaseFilter(
-  releaseIds: ID[] | undefined,
-  filter: ReleaseFilterValue
-) {
-  if (filter === 'all') return true
-  const ids = releaseIds ?? []
-  if (filter === 'unassigned') return ids.length === 0
-  return ids.some((releaseId) => String(releaseId) === String(filter))
-}
+export { entryMatchesReleaseFilter }
+export type { ReleaseFilterValue }
 
 export function pageMatchesReleaseFilter(
   page: IPage,

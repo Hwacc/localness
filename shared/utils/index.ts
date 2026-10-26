@@ -1,6 +1,5 @@
 import type { ID } from '../types'
 import clsx from 'clsx'
-import SparkMD5 from 'spark-md5'
 import { twMerge } from 'tailwind-merge'
 import { DEFAULT_LOCALES } from '../constants'
 import { fileBaseName, fileExtension } from './file'
@@ -46,20 +45,9 @@ export const timestampFilename = (file: File) => {
   return ext ? `${base}-${timestamp}.${ext}` : `${base}-${timestamp}`
 }
 
-export const fpTranslation = (text: string) => {
-  const normalized = text.replace(/\s+/g, '').trim()
-  return SparkMD5.hash(normalized)
-}
+import { formatI18nKeyDisplay } from '../contract/rules'
 
-export const DRAFT_KEY_PREFIX = '__draft_'
-
-export function formatI18nKeyDisplay(key: string | null | undefined) {
-  if (!key) return ''
-  if (!key.startsWith(DRAFT_KEY_PREFIX)) return key
-  const hash = key.slice(DRAFT_KEY_PREFIX.length)
-  if (hash.length <= 5) return key
-  return `${DRAFT_KEY_PREFIX}${hash.slice(0, 5)}`
-}
+export { DRAFT_KEY_PREFIX, fpTranslation, formatI18nKeyDisplay } from '../contract/rules'
 
 /**
  * The key to save when it was typed into a field showing the display form, or
