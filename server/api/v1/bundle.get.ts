@@ -8,9 +8,10 @@ import {
   projectLocales,
   resolveReleaseParam,
 } from '#server/helper/api-delivery'
+import type { DeliveryBundle } from '#shared/contract'
 
 /** Public read-only delivery API, token-scoped. See `meta.get.ts`. */
-export default defineEventHandler(async (event) => {
+export default defineEventHandler(async (event): Promise<DeliveryBundle> => {
   const token = await authenticateDeliveryRequest(
     getRequestHeader(event, 'authorization')
   )

@@ -21,6 +21,9 @@ RUN apt-get update \
 # pnpm 10 skips install scripts for anything not listed there — without it
 # better-sqlite3 ships no compiled binding and Prisma fetches no engines.
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml nuxt.config.ts prisma.config.ts tsconfig.json ./
+# `packages/*` in pnpm-workspace.yaml is publish-only (@localness/contract
+# bundles shared/contract). Core does not depend on it, so the image needs no
+# copy of it: with the importer missing from the context, pnpm only warns.
 COPY prisma ./prisma
 # The store lives in a BuildKit cache mount so a lockfile change only downloads
 # the delta. It is not part of any layer, so the image content is unchanged and

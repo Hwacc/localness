@@ -3,7 +3,7 @@ import {
   touchApiToken,
 } from '#server/helper/api-token'
 import { listTokenProjects } from '#server/helper/api-token-project'
-import type { DeliveryProjects } from '#shared/types/Delivery'
+import type { DeliveryProjects } from '#shared/contract'
 
 /**
  * @route GET /api/v1/projects

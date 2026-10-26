@@ -4,7 +4,7 @@ import SparkMD5 from 'spark-md5'
 import { twMerge } from 'tailwind-merge'
 import { DEFAULT_LOCALES } from '../constants'
 import { fileBaseName, fileExtension } from './file'
-import { zID } from './schemas'
+import { zID } from '../schemas'
 
 export function cn(...args: any[]) {
   return twMerge(clsx(...args))

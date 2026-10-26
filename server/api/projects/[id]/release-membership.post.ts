@@ -2,7 +2,7 @@ import { numericID } from '#server/helper/id'
 import { requireTeamMember } from '#server/helper/access'
 import { readZodBody } from '#server/helper/validate'
 import { setReleaseMembership, throwReleaseHttp } from '#server/helper/release'
-import { zReleaseMembership } from '#shared/utils/schemas'
+import { zReleaseMembership } from '#shared/schemas'
 
 /**
  * @route POST /api/projects/:id/release-membership

@@ -1,0 +1,73 @@
+# Publish @localness/contract to npm when a contract-v* tag is pushed.
+# Tag format: contract-vMAJOR.MINOR.PATCH (optional -rc.N / -beta.N).
+# Independent of the Docker release: its `v*.*.*` filter does not match this
+# prefix, so neither workflow fires for the other's tags.
+# Auth is npm Trusted Publishing (OIDC): no token in repo secrets. The package
+# must already exist on npm with this workflow registered as its trusted
+# publisher, so the very first version is published by hand.
+name: Release contract
+
+on:
+  push:
+    tags:
+      - 'contract-v*.*.*'
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      id-token: write
+    env:
+      DATABASE_URL: file:./runtime/db/ci.db
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.11.0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+          registry-url: https://registry.npmjs.org
+
+      # Trusted Publishing needs npm >= 11.5.1; the one bundled with Node 22 is older.
+      - run: npm install -g npm@latest
+
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm exec prisma generate
+      - run: pnpm typecheck:full
+      - run: pnpm test
+
+      - name: Set version from tag
+        working-directory: packages/contract
+        run: |
+          version="${GITHUB_REF_NAME#contract-v}"
+          VERSION="$version" node -e '
+          const fs = require("fs");
+          const pkg = JSON.parse(fs.readFileSync("package.json", "utf8"));
+          pkg.version = process.env.VERSION;
+          fs.writeFileSync("package.json", JSON.stringify(pkg, null, 2) + "\n");
+          '
+          echo "version=${version}"
+
+      - name: Refuse a version that is already published
+        working-directory: packages/contract
+        run: |
+          name=$(node -p 'require("./package.json").name')
+          version=$(node -p 'require("./package.json").version')
+          if npm view "${name}@${version}" version >/dev/null 2>&1; then
+            echo "${name}@${version} is already on npm" >&2
+            exit 1
+          fi
+
+      - run: pnpm --filter @localness/contract build
+
+      # pnpm, not npm: only pnpm applies `publishConfig.exports` (dist) over the
+      # source-pointing `exports` core uses inside the workspace.
+      - name: Publish
+        working-directory: packages/contract
+        run: pnpm publish --no-git-checks --access public --provenance

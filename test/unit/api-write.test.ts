@@ -1,4 +1,11 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import {
+  createPageResultSchema,
+  deleteTagsResultSchema,
+  importPageResultSchema,
+  importPageTagsSchema,
+} from '#shared/contract'
+import { expectContract } from './contract'
 
 type PageRow = { id: number; name: string; image: string | null; projectID: number | null }
 type KeyRow = { id: number; projectId: number; key: string }
@@ -276,6 +283,18 @@ describe('createPageWithTags', () => {
     expect(result.tags[0]).toMatchObject({ x: 10.5, y: 20.25, width: 80, height: 24 })
   })
 
+  it('answers inside the published contract', async () => {
+    db.projects.push({ id: PROJECT, settings: null })
+    seedKey(200, 'home.title')
+    const result = await createPageWithTags({
+      projectId: PROJECT,
+      name: 'Home',
+      image: 'shot.png',
+      tags: [desired({ figmaNodeId: '1:1', i18nKey: 'home.title' }), desired({ figmaNodeId: '1:2' })],
+    })
+    expectContract(createPageResultSchema, result)
+  })
+
   it('stamps the same className the editor draws with', async () => {
     db.projects.push({ id: PROJECT, settings: null })
     await createPageWithTags({
@@ -378,6 +397,19 @@ describe('upsertPageWithTags', () => {
 
     expect(result).toMatchObject({ created: 0, updated: 1 })
     expect(db.tags.find((row) => row.id === tag.id)).toMatchObject({ x: 111, y: 222 })
+  })
+
+  it('answers inside the published contract, stale tags included', async () => {
+    seedPage()
+    seedTag({ figmaNodeId: '1:2' })
+    seedTag({ figmaNodeId: '9:9' })
+    const result = await upsertPageWithTags({
+      projectId: PROJECT,
+      pageId: 12,
+      tags: [desired(), desired({ figmaNodeId: '1:7' })],
+    })
+    expect(result.stale).not.toEqual([])
+    expectContract(importPageResultSchema, result)
   })
 
   it('follows the key named in the request when that key exists', async () => {
@@ -490,6 +522,7 @@ describe('listPageTags', () => {
     seedTag({ figmaNodeId: null, i18nKey: 'b' })
     const result = await listPageTags(PROJECT, 12)
     expect(result.tags).toHaveLength(2)
+    expectContract(importPageTagsSchema, result)
   })
 
   it('404s a page of another project', async () => {
@@ -512,6 +545,7 @@ describe('deletePageTags', () => {
 
     expect(result).toEqual({ deleted: 2, ignored: 0 })
     expect(db.tags).toEqual([])
+    expectContract(deleteTagsResultSchema, result)
   })
 
   it('refuses ids that belong to another page', async () => {

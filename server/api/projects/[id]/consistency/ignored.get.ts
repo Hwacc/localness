@@ -2,7 +2,7 @@ import { numericID } from '#server/helper/id'
 import { requireTeamMember } from '#server/helper/access'
 import { requirePlus } from '#server/helper/license'
 import { readIgnoredFindings } from '#server/helper/consistency-report'
-import { zConsistencyIgnoredQuery } from '#shared/utils/schemas'
+import { zConsistencyIgnoredQuery } from '#shared/schemas'
 
 /**
  * @route GET /api/projects/:id/consistency/ignored

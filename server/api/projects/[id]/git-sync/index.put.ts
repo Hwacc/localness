@@ -6,7 +6,7 @@ import { GitSyncAdapter } from '#shared/constants'
 import {
   normalizeGitHttpsRemote,
   zGitSyncBindingPut,
-} from '#shared/utils/schemas'
+} from '#shared/schemas'
 import { gitSyncLayout } from '#server/libs/git-sync/layouts'
 import { publicGitSyncBinding } from '#server/libs/git-sync/sync'
 

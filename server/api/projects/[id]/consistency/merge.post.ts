@@ -14,7 +14,7 @@ import {
   resolveMergeWrites,
   type MergeCandidate,
 } from '#shared/utils/consistency'
-import { zConsistencyMerge } from '#shared/utils/schemas'
+import { zConsistencyMerge } from '#shared/schemas'
 
 /**
  * @route POST /api/projects/:id/consistency/merge

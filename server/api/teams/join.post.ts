@@ -10,7 +10,7 @@ import {
   recordJoinFailure,
 } from '#server/helper/join-rate-limit'
 import { readZodBody } from '#server/helper/validate'
-import { zTeamInviteJoin } from '#shared/utils/schemas'
+import { zTeamInviteJoin } from '#shared/schemas'
 
 /**
  * @route POST /api/teams/join

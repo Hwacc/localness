@@ -2,7 +2,7 @@ import { createError } from 'h3'
 import prisma from '#server/libs/prisma'
 import { sourceLocaleOf } from '#server/helper/i18n'
 import { isProjectSteward } from '#server/helper/project-owner'
-import type { CaptureKeyHit, CaptureKeySearch, CaptureMatch, CapturePage, CaptureTag } from '#shared/types/Import'
+import type { CaptureKeyHit, CaptureKeySearch, CaptureMatch, CapturePage, CaptureTag } from '#shared/contract'
 
 /**
  * Capture reads for a design tool. Draft source text is visible here on

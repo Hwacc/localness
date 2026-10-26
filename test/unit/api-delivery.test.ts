@@ -1,4 +1,10 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import {
+  deliveryBundleSchema,
+  deliveryLocaleSchema,
+  deliveryMetaSchema,
+} from '#shared/contract'
+import { expectContract } from './contract'
 
 type KeyRow = { id: number; key: string; releaseIds: number[] }
 type ValueRow = { locale: string; keyId: number; publishedText: string | null }
@@ -716,6 +722,40 @@ describe('listUnpublishedDeliveryKeys', () => {
     const page = await listUnpublishedDeliveryKeys(1, 'en', null)
     expect(page.keys).not.toContain('draft')
     expect(page.keys).toEqual([])
+  })
+})
+
+describe('published contract (@localness/contract)', () => {
+  beforeEach(() => {
+    db.keys = [
+      { id: 1, key: 'a', releaseIds: [4] },
+      { id: 2, key: 'b', releaseIds: [] },
+    ]
+    db.values = [
+      { locale: 'en', keyId: 1, publishedText: 'A' },
+      { locale: 'ja', keyId: 2, publishedText: 'B' },
+    ]
+  })
+
+  it('keeps /meta inside the contract, and the instance block is additive', async () => {
+    const meta = await deliveryMeta(1, 4, true)
+    expectContract(deliveryMetaSchema, meta)
+    expectContract(deliveryMetaSchema, {
+      ...meta,
+      instance: { version: '0.4.10', plus: false },
+    })
+  })
+
+  it('refuses an instance block that leaks more than version and plus', async () => {
+    // The customer and the expiry date never leave the session UI.
+    const meta = await deliveryMeta(1, null)
+    const leaked = { ...meta, instance: { version: '1', plus: true, customer: 'x' } }
+    expect(() => expectContract(deliveryMetaSchema, leaked)).toThrow()
+  })
+
+  it('keeps /bundle and /locales/:locale inside the contract', async () => {
+    expectContract(deliveryBundleSchema, await deliveryBundle(1, null, ['en', 'ja']))
+    expectContract(deliveryLocaleSchema, await deliveryLocale(1, 'en', null))
   })
 })
 

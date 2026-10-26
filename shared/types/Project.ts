@@ -1,3 +1,4 @@
+import type { ProjectRelease as IProjectRelease } from '../contract'
 import type { IUser } from './User'
 import type { IPage } from './Page'
 import type { ID } from '.'
@@ -33,15 +34,10 @@ export interface IProjectOwner {
 
 /**
  * A release label. Filter-only: it groups a project's pages and entries by the
- * version they shipped in, and never carries a second copy of any text.
+ * version they shipped in, and never carries a second copy of any text. Defined
+ * in `@localness/contract` because `/api/v1/meta` returns it.
  */
-export interface IProjectRelease {
-  id: ID
-  name: string
-  sort: number
-  createdAt?: string
-  updatedAt?: string
-}
+export type { IProjectRelease }
 
 /** Which Project Settings tab to open on. */
 export type ProjectSettingsTab =

@@ -2,7 +2,7 @@ import { numericID } from '#server/helper/id'
 import { authenticateDeliveryRequest, touchApiToken } from '#server/helper/api-token'
 import { requireTokenPageAccess } from '#server/helper/api-token-project'
 import { readCapturePage } from '#server/helper/api-capture'
-import type { CapturePage } from '#shared/types/Import'
+import type { CapturePage } from '#shared/contract'
 
 /**
  * @route GET /api/v1/pages/:pageId

@@ -6,6 +6,7 @@ import { resolveTokenProject } from '#server/helper/api-token-project'
 import { deliveryMeta, resolveReleaseParam } from '#server/helper/api-delivery'
 import { tokenManagesReleases } from '#server/helper/api-capture'
 import { licenseState } from '#server/helper/license'
+import type { DeliveryMeta } from '#shared/contract'
 
 /**
  * Public read-only delivery API. Kept in `/api/v1` rather than reusing the UI
@@ -22,7 +23,7 @@ import { licenseState } from '#server/helper/license'
  * credential is ambiguous it says so and points at `GET /api/v1/projects`.
  * Published copy only: a draft is never reachable with a token.
  */
-export default defineEventHandler(async (event) => {
+export default defineEventHandler(async (event): Promise<DeliveryMeta> => {
   const token = await authenticateDeliveryRequest(
     getRequestHeader(event, 'authorization')
   )

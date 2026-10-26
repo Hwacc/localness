@@ -2,7 +2,7 @@ import { numericID } from '#server/helper/id'
 import { requireProjectOwner } from '#server/helper/access'
 import { readZodBody } from '#server/helper/validate'
 import { createRelease, throwReleaseHttp } from '#server/helper/release'
-import { zReleaseCreate } from '#shared/utils/schemas'
+import { zReleaseCreate } from '#shared/schemas'
 
 /**
  * @route POST /api/projects/:id/releases

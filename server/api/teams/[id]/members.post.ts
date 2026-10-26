@@ -6,7 +6,7 @@ import {
   throwNotificationHttp,
 } from '#server/helper/notifications'
 import { TeamRole } from '#shared/constants'
-import { zTeamInviteMember } from '#shared/utils/schemas'
+import { zTeamInviteMember } from '#shared/schemas'
 
 /**
  * @route POST /api/teams/:id/members

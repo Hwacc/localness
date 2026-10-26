@@ -5,7 +5,7 @@ import {
   assertUploadSize,
 } from '#server/helper/upload'
 import { authenticateWriteRequest, touchApiToken } from '#server/helper/api-token'
-import type { UploadResult } from '#shared/types/Import'
+import type { UploadResult } from '#shared/contract'
 
 /**
  * Screenshot upload for the import API. Same hardening as `/upload`, minus the

@@ -1,0 +1,38 @@
+{
+  "name": "@localness/contract",
+  "version": "0.1.0",
+  "description": "Response contracts of the Localness public /api/v1: zod schemas and the types inferred from them.",
+  "license": "Elastic-2.0",
+  "type": "module",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Hwacc/localness.git",
+    "directory": "packages/contract"
+  },
+  "sideEffects": false,
+  "files": [
+    "dist"
+  ],
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "publishConfig": {
+    "access": "public",
+    "provenance": true
+  },
+  "scripts": {
+    "build": "tsdown"
+  },
+  "peerDependencies": {
+    "zod": "^4.0.0"
+  },
+  "devDependencies": {
+    "tsdown": "^0.15.0",
+    "zod": "^4.5.4"
+  }
+}

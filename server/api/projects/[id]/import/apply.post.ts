@@ -2,7 +2,7 @@ import { numericID } from '#server/helper/id'
 import { requireProjectOwner } from '#server/helper/access'
 import { readZodBody } from '#server/helper/validate'
 import { applyImport, throwImportHttp } from '#server/helper/i18n-import'
-import { zI18nImportApply } from '#shared/utils/schemas'
+import { zI18nImportApply } from '#shared/schemas'
 
 /**
  * @route POST /api/projects/:id/import/apply

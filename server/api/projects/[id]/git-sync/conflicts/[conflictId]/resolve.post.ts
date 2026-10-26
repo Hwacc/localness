@@ -1,7 +1,7 @@
 import { numericID } from '#server/helper/id'
 import { requireTeamMember } from '#server/helper/access'
 import { readZodBody } from '#server/helper/validate'
-import { zGitSyncConflictResolve } from '#shared/utils/schemas'
+import { zGitSyncConflictResolve } from '#shared/schemas'
 import { resolveConflict } from '#server/libs/git-sync/sync'
 
 /**

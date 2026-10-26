@@ -6,7 +6,7 @@ import {
   listReleases,
 } from '#server/helper/release'
 import { DEFAULT_LOCALE_FALLBACK } from '#shared/constants'
-import type { DeliveryBundle, DeliveryMeta } from '#shared/types/Delivery'
+import type { DeliveryBundle, DeliveryMeta } from '#shared/contract'
 
 export type { DeliveryBundle, DeliveryMeta }
 

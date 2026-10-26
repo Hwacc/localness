@@ -2,7 +2,7 @@ import { numericID } from '#server/helper/id'
 import { authenticateWriteRequest, touchApiToken } from '#server/helper/api-token'
 import { requireTokenPageAccess } from '#server/helper/api-token-project'
 import { listPageTags } from '#server/helper/api-write'
-import type { ImportPageTags } from '#shared/types/Import'
+import type { ImportPageTags } from '#shared/contract'
 
 /**
  * @route GET /api/v1/pages/:pageId/tags

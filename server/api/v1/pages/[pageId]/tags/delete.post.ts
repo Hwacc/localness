@@ -3,7 +3,7 @@ import { authenticateWriteRequest, touchApiToken } from '#server/helper/api-toke
 import { requireTokenPageAccess } from '#server/helper/api-token-project'
 import { readZodBody } from '#server/helper/validate'
 import { deletePageTags } from '#server/helper/api-write'
-import type { DeleteTagsResult } from '#shared/types/Import'
+import type { DeleteTagsResult } from '#shared/contract'
 
 /**
  * @route POST /api/v1/pages/:pageId/tags/delete

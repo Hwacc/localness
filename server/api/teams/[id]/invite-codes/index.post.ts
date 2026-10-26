@@ -10,7 +10,7 @@ import {
   throwTeamInviteHttp,
 } from '#server/helper/team-invite'
 import { TeamRole } from '#shared/constants'
-import { zTeamInviteCodeCreate } from '#shared/utils/schemas'
+import { zTeamInviteCodeCreate } from '#shared/schemas'
 
 function parseExpiresAt(raw: string | null | undefined): Date | null {
   if (raw === undefined) return defaultInviteExpiresAt()

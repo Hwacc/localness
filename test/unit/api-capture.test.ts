@@ -1,4 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { captureMatchSchema } from '#shared/contract'
+import { expectContract } from './contract'
 import { matchCaptureTexts, type CaptureSourceRow } from '#server/helper/api-capture'
 
 const row = (overrides: Partial<CaptureSourceRow> & Pick<CaptureSourceRow, 'id' | 'key'>): CaptureSourceRow => ({
@@ -21,6 +23,17 @@ describe('matchCaptureTexts', () => {
     expect(result.matches[0]?.keys[0]).toMatchObject({ draft: true, sourceText: 'Save', releaseIds: [3] })
     expect(result.matches[1]?.keys[0]).toMatchObject({ key: 'done', draft: false })
     expect(result.matches[2]?.keys).toEqual([])
+  })
+
+  it('answers inside the published contract', () => {
+    const result = matchCaptureTexts(
+      [
+        row({ id: 1, key: 'save', draftText: 'Save', releaseIds: [3] }),
+        row({ id: 2, key: 'done', publishedText: 'Done' }),
+      ],
+      ['Save', 'Done', 'Missing']
+    )
+    expectContract(captureMatchSchema, result)
   })
 
   it('prefers the draft when both sides exist, and keeps every ambiguous hit', () => {

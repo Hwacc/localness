@@ -1,7 +1,7 @@
 import { authenticateDeliveryRequest, touchApiToken } from '#server/helper/api-token'
 import { resolveTokenProject } from '#server/helper/api-token-project'
 import { searchCaptureKeys } from '#server/helper/api-capture'
-import type { CaptureKeySearch } from '#shared/types/Import'
+import type { CaptureKeySearch } from '#shared/contract'
 
 /**
  * @route GET /api/v1/keys/search

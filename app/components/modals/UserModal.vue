@@ -2,7 +2,7 @@
 import { AlertModal, type ImageUploader } from '#components'
 import { z } from 'zod/v4'
 import { copyTextToClipboard } from '~/utils/clipboard'
-import { zOptionalEmail, zOptionalNickname } from '#shared/utils/schemas'
+import { zOptionalEmail, zOptionalNickname } from '#shared/schemas'
 
 const userStore = useUserStore()
 const overlay = useOverlay()

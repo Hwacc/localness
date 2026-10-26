@@ -5,7 +5,7 @@ import { readZodBody } from '#server/helper/validate'
 import {
   normalizeGitHttpsRemote,
   zGitSyncDiscoverProducts,
-} from '#shared/utils/schemas'
+} from '#shared/schemas'
 import { GitSyncAdapter } from '#shared/constants'
 import { discoverProducts } from '#server/libs/git-sync/sync'
 

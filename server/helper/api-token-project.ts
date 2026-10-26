@@ -1,6 +1,6 @@
 import { createError } from 'h3'
 import prisma from '#server/libs/prisma'
-import type { DeliveryProjectRef } from '#shared/types/Delivery'
+import type { DeliveryProjectRef } from '#shared/contract'
 
 /**
  * Which project a token-addressed request is about, and whether it is allowed.
