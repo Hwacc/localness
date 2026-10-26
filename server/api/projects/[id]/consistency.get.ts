@@ -3,7 +3,7 @@ import { requireTeamMember } from '#server/helper/access'
 import { requirePlus } from '#server/helper/license'
 import { consistencyScans, currentScanVersion } from '#server/helper/consistency'
 import { readReportSummary } from '#server/helper/consistency-report'
-import { zConsistencyReportQuery } from '#shared/utils/schemas'
+import { zConsistencyReportQuery } from '#shared/schemas'
 
 /**
  * @route GET /api/projects/:id/consistency

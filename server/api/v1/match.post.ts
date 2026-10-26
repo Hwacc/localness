@@ -2,8 +2,8 @@ import { authenticateDeliveryRequest, touchApiToken } from '#server/helper/api-t
 import { resolveTokenProject } from '#server/helper/api-token-project'
 import { matchCaptureLayers } from '#server/helper/api-capture'
 import { readZodBody } from '#server/helper/validate'
-import { zApiV1Match } from '#shared/utils/schemas'
-import type { CaptureMatch } from '#shared/types/Import'
+import { zApiV1Match } from '#shared/schemas'
+import type { CaptureMatch } from '#shared/contract'
 
 /**
  * @route POST /api/v1/match

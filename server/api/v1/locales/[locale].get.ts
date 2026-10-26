@@ -4,9 +4,10 @@ import {
 } from '#server/helper/api-token'
 import { resolveTokenProject } from '#server/helper/api-token-project'
 import { deliveryLocale, resolveReleaseParam } from '#server/helper/api-delivery'
+import type { DeliveryLocale } from '#shared/contract'
 
 /** Public read-only delivery API, token-scoped. See `meta.get.ts`. */
-export default defineEventHandler(async (event) => {
+export default defineEventHandler(async (event): Promise<DeliveryLocale> => {
   const locale = getRouterParam(event, 'locale')
   if (!locale) {
     throw createError({ statusCode: 400, statusMessage: 'Missing locale' })

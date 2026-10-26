@@ -1,7 +1,7 @@
 import { numericID } from '#server/helper/id'
 import { requireTeamMember } from '#server/helper/access'
 import { readZodBody } from '#server/helper/validate'
-import { zExportSelection } from '#shared/utils/schemas'
+import { zExportSelection } from '#shared/schemas'
 import { loadExportSelection } from '#server/helper/export-load'
 
 /**

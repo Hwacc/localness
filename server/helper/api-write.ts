@@ -2,7 +2,7 @@ import { createError } from 'h3'
 import prisma from '#server/libs/prisma'
 import { fpTranslation, DRAFT_KEY_PREFIX } from '#shared/utils'
 import { DEFAULT_LOCALE_FALLBACK } from '#shared/constants'
-import type { ZApiV1Tag } from '#shared/utils/schemas'
+import type { ZApiV1Tag } from '#shared/schemas'
 import { writeSourceText } from '#server/helper/i18n'
 import { assertReleaseIdsInProject, setReleaseMembership, throwReleaseHttp } from '#server/helper/release'
 import type {
@@ -11,7 +11,7 @@ import type {
   ImportedTag,
   ImportPageResult,
   ImportPageTags,
-} from '#shared/types/Import'
+} from '#shared/contract'
 
 /**
  * The write half of the delivery API: a design tool importing a frame as a page.

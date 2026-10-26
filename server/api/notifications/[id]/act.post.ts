@@ -4,7 +4,7 @@ import {
   throwNotificationHttp,
 } from '#server/helper/notifications'
 import { readZodBody } from '#server/helper/validate'
-import { zNotificationAct } from '#shared/utils/schemas'
+import { zNotificationAct } from '#shared/schemas'
 
 /**
  * @route POST /api/notifications/:id/act

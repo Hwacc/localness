@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { zOptionalEmail, zOptionalNickname } from '#shared/utils/schemas'
+import { zOptionalEmail, zOptionalNickname } from '#shared/schemas'
 
 describe('zOptionalNickname', () => {
   it('treats a cleared field as "clear it"', () => {

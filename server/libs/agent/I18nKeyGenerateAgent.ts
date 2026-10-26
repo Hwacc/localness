@@ -1,6 +1,6 @@
 import type { ChatCompletionMessageParam } from 'openai/resources/chat/completions'
 import type { AgentI18nKeyResult, I18nKeyCandidate } from '#shared/types'
-import type { ZGenI18nKey } from '#shared/utils/schemas'
+import type { ZGenI18nKey } from '#shared/schemas'
 import type { KeyConvention } from '#shared/utils/key-convention'
 import { checkI18nKey } from '#shared/utils/key-convention'
 import { AgentError } from './AbstractAgent'

@@ -2,7 +2,8 @@ import { authenticateWriteRequest, touchApiToken } from '#server/helper/api-toke
 import { resolveTokenProject } from '#server/helper/api-token-project'
 import { setReleaseMembership, throwReleaseHttp } from '#server/helper/release'
 import { readZodBody } from '#server/helper/validate'
-import { zReleaseMembership } from '#shared/utils/schemas'
+import { zReleaseMembership } from '#shared/schemas'
+import type { ReleaseMembershipResult } from '#shared/contract'
 
 /**
  * @route POST /api/v1/release-membership
@@ -10,7 +11,7 @@ import { zReleaseMembership } from '#shared/utils/schemas'
  * so repeating an add does not fail. Does not delete the page, the tag, or the
  * key — a label is not a copy of the content.
  */
-export default defineEventHandler(async (event) => {
+export default defineEventHandler(async (event): Promise<ReleaseMembershipResult> => {
   const token = await authenticateWriteRequest(
     getRequestHeader(event, 'authorization')
   )

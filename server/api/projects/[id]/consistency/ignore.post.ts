@@ -4,7 +4,7 @@ import { requireTeamMember } from '#server/helper/access'
 import { requirePlus } from '#server/helper/license'
 import { readZodBody } from '#server/helper/validate'
 import { snapshotFindingKeyIds } from '#server/helper/consistency'
-import { zConsistencyIgnore } from '#shared/utils/schemas'
+import { zConsistencyIgnore } from '#shared/schemas'
 
 /**
  * @route POST /api/projects/:id/consistency/ignore

@@ -1,7 +1,7 @@
 import { numericID } from '#server/helper/id'
 import { deleteNotifications } from '#server/helper/notifications'
 import { readZodBody } from '#server/helper/validate'
-import { zNotificationIds } from '#shared/utils/schemas'
+import { zNotificationIds } from '#shared/schemas'
 
 /**
  * @route POST /api/notifications/delete

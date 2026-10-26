@@ -11,7 +11,7 @@ import {
   scanSourceText,
   withPluralFamilies,
 } from '#shared/utils/consistency'
-import { zConsistencyKeysQuery } from '#shared/utils/schemas'
+import { zConsistencyKeysQuery } from '#shared/schemas'
 
 /**
  * @route GET /api/projects/:id/consistency/keys?keyIds=1,2

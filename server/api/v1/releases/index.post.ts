@@ -3,14 +3,15 @@ import { resolveTokenProject } from '#server/helper/api-token-project'
 import { assertTokenManagesReleases } from '#server/helper/api-capture'
 import { createRelease, throwReleaseHttp } from '#server/helper/release'
 import { readZodBody } from '#server/helper/validate'
-import { zReleaseCreate } from '#shared/utils/schemas'
+import { zReleaseCreate } from '#shared/schemas'
+import type { IProjectRelease } from '#shared/types/Project'
 
 /**
  * @route POST /api/v1/releases
  * @description Define a release label. Project owner only — attaching a label
  * to a page or a key is a different route and does not need this.
  */
-export default defineEventHandler(async (event) => {
+export default defineEventHandler(async (event): Promise<IProjectRelease> => {
   const token = await authenticateWriteRequest(
     getRequestHeader(event, 'authorization')
   )

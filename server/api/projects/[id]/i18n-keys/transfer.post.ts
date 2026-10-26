@@ -2,7 +2,7 @@ import { numericID } from '#server/helper/id'
 import { requireTeamMember } from '#server/helper/access'
 import { readZodBody } from '#server/helper/validate'
 import { transferKeys, throwTransferHttp } from '#server/helper/i18n-transfer'
-import { zI18nTransfer } from '#shared/utils/schemas'
+import { zI18nTransfer } from '#shared/schemas'
 
 /**
  * @route POST /api/projects/:id/i18n-keys/transfer

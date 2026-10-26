@@ -2,7 +2,7 @@ import { authenticateDeliveryRequest, touchApiToken } from '#server/helper/api-t
 import { resolveTokenProject } from '#server/helper/api-token-project'
 import { sourceLocaleOf } from '#server/helper/i18n'
 import prisma from '#server/libs/prisma'
-import type { DeliveryOutdated } from '#shared/types/Delivery'
+import type { DeliveryOutdated } from '#shared/contract'
 import { isI18nKeyDraft } from '#shared/utils'
 import { isTranslationOutdated } from '#shared/utils/outdated'
 

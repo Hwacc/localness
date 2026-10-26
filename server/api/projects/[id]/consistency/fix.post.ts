@@ -6,7 +6,7 @@ import { readZodBody } from '#server/helper/validate'
 import { localesToContent, sourceLocaleOf } from '#server/helper/i18n'
 import { LogAction, LogStatus } from '#shared/constants/log'
 import { fpTranslation } from '#shared/utils'
-import { zConsistencyFix } from '#shared/utils/schemas'
+import { zConsistencyFix } from '#shared/schemas'
 
 /**
  * @route POST /api/projects/:id/consistency/fix

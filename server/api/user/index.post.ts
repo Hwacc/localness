@@ -2,7 +2,7 @@ import { z } from 'zod/v4'
 import prisma from '#server/libs/prisma'
 import { numericID } from '#server/helper/id'
 import { readZodBody } from '#server/helper/validate'
-import { zOptionalEmail, zOptionalNickname } from '#shared/utils/schemas'
+import { zOptionalEmail, zOptionalNickname } from '#shared/schemas'
 
 const zProfile = z.object(
   {

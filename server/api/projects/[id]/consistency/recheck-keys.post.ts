@@ -2,7 +2,7 @@ import { numericID } from '#server/helper/id'
 import { requireTeamMember } from '#server/helper/access'
 import { requirePlus } from '#server/helper/license'
 import { recheckSnapshotKeys } from '#server/helper/consistency'
-import { zConsistencyRecheckKeys } from '#shared/utils/schemas'
+import { zConsistencyRecheckKeys } from '#shared/schemas'
 
 /**
  * @route POST /api/projects/:id/consistency/recheck-keys

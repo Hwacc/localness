@@ -1,7 +1,7 @@
 import { authenticateDeliveryRequest, touchApiToken } from '#server/helper/api-token'
 import { resolveTokenProject } from '#server/helper/api-token-project'
 import { deliveryKeys, resolveReleaseParam } from '#server/helper/api-delivery'
-import type { DeliveryKeys } from '#shared/types/Delivery'
+import type { DeliveryKeys } from '#shared/contract'
 
 /** Public read-only delivery API, token-scoped. Names only — see `DeliveryKeys`. */
 export default defineEventHandler(async (event): Promise<DeliveryKeys> => {

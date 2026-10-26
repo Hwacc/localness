@@ -6,7 +6,7 @@ import { config as loadEnv } from 'dotenv'
 import readline from 'readline'
 import { PrismaClient } from '../prisma/client/client'
 import { UserRole } from '../shared/constants'
-import { zPassword } from '../shared/utils/schemas'
+import { zPassword } from '../shared/schemas'
 
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..')
 loadEnv({ path: join(repoRoot, '.env') })

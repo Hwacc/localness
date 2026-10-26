@@ -2,7 +2,7 @@ import { numericID } from '#server/helper/id'
 import { requireTeamMember } from '#server/helper/access'
 import { requirePlus } from '#server/helper/license'
 import { readReportFindings } from '#server/helper/consistency-report'
-import { zConsistencyFindingsQuery } from '#shared/utils/schemas'
+import { zConsistencyFindingsQuery } from '#shared/schemas'
 
 /**
  * @route GET /api/projects/:id/consistency/findings

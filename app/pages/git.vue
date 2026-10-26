@@ -10,7 +10,7 @@ import {
   GitSyncPushReason,
 } from '#shared/constants'
 import { formatI18nKeyDisplay, validID } from '#shared/utils'
-import { isHttpsRemoteUrl, normalizeGitHttpsRemote } from '#shared/utils/schemas'
+import { isHttpsRemoteUrl, normalizeGitHttpsRemote } from '#shared/schemas'
 import type { ThreeWayDecision } from '#shared/types/GitSync'
 import { GitSyncHistoryModal } from '#components'
 

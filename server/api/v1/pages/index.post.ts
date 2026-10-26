@@ -2,7 +2,7 @@ import { authenticateWriteRequest, touchApiToken } from '#server/helper/api-toke
 import { resolveTokenProject } from '#server/helper/api-token-project'
 import { readZodBody } from '#server/helper/validate'
 import { createPageWithTags } from '#server/helper/api-write'
-import type { CreatePageResult } from '#shared/types/Import'
+import type { CreatePageResult } from '#shared/contract'
 
 /**
  * @route POST /api/v1/pages

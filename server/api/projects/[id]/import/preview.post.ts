@@ -2,7 +2,7 @@ import { numericID } from '#server/helper/id'
 import { requireProjectOwner } from '#server/helper/access'
 import { readZodBody } from '#server/helper/validate'
 import { previewImport } from '#server/helper/i18n-import'
-import { zI18nImportPreview } from '#shared/utils/schemas'
+import { zI18nImportPreview } from '#shared/schemas'
 
 /**
  * @route POST /api/projects/:id/import/preview

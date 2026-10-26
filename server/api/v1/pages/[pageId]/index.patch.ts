@@ -5,7 +5,7 @@ import { readZodBody } from '#server/helper/validate'
 import { upsertPageWithTags } from '#server/helper/api-write'
 import { discardReplacedPageImage } from '#server/helper/page-image'
 import prisma from '#server/libs/prisma'
-import type { ImportPageResult } from '#shared/types/Import'
+import type { ImportPageResult } from '#shared/contract'
 
 /**
  * @route PATCH /api/v1/pages/:pageId

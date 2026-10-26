@@ -2,7 +2,7 @@ import { numericID } from '#server/helper/id'
 import { requireProjectOwner } from '#server/helper/access'
 import { readZodBody } from '#server/helper/validate'
 import { renameRelease, throwReleaseHttp } from '#server/helper/release'
-import { zReleaseRename } from '#shared/utils/schemas'
+import { zReleaseRename } from '#shared/schemas'
 
 /**
  * @route PATCH /api/projects/:id/releases/:releaseId

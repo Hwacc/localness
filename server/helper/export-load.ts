@@ -1,7 +1,7 @@
 import prisma from '#server/libs/prisma'
 import { numericID } from '#server/helper/id'
 import { DEFAULT_LOCALE_FALLBACK } from '#shared/constants'
-import type { ZExportSelection } from '#shared/utils/schemas'
+import type { ZExportSelection } from '#shared/schemas'
 import {
   buildExportRows,
   exportLocaleColumns,
