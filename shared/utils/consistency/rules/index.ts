@@ -16,6 +16,8 @@ import { lintDoubleSpaceRule } from './lint-double-space'
 import { lintCjkSpacingRule } from './lint-cjk-spacing'
 import { lintTerminalPunctRule } from './lint-terminal-punct'
 import { lintFrenchSpacingRule } from './lint-french-spacing'
+import { lintNumberFormatRule } from './lint-number-format'
+import { lintNumberLiteralRule } from './lint-number-literal'
 
 /** Registry order = report order. Adding a rule is one entry here. */
 export const allRules: ConsistencyRule[] = [
@@ -30,6 +32,8 @@ export const allRules: ConsistencyRule[] = [
   lintCjkSpacingRule,
   lintTerminalPunctRule,
   lintFrenchSpacingRule,
+  lintNumberFormatRule,
+  lintNumberLiteralRule,
 ]
 
 /** The rules a single-key recheck can redo — see `ConsistencyRule.granularity`. */
@@ -42,6 +46,8 @@ export const lintRuleCatalog: Array<{ id: string; label: string }> = [
   { id: 'lint.cjk-spacing', label: 'CJK spacing' },
   { id: 'lint.terminal-punct', label: 'Terminal punctuation' },
   { id: 'lint.french-spacing', label: 'French spacing' },
+  { id: 'lint.number-format', label: 'Number format' },
+  { id: 'lint.number-literal', label: 'Hard-coded numbers' },
 ]
 
 /** Rules a project may re-grade or turn off (Project Settings → Consistency). */

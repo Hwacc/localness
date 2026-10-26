@@ -612,7 +612,7 @@ const title = computed(() => {
                     v-if="isPublishedKey(member)"
                     color="success"
                     variant="subtle"
-                    size="xs"
+                    size="sm"
                   >
                     published
                   </UBadge>
@@ -625,7 +625,7 @@ const title = computed(() => {
                     :key="badge.label"
                     :color="badge.color"
                     variant="subtle"
-                    size="xs"
+                    size="sm"
                     :title="badge.title"
                   >
                     {{ badge.label }}
@@ -683,9 +683,7 @@ const title = computed(() => {
                 :class="choice.status === 'conflict' ? 'border-warning' : 'border-success/60'"
               >
                 <div class="flex items-center gap-2">
-                  <UBadge color="neutral" variant="outline" size="xs">
-                    {{ choice.locale }}
-                  </UBadge>
+                  <LocaleBadge :locale="choice.locale" />
                   <span v-if="choice.status === 'fill'" class="text-xs text-muted">
                     missing on the kept key — filled from
                     {{ keysLabel(choice.options[0]!.keyIds) }}
@@ -820,9 +818,7 @@ const title = computed(() => {
               :class="liveIssue(locale) ? 'border-error/60' : 'border-success/60'"
             >
               <div class="flex items-center gap-2">
-                <UBadge color="neutral" variant="outline" size="xs">
-                  {{ locale }}
-                </UBadge>
+                <LocaleBadge :locale="locale" />
                 <span v-if="liveIssue(locale)" class="text-sm">
                   {{ liveIssue(locale)?.message }}
                 </span>
@@ -831,7 +827,7 @@ const title = computed(() => {
                   v-if="savedLocales.includes(locale) && !isEdited(locale)"
                   color="success"
                   variant="subtle"
-                  size="xs"
+                  size="sm"
                   class="ml-auto"
                 >
                   published
