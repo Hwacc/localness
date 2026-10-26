@@ -58,7 +58,7 @@ function pageSummary(member: ReportMember) {
       <UBadge
         :color="severityMeta(finding.severity).color"
         variant="subtle"
-        size="xs"
+        size="sm"
       >
         {{ severityMeta(finding.severity).label }}
       </UBadge>
@@ -108,7 +108,7 @@ function pageSummary(member: ReportMember) {
             v-if="diverged.length"
             color="error"
             variant="subtle"
-            size="xs"
+            size="sm"
             class="shrink-0"
           >
             diverged in {{ diverged.join(', ') }}
@@ -128,7 +128,7 @@ function pageSummary(member: ReportMember) {
               :key="badge.label"
               :color="badge.color"
               variant="subtle"
-              size="xs"
+              size="sm"
               :title="badge.title"
             >
               {{ badge.label }}
@@ -166,7 +166,7 @@ function pageSummary(member: ReportMember) {
               :key="badge.label"
               :color="badge.color"
               variant="subtle"
-              size="xs"
+              size="sm"
               :title="badge.title"
             >
               {{ badge.label }}
@@ -232,9 +232,7 @@ function pageSummary(member: ReportMember) {
           class="flex flex-col gap-1 border-l-2 border-error/60 pl-3"
         >
           <div class="flex items-center gap-2">
-            <UBadge color="neutral" variant="outline" size="xs">
-              {{ issue.locale }}
-            </UBadge>
+            <LocaleBadge :locale="issue.locale" />
             <span class="text-sm">{{ issue.message }}</span>
           </div>
           <p class="text-xs whitespace-pre-wrap break-words">

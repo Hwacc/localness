@@ -885,7 +885,7 @@ function headline(finding: ReportFinding) {
               <UBadge
                 :color="severityMeta(group.worst).color"
                 variant="subtle"
-                size="xs"
+                size="sm"
               >
                 {{ group.total }}
               </UBadge>
@@ -932,18 +932,14 @@ function headline(finding: ReportFinding) {
                   {{ finding.keys.length }} keys
                 </span>
                 <span class="flex items-center gap-1 shrink-0 ml-auto">
-                  <UBadge
+                  <LocaleBadge
                     v-for="locale in findingLocales(finding).slice(
                       0,
                       MAX_LOCALE_BADGES,
                     )"
                     :key="locale"
-                    color="neutral"
-                    variant="outline"
-                    size="xs"
-                  >
-                    {{ locale }}
-                  </UBadge>
+                    :locale="locale"
+                  />
                   <span
                     v-if="findingLocales(finding).length > MAX_LOCALE_BADGES"
                     class="text-xs text-muted"
