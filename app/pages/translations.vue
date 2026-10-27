@@ -198,7 +198,7 @@ function toggleFocusedSelection() {
   rowSelection.value = rowSelection.value[key] ? rest : { ...rest, [key]: true }
 }
 
-/** The Consistency review keys: ↑ ↓ move, a letter acts. Typing is never taken. */
+/** The Consistency review keys: ↑ ↓ move, ← → turn the page, a letter acts. Typing is never taken. */
 function onKeydown(event: KeyboardEvent) {
   if (event.metaKey || event.ctrlKey || event.altKey) return
   const target = event.target as HTMLElement | null
@@ -216,6 +216,9 @@ function onKeydown(event: KeyboardEvent) {
   if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
     event.preventDefault()
     moveFocus(event.key === 'ArrowDown' ? 1 : -1)
+  } else if (event.key === 'ArrowLeft' || event.key === 'ArrowRight') {
+    event.preventDefault()
+    movePage(event.key === 'ArrowRight' ? 1 : -1)
   } else if (event.key === 'x') {
     event.preventDefault()
     toggleFocusedSelection()
@@ -644,6 +647,12 @@ async function loadKeys() {
 function onPageChange(next: number) {
   page.value = next
   loadKeys()
+}
+
+function movePage(delta: -1 | 1) {
+  const last = Math.max(Math.ceil(total.value / limit), 1)
+  const next = Math.min(Math.max(page.value + delta, 1), last)
+  if (next !== page.value && !loading.value) onPageChange(next)
 }
 
 function onRowPublish(row: II18nKeyRow) {
@@ -1132,21 +1141,36 @@ onMounted(async () => {
         :source-locale="sourceLocale"
         @update:page="onPageChange"
       />
-      <main class="flex-1 min-h-0 min-w-0 overflow-auto bg-default">
-        <TranslationsKeyDetail
-          ref="detail"
-          :project-id="curProject.id"
-          :row="focusedRow"
-          :locale-codes="localeCodes"
-          :source-locale="sourceLocale"
-          :git-sync-busy-id="gitSyncPending"
-          :publishing="publishing"
-          :load-count="loadCount"
-          @publish="onRowPublish"
-          @unpublish="openUnpublish"
-          @delete="openDelete"
-          @toggle-git-sync="onRowToggleGitSync"
-        />
+      <main class="flex-1 min-h-0 min-w-0 flex flex-col bg-default">
+        <div class="flex-1 min-h-0 overflow-auto">
+          <TranslationsKeyDetail
+            ref="detail"
+            :project-id="curProject.id"
+            :row="focusedRow"
+            :locale-codes="localeCodes"
+            :source-locale="sourceLocale"
+            :git-sync-busy-id="gitSyncPending"
+            :publishing="publishing"
+            :load-count="loadCount"
+            @publish="onRowPublish"
+            @unpublish="openUnpublish"
+            @delete="openDelete"
+            @toggle-git-sync="onRowToggleGitSync"
+          />
+        </div>
+        <footer
+          class="shrink-0 flex flex-wrap items-center justify-end gap-x-4 gap-y-1 px-4 py-2 border-t border-default text-xs text-muted"
+        >
+          <span class="flex items-center gap-1">
+            <UKbd>↑</UKbd><UKbd>↓</UKbd> Switch key
+          </span>
+          <span class="flex items-center gap-1">
+            <UKbd>←</UKbd><UKbd>→</UKbd> Turn page
+          </span>
+          <span class="flex items-center gap-1">
+            <UKbd>X</UKbd> Select key
+          </span>
+        </footer>
       </main>
     </div>
   </div>

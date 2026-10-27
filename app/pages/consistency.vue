@@ -264,6 +264,23 @@ async function moveSelection(delta: number) {
   }
 }
 
+/** ← → jump to the first finding of the previous / next category. */
+async function moveCategory(delta: -1 | 1) {
+  const filled = groups.value.filter((group) => group.findings.length)
+  const current = filled.findIndex(
+    (group) => group.category === selected.value?.category,
+  )
+  const target = filled[Math.min(Math.max(current + delta, 0), filled.length - 1)]
+  const first = target?.findings[0]
+  if (!target || !first) return
+  openState.value[categoryNodeId(target.category)] = true
+  select(first)
+  await nextTick()
+  document
+    .querySelector(`[data-finding-key="${findingKey(first)}"]`)
+    ?.scrollIntoView({ block: 'nearest' })
+}
+
 function onKeydown(event: KeyboardEvent) {
   const target = event.target as HTMLElement | null
   if (
@@ -277,6 +294,9 @@ function onKeydown(event: KeyboardEvent) {
   if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
     event.preventDefault()
     void moveSelection(event.key === 'ArrowDown' ? 1 : -1)
+  } else if (event.key === 'ArrowLeft' || event.key === 'ArrowRight') {
+    event.preventDefault()
+    void moveCategory(event.key === 'ArrowRight' ? 1 : -1)
   } else if (event.key === 'e' && selected.value) {
     event.preventDefault()
     setIgnored(selected.value, true)
@@ -1059,26 +1079,40 @@ function headline(finding: ReportFinding) {
           </section>
         </aside>
 
-        <main class="flex-1 min-w-0 overflow-auto bg-default">
-          <ConsistencyFindingDetail
-            v-if="selected"
-            :finding="selected"
-            :locales="filter.locales"
-            :project-id="projectId"
-            @ignore="setIgnored(selected, true)"
-            @changed="onFindingChanged(selected)"
-          />
-          <div
-            v-else
-            class="h-full flex flex-col items-center justify-center gap-2 text-muted p-6"
-          >
-            <UIcon name="i-lucide:mouse-pointer-click" class="size-8" />
-            <p class="text-sm">Select a finding to review it here.</p>
-            <p class="text-xs">
-              ↑ ↓ browse · e not an issue — Resolve opens the design and the fix
-              in a drawer.
-            </p>
+        <main class="flex-1 min-w-0 flex flex-col bg-default">
+          <div class="flex-1 min-h-0 overflow-auto">
+            <ConsistencyFindingDetail
+              v-if="selected"
+              :finding="selected"
+              :locales="filter.locales"
+              :project-id="projectId"
+              @ignore="setIgnored(selected, true)"
+              @changed="onFindingChanged(selected)"
+            />
+            <div
+              v-else
+              class="h-full flex flex-col items-center justify-center gap-2 text-muted p-6"
+            >
+              <UIcon name="i-lucide:mouse-pointer-click" class="size-8" />
+              <p class="text-sm">Select a finding to review it here.</p>
+              <p class="text-xs">
+                Resolve opens the design and the fix in a drawer.
+              </p>
+            </div>
           </div>
+          <footer
+            class="shrink-0 flex flex-wrap items-center justify-end gap-x-4 gap-y-1 px-4 py-2 border-t border-default text-xs text-muted"
+          >
+            <span class="flex items-center gap-1">
+              <UKbd>↑</UKbd><UKbd>↓</UKbd> Switch finding
+            </span>
+            <span class="flex items-center gap-1">
+              <UKbd>←</UKbd><UKbd>→</UKbd> Switch category
+            </span>
+            <span class="flex items-center gap-1">
+              <UKbd>E</UKbd> Not an issue
+            </span>
+          </footer>
         </main>
       </div>
     </template>
