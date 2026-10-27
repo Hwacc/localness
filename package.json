@@ -1,6 +1,6 @@
 {
   "name": "localness",
-  "version": "0.4.11",
+  "version": "0.4.12",
   "private": true,
   "description": "The step before your TMS: tag UI screenshots, own your i18n keys, hand off clean source text.",
   "type": "module",
