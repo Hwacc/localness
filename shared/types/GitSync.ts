@@ -12,6 +12,119 @@ import type { IUser } from './User'
  */
 export type ThreeWayDecision = 'apply-theirs' | 'keep-ours' | 'conflict' | 'align'
 
+/** An open three-way conflict, as the Git page's resolver reads it. */
+export interface IGitSyncConflictRow {
+  id: number
+  key: string
+  locale: string
+  baseText: string
+  oursText: string
+  theirsText: string
+  publishedText: string | null
+  /** Git's text translates this older source; Use Git lands it outdated. */
+  olderSourceText: string | null
+}
+
+/** One row of the Git review list, whichever mode it is showing. */
+export interface IGitReviewItem {
+  id: string
+  key: string
+  locale: string | null
+  /** Text shown under the key: Git's side for pull, published for push. */
+  text: string
+  label: string
+  color: 'primary' | 'neutral' | 'warning'
+  /** Conflict rows and rows Push would skip are never ticked. */
+  selectable: boolean
+  /** An open three-way conflict, resolved in the detail pane. */
+  conflict: boolean
+  staleSource?: boolean
+}
+
+/** One side of a row, as the detail pane compares them. */
+export interface IGitReviewSection {
+  label: string
+  text: string
+  /** One plain-language line saying what this text is and why it is shown. */
+  hint?: string
+  /** Comparison only, not a choice: hidden until "Compare" is switched on. */
+  optional?: boolean
+  /** Which side this is, so the sides read apart at a glance. */
+  tone: 'git' | 'platform' | 'reference' | 'warning'
+}
+
+export interface GitSyncBindingPublic {
+  id: number
+  enabled: boolean
+  adapter: string
+  remoteUrl: string
+  branch: string
+  product: string
+  options: { pattern?: string; format?: string } | null
+  credentialKind: string
+  tokenConfigured: boolean
+  lastPulledAt: string | null
+  lastPushedAt: string | null
+}
+
+export interface GitSyncStatus {
+  role: string
+  isSteward: boolean
+  configured: boolean
+  binding: GitSyncBindingPublic | null
+  openConflicts: number
+}
+
+export interface PullFile {
+  relPath: string
+  sha: string
+  locale: string | null
+  remoteLocale: string
+  date: string
+  reason: string
+}
+
+export interface PullCandidate {
+  key: string
+  locale: string
+  relPath?: string
+  baseText: string
+  oursText: string
+  theirsText: string
+  publishedText: string | null
+  decision: ThreeWayDecision
+  /** Source text of the batch this translation came from, when known. */
+  writtenAgainst?: string | null
+  /** Translated from an older source; a newer batch is still out. */
+  staleSource?: boolean
+}
+
+export interface PullPreview {
+  previewId: number
+  commitSha: string
+  expiresAt: string
+  files: PullFile[]
+  candidates: PullCandidate[]
+  counts: Record<ThreeWayDecision, number>
+}
+
+export interface PushCandidate {
+  key: string
+  baseText: string
+  text: string
+  theirsText: string
+  reason: string
+  eligible: boolean
+}
+
+export interface PushPreview {
+  previewId: number
+  sourceLocale: string
+  expiresAt: string
+  candidates: PushCandidate[]
+  counts: Record<string, number>
+}
+
 /** Summary of a landed pull. Counts only — text stays in the value tables. */
 export interface IGitSyncPullLogDetail {
   applied: number
