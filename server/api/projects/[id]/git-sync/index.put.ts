@@ -8,7 +8,11 @@ import {
   zGitSyncBindingPut,
 } from '#shared/schemas'
 import { gitSyncLayout } from '#server/libs/git-sync/layouts'
-import { publicGitSyncBinding } from '#server/libs/git-sync/sync'
+import {
+  bindingLocationChanged,
+  publicGitSyncBinding,
+  resetGitSyncState,
+} from '#server/libs/git-sync/sync'
 
 /**
  * @route PUT /api/projects/:id/git-sync
@@ -49,30 +53,43 @@ export default defineEventHandler(async (event) => {
     normalized.branch ||
     existing?.branch ||
     'main'
+  const moved =
+    existing != null &&
+    bindingLocationChanged(existing, {
+      adapter,
+      remoteUrl,
+      branch,
+      product: body.product,
+      options: body.options ?? existing.options,
+    })
   try {
-    const row = await prisma.gitSyncBinding.upsert({
-      where: { projectId },
-      create: {
-        projectId,
-        enabled: body.enabled ?? true,
-        adapter,
-        remoteUrl,
-        branch,
-        product: body.product,
-        ...(body.options ? { options: body.options } : {}),
-        credentialKind: body.credentialKind,
-        token,
-      },
-      update: {
-        enabled: body.enabled ?? true,
-        adapter,
-        remoteUrl,
-        branch,
-        product: body.product,
-        ...(body.options ? { options: body.options } : {}),
-        credentialKind: body.credentialKind,
-        ...(body.token && body.token.trim() ? { token: body.token.trim() } : {}),
-      },
+    const row = await prisma.$transaction(async (tx) => {
+      const saved = await tx.gitSyncBinding.upsert({
+        where: { projectId },
+        create: {
+          projectId,
+          enabled: body.enabled ?? true,
+          adapter,
+          remoteUrl,
+          branch,
+          product: body.product,
+          ...(body.options ? { options: body.options } : {}),
+          credentialKind: body.credentialKind,
+          token,
+        },
+        update: {
+          enabled: body.enabled ?? true,
+          adapter,
+          remoteUrl,
+          branch,
+          product: body.product,
+          ...(body.options ? { options: body.options } : {}),
+          credentialKind: body.credentialKind,
+          ...(body.token && body.token.trim() ? { token: body.token.trim() } : {}),
+        },
+      })
+      if (moved) await resetGitSyncState(projectId, tx)
+      return saved
     })
     return publicGitSyncBinding(row)
   } catch (error: unknown) {

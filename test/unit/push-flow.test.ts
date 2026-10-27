@@ -45,6 +45,8 @@ vi.mock('#server/libs/git-sync/remote/git-remote', () => ({
     return params.run(remote.repoDir, 'sha-clone')
   },
   findCommitByTrailer: async () => remote.orphanSha,
+  // `remote.source` stands for the orphan commit's tree once checked out.
+  checkoutCommit: async () => {},
   commitAndPush: async (params: { message: string }) => {
     remote.commits.push(params.message)
     return { pushed: true, commitSha: 'sha-new-commit' }
@@ -106,6 +108,8 @@ vi.mock('#server/libs/prisma', () => {
     default: {
       gitSyncConflict: {
         count: async () => db.conflicts,
+        findMany: async () => [],
+        updateMany: async () => ({ count: 0 }),
         upsert: async ({ create }: { create: Record<string, unknown> }) => {
           remote.conflictsWritten.push(create)
           return {}
@@ -369,6 +373,7 @@ describe('applyPush', () => {
     db.previews = [pending]
     db.keys = [key('a', 'text')]
     remote.orphanSha = 'sha-orphan'
+    remote.source = new Map([['a', 'text']])
     const result = await applyPush({
       projectId: 2,
       previewId: 1,
@@ -536,6 +541,7 @@ describe('applyPush', () => {
     db.previews = [pending]
     db.keys = [key('a', 'text')]
     remote.orphanSha = 'sha-orphan'
+    remote.source = new Map([['a', 'text']])
     await applyPush({
       projectId: 2,
       previewId: 1,

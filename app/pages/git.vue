@@ -17,6 +17,7 @@ import type {
   IGitReviewItem,
   IGitReviewSection,
   IGitSyncConflictRow,
+  PullApplyResult,
   PullCandidate,
   PullPreview,
   PushCandidate,
@@ -914,6 +915,13 @@ async function startPull() {
     if ((preview.counts?.conflict ?? 0) > 0) {
       await loadAll()
     }
+    if (preview.ignoredLocales?.length) {
+      toast.add({
+        title: 'Some Git locales were skipped',
+        description: `${preview.ignoredLocales.join(', ')} ${preview.ignoredLocales.length === 1 ? 'is' : 'are'} not in this project's locales. Add them in project settings to pull them.`,
+        color: 'neutral',
+      })
+    }
     if (
       !preview.candidates.some(
         (c) => c.decision === 'apply-theirs' || c.decision === 'conflict'
@@ -934,24 +942,24 @@ async function confirmPull() {
   if (!validID(projectId.value) || !pullPreview.value) return
   applying.value = true
   try {
-    const result = await useApi<{
-      applied: number
-      aligned: number
-      kept: number
-      conflicts: number
-      files: number
-    }>(`/api/projects/${projectId.value}/git-sync/pull/apply`, {
-      method: 'POST',
-      body: {
-        previewId: pullPreview.value.previewId,
-        selectedFiles: pullFileSel.value,
-        selectedKeys: pullKeySel.value,
-      },
-    })
+    const result = await useApi<PullApplyResult>(
+      `/api/projects/${projectId.value}/git-sync/pull/apply`,
+      {
+        method: 'POST',
+        body: {
+          previewId: pullPreview.value.previewId,
+          selectedFiles: pullFileSel.value,
+          selectedKeys: pullKeySel.value,
+        },
+      }
+    )
+    const kept = result?.kept ?? 0
     toast.add({
       title: 'Pull finished',
-      description: `Published ${result?.applied ?? 0}, kept ${result?.kept ?? 0}, conflicts ${result?.conflicts ?? 0}, files ${result?.files ?? 0}`,
-      color: 'success',
+      description: kept
+        ? `Published ${result?.applied ?? 0}. ${kept} key(s) were edited on the platform after the preview and kept as they are — run a new pull to review them.`
+        : `Published ${result?.applied ?? 0}, files ${result?.files ?? 0}`,
+      color: kept ? 'warning' : 'success',
     })
     pullPreview.value = null
     await loadAll()
@@ -1346,6 +1354,11 @@ function openHistory() {
               :show-discover-hint="isHttpsRemoteUrl(form.remoteUrl) && !canDiscover"
               @load-products="loadProducts"
             />
+            <p v-if="configured" class="text-xs text-muted">
+              Changing the remote, branch, layout or folder resets sync
+              history: open conflicts are dropped and the next pull and push
+              compare from scratch.
+            </p>
             <UButton
               class="w-full justify-center"
               :loading="saving"

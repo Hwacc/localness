@@ -29,6 +29,8 @@ vi.mock('#server/libs/prisma', () => {
         db.keyWrites.push({ create, update })
         return { id: 1 }
       },
+      // Apply re-reads the platform side; nothing on it means Git still leads.
+      findMany: async () => [],
     },
     // The project's source language, read before the transaction and stubbed here
     // so both the client and its transaction answer it.
@@ -46,6 +48,7 @@ vi.mock('#server/libs/prisma', () => {
         db.localeWrites.push({ create, update })
         return {}
       },
+      findFirst: async () => ({ draftText: 'platform', publishedText: 'platform' }),
     },
     gitSyncBase: {
       upsert: async ({
@@ -71,6 +74,7 @@ vi.mock('#server/libs/prisma', () => {
         if ('id' in where) return db.openConflict
         return db.conflictRow
       },
+      updateMany: async () => ({ count: 1 }),
       update: async ({ data }: { data: Record<string, unknown> }) => data,
     },
     gitSyncBinding: { update: async () => ({}) },
@@ -208,7 +212,7 @@ describe('applyPull', () => {
       selectedKeys: ['a\0en'],
     })
     expect(result.applied).toBe(1)
-    expect(result.conflicts).toBe(0)
+    expect(result.kept).toBe(0)
   })
 
   it('refuses apply while a preview conflict card is still open', async () => {
@@ -233,7 +237,7 @@ describe('applyPull', () => {
       selectedKeys: ['a\0en'],
     })
     expect(result.applied).toBe(1)
-    expect(result.conflicts).toBe(0)
+    expect(result.kept).toBe(0)
   })
 
   it('publishes apply-theirs rows instead of leaving them as draft', async () => {
@@ -244,7 +248,7 @@ describe('applyPull', () => {
       selectedKeys: ['a\0en'],
     })
     expect(result.applied).toBe(1)
-    expect(result.conflicts).toBe(0)
+    expect(result.kept).toBe(0)
     expect(db.localeWrites).toHaveLength(1)
     expect(db.localeWrites[0]!.create).toMatchObject({
       draftText: 'Git text',
@@ -352,10 +356,8 @@ describe('resolveConflict', () => {
       conflictId: 9,
       action: 'ours',
     })
-    expect(db.localeWrites[0]!.update).toMatchObject({
-      draftText: 'platform',
-      publishedText: 'platform',
-    })
+    // Use platform leaves the platform's rows exactly as they are.
+    expect(db.localeWrites).toHaveLength(0)
     expect(db.basesWritten[0]!.update).toMatchObject({ baseText: 'git' })
   })
 

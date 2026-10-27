@@ -155,15 +155,53 @@ const focusedId = ref<ID | null>(
 const detail =
   useTemplateRef<InstanceType<typeof TranslationsKeyDetail>>('detail')
 
-/** Found by id, not held: a reload replaces the row object it was focused with. */
-const focusedRow = computed(
+/** In the loaded page, found by id: a reload replaces the row object it was focused with. */
+const listRow = computed(
   () =>
     rows.value.find((r) => String(r.id) === String(focusedId.value)) ?? null,
 )
 
-/** A focused key the reload no longer holds falls back to the first one. */
-watch(loadCount, () => {
-  if (!focusedRow.value) focusedId.value = rows.value[0]?.id ?? null
+/**
+ * Saving moves a key to the top of an updated-at list, so a reload can push the
+ * key the user is working on off its page. The inspector keeps it rather than
+ * jumping to whatever now sits first; `heldRow` is that key, kept fresh by a
+ * single-key read.
+ */
+const heldRow = ref<II18nKeyRow | null>(null)
+const heldTick = ref(0)
+watch(listRow, (row) => {
+  if (row) heldRow.value = row
+}, { flush: 'sync' })
+
+const focusedRow = computed(
+  () =>
+    listRow.value ??
+    (String(heldRow.value?.id) === String(focusedId.value)
+      ? heldRow.value
+      : null),
+)
+
+/** The inspected key is not in the list that is on screen. */
+const offPage = computed(() => !listRow.value && Boolean(focusedRow.value))
+
+/** A focused key that no longer exists falls back to the first one. */
+watch(loadCount, async () => {
+  const id = focusedId.value
+  if (id == null) {
+    focusedId.value = rows.value[0]?.id ?? null
+    return
+  }
+  if (listRow.value) return
+  const [row] = await query.fetchByIds([id])
+  // The user may have moved on while the read was in flight.
+  if (String(focusedId.value) !== String(id)) return
+  if (row) {
+    heldRow.value = row
+    heldTick.value += 1
+  } else {
+    heldRow.value = null
+    focusedId.value = rows.value[0]?.id ?? null
+  }
 })
 
 watch(focusedId, (id) => {
@@ -1142,6 +1180,25 @@ onMounted(async () => {
         @update:page="onPageChange"
       />
       <main class="flex-1 min-h-0 min-w-0 flex flex-col bg-default">
+        <div
+          v-if="offPage"
+          class="shrink-0 flex flex-wrap items-center gap-2 px-4 py-2 bg-warning/10 border-b border-warning/30 text-xs"
+        >
+          <UIcon name="i-lucide:info" class="size-4 shrink-0 text-warning" />
+          <span>
+            This key moved off the current page after your change — saved keys
+            go to the top of the list.
+          </span>
+          <UButton
+            class="ml-auto"
+            size="xs"
+            color="neutral"
+            variant="outline"
+            label="Show in list"
+            :disabled="loading"
+            @click="onPageChange(1)"
+          />
+        </div>
         <div class="flex-1 min-h-0 overflow-auto">
           <TranslationsKeyDetail
             ref="detail"
@@ -1151,7 +1208,7 @@ onMounted(async () => {
             :source-locale="sourceLocale"
             :git-sync-busy-id="gitSyncPending"
             :publishing="publishing"
-            :load-count="loadCount"
+            :load-count="loadCount + heldTick"
             @publish="onRowPublish"
             @unpublish="openUnpublish"
             @delete="openDelete"

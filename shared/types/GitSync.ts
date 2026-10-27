@@ -106,6 +106,17 @@ export interface PullPreview {
   files: PullFile[]
   candidates: PullCandidate[]
   counts: Record<ThreeWayDecision, number>
+  /** Locales present in Git that the project does not have; never pulled. */
+  ignoredLocales: string[]
+}
+
+export interface PullApplyResult {
+  applied: number
+  aligned: number
+  kept: number
+  /** Edited on the platform after the preview, so left as they are. */
+  changed: { key: string; locale: string }[]
+  files: number
 }
 
 export interface PushCandidate {

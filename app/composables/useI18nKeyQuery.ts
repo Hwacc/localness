@@ -122,6 +122,20 @@ export function useI18nKeyQuery(options: {
     return res?.ids ?? []
   }
 
+  /** Rows for exactly these ids, whatever page or filter they would fall on. */
+  async function fetchByIds(ids: ID[]) {
+    if (!validID(options.projectId.value) || !ids.length) return []
+    const params = new URLSearchParams({
+      ids: ids.join(','),
+      includeDraftKeys: '1',
+      limit: String(Math.min(ids.length, 100)),
+    })
+    const res = await useApi<IPagination<II18nKeyRow[]>>(
+      `/api/projects/${options.projectId.value}/i18n-keys?${params}`
+    )
+    return res?.data ?? []
+  }
+
   /** Returns the request so callers can keep a dialog busy until rows land. */
   function reload() {
     page.value = 1
@@ -143,5 +157,6 @@ export function useI18nKeyQuery(options: {
     load,
     reload,
     matchingIds,
+    fetchByIds,
   }
 }
