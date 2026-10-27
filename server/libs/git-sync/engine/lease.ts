@@ -4,6 +4,29 @@ import prisma from '#server/libs/prisma'
 import { GIT_SYNC_LEASE_TTL_MS, GitSyncErrorCode } from '#shared/constants'
 import { gitSyncError } from './errors'
 
+function syncBusyError(owner: string) {
+  return gitSyncError(
+    409,
+    GitSyncErrorCode.SYNC_BUSY,
+    `${owner || 'Someone'} is syncing this project — try again when it finishes`
+  )
+}
+
+/**
+ * For previews, which do not take the lease. A preview made while an apply
+ * runs photographs the remote halfway, and would cancel the very preview that
+ * apply is landing.
+ */
+export async function assertNoSyncRunning(projectId: number) {
+  const binding = await prisma.gitSyncBinding.findUnique({
+    where: { projectId },
+    select: { leaseOwner: true, leaseUntil: true },
+  })
+  if (binding?.leaseUntil && binding.leaseUntil.getTime() > Date.now()) {
+    throw syncBusyError(binding.leaseOwner)
+  }
+}
+
 /**
  * Runs `run` while holding the project's sync lease, so two applies (or an
  * apply and a location change) never interleave. SQLite has no row or
@@ -40,11 +63,7 @@ export async function withSyncLease<T>(
         statusMessage: 'Git sync is not configured',
       })
     }
-    throw gitSyncError(
-      409,
-      GitSyncErrorCode.SYNC_BUSY,
-      `${holder.leaseOwner || 'Someone'} is syncing this project — try again when it finishes`
-    )
+    throw syncBusyError(holder.leaseOwner)
   }
   try {
     return await run()

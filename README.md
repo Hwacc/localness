@@ -85,7 +85,11 @@ text value per configured locale. Everything else serves that binding:
 
 Every text value has two layers. Editing writes to a **draft**; an explicit publish action
 snapshots the draft into the **published** layer, which is what exports, the delivery API,
-and MCP tools read. You can keep editing drafts without changing what consumers already see.
+and MCP tools read. As long as you don't unpublish, you can keep editing drafts without changing what consumers already see.
+
+**Unpublish takes the text offline; it is not a draft edit.** It clears the published layer instead of restoring an
+earlier version, so the key disappears from exports, the delivery API, and MCP until you
+publish it again.
 
 ## Features
 
