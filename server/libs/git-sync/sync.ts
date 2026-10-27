@@ -19,7 +19,7 @@ import {
 } from '#shared/constants'
 import { countSkipReasons, writeGitSyncLog } from './engine/log'
 import { gitSyncError, gitSyncErrorCode } from './engine/errors'
-import { withSyncLease } from './engine/lease'
+import { assertNoSyncRunning, withSyncLease } from './engine/lease'
 import { sourceLocaleOf } from '#server/helper/i18n'
 import { projectLocales } from '#server/helper/api-delivery'
 import type { ThreeWayDecision } from './engine/three-way'
@@ -508,6 +508,7 @@ export async function previewPull(
   createdBy: string
 ): Promise<PullPreview> {
   const { binding, layout, remoteUrl } = await requireBinding(projectId)
+  await assertNoSyncRunning(projectId)
   const seen = seenFileMap(binding.seenFiles)
   return withClonedRepo({
     remoteUrl,
@@ -531,6 +532,9 @@ export async function previewPull(
       )
       const counts = countDecisions(candidates)
       const expiresAt = new Date(Date.now() + GIT_SYNC_PREVIEW_TTL_MS)
+      // Again after the clone: an apply that started meanwhile is landing the
+      // preview this would cancel.
+      await assertNoSyncRunning(projectId)
       await prisma.gitSyncPreview.updateMany({
         where: {
           projectId,
@@ -669,6 +673,68 @@ async function buildPullCandidates(
   return { candidates: out, examined, ignoredLocales: ignoredLocales.sort() }
 }
 
+/**
+ * Why a preview can no longer land. Takes the transaction client when called
+ * inside one: Prisma's SQLite client holds its one connection there.
+ */
+async function previewGoneError(
+  db: Pick<typeof prisma, 'gitSyncPreview'>,
+  preview: { id: number; projectId: number; kind: string; status: string }
+) {
+  if (preview.status === GitSyncPreviewStatus.APPLIED) {
+    return gitSyncError(
+      409,
+      GitSyncErrorCode.PREVIEW_APPLIED,
+      'Preview already applied — run a new preview'
+    )
+  }
+  // A newer preview cancels the pending one, and it may be someone else's.
+  const newer = await db.gitSyncPreview.findFirst({
+    where: {
+      projectId: preview.projectId,
+      kind: preview.kind,
+      id: { gt: preview.id },
+    },
+    select: { createdBy: true },
+  })
+  return newer
+    ? gitSyncError(
+        409,
+        GitSyncErrorCode.PREVIEW_REPLACED,
+        `A newer preview by ${newer.createdBy || 'someone'} replaced this one — run a new preview`
+      )
+    : gitSyncError(
+        409,
+        GitSyncErrorCode.PREVIEW_INVALID,
+        'Preview is no longer valid — run a new preview'
+      )
+}
+
+/**
+ * Moves a preview on only from a status it is still in. Anything else — a newer
+ * preview cancelled it, another apply landed it — means this caller lost it.
+ */
+async function claimPreview(
+  db: Pick<typeof prisma, 'gitSyncPreview'>,
+  preview: { id: number; projectId: number; kind: string },
+  from: GitSyncPreviewStatus[],
+  data: { status: GitSyncPreviewStatus; result?: object }
+) {
+  const moved = await db.gitSyncPreview.updateMany({
+    where: { id: preview.id, status: { in: from } },
+    data,
+  })
+  if (moved.count) return
+  const now = await db.gitSyncPreview.findUnique({
+    where: { id: preview.id },
+    select: { status: true },
+  })
+  throw await previewGoneError(db, {
+    ...preview,
+    status: now?.status ?? GitSyncPreviewStatus.CANCELLED,
+  })
+}
+
 async function loadPendingPreview(
   projectId: number,
   previewId: number,
@@ -683,30 +749,8 @@ async function loadPendingPreview(
   // Retrying an interrupted push is how its commit gets found and recorded, so
   // neither the status nor the expiry may turn it away.
   if (preview.status === GitSyncPreviewStatus.PUSHING) return preview
-  if (preview.status === GitSyncPreviewStatus.APPLIED) {
-    throw gitSyncError(
-      409,
-      GitSyncErrorCode.PREVIEW_APPLIED,
-      'Preview already applied — run a new preview'
-    )
-  }
   if (preview.status !== GitSyncPreviewStatus.PENDING) {
-    // A newer preview cancels the pending one, and it may be someone else's.
-    const newer = await prisma.gitSyncPreview.findFirst({
-      where: { projectId, kind, id: { gt: preview.id } },
-      select: { createdBy: true },
-    })
-    throw newer
-      ? gitSyncError(
-          409,
-          GitSyncErrorCode.PREVIEW_REPLACED,
-          `A newer preview by ${newer.createdBy || 'someone'} replaced this one — run a new preview`
-        )
-      : gitSyncError(
-          409,
-          GitSyncErrorCode.PREVIEW_INVALID,
-          'Preview is no longer valid — run a new preview'
-        )
+    throw await previewGoneError(prisma, preview)
   }
   if (preview.expiresAt.getTime() < Date.now()) {
     await prisma.gitSyncPreview.update({
@@ -909,12 +953,11 @@ async function applyPullUnderLease(params: ApplyPullParams) {
         seenFiles: [...seen].map(([path, sha]) => ({ path, sha })),
       },
     })
-    await tx.gitSyncPreview.update({
-      where: { id: preview.id },
-      data: {
-        status: GitSyncPreviewStatus.APPLIED,
-        result: { applied, aligned, kept, blocked: blocked.length } as object,
-      },
+    // A preview made since this apply loaded it cancelled it; throwing here
+    // rolls back every row above.
+    await claimPreview(tx, preview, [GitSyncPreviewStatus.PENDING], {
+      status: GitSyncPreviewStatus.APPLIED,
+      result: { applied, aligned, kept, blocked: blocked.length },
     })
     await writeGitSyncLog(
       {
@@ -985,6 +1028,7 @@ export async function previewPush(
   createdBy: string
 ): Promise<PushPreview> {
   const { binding, layout, remoteUrl } = await requireBinding(projectId)
+  await assertNoSyncRunning(projectId)
   const sourceLocal = await sourceLocaleOf(projectId)
   // Keys kept out of Git sync never enter the candidate loop. Filtering the
   // query rather than adding a push reason keeps the reason counts, the
@@ -1083,6 +1127,9 @@ export async function previewPush(
         )
       }
       const expiresAt = new Date(Date.now() + GIT_SYNC_PREVIEW_TTL_MS)
+      // Again after the clone: an apply that started meanwhile is landing the
+      // preview this would cancel.
+      await assertNoSyncRunning(projectId)
       await prisma.gitSyncPreview.updateMany({
         where: {
           projectId,
@@ -1344,14 +1391,17 @@ async function applyPushUnderLease(params: ApplyPushParams) {
       const written = await layout.writeSource(ctx, sourceLocal, overlay)
       const filename = basename(written.relPath)
       // From here the commit may land without its bookkeeping. The keys are
-      // what a later reconcile reads back out of that commit.
-      await prisma.gitSyncPreview.update({
-        where: { id: preview.id },
-        data: {
+      // what a later reconcile reads back out of that commit. Claimed, so a
+      // preview that was replaced meanwhile stops before the remote is touched.
+      await claimPreview(
+        prisma,
+        preview,
+        [GitSyncPreviewStatus.PENDING, GitSyncPreviewStatus.PUSHING],
+        {
           status: GitSyncPreviewStatus.PUSHING,
           result: { keys: Object.keys(overlay) },
-        },
-      })
+        }
+      )
       const pushed = await commitAndPush({
         repoDir,
         message: `localness: ${written.summary} (by ${params.triggeredBy})\n\n${trailer}`,
@@ -1367,8 +1417,8 @@ async function applyPushUnderLease(params: ApplyPushParams) {
         throw error
       })
       if (!pushed.pushed) {
-        await prisma.gitSyncPreview.update({
-          where: { id: preview.id },
+        await prisma.gitSyncPreview.updateMany({
+          where: { id: preview.id, status: GitSyncPreviewStatus.PUSHING },
           data: { status: GitSyncPreviewStatus.PENDING },
         })
       }
@@ -1530,6 +1580,8 @@ async function recordPushLanding(params: {
         tx
       )
     }
+    // Unconditional: the commit is on the remote, so it is recorded whatever
+    // became of the preview. Only a lease holder gets here.
     await tx.gitSyncPreview.update({
       where: { id: params.previewId },
       data: {

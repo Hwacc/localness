@@ -66,7 +66,8 @@ git-sync/
 多人并发的流程规则（预览到确认横跨两次请求，数据库事务管不到，靠下面这些保证）：
 
 - **快照只证明 Git 一侧**。平台一侧在写入事务里重读、重新判定；新加写入路径照此办理。
-- **项目租约**（`engine/lease.ts`，`GitSyncBinding.leaseId / leaseOwner / leaseUntil`）：apply pull、apply push、改绑定位置的 PUT 串行执行，拿不到返回 409 `sync_busy`。TTL 到期可接手。
+- **项目租约**（`engine/lease.ts`，`GitSyncBinding.leaseId / leaseOwner / leaseUntil`）：apply pull、apply push、改绑定位置的 PUT 串行执行，拿不到返回 409 `sync_busy`。TTL 到期可接手。预览不拿租约，但租约被持有时拒绝（开始时、clone 后取消旧预览前各查一次），否则会取消正在落地的那份预览。
+- **预览状态只做条件迁移**（`claimPreview`）：`pending → pushing` 在 `commitAndPush` 前、`pending → applied` 在 Pull 写事务内，都带「仍是原状态」条件；被新预览取消的预览在推送前停下 / 整个事务回滚，返回 `preview_replaced`。推送已落地后的 `applied` 记账不设条件。
 - **绑定代际**（`GitSyncBinding.generation`）：改位置时 +1，预览快照记下它；apply 的写事务第一步用 `liveBinding` 重读比对，并用重读到的 `seenFiles` 合并。
 - **Push 意图**：`commitAndPush` 前把预览标为 `pushing` 并记下 key；中断后，下次 Push 预览按 trailer 补记（找不到则 cancelled），重试同一预览也能补记。
 - **卡片读时校验**：`listOpenConflicts` 会把平台文案已经变了的卡关为 `obsolete`；所有读取 open 卡的地方都走它。「使用 Git」/「合并」遇到这种卡返回 409 `conflict_stale`。

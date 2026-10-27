@@ -2,6 +2,7 @@ import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest'
 import { mkdtemp, mkdir, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
+import { GitSyncErrorCode } from '#shared/constants'
 
 /**
  * `sync.ts` imports the Prisma singleton at module scope, so the client is
@@ -19,6 +20,8 @@ const db = vi.hoisted(() => ({
   basesWritten: [] as Record<string, unknown>[],
   bindingUpdates: [] as Record<string, unknown>[],
   previewUpdates: [] as Record<string, unknown>[],
+  /** A newer preview cancelled this one after apply loaded it. */
+  previewLost: false,
   logs: [] as Record<string, unknown>[],
 }))
 
@@ -74,6 +77,7 @@ vi.mock('#server/helper/api-delivery', async (importOriginal) => ({
 // The lease is a conditional update on the binding row; git-sync-flow covers it.
 vi.mock('#server/libs/git-sync/engine/lease', () => ({
   withSyncLease: (_projectId: number, _owner: string, run: () => Promise<unknown>) => run(),
+  assertNoSyncRunning: async () => {},
 }))
 
 vi.mock('#server/libs/prisma', () => {
@@ -136,9 +140,16 @@ vi.mock('#server/libs/prisma', () => {
       $transaction: async (fn: (c: unknown) => Promise<void>) => fn(tx),
       gitSyncPreview: {
         findMany: async () => [],
-        updateMany: async () => ({ count: 0 }),
-        findFirst: async ({ where }: { where: { id: number } }) =>
-          db.previews.find((p) => p.id === where.id) ?? null,
+        // Only an apply's claim names the status it moves from; the cancel of
+        // older previews matches none here.
+        updateMany: async ({ where }: { where: { status?: { in?: string[] } } }) => ({
+          count: where.status?.in && !db.previewLost ? 1 : 0,
+        }),
+        findUnique: async () => ({ status: 'cancelled' }),
+        findFirst: async ({ where }: { where: { id: number | { gt: number } } }) =>
+          typeof where.id === 'object'
+            ? { createdBy: 'bob' }
+            : (db.previews.find((p) => p.id === where.id) ?? null),
         update: async () => ({}),
         create: async ({ data }: { data: Record<string, unknown> }) => {
           const row = { id: db.created.length + 1, ...data }
@@ -183,6 +194,7 @@ beforeEach(() => {
   db.basesWritten = []
   db.bindingUpdates = []
   db.previewUpdates = []
+  db.previewLost = false
   db.logs = []
   remote.orphanSha = null
   remote.repoDir = '/tmp/fake-repo'
@@ -351,6 +363,25 @@ describe('applyPush', () => {
         triggeredBy: 't',
       })
     ).rejects.toMatchObject({ statusCode: 400 })
+  })
+
+  it('stops before pushing when a newer preview replaced this one', async () => {
+    db.previews = [pending]
+    db.keys = [key('a', 'text')]
+    db.previewLost = true
+    await expect(
+      applyPush({
+        projectId: 2,
+        previewId: 1,
+        selectedKeys: ['a'],
+        triggeredBy: 't',
+      })
+    ).rejects.toMatchObject({
+      statusCode: 409,
+      data: { code: GitSyncErrorCode.PREVIEW_REPLACED },
+    })
+    expect(remote.commits).toHaveLength(0)
+    expect(db.basesWritten).toHaveLength(0)
   })
 
   it('records the sha of the commit it created, not the pre-push head', async () => {

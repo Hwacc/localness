@@ -9,6 +9,7 @@ import {
   GitCredentialKind,
   GitSyncAdapter,
   GitSyncErrorCode,
+  GitSyncPreviewStatus,
   GitSyncPushReason,
 } from '#shared/constants'
 
@@ -452,6 +453,27 @@ describe('git sync flow', { timeout: 60_000 }, () => {
     await expect(apply()).resolves.toMatchObject({ applied: 1 })
     const binding = await prisma.gitSyncBinding.findUniqueOrThrow({ where: { projectId } })
     expect(binding.leaseUntil).toBeNull()
+  })
+
+  it('refuses a preview while another sync holds the lease, and keeps its preview', async () => {
+    const remote = createRemote()
+    remote.commit({ [SOURCE_V1]: { greeting: 'Hello there' } })
+    const projectId = await createProject({ remoteUrl: remote.url })
+    await seedKey({ projectId, key: 'greeting', draft: 'Hello', published: 'Hello', base: 'Hello' })
+    const preview = await previewPull(projectId, 'alice')
+
+    await withSyncLease(projectId, 'alice', async () => {
+      for (const run of [() => previewPull(projectId, 'bob'), () => previewPush(projectId, 'bob')]) {
+        await expect(run()).rejects.toMatchObject({
+          statusCode: 409,
+          statusMessage: expect.stringContaining('alice is syncing'),
+          data: { code: GitSyncErrorCode.SYNC_BUSY },
+        })
+      }
+    })
+
+    const row = await prisma.gitSyncPreview.findUniqueOrThrow({ where: { id: preview.previewId } })
+    expect(row.status).toBe(GitSyncPreviewStatus.PENDING)
   })
 
   it('lands one of two concurrent applies of the same preview', async () => {

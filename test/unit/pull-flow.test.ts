@@ -1,4 +1,5 @@
 import { describe, expect, it, vi, beforeEach } from 'vitest'
+import { GitSyncErrorCode } from '#shared/constants'
 import { fpTranslation } from '#shared/utils'
 
 const db = vi.hoisted(() => ({
@@ -13,6 +14,8 @@ const db = vi.hoisted(() => ({
   openConflict: null as Record<string, unknown> | null,
   /** Keys with an open conflict card, as apply sees them. */
   openCardKeys: [] as string[],
+  /** A newer preview cancelled this one after apply loaded it. */
+  previewLost: false,
   logs: [] as Record<string, unknown>[],
 }))
 
@@ -25,6 +28,7 @@ const remote = vi.hoisted(() => ({
 // The lease is a conditional update on the binding row; git-sync-flow covers it.
 vi.mock('#server/libs/git-sync/engine/lease', () => ({
   withSyncLease: (_projectId: number, _owner: string, run: () => Promise<unknown>) => run(),
+  assertNoSyncRunning: async () => {},
 }))
 
 vi.mock('#server/libs/prisma', () => {
@@ -96,7 +100,12 @@ vi.mock('#server/libs/prisma', () => {
       findUnique: async () => db.binding,
       update: async () => ({}),
     },
-    gitSyncPreview: { update: async () => ({}) },
+    gitSyncPreview: {
+      update: async () => ({}),
+      updateMany: async () => ({ count: db.previewLost ? 0 : 1 }),
+      findUnique: async () => ({ status: 'cancelled' }),
+      findFirst: async () => ({ createdBy: 'bob' }),
+    },
     gitSyncLog: {
       create: async ({ data }: { data: Record<string, unknown> }) => {
         db.logs.push(data)
@@ -207,6 +216,7 @@ beforeEach(() => {
   db.conflictRow = { status: 'theirs' }
   db.openConflict = null
   db.openCardKeys = []
+  db.previewLost = false
   db.logs = []
   remote.headSha = 'sha-preview'
   remote.scopeTree = null
@@ -282,6 +292,23 @@ describe('applyPull', () => {
     })
     expect(result.applied).toBe(1)
     expect(result.kept).toBe(0)
+  })
+
+  it('fails the write transaction when a newer preview replaced this one', async () => {
+    db.previewLost = true
+    await expect(
+      applyPull({
+        projectId: 2,
+        triggeredBy: 'tester',
+        previewId: 1,
+        selectedFiles: ['cortex/source/a.json'],
+        selectedKeys: ['a\0en'],
+      })
+    ).rejects.toMatchObject({
+      statusCode: 409,
+      data: { code: GitSyncErrorCode.PREVIEW_REPLACED },
+    })
+    expect(db.logs).toHaveLength(0)
   })
 
   it('refuses when every selected row waits on an open card', async () => {
