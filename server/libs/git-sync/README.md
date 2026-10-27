@@ -51,6 +51,15 @@ git-sync/
 - 哪些 key 可以推送、哪些需要先解决冲突
 - 记录 `seenFiles`
 
+引擎自己要守住的几条规则（`test/unit/git-sync-flow.test.ts` 用真实 SQLite 和裸仓库覆盖）：
+
+- Pull apply 只信预览里 Git 的一侧；平台一侧在事务里重读并重新三方判定，预览后被改过的 key 保留不动，返回在 `changed` 里。
+- 「使用平台」（`ours`）只把 base 设为 Git 文本并关卡，不写草稿、发布文案或过期状态。
+- 预览会把重新检查过、已不再冲突的未解决卡片关为 `obsolete`。
+- 绑定的 adapter、remote、branch、目录或文件规则变了，`resetGitSyncState` 清掉 base、`seenFiles`、未解决卡片和待应用预览。
+- Pull 只处理项目已配置的 locale，其余放进 `ignoredLocales`。
+- 补记已推送的批次时，base 取那个提交里的实际文本。
+
 layout 只负责一件事：**在已经 clone 好的目录里，按自己的约定列文件、读文件、写 source 文件。**
 
 ## 契约：`GitSyncLayout`

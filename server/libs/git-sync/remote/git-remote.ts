@@ -190,6 +190,11 @@ export async function findCommitByTrailer(
   return null
 }
 
+/** Detached checkout of a commit already in the clone's history. */
+export async function checkoutCommit(repoDir: string, sha: string): Promise<void> {
+  await git(repoDir, ['checkout', '--detach', '--quiet', sha])
+}
+
 export type CommitAndPushResult =
   | { pushed: false }
   | { pushed: true; commitSha: string }

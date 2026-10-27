@@ -117,6 +117,8 @@ export enum GitSyncConflictStatus {
   THEIRS = 'theirs',
   MERGED = 'merged',
   RENAMED = 'renamed',
+  /** Closed by a later preview: Git and the platform no longer disagree. */
+  OBSOLETE = 'obsolete',
 }
 
 export enum GitSyncPreviewKind {

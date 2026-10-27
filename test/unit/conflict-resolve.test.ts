@@ -36,13 +36,7 @@ const db = vi.hoisted(() => ({
 }))
 
 vi.mock('#server/libs/prisma', () => {
-  const tx = {
-    i18nKey: {
-      update: async () => {
-        db.calls.push('i18nKey.update')
-        return {}
-      },
-    },
+  const client = {
     tag: {
       updateMany: async ({ where, data }: any) => {
         db.calls.push('tag.updateMany')
@@ -50,9 +44,6 @@ vi.mock('#server/libs/prisma', () => {
         return { count: 1 }
       },
     },
-  }
-
-  const client = {
     /** Read before the resolution lands: which locale holds a key's original text. */
     projectSettings: {
       findUnique: async () => ({ localeFallback: 'en' }),
@@ -62,13 +53,23 @@ vi.mock('#server/libs/prisma', () => {
         db.calls.push('gitSyncConflict.findFirst')
         return db.conflict
       },
+      // The claim: the card's status flips inside the transaction.
+      updateMany: async ({ data }: any) => {
+        db.calls.push('gitSyncConflict.updateMany')
+        db.conflictUpdate = { ...db.conflictUpdate, ...data }
+        return { count: 1 }
+      },
       update: async ({ data }: any) => {
         db.calls.push('gitSyncConflict.update')
-        db.conflictUpdate = data
-        return data
+        db.conflictUpdate = { ...db.conflictUpdate, ...data }
+        return db.conflictUpdate
       },
     },
     i18nKey: {
+      update: async () => {
+        db.calls.push('i18nKey.update')
+        return {}
+      },
       // The clash probe is the one that carries an `id: { not }`.
       findFirst: async ({ where }: any) => {
         db.calls.push('i18nKey.findFirst')
@@ -85,6 +86,7 @@ vi.mock('#server/libs/prisma', () => {
         db.calls.push('localeValue.upsert')
         return {}
       },
+      findFirst: async () => ({ draftText: 'ours', publishedText: 'ours' }),
     },
     gitSyncBase: {
       upsert: async ({ where }: any) => {
@@ -99,7 +101,7 @@ vi.mock('#server/libs/prisma', () => {
         return {}
       },
     },
-    $transaction: async (fn: (c: typeof tx) => Promise<unknown>) => fn(tx),
+    $transaction: async (fn: (c: unknown) => Promise<unknown>) => fn(client),
   }
 
   return { default: client }
@@ -183,10 +185,18 @@ describe('resolveConflict — renamed', () => {
 
 describe('resolveConflict — the pre-existing actions', () => {
   it('still writes the chosen text under the conflicted name', async () => {
-    await resolve({ action: 'ours', newKey: undefined })
+    await resolve({ action: 'theirs', newKey: undefined })
 
     expect(db.calls).toContain('i18nKey.upsert')
     expect(db.calls).toContain('localeValue.upsert')
+    expect(db.bases).toEqual([{ projectId: 1, key: 'a.b', locale: 'en' }])
+  })
+
+  it('leaves the platform text alone when using platform', async () => {
+    await resolve({ action: 'ours', newKey: undefined })
+
+    expect(db.calls).not.toContain('i18nKey.upsert')
+    expect(db.calls).not.toContain('localeValue.upsert')
     expect(db.bases).toEqual([{ projectId: 1, key: 'a.b', locale: 'en' }])
   })
 
