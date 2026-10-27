@@ -105,6 +105,14 @@ const pullCanConfirm = computed(() => {
   )
 })
 
+const pushSelectableCount = computed(
+  () => pushPreview.value?.candidates.filter(isPushRowSelectable).length ?? 0
+)
+
+const pullSelectableCount = computed(
+  () => pullPreview.value?.candidates.filter(isPullActionable).length ?? 0
+)
+
 const pushCanConfirm = computed(() => {
   if (!pushPreview.value || !pushKeySel.value.length) return false
   return (pushPreview.value.counts.conflict ?? 0) === 0
@@ -736,13 +744,11 @@ const activeSections = computed<IGitReviewSection[]>(() => {
       const sections: IGitReviewSection[] = [
         {
           label: 'On platform (published)',
-          hint: 'The published source text in Localness. Push sends this to Git.',
           text: c.text,
           tone: 'platform',
         },
         {
           label: 'In Git',
-          hint: 'The text currently in the repo. Push overwrites it if you tick this key.',
           text: c.theirsText,
           tone: 'git',
         },
@@ -1569,8 +1575,8 @@ function openHistory() {
             Review pull
             <span class="font-normal text-muted">
               · {{ pullFileSel.length }} of {{ pullPreview.files.length }}
-              file(s) · {{ pullKeySel.length }} of
-              {{ pullPreview.candidates.length }} change(s) selected
+              file(s) · {{ pullKeySel.length }} of {{ pullSelectableCount }}
+              selectable change(s) selected
             </span>
           </p>
           <p class="text-xs text-muted">
@@ -1614,13 +1620,10 @@ function openHistory() {
           <p class="text-sm font-medium">
             Review push
             <span class="font-normal text-muted">
-              · {{ pushKeySel.length }} of
-              {{ pushPreview.candidates.length }} source key(s) selected ({{
-                pushPreview.sourceLocale
-              }})
+              · {{ pushKeySel.length }} of {{ pushSelectableCount }} pushable
+              source key(s) selected ({{ pushPreview.sourceLocale }})
             </span>
-          </p>
-          <p class="text-xs text-muted">
+          </p>          <p class="text-xs text-muted">
             Expires {{ formatTime(pushPreview.expiresAt) }} · nothing is
             committed until you confirm
           </p>
