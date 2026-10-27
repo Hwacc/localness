@@ -59,6 +59,18 @@ git-sync/
 - 绑定的 adapter、remote、branch、目录或文件规则变了，`resetGitSyncState` 清掉 base、`seenFiles`、未解决卡片和待应用预览。
 - Pull 只处理项目已配置的 locale，其余放进 `ignoredLocales`。
 - 补记已推送的批次时，base 取那个提交里的实际文本。
+- Pull 预览记下绑定目录的 tree id（`scopeTree`）。apply 时分支 head 变了但目录 tree 没变（别的 product 有提交），快照照常可用。
+- Pull apply 只跳过「同 key 有 open 卡」的行（任一 locale），返回在 `blocked` 里；其余照常应用。全部被挡才 409。
+- Push 三方判定里，远端没有的 key 视为「Git 没意见」（theirs = base），不会因为远端删除或换目录而判成冲突。Git 一侧为空的卡不能选 `theirs`。
+
+多人并发的流程规则（预览到确认横跨两次请求，数据库事务管不到，靠下面这些保证）：
+
+- **快照只证明 Git 一侧**。平台一侧在写入事务里重读、重新判定；新加写入路径照此办理。
+- **项目租约**（`engine/lease.ts`，`GitSyncBinding.leaseId / leaseOwner / leaseUntil`）：apply pull、apply push、改绑定位置的 PUT 串行执行，拿不到返回 409 `sync_busy`。TTL 到期可接手。
+- **绑定代际**（`GitSyncBinding.generation`）：改位置时 +1，预览快照记下它；apply 的写事务第一步用 `liveBinding` 重读比对，并用重读到的 `seenFiles` 合并。
+- **Push 意图**：`commitAndPush` 前把预览标为 `pushing` 并记下 key；中断后，下次 Push 预览按 trailer 补记（找不到则 cancelled），重试同一预览也能补记。
+- **卡片读时校验**：`listOpenConflicts` 会把平台文案已经变了的卡关为 `obsolete`；所有读取 open 卡的地方都走它。「使用 Git」/「合并」遇到这种卡返回 409 `conflict_stale`。
+- **错误码**：拒绝统一用 `gitSyncError`，`data.code` 取自 `GitSyncErrorCode`。`/git` 页据此清掉预览、刷新；预览打开时每 30 秒查一次状态里的 `pendingPreviews`，被替换就关闭。
 
 layout 只负责一件事：**在已经 clone 好的目录里，按自己的约定列文件、读文件、写 source 文件。**
 

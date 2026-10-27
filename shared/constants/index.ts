@@ -128,6 +128,11 @@ export enum GitSyncPreviewKind {
 
 export enum GitSyncPreviewStatus {
   PENDING = 'pending',
+  /**
+   * Push only: the commit may already be on the remote but its bookkeeping has
+   * not committed. The next push preview settles it by the commit trailer.
+   */
+  PUSHING = 'pushing',
   APPLIED = 'applied',
   CANCELLED = 'cancelled',
 }
@@ -177,6 +182,33 @@ export enum GitSyncPushReason {
 
 /** A preview snapshot is only trusted for this long. */
 export const GIT_SYNC_PREVIEW_TTL_MS = 15 * 60 * 1000
+
+/**
+ * How long a project's sync lease holds before anyone may take it over. Longer
+ * than a clone plus push, so it only expires when the holder died.
+ */
+export const GIT_SYNC_LEASE_TTL_MS = 10 * 60 * 1000
+
+/** `error.data.code` on a refused sync request, so the UI reacts without parsing text. */
+export enum GitSyncErrorCode {
+  /** Another apply or settings change holds the project's lease. */
+  SYNC_BUSY = 'sync_busy',
+  /** The binding now points at different files than the preview read. */
+  BINDING_CHANGED = 'binding_changed',
+  /** The platform text moved since the conflict card was written. */
+  CONFLICT_STALE = 'conflict_stale',
+  /** Someone else resolved the card first. */
+  CONFLICT_RESOLVED = 'conflict_resolved',
+  /** Open conflict cards stand in the way; resolve them first. */
+  CONFLICT_OPEN = 'conflict_open',
+  PREVIEW_APPLIED = 'preview_applied',
+  /** A newer preview of the same kind cancelled this one. */
+  PREVIEW_REPLACED = 'preview_replaced',
+  /** Expired, or cancelled for another reason. */
+  PREVIEW_INVALID = 'preview_invalid',
+  /** The remote moved in a way the preview cannot survive. */
+  REMOTE_MOVED = 'remote_moved',
+}
 
 /**
  * History depth fetched when pushing. Deep enough to find a batch this project

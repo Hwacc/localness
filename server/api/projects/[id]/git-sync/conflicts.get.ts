@@ -1,6 +1,6 @@
-import prisma from '#server/libs/prisma'
 import { numericID } from '#server/helper/id'
 import { requireTeamMember } from '#server/helper/access'
+import { listOpenConflicts } from '#server/libs/git-sync/sync'
 
 /**
  * @route GET /api/projects/:id/git-sync/conflicts
@@ -12,8 +12,5 @@ export default defineEventHandler(async (event) => {
   }
   const projectId = numericID(id)
   await requireTeamMember(event, projectId)
-  return prisma.gitSyncConflict.findMany({
-    where: { projectId, status: 'open' },
-    orderBy: { updatedAt: 'desc' },
-  })
+  return listOpenConflicts(projectId)
 })

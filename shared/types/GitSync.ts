@@ -2,6 +2,7 @@ import type { ID } from '.'
 import type {
   GitSyncLogAction,
   GitSyncLogStatus,
+  GitSyncPreviewKind,
   GitSyncPushReason,
 } from '../constants'
 import type { IUser } from './User'
@@ -73,6 +74,18 @@ export interface GitSyncStatus {
   configured: boolean
   binding: GitSyncBindingPublic | null
   openConflicts: number
+  /** Holder of the project's sync lease while an apply or move runs. */
+  syncingBy: string | null
+  /**
+   * Newest pending preview of each kind. A preview the page holds that is not
+   * this one was replaced or used up.
+   */
+  pendingPreviews: Record<GitSyncPreviewKind, GitSyncPendingPreview | null>
+}
+
+export interface GitSyncPendingPreview {
+  id: number
+  createdBy: string
 }
 
 export interface PullFile {
@@ -116,6 +129,8 @@ export interface PullApplyResult {
   kept: number
   /** Edited on the platform after the preview, so left as they are. */
   changed: { key: string; locale: string }[]
+  /** Selected, but their key has an open conflict card. */
+  blocked: { key: string; locale: string }[]
   files: number
 }
 
@@ -141,6 +156,8 @@ export interface IGitSyncPullLogDetail {
   applied: number
   aligned: number
   kept: number
+  /** Rows skipped because their key had an open conflict card. Absent on older rows. */
+  blocked?: number
   files: number
 }
 

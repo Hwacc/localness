@@ -1,11 +1,13 @@
 <script setup lang="ts">
-import { useStorage } from '@vueuse/core'
+import { useIntervalFn, useStorage } from '@vueuse/core'
 import {
   GIT_SYNC_DEFAULT_PATTERN,
   GitCredentialKind,
   GitSyncAdapter,
   GitSyncConflictStatus,
+  GitSyncErrorCode,
   GitSyncFileFormat,
+  GitSyncPreviewKind,
   GitSyncPullReason,
   GitSyncPushReason,
 } from '#shared/constants'
@@ -30,6 +32,9 @@ definePageMeta({
   middleware: ['protected'],
   ssr: false,
 })
+
+/** How often an open preview checks it is still the current one. */
+const GIT_STATUS_POLL_MS = 30_000
 
 const { $dayjs } = useNuxtApp()
 const toast = useToast()
@@ -88,14 +93,16 @@ const configured = computed(() => Boolean(status.value?.configured))
 const openCount = computed(
   () => status.value?.openConflicts ?? conflicts.value.length
 )
-const pullOpenConflicts = computed(
-  () =>
-    pullPreview.value?.candidates.filter((c) => c.decision === 'conflict')
-      .length ?? 0
+/** Keys with an open card in any locale; their other rows wait for it too. */
+const conflictedKeys = computed(
+  () => new Set(conflicts.value.map((c) => c.key))
 )
 const pullCanConfirm = computed(() => {
-  if (!pullPreview.value || pullOpenConflicts.value > 0) return false
-  return pullKeySel.value.length > 0
+  if (!pullPreview.value) return false
+  const selected = new Set(pullKeySel.value)
+  return pullPreview.value.candidates.some(
+    (c) => selected.has(candidateId(c)) && isPullActionable(c)
+  )
 })
 
 const pushCanConfirm = computed(() => {
@@ -359,7 +366,7 @@ function candidateId(c: PullCandidate) {
 
 /** Only Git-ahead rows are applied. Conflicts are resolved in the detail pane. */
 function isPullActionable(c: PullCandidate) {
-  return c.decision === 'apply-theirs'
+  return c.decision === 'apply-theirs' && !conflictedKeys.value.has(c.key)
 }
 
 /**
@@ -907,14 +914,16 @@ async function startPull() {
           f.reason !== GitSyncPullReason.SEEN_FILE || needsSeen.has(f.relPath)
       )
       .map((f) => f.relPath)
+    // The preview opens and closes cards, and the key selection below
+    // depends on which keys still have one.
+    if ((preview.counts?.conflict ?? 0) > 0 || openCount.value > 0) {
+      await loadAll()
+    }
     pullKeySel.value = preview.candidates
       .filter(isPullBulkSelectable)
       .map(candidateId)
     pullQuery.value = ''
     pullDecisionFilter.value = 'all'
-    if ((preview.counts?.conflict ?? 0) > 0) {
-      await loadAll()
-    }
     if (preview.ignoredLocales?.length) {
       toast.add({
         title: 'Some Git locales were skipped',
@@ -933,6 +942,8 @@ async function startPull() {
         color: 'neutral',
       })
     }
+  } catch (error) {
+    await recoverFromSyncError(error)
   } finally {
     pulling.value = false
   }
@@ -954,15 +965,26 @@ async function confirmPull() {
       }
     )
     const kept = result?.kept ?? 0
+    const blocked = result?.blocked.length ?? 0
+    const notes = [
+      kept
+        ? `${kept} row(s) were edited on the platform after the preview and kept as they are — run a new pull to review them.`
+        : '',
+      blocked
+        ? `${blocked} row(s) wait for an open conflict on the same key.`
+        : '',
+    ].filter(Boolean)
     toast.add({
       title: 'Pull finished',
-      description: kept
-        ? `Published ${result?.applied ?? 0}. ${kept} key(s) were edited on the platform after the preview and kept as they are — run a new pull to review them.`
+      description: notes.length
+        ? `Published ${result?.applied ?? 0}. ${notes.join(' ')}`
         : `Published ${result?.applied ?? 0}, files ${result?.files ?? 0}`,
-      color: kept ? 'warning' : 'success',
+      color: notes.length ? 'warning' : 'success',
     })
     pullPreview.value = null
     await loadAll()
+  } catch (error) {
+    await recoverFromSyncError(error)
   } finally {
     applying.value = false
   }
@@ -988,6 +1010,8 @@ async function startPush() {
     if ((preview.counts?.conflict ?? 0) > 0) {
       await loadAll()
     }
+  } catch (error) {
+    await recoverFromSyncError(error)
   } finally {
     pushing.value = false
   }
@@ -1028,8 +1052,8 @@ async function confirmPush() {
     })
     pushPreview.value = null
     await loadAll()
-  } catch {
-    await loadAll()
+  } catch (error) {
+    await recoverFromSyncError(error)
   } finally {
     applying.value = false
   }
@@ -1040,6 +1064,85 @@ function cancelPreview() {
   pushPreview.value = null
   focusedId.value = null
 }
+
+/** The code a sync endpoint put on its refusal, read from a `$fetch` error. */
+function syncErrorCode(error: unknown): GitSyncErrorCode | null {
+  const code = (error as { data?: { data?: { code?: unknown } } } | null)?.data
+    ?.data?.code
+  return Object.values(GitSyncErrorCode).includes(code as GitSyncErrorCode)
+    ? (code as GitSyncErrorCode)
+    : null
+}
+
+/**
+ * After a refusal the page's preview or cards may describe a state the server
+ * has moved past. `useApi` already showed the message; this re-syncs the page.
+ */
+async function recoverFromSyncError(error: unknown) {
+  const code = syncErrorCode(error)
+  switch (code) {
+    case GitSyncErrorCode.BINDING_CHANGED:
+    case GitSyncErrorCode.PREVIEW_APPLIED:
+    case GitSyncErrorCode.PREVIEW_REPLACED:
+    case GitSyncErrorCode.PREVIEW_INVALID:
+    case GitSyncErrorCode.REMOTE_MOVED:
+      cancelPreview()
+      break
+    // The preview may still be good once the other sync finishes, or once the
+    // reloaded cards are resolved.
+    case GitSyncErrorCode.SYNC_BUSY:
+    case GitSyncErrorCode.CONFLICT_STALE:
+    case GitSyncErrorCode.CONFLICT_RESOLVED:
+    case GitSyncErrorCode.CONFLICT_OPEN:
+    case null:
+      break
+    default: {
+      const _exhaustive: never = code
+      return _exhaustive
+    }
+  }
+  await loadAll()
+}
+
+/**
+ * While a preview is open someone else may replace it or apply it. The status
+ * names the current pending preview of each kind; one the page holds that is
+ * not current is gone.
+ */
+async function pollStatus() {
+  if (!validID(projectId.value) || applying.value) return
+  const held = pullPreview.value
+    ? { kind: GitSyncPreviewKind.PULL, id: pullPreview.value.previewId }
+    : pushPreview.value
+      ? { kind: GitSyncPreviewKind.PUSH, id: pushPreview.value.previewId }
+      : null
+  if (!held) return
+  const next = await useApi<GitSyncStatus>(
+    `/api/projects/${projectId.value}/git-sync`
+  ).catch(() => null)
+  // An apply that started meanwhile settles the preview itself.
+  if (!next || applying.value) return
+  status.value = next
+  const current = next.pendingPreviews[held.kind]
+  if (current?.id === held.id) return
+  cancelPreview()
+  toast.add({
+    title: 'Preview closed',
+    description: current
+      ? `${current.createdBy || 'Someone'} started a newer ${held.kind} preview.`
+      : 'It was applied, cancelled or expired.',
+    color: 'warning',
+  })
+  await loadAll()
+}
+
+const statusPoll = useIntervalFn(pollStatus, GIT_STATUS_POLL_MS, {
+  immediate: false,
+})
+watch(
+  () => Boolean(pullPreview.value || pushPreview.value),
+  (open) => (open ? statusPoll.resume() : statusPoll.pause())
+)
 
 function chosenConflictText(
   conflict: IGitSyncConflictRow,
@@ -1150,6 +1253,8 @@ async function resolve(
       markPullCandidateResolved(conflict.key, conflict.locale)
     }
     await loadAll()
+  } catch (error) {
+    await recoverFromSyncError(error)
   } finally {
     resolvingId.value = null
   }
@@ -1473,11 +1578,15 @@ function openHistory() {
             {{ formatTime(pullPreview.expiresAt) }}
           </p>
           <p class="text-xs">
-            Apply pull publishes Git's text for the ticked rows. Conflict rows
-            can't be ticked — resolve them on the right first.
+            Apply pull publishes Git's text for the ticked rows. A key with an
+            open conflict can't be ticked in any locale until it is resolved on
+            the right; everything else can be applied now.
           </p>
         </div>
         <div class="ml-auto shrink-0 flex items-center gap-2">
+          <span v-if="status?.syncingBy" class="text-xs text-warning">
+            {{ status.syncingBy }} is syncing — apply once it finishes
+          </span>
           <UButton
             color="neutral"
             variant="ghost"
@@ -1521,6 +1630,9 @@ function openHistory() {
           </p>
         </div>
         <div class="ml-auto shrink-0 flex items-center gap-2">
+          <span v-if="status?.syncingBy" class="text-xs text-warning">
+            {{ status.syncingBy }} is syncing — apply once it finishes
+          </span>
           <UButton
             color="neutral"
             variant="ghost"

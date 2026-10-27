@@ -99,6 +99,7 @@ function summary(row: IGitSyncLog): string {
     const parts = [`${pull.applied} key(s) applied`]
     if (pull.aligned) parts.push(`${pull.aligned} aligned`)
     if (pull.kept) parts.push(`${pull.kept} kept`)
+    if (pull.blocked) parts.push(`${pull.blocked} waiting on conflicts`)
     parts.push(`${pull.files} file(s)`)
     return parts.join(' · ')
   }
@@ -240,6 +241,9 @@ onMounted(() => {
                 <p>
                   Applied {{ isPull(row)?.applied }} · aligned
                   {{ isPull(row)?.aligned }} · kept {{ isPull(row)?.kept }} ·
+                  <template v-if="isPull(row)?.blocked">
+                    waiting on conflicts {{ isPull(row)?.blocked }} ·
+                  </template>
                   files {{ isPull(row)?.files }}
                 </p>
               </template>
