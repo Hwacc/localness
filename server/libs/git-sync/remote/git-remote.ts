@@ -4,7 +4,9 @@ import { mkdir, mkdtemp, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { promisify } from 'node:util'
+import { GitSyncErrorCode } from '#shared/constants'
 import { authenticatedRemoteUrl } from './credentials'
+import { gitSyncError } from '../engine/errors'
 
 const execFileAsync = promisify(execFile)
 
@@ -190,6 +192,18 @@ export async function findCommitByTrailer(
   return null
 }
 
+/**
+ * Git's tree id for `path` at HEAD, or null when the path does not exist.
+ * Equal ids mean identical contents, whatever else the commit changed.
+ */
+export async function treeSha(repoDir: string, path: string): Promise<string | null> {
+  try {
+    return await git(repoDir, ['rev-parse', `HEAD:${path}`])
+  } catch {
+    return null
+  }
+}
+
 /** Detached checkout of a commit already in the clone's history. */
 export async function checkoutCommit(repoDir: string, sha: string): Promise<void> {
   await git(repoDir, ['checkout', '--detach', '--quiet', sha])
@@ -217,10 +231,11 @@ export async function commitAndPush(params: {
     // The remote moved between our clone and our push. That is a routine race,
     // not a broken remote, and the fix is a fresh preview.
     if (/non-fast-forward|fetch first|rejected/i.test(raw)) {
-      throw createError({
-        statusCode: 409,
-        statusMessage: 'Remote changed during push — run a new preview',
-      })
+      throw gitSyncError(
+        409,
+        GitSyncErrorCode.REMOTE_MOVED,
+        'Remote changed during push — run a new preview'
+      )
     }
     throw error
   }

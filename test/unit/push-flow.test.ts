@@ -71,9 +71,15 @@ vi.mock('#server/helper/api-delivery', async (importOriginal) => ({
   projectLocales: async () => ['en', 'de'],
 }))
 
+// The lease is a conditional update on the binding row; git-sync-flow covers it.
+vi.mock('#server/libs/git-sync/engine/lease', () => ({
+  withSyncLease: (_projectId: number, _owner: string, run: () => Promise<unknown>) => run(),
+}))
+
 vi.mock('#server/libs/prisma', () => {
   const tx = {
     gitSyncBinding: {
+      findUnique: async () => db.binding,
       update: async ({ data }: { data: Record<string, unknown> }) => {
         db.bindingUpdates.push(data)
         return {}
@@ -108,7 +114,14 @@ vi.mock('#server/libs/prisma', () => {
     default: {
       gitSyncConflict: {
         count: async () => db.conflicts,
-        findMany: async () => [],
+        // No live platform row and an empty `oursText`: each card still holds.
+        findMany: async () =>
+          Array.from({ length: db.conflicts }, (_, id) => ({
+            id,
+            key: `open-${id}`,
+            locale: 'en',
+            oursText: '',
+          })),
         updateMany: async () => ({ count: 0 }),
         upsert: async ({ create }: { create: Record<string, unknown> }) => {
           remote.conflictsWritten.push(create)
@@ -116,11 +129,13 @@ vi.mock('#server/libs/prisma', () => {
         },
       },
       gitSyncBinding: { findUnique: async () => db.binding },
-      project: { findUnique: async () => db.project },
+      projectSettings: { findUnique: async () => db.project?.settings ?? null },
       i18nKey: { findMany: async () => db.keys },
       gitSyncBase: { findMany: async () => db.bases },
+      localeValue: { findMany: async () => [] },
       $transaction: async (fn: (c: unknown) => Promise<void>) => fn(tx),
       gitSyncPreview: {
+        findMany: async () => [],
         updateMany: async () => ({ count: 0 }),
         findFirst: async ({ where }: { where: { id: number } }) =>
           db.previews.find((p) => p.id === where.id) ?? null,

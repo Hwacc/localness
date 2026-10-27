@@ -411,6 +411,14 @@ model GitSyncBinding {
   seenFiles      Json?     @map("seen_files")
   lastPulledAt   DateTime? @map("last_pulled_at")
   lastPushedAt   DateTime? @map("last_pushed_at")
+  /// Bumped when the binding points at different files. Previews record it, and
+  /// an apply whose generation no longer matches writes nothing.
+  generation     Int       @default(0)
+  /// Project-wide sync lease: one apply or location change at a time. Free when
+  /// `leaseUntil` is null or past, so a crashed holder does not block forever.
+  leaseId        String    @default("") @map("lease_id")
+  leaseOwner     String    @default("") @map("lease_owner")
+  leaseUntil     DateTime? @map("lease_until")
   project        Project   @relation(fields: [projectId], references: [id], onDelete: Cascade)
 
   @@unique([adapter, remoteUrl, product])

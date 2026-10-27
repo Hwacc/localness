@@ -32,8 +32,12 @@ export function classifyFile(
 
 /**
  * Why a source key is (or is not) proposed for push.
- * `remote` is the merged `source/` map (later filename wins). Missing keys
- * are treated as empty so three-way matches Pull.
+ * `remote` is the merged `source/` map (later filename wins).
+ *
+ * A key missing from the remote has no opinion, not an empty text: sync does
+ * not express deletion, so a key deleted in Git reads as unchanged there. An
+ * empty `theirs` would make a platform edit a conflict whose Git side is `''`,
+ * and Use Git on it would wipe the published text.
  */
 export function classifyPush(
   key: string,
@@ -43,11 +47,8 @@ export function classifyPush(
 ): GitSyncPushReason {
   if (key.startsWith(DRAFT_KEY_PREFIX)) return GitSyncPushReason.DRAFT_KEY
   if (!text) return GitSyncPushReason.NOT_PUBLISHED
-  const decision = decideThreeWay(
-    lastPushed.get(key) ?? '',
-    text,
-    remote.get(key) ?? ''
-  )
+  const base = lastPushed.get(key) ?? ''
+  const decision = decideThreeWay(base, text, remote.get(key) ?? base)
   switch (decision) {
     case 'align':
       return GitSyncPushReason.UNCHANGED

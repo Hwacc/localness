@@ -11,10 +11,21 @@ const db = vi.hoisted(() => ({
   basesWritten: [] as Record<string, unknown>[],
   conflictRow: null as { status: string } | null,
   openConflict: null as Record<string, unknown> | null,
+  /** Keys with an open conflict card, as apply sees them. */
+  openCardKeys: [] as string[],
   logs: [] as Record<string, unknown>[],
 }))
 
-const remote = vi.hoisted(() => ({ headSha: 'sha-preview' }))
+const remote = vi.hoisted(() => ({
+  headSha: 'sha-preview',
+  /** Tree id of the bound folder on the remote now; null = clone not allowed. */
+  scopeTree: null as string | null,
+}))
+
+// The lease is a conditional update on the binding row; git-sync-flow covers it.
+vi.mock('#server/libs/git-sync/engine/lease', () => ({
+  withSyncLease: (_projectId: number, _owner: string, run: () => Promise<unknown>) => run(),
+}))
 
 vi.mock('#server/libs/prisma', () => {
   const tx = {
@@ -49,6 +60,7 @@ vi.mock('#server/libs/prisma', () => {
         return {}
       },
       findFirst: async () => ({ draftText: 'platform', publishedText: 'platform' }),
+      findMany: async () => [],
     },
     gitSyncBase: {
       upsert: async ({
@@ -74,10 +86,16 @@ vi.mock('#server/libs/prisma', () => {
         if ('id' in where) return db.openConflict
         return db.conflictRow
       },
+      // No live platform row and an empty `oursText`: the card still holds.
+      findMany: async () =>
+        db.openCardKeys.map((key, id) => ({ id, key, locale: 'en', oursText: '' })),
       updateMany: async () => ({ count: 1 }),
       update: async ({ data }: { data: Record<string, unknown> }) => data,
     },
-    gitSyncBinding: { update: async () => ({}) },
+    gitSyncBinding: {
+      findUnique: async () => db.binding,
+      update: async () => ({}),
+    },
     gitSyncPreview: { update: async () => ({}) },
     gitSyncLog: {
       create: async ({ data }: { data: Record<string, unknown> }) => {
@@ -109,8 +127,12 @@ vi.mock('#server/libs/prisma', () => {
 vi.mock('#server/libs/git-sync/remote/git-remote', () => ({
   remoteHeadSha: async () => remote.headSha,
   withClonedRepo: async () => {
-    throw new Error('apply must not clone when the head is unchanged')
+    if (remote.scopeTree == null) {
+      throw new Error('apply must not clone when the head is unchanged')
+    }
+    return remote.scopeTree
   },
+  treeSha: async () => remote.scopeTree,
   commitAndPush: async () => ({ pushed: true, commitSha: 'sha-pushed' }),
   findCommitByTrailer: async () => null,
 }))
@@ -139,6 +161,15 @@ const snapshot = {
       theirsText: 'theirs',
       publishedText: null,
       decision: 'conflict',
+    },
+    {
+      key: 'b',
+      locale: 'de',
+      baseText: '',
+      oursText: '',
+      theirsText: 'Git de',
+      publishedText: null,
+      decision: 'apply-theirs',
     },
   ],
 }
@@ -175,8 +206,10 @@ beforeEach(() => {
   db.basesWritten = []
   db.conflictRow = { status: 'theirs' }
   db.openConflict = null
+  db.openCardKeys = []
   db.logs = []
   remote.headSha = 'sha-preview'
+  remote.scopeTree = null
 })
 
 describe('applyPull', () => {
@@ -184,6 +217,7 @@ describe('applyPull', () => {
     // The git-remote mock throws if `withClonedRepo` is called.
     const result = await applyPull({
       projectId: 2,
+      triggeredBy: 'tester',
       previewId: 1,
       selectedFiles: ['cortex/source/a.json'],
       selectedKeys: ['a\0en'],
@@ -197,6 +231,40 @@ describe('applyPull', () => {
     await expect(
       applyPull({
         projectId: 2,
+        triggeredBy: 'tester',
+        previewId: 1,
+        selectedFiles: ['cortex/source/a.json'],
+        selectedKeys: ['a\0en'],
+      })
+    ).rejects.toMatchObject({ statusCode: 409 })
+  })
+
+  it('reuses the snapshot when only another folder moved on the remote', async () => {
+    remote.headSha = 'sha-moved'
+    remote.scopeTree = 'tree-cortex'
+    db.previews = [
+      pending({ candidates: { ...snapshot, scopeTree: 'tree-cortex' } }),
+    ]
+    const result = await applyPull({
+      projectId: 2,
+      triggeredBy: 'tester',
+      previewId: 1,
+      selectedFiles: ['cortex/source/a.json'],
+      selectedKeys: ['a\0en'],
+    })
+    expect(result.applied).toBe(1)
+  })
+
+  it('refuses when the bound folder itself moved', async () => {
+    remote.headSha = 'sha-moved'
+    remote.scopeTree = 'tree-new'
+    db.previews = [
+      pending({ candidates: { ...snapshot, scopeTree: 'tree-cortex' } }),
+    ]
+    await expect(
+      applyPull({
+        projectId: 2,
+        triggeredBy: 'tester',
         previewId: 1,
         selectedFiles: ['cortex/source/a.json'],
         selectedKeys: ['a\0en'],
@@ -207,6 +275,7 @@ describe('applyPull', () => {
   it('applies only the selected keys', async () => {
     const result = await applyPull({
       projectId: 2,
+      triggeredBy: 'tester',
       previewId: 1,
       selectedFiles: ['cortex/source/a.json'],
       selectedKeys: ['a\0en'],
@@ -215,11 +284,12 @@ describe('applyPull', () => {
     expect(result.kept).toBe(0)
   })
 
-  it('refuses apply while a preview conflict card is still open', async () => {
-    db.conflictRow = { status: 'open' }
+  it('refuses when every selected row waits on an open card', async () => {
+    db.openCardKeys = ['a']
     await expect(
       applyPull({
         projectId: 2,
+        triggeredBy: 'tester',
         previewId: 1,
         selectedFiles: ['cortex/source/a.json'],
         selectedKeys: ['a\0en'],
@@ -228,10 +298,24 @@ describe('applyPull', () => {
     expect(db.transactions).toBe(0)
   })
 
-  it('applies Git-ahead rows after the conflict card is resolved', async () => {
-    db.conflictRow = { status: 'theirs' }
+  it('applies other keys while an unrelated card is open', async () => {
+    db.openCardKeys = ['b']
     const result = await applyPull({
       projectId: 2,
+      triggeredBy: 'tester',
+      previewId: 1,
+      selectedFiles: ['cortex/source/a.json'],
+      selectedKeys: ['a\0en', 'b\0de'],
+    })
+    expect(result.applied).toBe(1)
+    expect(result.blocked).toEqual([{ key: 'b', locale: 'de' }])
+    expect(db.logs[0]?.status).toBe('partial')
+  })
+
+  it('applies Git-ahead rows after the conflict card is resolved', async () => {
+    const result = await applyPull({
+      projectId: 2,
+      triggeredBy: 'tester',
       previewId: 1,
       selectedFiles: ['cortex/source/a.json'],
       selectedKeys: ['a\0en'],
@@ -243,6 +327,7 @@ describe('applyPull', () => {
   it('publishes apply-theirs rows instead of leaving them as draft', async () => {
     const result = await applyPull({
       projectId: 2,
+      triggeredBy: 'tester',
       previewId: 1,
       selectedFiles: ['cortex/source/a.json'],
       selectedKeys: ['a\0en'],
@@ -272,6 +357,7 @@ describe('applyPull', () => {
     await expect(
       applyPull({
         projectId: 2,
+        triggeredBy: 'tester',
         previewId: 1,
         selectedFiles: [],
         selectedKeys: [],
@@ -284,6 +370,7 @@ describe('applyPull', () => {
     await expect(
       applyPull({
         projectId: 2,
+        triggeredBy: 'tester',
         previewId: 1,
         selectedFiles: ['cortex/source/a.json'],
         selectedKeys: ['a\0en'],
@@ -294,6 +381,7 @@ describe('applyPull', () => {
   it('logs the landing with the acting user and commit', async () => {
     await applyPull({
       projectId: 2,
+      triggeredBy: 'tester',
       previewId: 1,
       selectedFiles: ['cortex/source/a.json'],
       selectedKeys: ['a\0en'],
@@ -311,10 +399,11 @@ describe('applyPull', () => {
   })
 
   it('does not log a refused apply', async () => {
-    db.conflictRow = { status: 'open' }
+    db.openCardKeys = ['a']
     await expect(
       applyPull({
         projectId: 2,
+        triggeredBy: 'tester',
         previewId: 1,
         selectedFiles: ['cortex/source/a.json'],
         selectedKeys: ['a\0en'],
@@ -327,6 +416,7 @@ describe('applyPull', () => {
     // Selecting no files but keeping a key means the file stays a candidate.
     const result = await applyPull({
       projectId: 2,
+      triggeredBy: 'tester',
       previewId: 1,
       selectedFiles: [],
       selectedKeys: ['a\0en'],
