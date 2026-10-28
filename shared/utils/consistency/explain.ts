@@ -1,3 +1,4 @@
+import { describeNumberFormat } from './number-format'
 import type { LintIssue, MismatchIssue, TextSpan } from './types'
 
 /**
@@ -50,6 +51,14 @@ export const ruleCopy: Record<string, { label: string; hint: string }> = {
   'lint.french-spacing': {
     label: 'French spacing',
     hint: 'French puts a narrow no-break space (U+202F) before ! ? ; : — a plain space lets the mark wrap onto its own line.',
+  },
+  'lint.number-format': {
+    label: 'Number format',
+    hint: 'Languages write numbers differently: 1,234.56 in English, 1.234,56 in German, 1 234,56 in French. A translation that keeps another language’s separators reads as a different number. A lone "1.000" is ambiguous and only reported when it was copied unchanged from a source that reads the separator the other way. Versions glued to a letter (v1.5) are skipped.',
+  },
+  'lint.number-literal': {
+    label: 'Hard-coded numbers',
+    hint: 'A number typed with thousands separators ("1,000 users") has to be retyped in every language. Pass it as a placeholder ({count}) and format it at runtime with Intl.NumberFormat — one source text, correct everywhere.',
   },
 }
 
@@ -107,6 +116,10 @@ export function describeLint(
       return `No space between Chinese and Latin/digit: "${issue.excerpt}"`
     case 'lint.french-spacing':
       return `Plain space before "${issue.excerpt.trim()}" — use a narrow no-break space`
+    case 'lint.number-format':
+      return describeNumberFormat(issue.excerpt, issue.locale)
+    case 'lint.number-literal':
+      return `Hard-coded "${issue.excerpt}" — use a {count} placeholder and format it at runtime`
     case 'lint.terminal-punct': {
       const source =
         PUNCT_NAME[String(meta?.sourceClass)] ?? String(meta?.sourceClass)

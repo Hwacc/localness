@@ -63,7 +63,7 @@ function idList(raw: unknown): number[] {
 
 /**
  * @route GET /api/projects/:id/i18n-keys
- * @query q, status, from, to, pageIds, releaseId, unassigned, includeDraftKeys, idsOnly, page, limit
+ * @query q, status, from, to, pageIds, ids, releaseId, unassigned, includeDraftKeys, idsOnly, page, limit
  * `from`/`to` are ISO instants bounding `updatedAt`; the client sends the
  * local day boundaries so the range means what the user picked on screen.
  * `pageIds` scopes to keys tagged on those pages, plus keys with no tag at all
@@ -94,6 +94,9 @@ export default defineEventHandler(async (event) => {
   const from = isoBound(query.from)
   const to = isoBound(query.to)
   const pageIds = idList(query.pageIds)
+  // Exact keys, ignoring paging: how the client re-reads one row that a reload
+  // moved off the page it was on.
+  const ids = idList(query.ids)
   const releaseFilter = parseReleaseFilter(query)
   const includeDraftKeys =
     query.includeDraftKeys === 'true' || query.includeDraftKeys === '1'
@@ -135,6 +138,7 @@ export default defineEventHandler(async (event) => {
       : {}),
     // Two independent OR groups, so they have to be nested under AND.
     AND: [
+      ...(ids.length ? [{ id: { in: ids } }] : []),
       // Any locale's draft, not just the source language's: searching for a
       // sentence should not depend on which language the project calls original.
       ...(q

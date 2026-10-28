@@ -1,17 +1,31 @@
 <script setup lang="ts">
-import type { TableColumn } from '@nuxt/ui'
+import { useIntervalFn, useStorage } from '@vueuse/core'
 import {
   GIT_SYNC_DEFAULT_PATTERN,
   GitCredentialKind,
   GitSyncAdapter,
   GitSyncConflictStatus,
+  GitSyncErrorCode,
   GitSyncFileFormat,
+  GitSyncPreviewKind,
   GitSyncPullReason,
   GitSyncPushReason,
 } from '#shared/constants'
-import { formatI18nKeyDisplay, validID } from '#shared/utils'
+import { validID } from '#shared/utils'
 import { isHttpsRemoteUrl, normalizeGitHttpsRemote } from '#shared/schemas'
-import type { ThreeWayDecision } from '#shared/types/GitSync'
+import type {
+  GitSyncBindingPublic,
+  GitSyncStatus,
+  IGitReviewItem,
+  IGitReviewSection,
+  IGitSyncConflictRow,
+  PullApplyResult,
+  PullCandidate,
+  PullPreview,
+  PushCandidate,
+  PushPreview,
+  ThreeWayDecision,
+} from '#shared/types/GitSync'
 import { GitSyncHistoryModal } from '#components'
 
 definePageMeta({
@@ -19,89 +33,8 @@ definePageMeta({
   ssr: false,
 })
 
-type GitSyncBindingPublic = {
-  id: number
-  enabled: boolean
-  adapter: string
-  remoteUrl: string
-  branch: string
-  product: string
-  options: { pattern?: string; format?: string } | null
-  credentialKind: string
-  tokenConfigured: boolean
-  lastPulledAt: string | null
-  lastPushedAt: string | null
-}
-
-type GitSyncStatus = {
-  role: string
-  isSteward: boolean
-  configured: boolean
-  binding: GitSyncBindingPublic | null
-  openConflicts: number
-}
-
-type GitSyncConflictRow = {
-  id: number
-  key: string
-  locale: string
-  baseText: string
-  oursText: string
-  theirsText: string
-  publishedText: string | null
-  /** Git's text translates this older source; Use Git lands it outdated. */
-  olderSourceText: string | null
-}
-
-type PullFile = {
-  relPath: string
-  sha: string
-  locale: string | null
-  remoteLocale: string
-  date: string
-  reason: string
-}
-
-type PullCandidate = {
-  key: string
-  locale: string
-  relPath?: string
-  baseText: string
-  oursText: string
-  theirsText: string
-  publishedText: string | null
-  decision: ThreeWayDecision
-  /** Source text of the batch this translation came from, when known. */
-  writtenAgainst?: string | null
-  /** Translated from an older source; a newer batch is still out. */
-  staleSource?: boolean
-}
-
-type PullPreview = {
-  previewId: number
-  commitSha: string
-  expiresAt: string
-  files: PullFile[]
-  candidates: PullCandidate[]
-  counts: Record<ThreeWayDecision, number>
-}
-
-type PushCandidate = {
-  key: string
-  baseText: string
-  text: string
-  theirsText: string
-  reason: string
-  eligible: boolean
-}
-
-type PushPreview = {
-  previewId: number
-  sourceLocale: string
-  expiresAt: string
-  candidates: PushCandidate[]
-  counts: Record<string, number>
-}
+/** How often an open preview checks it is still the current one. */
+const GIT_STATUS_POLL_MS = 30_000
 
 const { $dayjs } = useNuxtApp()
 const toast = useToast()
@@ -115,13 +48,9 @@ const pulling = ref(false)
 const pushing = ref(false)
 const resolvingId = ref<number | null>(null)
 const showSettings = ref(false)
-const editingId = ref<number | null>(null)
-const editText = ref('')
-const renamingId = ref<number | null>(null)
-const renameText = ref('')
 
 const status = ref<GitSyncStatus | null>(null)
-const conflicts = ref<GitSyncConflictRow[]>([])
+const conflicts = ref<IGitSyncConflictRow[]>([])
 const productItems = ref<{ value: string; label: string }[]>([])
 
 const pullPreview = ref<PullPreview | null>(null)
@@ -134,8 +63,7 @@ const pullQuery = ref('')
 const pushQuery = ref('')
 const pullDecisionFilter = ref<ThreeWayDecision | 'all'>('all')
 const pushReasonFilter = ref<GitSyncPushReason | 'all'>('all')
-const pullExpanded = ref<Record<string, boolean>>({})
-const pushExpanded = ref<Record<string, boolean>>({})
+const focusedId = ref<string | null>(null)
 
 const form = reactive({
   enabled: true,
@@ -165,15 +93,25 @@ const configured = computed(() => Boolean(status.value?.configured))
 const openCount = computed(
   () => status.value?.openConflicts ?? conflicts.value.length
 )
-const pullOpenConflicts = computed(
-  () =>
-    pullPreview.value?.candidates.filter((c) => c.decision === 'conflict')
-      .length ?? 0
+/** Keys with an open card in any locale; their other rows wait for it too. */
+const conflictedKeys = computed(
+  () => new Set(conflicts.value.map((c) => c.key))
 )
 const pullCanConfirm = computed(() => {
-  if (!pullPreview.value || pullOpenConflicts.value > 0) return false
-  return pullKeySel.value.length > 0
+  if (!pullPreview.value) return false
+  const selected = new Set(pullKeySel.value)
+  return pullPreview.value.candidates.some(
+    (c) => selected.has(candidateId(c)) && isPullActionable(c)
+  )
 })
+
+const pushSelectableCount = computed(
+  () => pushPreview.value?.candidates.filter(isPushRowSelectable).length ?? 0
+)
+
+const pullSelectableCount = computed(
+  () => pullPreview.value?.candidates.filter(isPullActionable).length ?? 0
+)
 
 const pushCanConfirm = computed(() => {
   if (!pushPreview.value || !pushKeySel.value.length) return false
@@ -248,10 +186,9 @@ async function loadAll() {
     )
     status.value = next
     applyBindingToForm(next.binding)
-    showSettings.value = !next.configured && Boolean(next.isSteward)
     if (next.configured) {
       conflicts.value =
-        (await useApi<GitSyncConflictRow[]>(
+        (await useApi<IGitSyncConflictRow[]>(
           `/api/projects/${projectId.value}/git-sync/conflicts`
         )) ?? []
     } else {
@@ -274,13 +211,9 @@ function clearSessionState() {
   pullFileSel.value = []
   pullKeySel.value = []
   pushKeySel.value = []
-  pullExpanded.value = {}
-  pushExpanded.value = {}
-  editingId.value = null
-  editText.value = ''
-  renamingId.value = null
-  renameText.value = ''
+  focusedId.value = null
   resolvingId.value = null
+  showSettings.value = false
 }
 
 function restoreGitFilters(id: ID) {
@@ -305,6 +238,11 @@ function persistGitFilters() {
 // one, so it writes the values it just restored.
 watch([pullQuery, pushQuery, pullDecisionFilter, pushReasonFilter], () => {
   persistGitFilters()
+})
+
+// A dismissed slideover must not keep unsaved edits or a typed token.
+watch(showSettings, (open) => {
+  if (!open && configured.value) applyBindingToForm(status.value?.binding ?? null)
 })
 
 watch(
@@ -423,6 +361,7 @@ async function saveBinding() {
       title: 'Git sync saved',
       color: 'success',
     })
+    showSettings.value = false
     await loadAll()
   } finally {
     saving.value = false
@@ -433,9 +372,9 @@ function candidateId(c: PullCandidate) {
   return `${c.key}\0${c.locale}`
 }
 
-/** Only Git-ahead rows are applied. Conflicts are cards, not checkboxes. */
+/** Only Git-ahead rows are applied. Conflicts are resolved in the detail pane. */
 function isPullActionable(c: PullCandidate) {
-  return c.decision === 'apply-theirs'
+  return c.decision === 'apply-theirs' && !conflictedKeys.value.has(c.key)
 }
 
 /**
@@ -539,23 +478,6 @@ const pushReasonItems = [
   { label: 'Cannot be written', value: GitSyncPushReason.UNWRITABLE },
   { label: 'Git is ahead', value: GitSyncPushReason.REMOTE_CHANGED },
   { label: 'Conflict', value: GitSyncPushReason.CONFLICT },
-]
-
-const pullColumns: TableColumn<PullCandidate>[] = [
-  { id: 'select', header: '', enableSorting: false },
-  { id: 'key', accessorKey: 'key', header: 'Key' },
-  { id: 'locale', accessorKey: 'locale', header: 'Locale' },
-  { id: 'decision', accessorKey: 'decision', header: 'Reason' },
-  { id: 'text', header: 'Text' },
-  { id: 'expand', header: '', enableSorting: false },
-]
-
-const pushColumns: TableColumn<PushCandidate>[] = [
-  { id: 'select', header: '', enableSorting: false },
-  { id: 'key', accessorKey: 'key', header: 'Key' },
-  { id: 'reason', accessorKey: 'reason', header: 'Reason' },
-  { id: 'text', header: 'Text' },
-  { id: 'expand', header: '', enableSorting: false },
 ]
 
 const pushReasonLabel: Record<string, string> = {
@@ -702,6 +624,278 @@ function pushReasonColor(
   }
 }
 
+type ReviewMode = 'conflicts' | 'pull' | 'push'
+
+/** Pull and push previews are exclusive; with neither, the list is the open conflicts. */
+const reviewMode = computed<ReviewMode>(() => {
+  if (pullPreview.value) return 'pull'
+  if (pushPreview.value) return 'push'
+  return 'conflicts'
+})
+
+const reviewItems = computed<IGitReviewItem[]>(() => {
+  const mode = reviewMode.value
+  switch (mode) {
+    case 'pull':
+      return pullTableRows.value.map((c) => ({
+        id: candidateId(c),
+        key: c.key,
+        locale: c.locale,
+        text: c.theirsText,
+        label: decisionLabel[c.decision],
+        color: decisionColor(c.decision),
+        selectable: isPullActionable(c),
+        conflict: c.decision === 'conflict',
+        staleSource: c.staleSource,
+      }))
+    case 'push':
+      return pushTableRows.value.map((c) => ({
+        id: c.key,
+        key: c.key,
+        locale: pushPreview.value?.sourceLocale ?? null,
+        text: c.text,
+        label:
+          pushReasonItems.find((item) => item.value === c.reason)?.label ??
+          c.reason,
+        color: pushReasonColor(c.reason),
+        selectable: isPushRowSelectable(c),
+        conflict: c.reason === GitSyncPushReason.CONFLICT,
+      }))
+    case 'conflicts':
+      return conflicts.value.map((c) => ({
+        id: `c:${c.id}`,
+        key: c.key,
+        locale: c.locale,
+        text: c.theirsText,
+        label: 'Conflict',
+        color: 'warning',
+        selectable: false,
+        conflict: true,
+      }))
+    default: {
+      const _exhaustive: never = mode
+      return _exhaustive
+    }
+  }
+})
+
+/** The focused row, or the first one once it has been resolved away. */
+const activeItem = computed(
+  () =>
+    reviewItems.value.find((item) => item.id === focusedId.value) ??
+    reviewItems.value[0] ??
+    null
+)
+
+const activeConflict = computed(() => {
+  const item = activeItem.value
+  if (!item?.conflict) return null
+  if (reviewMode.value === 'conflicts') {
+    return conflicts.value.find((c) => `c:${c.id}` === item.id) ?? null
+  }
+  return (
+    conflicts.value.find(
+      (c) => c.key === item.key && c.locale === item.locale
+    ) ?? null
+  )
+})
+
+const activeSections = computed<IGitReviewSection[]>(() => {
+  const item = activeItem.value
+  if (!item) return []
+  const mode = reviewMode.value
+  switch (mode) {
+    case 'pull': {
+      const c = pullPreview.value?.candidates.find(
+        (row) => candidateId(row) === item.id
+      )
+      if (!c) return []
+      const sections: IGitReviewSection[] = [
+        {
+          label: 'In Git',
+          hint: 'The text in the repo. Apply pull publishes this.',
+          text: c.theirsText,
+          tone: 'git',
+        },
+      ]
+      if (c.oursText !== c.theirsText) {
+        sections.push({
+          label: 'On platform (draft)',
+          hint: 'Your current draft. It is replaced if you apply this change.',
+          text: c.oursText,
+          tone: 'platform',
+        })
+      }
+      if (c.staleSource && c.writtenAgainst) {
+        sections.push({
+          label: 'Translated from (older source)',
+          hint: 'The source wording this translation was written for. The source has changed since.',
+          text: c.writtenAgainst,
+          tone: 'warning',
+        })
+      }
+      return sections
+    }
+    case 'push': {
+      const c = pushPreview.value?.candidates.find(
+        (row) => row.key === item.id
+      )
+      if (!c) return []
+      const sections: IGitReviewSection[] = [
+        {
+          label: 'On platform (published)',
+          text: c.text,
+          tone: 'platform',
+        },
+        {
+          label: 'In Git',
+          text: c.theirsText,
+          tone: 'git',
+        },
+      ]
+      if (c.baseText && c.baseText !== c.text) {
+        sections.push({
+          label: 'Last pushed',
+          hint: 'What Localness sent to Git last time.',
+          text: c.baseText,
+          tone: 'reference',
+          optional: true,
+        })
+      }
+      sections.push({
+        label: 'Why it is listed',
+        text: pushReasonLabel[c.reason] ?? c.reason,
+        tone: 'reference',
+      })
+      return sections
+    }
+    case 'conflicts':
+      return []
+    default: {
+      const _exhaustive: never = mode
+      return _exhaustive
+    }
+  }
+})
+
+const reviewSelectedIds = computed(() => {
+  const mode = reviewMode.value
+  switch (mode) {
+    case 'pull':
+      return pullKeySel.value
+    case 'push':
+      return pushKeySel.value
+    case 'conflicts':
+      return []
+    default: {
+      const _exhaustive: never = mode
+      return _exhaustive
+    }
+  }
+})
+
+const reviewHeaderChecked = computed(() => {
+  const mode = reviewMode.value
+  switch (mode) {
+    case 'pull':
+      return pullHeaderChecked()
+    case 'push':
+      return pushHeaderChecked()
+    case 'conflicts':
+      return false
+    default: {
+      const _exhaustive: never = mode
+      return _exhaustive
+    }
+  }
+})
+
+const reviewEmptyText = computed(() => {
+  const mode = reviewMode.value
+  switch (mode) {
+    case 'pull':
+      return 'No key changes in the selected files.'
+    case 'push':
+      return pushReasonFilter.value === 'all'
+        ? 'Nothing to push. Pick a reason to see the keys that were filtered out.'
+        : 'No keys with this reason.'
+    case 'conflicts':
+      return 'No open conflicts. Pull or Push to review changes.'
+    default: {
+      const _exhaustive: never = mode
+      return _exhaustive
+    }
+  }
+})
+
+function onReviewToggle(id: string, on: boolean | 'indeterminate') {
+  if (reviewMode.value === 'pull') setSelected('pullKey', id, on)
+  else if (reviewMode.value === 'push') setSelected('pushKey', id, on)
+}
+
+function onReviewToggleAll(on: boolean | 'indeterminate') {
+  if (reviewMode.value === 'pull') selectVisiblePull(on === true)
+  else if (reviewMode.value === 'push') selectVisiblePush(on === true)
+}
+
+function moveFocus(delta: -1 | 1) {
+  const items = reviewItems.value
+  const index = items.findIndex((item) => item.id === activeItem.value?.id)
+  const next = items[Math.min(Math.max(index + delta, 0), items.length - 1)]
+  if (next) focusedId.value = next.id
+}
+
+function toggleFocusedSelection() {
+  const item = activeItem.value
+  if (!item?.selectable) return
+  onReviewToggle(item.id, !reviewSelectedIds.value.includes(item.id))
+}
+
+/** Reference texts (last synced, published, last pushed) stay folded by default. */
+const showCompare = useStorage('git-review-compare', false)
+const detailBusy = ref(false)
+
+/** Same rules as Translations: ↑ ↓ move, a letter acts, typing is never taken. */
+function onKeydown(event: KeyboardEvent) {
+  if (event.metaKey || event.ctrlKey || event.altKey) return
+  const target = event.target as HTMLElement | null
+  if (
+    target &&
+    (target.tagName === 'INPUT' ||
+      target.tagName === 'TEXTAREA' ||
+      target.tagName === 'SELECT' ||
+      target.isContentEditable)
+  ) {
+    return
+  }
+  // A dialog or a drawer over the page owns the keyboard.
+  if (document.querySelector('[role="dialog"]')) return
+  // So does an open filter menu: its arrow keys are for the menu.
+  if (target?.closest('[role="listbox"],[role="menu"],[role="combobox"]')) return
+  const conflict = activeConflict.value
+  const canResolve =
+    conflict && resolvingId.value === null && !detailBusy.value
+  if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
+    event.preventDefault()
+    moveFocus(event.key === 'ArrowDown' ? 1 : -1)
+  } else if (event.key === 'x') {
+    event.preventDefault()
+    toggleFocusedSelection()
+  } else if (event.key === 'c') {
+    event.preventDefault()
+    showCompare.value = !showCompare.value
+  } else if (event.key === 'g' && conflict && canResolve) {
+    event.preventDefault()
+    void resolve(conflict, GitSyncConflictStatus.THEIRS)
+  } else if (event.key === 'p' && conflict && canResolve) {
+    event.preventDefault()
+    void resolve(conflict, GitSyncConflictStatus.OURS)
+  }
+}
+
+onMounted(() => window.addEventListener('keydown', onKeydown))
+onUnmounted(() => window.removeEventListener('keydown', onKeydown))
+
 async function startPull() {
   if (!validID(projectId.value)) return
   pulling.value = true
@@ -713,6 +907,7 @@ async function startPull() {
     if (!preview) return
     pullPreview.value = preview
     pushPreview.value = null
+    focusedId.value = null
     const needsSeen = new Set(
       preview.candidates
         .filter((c) => c.decision === 'apply-theirs' || c.decision === 'conflict')
@@ -725,14 +920,22 @@ async function startPull() {
           f.reason !== GitSyncPullReason.SEEN_FILE || needsSeen.has(f.relPath)
       )
       .map((f) => f.relPath)
+    // The preview opens and closes cards, and the key selection below
+    // depends on which keys still have one.
+    if ((preview.counts?.conflict ?? 0) > 0 || openCount.value > 0) {
+      await loadAll()
+    }
     pullKeySel.value = preview.candidates
       .filter(isPullBulkSelectable)
       .map(candidateId)
     pullQuery.value = ''
     pullDecisionFilter.value = 'all'
-    pullExpanded.value = {}
-    if ((preview.counts?.conflict ?? 0) > 0) {
-      await loadAll()
+    if (preview.ignoredLocales?.length) {
+      toast.add({
+        title: 'Some Git locales were skipped',
+        description: `${preview.ignoredLocales.join(', ')} ${preview.ignoredLocales.length === 1 ? 'is' : 'are'} not in this project's locales. Add them in project settings to pull them.`,
+        color: 'neutral',
+      })
     }
     if (
       !preview.candidates.some(
@@ -745,6 +948,8 @@ async function startPull() {
         color: 'neutral',
       })
     }
+  } catch (error) {
+    await recoverFromSyncError(error)
   } finally {
     pulling.value = false
   }
@@ -754,27 +959,38 @@ async function confirmPull() {
   if (!validID(projectId.value) || !pullPreview.value) return
   applying.value = true
   try {
-    const result = await useApi<{
-      applied: number
-      aligned: number
-      kept: number
-      conflicts: number
-      files: number
-    }>(`/api/projects/${projectId.value}/git-sync/pull/apply`, {
-      method: 'POST',
-      body: {
-        previewId: pullPreview.value.previewId,
-        selectedFiles: pullFileSel.value,
-        selectedKeys: pullKeySel.value,
-      },
-    })
+    const result = await useApi<PullApplyResult>(
+      `/api/projects/${projectId.value}/git-sync/pull/apply`,
+      {
+        method: 'POST',
+        body: {
+          previewId: pullPreview.value.previewId,
+          selectedFiles: pullFileSel.value,
+          selectedKeys: pullKeySel.value,
+        },
+      }
+    )
+    const kept = result?.kept ?? 0
+    const blocked = result?.blocked.length ?? 0
+    const notes = [
+      kept
+        ? `${kept} row(s) were edited on the platform after the preview and kept as they are — run a new pull to review them.`
+        : '',
+      blocked
+        ? `${blocked} row(s) wait for an open conflict on the same key.`
+        : '',
+    ].filter(Boolean)
     toast.add({
       title: 'Pull finished',
-      description: `Published ${result?.applied ?? 0}, kept ${result?.kept ?? 0}, conflicts ${result?.conflicts ?? 0}, files ${result?.files ?? 0}`,
-      color: 'success',
+      description: notes.length
+        ? `Published ${result?.applied ?? 0}. ${notes.join(' ')}`
+        : `Published ${result?.applied ?? 0}, files ${result?.files ?? 0}`,
+      color: notes.length ? 'warning' : 'success',
     })
     pullPreview.value = null
     await loadAll()
+  } catch (error) {
+    await recoverFromSyncError(error)
   } finally {
     applying.value = false
   }
@@ -791,15 +1007,17 @@ async function startPush() {
     if (!preview) return
     pushPreview.value = preview
     pullPreview.value = null
+    focusedId.value = null
     pushKeySel.value = preview.candidates
       .filter((c) => c.eligible)
       .map((c) => c.key)
     pushReasonFilter.value = 'all'
     pushQuery.value = ''
-    pushExpanded.value = {}
     if ((preview.counts?.conflict ?? 0) > 0) {
       await loadAll()
     }
+  } catch (error) {
+    await recoverFromSyncError(error)
   } finally {
     pushing.value = false
   }
@@ -840,8 +1058,8 @@ async function confirmPush() {
     })
     pushPreview.value = null
     await loadAll()
-  } catch {
-    await loadAll()
+  } catch (error) {
+    await recoverFromSyncError(error)
   } finally {
     applying.value = false
   }
@@ -850,10 +1068,90 @@ async function confirmPush() {
 function cancelPreview() {
   pullPreview.value = null
   pushPreview.value = null
+  focusedId.value = null
 }
 
+/** The code a sync endpoint put on its refusal, read from a `$fetch` error. */
+function syncErrorCode(error: unknown): GitSyncErrorCode | null {
+  const code = (error as { data?: { data?: { code?: unknown } } } | null)?.data
+    ?.data?.code
+  return Object.values(GitSyncErrorCode).includes(code as GitSyncErrorCode)
+    ? (code as GitSyncErrorCode)
+    : null
+}
+
+/**
+ * After a refusal the page's preview or cards may describe a state the server
+ * has moved past. `useApi` already showed the message; this re-syncs the page.
+ */
+async function recoverFromSyncError(error: unknown) {
+  const code = syncErrorCode(error)
+  switch (code) {
+    case GitSyncErrorCode.BINDING_CHANGED:
+    case GitSyncErrorCode.PREVIEW_APPLIED:
+    case GitSyncErrorCode.PREVIEW_REPLACED:
+    case GitSyncErrorCode.PREVIEW_INVALID:
+    case GitSyncErrorCode.REMOTE_MOVED:
+      cancelPreview()
+      break
+    // The preview may still be good once the other sync finishes, or once the
+    // reloaded cards are resolved.
+    case GitSyncErrorCode.SYNC_BUSY:
+    case GitSyncErrorCode.CONFLICT_STALE:
+    case GitSyncErrorCode.CONFLICT_RESOLVED:
+    case GitSyncErrorCode.CONFLICT_OPEN:
+    case null:
+      break
+    default: {
+      const _exhaustive: never = code
+      return _exhaustive
+    }
+  }
+  await loadAll()
+}
+
+/**
+ * While a preview is open someone else may replace it or apply it. The status
+ * names the current pending preview of each kind; one the page holds that is
+ * not current is gone.
+ */
+async function pollStatus() {
+  if (!validID(projectId.value) || applying.value) return
+  const held = pullPreview.value
+    ? { kind: GitSyncPreviewKind.PULL, id: pullPreview.value.previewId }
+    : pushPreview.value
+      ? { kind: GitSyncPreviewKind.PUSH, id: pushPreview.value.previewId }
+      : null
+  if (!held) return
+  const next = await useApi<GitSyncStatus>(
+    `/api/projects/${projectId.value}/git-sync`
+  ).catch(() => null)
+  // An apply that started meanwhile settles the preview itself.
+  if (!next || applying.value) return
+  status.value = next
+  const current = next.pendingPreviews[held.kind]
+  if (current?.id === held.id) return
+  cancelPreview()
+  toast.add({
+    title: 'Preview closed',
+    description: current
+      ? `${current.createdBy || 'Someone'} started a newer ${held.kind} preview.`
+      : 'It was applied, cancelled or expired.',
+    color: 'warning',
+  })
+  await loadAll()
+}
+
+const statusPoll = useIntervalFn(pollStatus, GIT_STATUS_POLL_MS, {
+  immediate: false,
+})
+watch(
+  () => Boolean(pullPreview.value || pushPreview.value),
+  (open) => (open ? statusPoll.resume() : statusPoll.pause())
+)
+
 function chosenConflictText(
-  conflict: GitSyncConflictRow,
+  conflict: IGitSyncConflictRow,
   action:
     | typeof GitSyncConflictStatus.OURS
     | typeof GitSyncConflictStatus.THEIRS
@@ -932,7 +1230,7 @@ function markPullCandidateResolved(key: string, locale: string) {
 }
 
 async function resolve(
-  conflict: GitSyncConflictRow,
+  conflict: IGitSyncConflictRow,
   action:
     | typeof GitSyncConflictStatus.OURS
     | typeof GitSyncConflictStatus.THEIRS
@@ -951,8 +1249,6 @@ async function resolve(
         body: { action, text, newKey },
       }
     )
-    editingId.value = null
-    renamingId.value = null
     if (action === GitSyncConflictStatus.RENAMED) {
       // The key set changed under the preview, so it now describes a project
       // that no longer exists — patching one candidate would not fix that.
@@ -963,6 +1259,8 @@ async function resolve(
       markPullCandidateResolved(conflict.key, conflict.locale)
     }
     await loadAll()
+  } catch (error) {
+    await recoverFromSyncError(error)
   } finally {
     resolvingId.value = null
   }
@@ -975,44 +1273,116 @@ function openHistory() {
   if (!validID(projectId.value)) return
   historyModal.open({ projectId: projectId.value })
 }
-
-function startEdit(conflict: GitSyncConflictRow) {
-  editingId.value = conflict.id
-  editText.value = conflict.oursText
-}
-
-/**
- * "Step aside": only the platform's copy moves — Git keeps its text under
- * this key either way. The name is typed by
- * hand — a generated one would only be guessing at what the key means now.
- */
-function startRename(conflict: GitSyncConflictRow) {
-  renamingId.value = conflict.id
-  renameText.value = ''
-}
-
-function confirmRename(conflict: GitSyncConflictRow) {
-  const newKey = renameText.value.trim()
-  if (!newKey) return
-  void resolve(conflict, GitSyncConflictStatus.RENAMED, undefined, newKey)
-}
 </script>
 
 <template>
-  <div class="h-full min-w-0 overflow-auto bg-muted">
-    <header class="shrink-0 px-6 py-5 bg-default border-b border-default">
-      <div class="flex items-center gap-2 min-w-0">
-        <h1 class="text-xl font-semibold tracking-tight">Git sync</h1>
-        <ProjectOwnerBadge :project="curProject" :visible="isSteward" />
+  <div class="h-full min-w-0 overflow-hidden flex flex-col bg-muted">
+    <!-- One bar: the page title, the repo it is bound to, and the actions. -->
+    <header
+      class="shrink-0 px-6 py-4 bg-default border-b border-default flex flex-wrap items-center gap-x-4 gap-y-3"
+    >
+      <div class="min-w-0">
+        <div class="flex items-center gap-2 min-w-0">
+          <h1 class="text-xl font-semibold tracking-tight">Git sync</h1>
+          <ProjectOwnerBadge :project="curProject" :visible="isSteward" />
+          <UPopover mode="hover" :open-delay="150">
+            <UButton
+              size="xs"
+              color="neutral"
+              variant="ghost"
+              square
+              icon="i-lucide:info"
+              aria-label="About Git sync"
+            />
+            <template #content>
+              <p class="w-80 p-3 text-xs text-muted">
+                Sync this project against locale files in a Git repo. Pull
+                confirmed Git text onto the platform (published). Push
+                published source strings. Resolve conflicts here — not on
+                Translations.
+              </p>
+            </template>
+          </UPopover>
+        </div>
+        <div
+          v-if="status?.configured && validID(projectId)"
+          class="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted"
+        >
+          <span
+            class="inline-flex min-w-0 items-center gap-1 font-medium text-default"
+            :title="bindingTitle"
+          >
+            <UIcon name="i-lucide:git-branch" class="size-3.5 shrink-0" />
+            <span class="truncate">{{ bindingTitle }}</span>
+          </span>
+          <span>Last pull {{ formatTime(status.binding?.lastPulledAt) }}</span>
+          <span>Last push {{ formatTime(status.binding?.lastPushedAt) }}</span>
+          <UBadge
+            v-if="openCount > 0"
+            color="warning"
+            variant="subtle"
+            size="sm"
+            icon="i-lucide:triangle-alert"
+          >
+            {{ openCount }} open conflict{{ openCount === 1 ? '' : 's' }}
+          </UBadge>
+        </div>
       </div>
-      <p class="mt-1 text-sm text-muted">
-        Sync this project against locale files in a Git repo. Pull confirmed
-        Git text onto the platform (published). Push published source strings.
-        Resolve conflicts here — not on Translations.
-      </p>
+      <div
+        v-if="status?.configured && validID(projectId)"
+        class="ml-auto shrink-0 flex flex-wrap items-center gap-2"
+      >
+        <UButton
+          size="sm"
+          color="neutral"
+          variant="ghost"
+          icon="i-lucide:history"
+          label="History"
+          @click="openHistory"
+        />
+        <UButton
+          v-if="isSteward"
+          size="sm"
+          color="neutral"
+          variant="ghost"
+          icon="i-lucide:settings"
+          label="Settings"
+          @click="showSettings = true"
+        />
+        <UButton
+          size="sm"
+          color="info"
+          icon="i-lucide:arrow-down-to-line"
+          label="Pull"
+          :loading="pulling"
+          :ui="{ label: 'whitespace-nowrap' }"
+          @click="startPull"
+        />
+        <UTooltip
+          :text="
+            openCount > 0
+              ? 'Resolve the open conflicts before pushing'
+              : 'Push published source strings to Git'
+          "
+        >
+          <UButton
+            size="sm"
+            color="primary"
+            icon="i-lucide:arrow-up-to-line"
+            label="Push"
+            :loading="pushing"
+            :disabled="openCount > 0"
+            :ui="{ label: 'whitespace-nowrap' }"
+            @click="startPush"
+          />
+        </UTooltip>
+      </div>
     </header>
 
-    <div class="p-6 flex flex-col gap-6">
+    <div
+      v-if="!validID(projectId) || (loading && !status) || (status && !configured)"
+      class="flex-1 min-h-0 overflow-auto p-6 flex flex-col gap-6"
+    >
       <UAlert
         v-if="!validID(projectId)"
         color="neutral"
@@ -1021,14 +1391,11 @@ function confirmRename(conflict: GitSyncConflictRow) {
         description="Pick a project in the workspace bar to configure Git sync."
       />
 
-      <div
-        v-else-if="loading && !status"
-        class="text-sm text-muted"
-      >
+      <div v-else-if="loading && !status" class="text-sm text-muted">
         Loading…
       </div>
 
-      <template v-else-if="status && !configured">
+      <template v-else>
         <UAlert
           v-if="!isSteward"
           color="warning"
@@ -1041,7 +1408,7 @@ function confirmRename(conflict: GitSyncConflictRow) {
           v-else
           class="rounded-xl border border-default bg-default p-5 flex flex-col gap-4"
         >
-          <!-- The page runs full width for the review tables; form fields are
+          <!-- The page runs full width for the review lists; form fields are
                capped so inputs do not stretch across the whole screen. -->
           <h2 class="font-semibold">Set up Git sync</h2>
           <p class="max-w-3xl text-sm text-muted">
@@ -1098,660 +1465,259 @@ function confirmRename(conflict: GitSyncConflictRow) {
               :show-discover-hint="isHttpsRemoteUrl(form.remoteUrl) && !canDiscover"
               @load-products="loadProducts"
             />
-            <div>
-              <UButton
-                :loading="saving"
-                color="primary"
-                @click="saveBinding"
-              >
-                Save
-              </UButton>
-            </div>
-          </div>
-        </div>
-      </template>
-
-      <template v-else-if="status && configured">
-        <div
-          class="rounded-xl border border-default bg-default p-5 flex flex-col gap-4"
-        >
-          <div class="flex flex-wrap items-center justify-between gap-3">
-            <div class="min-w-0">
-              <h2 class="font-semibold">
-                {{ bindingTitle }}
-              </h2>
-              <p class="mt-1 text-sm text-muted">
-                Last pull {{ formatTime(status.binding?.lastPulledAt) }} ·
-                Last push {{ formatTime(status.binding?.lastPushedAt) }}
-              </p>
-              <p
-                v-if="openCount > 0"
-                class="mt-1 text-sm text-amber-400"
-              >
-                {{ openCount }} open conflict(s). Resolve the cards below
-                before Apply pull or Push.
-              </p>
-            </div>
-            <div class="ml-auto shrink-0 flex flex-wrap items-center gap-2">
-              <UButton
-                class="shrink-0"
-                :ui="{ label: 'whitespace-nowrap' }"
-                :loading="pulling"
-                color="primary"
-                icon="i-lucide:arrow-down-to-line"
-                label="Pull"
-                @click="startPull"
-              />
-              <UButton
-                class="shrink-0"
-                :ui="{ label: 'whitespace-nowrap' }"
-                :loading="pushing"
-                :disabled="openCount > 0"
-                color="neutral"
-                icon="i-lucide:arrow-up-to-line"
-                label="Push"
-                @click="startPush"
-              />
-              <UButton
-                color="neutral"
-                variant="ghost"
-                icon="i-lucide:history"
-                label="History"
-                @click="openHistory"
-              />
-              <UButton
-                v-if="isSteward"
-                color="neutral"
-                variant="ghost"
-                @click="showSettings = !showSettings"
-              >
-                Settings
-              </UButton>
-            </div>
-          </div>
-
-          <div
-            v-if="isSteward && showSettings"
-            class="pt-3 border-t border-default"
-          >
-            <!-- Divider spans the card; fields stay readable and centred. -->
-            <div class="mx-auto max-w-2xl w-full flex flex-col gap-4">
-              <UFormField label="Credential" name="credentialKind">
-                <USelect
-                  v-model="form.credentialKind"
-                  class="w-full"
-                  :items="credentialItems"
-                />
-              </UFormField>
-              <UFormField
-                label="Rotate token (leave blank to keep)"
-                name="token"
-              >
-                <UInput
-                  v-model="form.token"
-                  type="password"
-                  autocomplete="off"
-                  class="w-full"
-                />
-              </UFormField>
-              <UFormField label="Remote URL" name="remoteUrl">
-                <UInput
-                  v-model="form.remoteUrl"
-                  class="w-full"
-                  placeholder="https://bitbucket.org/workspace/repo.git"
-                  @blur="applyNormalizedRemoteUrl"
-                />
-              </UFormField>
-              <UFormField label="Branch" name="branch">
-                <UInput v-model="form.branch" class="w-full" />
-              </UFormField>
-              <GitSyncLayoutFields
-                v-model:adapter="form.adapter"
-                v-model:product="form.product"
-                v-model:pattern="form.pattern"
-                v-model:format="form.format"
-                :product-items="productItems"
-                :discovering="discovering"
-                :can-discover="canDiscover"
-                @load-products="loadProducts"
-              />
-              <UButton
-                class="w-full justify-center"
-                :loading="saving"
-                @click="saveBinding"
-              >
-                Save settings
-              </UButton>
-            </div>
-          </div>
-        </div>
-
-        <div
-          v-if="pullPreview"
-          class="rounded-xl border border-primary/40 bg-default p-5 flex flex-col gap-4"
-        >
-          <div class="flex flex-wrap items-start justify-between gap-3">
-            <div class="min-w-0">
-              <h2 class="font-semibold">Review pull</h2>
-              <p class="mt-1 text-sm text-muted">
-                {{ pullFileSel.length }} of
-                {{ pullPreview.files.length }} file(s)
-                · {{ pullKeySel.length }} of
-                {{ pullPreview.candidates.length }} change(s) selected.
-                Confirming Apply publishes Git text for selected Git-ahead
-                rows. Conflict rows cannot be checked — resolve the cards
-                below first. After every conflict in this preview is
-                resolved, Apply is enabled for remaining Git-ahead rows, or
-                the review closes if none remain.
-              </p>
-              <p class="mt-1 text-xs text-muted">
-                Remote {{ pullPreview.commitSha.slice(0, 8) }} · expires
-                {{ formatTime(pullPreview.expiresAt) }}
-              </p>
-            </div>
-            <!-- `ml-auto` keeps the pair right-aligned even when it wraps onto
-                 its own line, so Pull and Push read the same. -->
-            <div class="ml-auto shrink-0 flex items-center gap-2">
-              <UButton
-                color="neutral"
-                variant="ghost"
-                :disabled="applying"
-                @click="cancelPreview"
-              >
-                Cancel
-              </UButton>
-              <UButton
-                color="primary"
-                :loading="applying"
-                :disabled="!pullCanConfirm"
-                @click="confirmPull"
-              >
-                Apply pull
-              </UButton>
-            </div>
-          </div>
-
-          <div class="flex flex-col gap-2">
-            <h3 class="text-sm font-medium">Files</h3>
-            <p v-if="!pullVisibleFiles.length" class="text-sm text-muted">
-              No files to show.
+            <p v-if="configured" class="text-xs text-muted">
+              Changing the remote, branch, layout or folder resets sync
+              history: open conflicts are dropped and the next pull and push
+              compare from scratch.
             </p>
-            <div
-              v-for="file in pullVisibleFiles"
-              :key="file.relPath"
-              class="flex items-center gap-3 rounded-lg bg-muted px-3 py-1.5"
+            <UButton
+              class="w-full justify-center"
+              :loading="saving"
+              @click="saveBinding"
             >
-              <UCheckbox
-                :model-value="isSelected('pullFile', file.relPath)"
-                @update:model-value="
-                  setPullFileSelected(file.relPath, $event)
-                "
-              />
-              <div class="min-w-0 flex-1">
-                <p class="truncate text-sm">{{ file.relPath }}</p>
-                <p class="text-xs text-muted">
-                  {{ pullReasonLabel[file.reason] ?? file.reason }} ·
-                  {{ file.locale ?? `unmapped (${file.remoteLocale})` }}
-                </p>
-              </div>
-            </div>
-          </div>
-
-          <div class="flex flex-col gap-2">
-            <div
-              class="flex flex-wrap items-center justify-between gap-2"
-            >
-              <h3 class="text-sm font-medium">Changes</h3>
-              <div class="flex flex-wrap items-center gap-2">
-                <UInput
-                  v-model="pullQuery"
-                  class="w-48"
-                  size="sm"
-                  icon="i-lucide:search"
-                  placeholder="Search keys"
-                />
-                <USelect
-                  v-model="pullDecisionFilter"
-                  class="w-48"
-                  size="sm"
-                  :items="pullDecisionItems"
-                />
-              </div>
-            </div>
-            <div
-              class="max-h-[60vh] overflow-auto rounded-lg border border-default"
-            >
-              <UTable
-                v-model:expanded="pullExpanded"
-                sticky="header"
-                class="w-full"
-                :data="pullTableRows"
-                :columns="pullColumns"
-                :get-row-id="(row: PullCandidate) => candidateId(row)"
-                :expanded-options="{ getRowCanExpand: () => true }"
-                :ui="{ th: 'bg-default', td: 'align-middle bg-default' }"
-              >
-                <template #select-header>
-                  <UCheckbox
-                    :model-value="pullHeaderChecked()"
-                    @update:model-value="selectVisiblePull($event === true)"
-                  />
-                </template>
-                <template #select-cell="{ row }">
-                  <UCheckbox
-                    :disabled="!isPullActionable(row.original)"
-                    :model-value="
-                      isSelected('pullKey', candidateId(row.original))
-                    "
-                    @update:model-value="
-                      setSelected(
-                        'pullKey',
-                        candidateId(row.original),
-                        $event
-                      )
-                    "
-                  />
-                </template>
-                <template #key-cell="{ row }">
-                  <code
-                    class="text-xs font-mono break-all"
-                    :class="{ 'text-muted': !isPullActionable(row.original) }"
-                    :title="row.original.key"
-                  >
-                    {{ formatI18nKeyDisplay(row.original.key) }}
-                  </code>
-                </template>
-                <template #decision-cell="{ row }">
-                  <div class="flex flex-wrap items-center gap-1">
-                    <UBadge
-                      variant="subtle"
-                      :color="decisionColor(row.original.decision)"
-                    >
-                      {{
-                        decisionLabel[row.original.decision] ??
-                        row.original.decision
-                      }}
-                    </UBadge>
-                    <UTooltip
-                      v-if="row.original.staleSource"
-                      text="Translated from an older source text. A newer batch is still with LILT, so this row is not selected by default. If applied, it lands marked outdated."
-                    >
-                      <UBadge
-                        variant="subtle"
-                        color="warning"
-                        icon="i-lucide:history"
-                      >
-                        Older source
-                      </UBadge>
-                    </UTooltip>
-                  </div>
-                </template>
-                <template #text-cell="{ row }">
-                  <p
-                    class="max-w-xs truncate text-sm text-muted"
-                    :title="row.original.theirsText"
-                  >
-                    {{ row.original.theirsText || '—' }}
-                  </p>
-                </template>
-                <template #expand-cell="{ row }">
-                  <UButton
-                    size="xs"
-                    color="neutral"
-                    variant="ghost"
-                    square
-                    :icon="
-                      row.getIsExpanded()
-                        ? 'i-lucide:chevron-up'
-                        : 'i-lucide:chevron-down'
-                    "
-                    @click="row.toggleExpanded()"
-                  />
-                </template>
-                <template #expanded="{ row }">
-                  <div class="grid grid-cols-1 md:grid-cols-2 gap-3 py-1">
-                    <div>
-                      <p class="text-xs font-medium mb-1">Git</p>
-                      <p class="text-sm whitespace-pre-wrap break-words">
-                        {{ row.original.theirsText || '—' }}
-                      </p>
-                    </div>
-                    <div v-if="row.original.oursText !== row.original.theirsText">
-                      <p class="text-xs font-medium mb-1">Platform draft</p>
-                      <p
-                        class="text-sm text-muted whitespace-pre-wrap break-words"
-                      >
-                        {{ row.original.oursText || '—' }}
-                      </p>
-                    </div>
-                    <div
-                      v-if="row.original.staleSource && row.original.writtenAgainst"
-                      class="md:col-span-2"
-                    >
-                      <p class="text-xs font-medium mb-1 text-warning">
-                        Translated from (older source)
-                      </p>
-                      <p
-                        class="text-sm text-muted whitespace-pre-wrap break-words"
-                      >
-                        {{ row.original.writtenAgainst }}
-                      </p>
-                    </div>
-                  </div>
-                </template>
-                <template #empty>
-                  <div class="py-8 text-center text-sm text-muted">
-                    No key changes in the selected files.
-                  </div>
-                </template>
-              </UTable>
-            </div>
-          </div>
-        </div>
-
-        <div
-          v-if="pushPreview"
-          class="rounded-xl border border-primary/40 bg-default p-5 flex flex-col gap-4"
-        >
-          <div class="flex flex-wrap items-start justify-between gap-3">
-            <div class="min-w-0">
-              <h2 class="font-semibold">Review push</h2>
-              <p class="mt-1 text-sm text-muted">
-                {{ pushKeySel.length }} of
-                {{ pushPreview.candidates.length }} source key(s) selected
-                ({{ pushPreview.sourceLocale }}). Nothing is committed until
-                you confirm.                 Git-ahead keys stay on Git unless you check them
-                (overwrites Git). Both-changed keys cannot be checked — use
-                the conflict cards below.
-              </p>
-              <p class="mt-1 text-xs text-muted">
-                Expires {{ formatTime(pushPreview.expiresAt) }}
-              </p>
-            </div>
-            <!-- Same right-alignment rule as Review pull. -->
-            <div class="ml-auto shrink-0 flex items-center gap-2">
-              <UButton
-                color="neutral"
-                variant="ghost"
-                :disabled="applying"
-                @click="cancelPreview"
-              >
-                Cancel
-              </UButton>
-              <UButton
-                color="primary"
-                :loading="applying"
-                :disabled="!pushCanConfirm"
-                @click="confirmPush"
-              >
-                Commit push
-              </UButton>
-            </div>
-          </div>
-
-          <div class="flex flex-col gap-2">
-            <div
-              class="flex flex-wrap items-center justify-between gap-2"
-            >
-              <h3 class="text-sm font-medium">Keys</h3>
-              <div class="flex flex-wrap items-center gap-2">
-                <UInput
-                  v-model="pushQuery"
-                  class="w-48"
-                  size="sm"
-                  icon="i-lucide:search"
-                  placeholder="Search keys"
-                />
-                <USelect
-                  v-model="pushReasonFilter"
-                  class="w-48"
-                  size="sm"
-                  :items="pushReasonItems"
-                />
-              </div>
-            </div>
-            <div
-              class="max-h-[60vh] overflow-auto rounded-lg border border-default"
-            >
-              <UTable
-                v-model:expanded="pushExpanded"
-                sticky="header"
-                class="w-full"
-                :data="pushTableRows"
-                :columns="pushColumns"
-                :get-row-id="(row: PushCandidate) => row.key"
-                :expanded-options="{ getRowCanExpand: () => true }"
-                :ui="{ th: 'bg-default', td: 'align-middle bg-default' }"
-              >
-                <template #select-header>
-                  <UCheckbox
-                    :model-value="pushHeaderChecked()"
-                    @update:model-value="selectVisiblePush($event === true)"
-                  />
-                </template>
-                <template #select-cell="{ row }">
-                  <UCheckbox
-                    :disabled="!isPushRowSelectable(row.original)"
-                    :model-value="isSelected('pushKey', row.original.key)"
-                    @update:model-value="
-                      setSelected('pushKey', row.original.key, $event)
-                    "
-                  />
-                </template>
-                <template #key-cell="{ row }">
-                  <code
-                    class="text-xs font-mono break-all"
-                    :class="{ 'text-muted': !isPushRowSelectable(row.original) }"
-                    :title="row.original.key"
-                  >
-                    {{ formatI18nKeyDisplay(row.original.key) }}
-                  </code>
-                </template>
-                <template #reason-cell="{ row }">
-                  <UBadge
-                    variant="subtle"
-                    :color="pushReasonColor(row.original.reason)"
-                  >
-                    {{
-                      pushReasonLabel[row.original.reason] ??
-                      row.original.reason
-                    }}
-                  </UBadge>
-                </template>
-                <template #text-cell="{ row }">
-                  <p
-                    class="max-w-xs truncate text-sm text-muted"
-                    :title="row.original.text"
-                  >
-                    {{ row.original.text || '—' }}
-                  </p>
-                </template>
-                <template #expand-cell="{ row }">
-                  <UButton
-                    size="xs"
-                    color="neutral"
-                    variant="ghost"
-                    square
-                    :icon="
-                      row.getIsExpanded()
-                        ? 'i-lucide:chevron-up'
-                        : 'i-lucide:chevron-down'
-                    "
-                    @click="row.toggleExpanded()"
-                  />
-                </template>
-                <template #expanded="{ row }">
-                  <div class="grid grid-cols-1 md:grid-cols-3 gap-3 py-1">
-                    <div>
-                      <p class="text-xs font-medium mb-1">Published source</p>
-                      <p class="text-sm whitespace-pre-wrap break-words">
-                        {{ row.original.text || '—' }}
-                      </p>
-                    </div>
-                    <div>
-                      <p class="text-xs font-medium mb-1">Git source</p>
-                      <p
-                        class="text-sm text-muted whitespace-pre-wrap break-words"
-                      >
-                        {{ row.original.theirsText || '—' }}
-                      </p>
-                    </div>
-                    <div
-                      v-if="
-                        row.original.baseText &&
-                        row.original.baseText !== row.original.text
-                      "
-                    >
-                      <p class="text-xs font-medium mb-1">Last pushed</p>
-                      <p
-                        class="text-sm text-muted whitespace-pre-wrap break-words"
-                      >
-                        {{ row.original.baseText }}
-                      </p>
-                    </div>
-                  </div>
-                </template>
-                <template #empty>
-                  <div class="py-8 text-center text-sm text-muted">
-                    {{
-                      pushReasonFilter === 'all'
-                        ? 'Nothing to push. Pick a reason to see the keys that were filtered out.'
-                        : 'No keys with this reason.'
-                    }}
-                  </div>
-                </template>
-              </UTable>
-            </div>
-          </div>
-        </div>
-
-        <div class="flex flex-col gap-3">
-          <h2 class="font-semibold">Conflicts</h2>
-          <p v-if="!conflicts.length" class="text-sm text-muted">
-            No open conflicts.
-          </p>
-          <div
-            v-for="conflict in conflicts"
-            :key="conflict.id"
-            class="rounded-xl border border-default bg-default p-4 flex flex-col gap-3"
-          >
-            <div class="flex items-baseline justify-between gap-2">
-              <p class="font-medium truncate">{{ conflict.key }}</p>
-              <p class="text-xs text-muted shrink-0">{{ conflict.locale }}</p>
-            </div>
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
-              <div class="rounded-lg bg-muted p-3">
-                <p class="text-xs font-medium mb-1">Git (theirs)</p>
-                <p class="text-sm whitespace-pre-wrap break-words">
-                  {{ conflict.theirsText }}
-                </p>
-              </div>
-              <div class="rounded-lg bg-muted p-3">
-                <p class="text-xs font-medium mb-1">Platform draft (ours)</p>
-                <p class="text-sm whitespace-pre-wrap break-words">
-                  {{ conflict.oursText }}
-                </p>
-              </div>
-            </div>
-            <p class="text-xs text-muted whitespace-pre-wrap break-words">
-              Last sync (base): {{ conflict.baseText || '—' }}
-            </p>
-            <p
-              v-if="conflict.publishedText"
-              class="text-xs text-muted whitespace-pre-wrap break-words"
-            >
-              Published (reference): {{ conflict.publishedText }}
-            </p>
-            <UAlert
-              v-if="conflict.olderSourceText"
-              color="warning"
-              variant="subtle"
-              icon="i-lucide:history"
-              title="Git's text translates an older source"
-              :description="`Translated from: ${conflict.olderSourceText}. A newer batch is still with LILT. Use Git lands it marked outdated; an edited text counts as written against the current source.`"
-            />
-            <UTextarea
-              v-if="editingId === conflict.id"
-              v-model="editText"
-              class="w-full"
-              :rows="4"
-            />
-            <template v-if="renamingId === conflict.id">
-              <UInput
-                v-model="renameText"
-                class="w-full font-mono"
-                placeholder="New name for the platform's key"
-              />
-              <p class="text-xs text-muted">
-                The platform's key moves to that name and leaves Git sync. Git's
-                copy of
-                <span class="font-mono">{{ conflict.key }}</span>
-                stays where it is.
-              </p>
-            </template>
-            <div class="flex flex-wrap gap-2">
-              <UButton
-                size="sm"
-                :loading="resolvingId === conflict.id"
-                @click="resolve(conflict, GitSyncConflictStatus.THEIRS)"
-              >
-                Use Git
-              </UButton>
-              <UButton
-                size="sm"
-                color="neutral"
-                :loading="resolvingId === conflict.id"
-                @click="resolve(conflict, GitSyncConflictStatus.OURS)"
-              >
-                Use platform
-              </UButton>
-              <UButton
-                v-if="editingId !== conflict.id"
-                size="sm"
-                color="neutral"
-                variant="ghost"
-                @click="startEdit(conflict)"
-              >
-                Edit
-              </UButton>
-              <UButton
-                v-else
-                size="sm"
-                color="primary"
-                :loading="resolvingId === conflict.id"
-                @click="
-                  resolve(
-                    conflict,
-                    GitSyncConflictStatus.MERGED,
-                    editText
-                  )
-                "
-              >
-                Save edit
-              </UButton>
-              <UButton
-                v-if="renamingId !== conflict.id"
-                size="sm"
-                color="neutral"
-                variant="ghost"
-                @click="startRename(conflict)"
-              >
-                Rename…
-              </UButton>
-              <UButton
-                v-else
-                size="sm"
-                color="primary"
-                :loading="resolvingId === conflict.id"
-                :disabled="!renameText.trim()"
-                @click="confirmRename(conflict)"
-              >
-                Keep both
-              </UButton>
-            </div>
+              Save settings
+            </UButton>
           </div>
         </div>
       </template>
     </div>
+
+    <template v-else-if="status">
+      <div
+        v-if="reviewMode !== 'conflicts'"
+        class="shrink-0 px-6 py-3 bg-default border-b border-default flex flex-wrap items-center gap-2"
+      >
+        <UPopover v-if="reviewMode === 'pull'">
+          <UButton
+            size="sm"
+            color="neutral"
+            variant="outline"
+            icon="i-lucide:files"
+            :label="`Files ${pullFileSel.length}/${pullVisibleFiles.length}`"
+          />
+          <template #content>
+            <div class="w-80 max-h-80 overflow-auto p-2 flex flex-col gap-1">
+              <p
+                v-if="!pullVisibleFiles.length"
+                class="p-2 text-sm text-muted"
+              >
+                No files to show.
+              </p>
+              <div
+                v-for="file in pullVisibleFiles"
+                :key="file.relPath"
+                class="flex items-center gap-3 rounded-lg bg-muted px-3 py-1.5"
+              >
+                <UCheckbox
+                  :model-value="isSelected('pullFile', file.relPath)"
+                  @update:model-value="
+                    setPullFileSelected(file.relPath, $event)
+                  "
+                />
+                <div class="min-w-0 flex-1">
+                  <p class="truncate text-sm" :title="file.relPath">
+                    {{ file.relPath }}
+                  </p>
+                  <p class="flex items-center gap-1.5 text-xs text-muted">
+                    {{ pullReasonLabel[file.reason] ?? file.reason }} ·
+                    <LocaleBadge v-if="file.locale" :locale="file.locale" />
+                    <template v-else>
+                      unmapped ({{ file.remoteLocale }})
+                    </template>
+                  </p>
+                </div>
+              </div>
+            </div>
+          </template>
+        </UPopover>
+        <template v-if="reviewMode === 'pull'">
+          <UInput
+            v-model="pullQuery"
+            size="sm"
+            class="w-56"
+            icon="i-lucide:search"
+            placeholder="Search key or text"
+          />
+          <USelectMenu
+            v-model="pullDecisionFilter"
+            :items="pullDecisionItems"
+            value-key="value"
+            size="sm"
+            class="w-48"
+            :search-input="false"
+          />
+        </template>
+        <template v-else>
+          <UInput
+            v-model="pushQuery"
+            size="sm"
+            class="w-56"
+            icon="i-lucide:search"
+            placeholder="Search key or text"
+          />
+          <USelectMenu
+            v-model="pushReasonFilter"
+            :items="pushReasonItems"
+            value-key="value"
+            size="sm"
+            class="w-48"
+            :search-input="false"
+          />
+        </template>
+      </div>
+
+      <div
+        v-if="pullPreview"
+        class="shrink-0 px-6 py-2 bg-info/10 border-b border-info/30 flex flex-wrap items-center gap-3"
+      >
+        <div class="min-w-0">
+          <p class="text-sm font-medium">
+            Review pull
+            <span class="font-normal text-muted">
+              · {{ pullFileSel.length }} of {{ pullPreview.files.length }}
+              file(s) · {{ pullKeySel.length }} of {{ pullSelectableCount }}
+              selectable change(s) selected
+            </span>
+          </p>
+          <p class="text-xs text-muted">
+            Remote {{ pullPreview.commitSha.slice(0, 8) }} · expires
+            {{ formatTime(pullPreview.expiresAt) }}
+          </p>
+          <p class="text-xs">
+            Apply pull publishes Git's text for the ticked rows. A key with an
+            open conflict can't be ticked in any locale until it is resolved on
+            the right; everything else can be applied now.
+          </p>
+        </div>
+        <div class="ml-auto shrink-0 flex items-center gap-2">
+          <span v-if="status?.syncingBy" class="text-xs text-warning">
+            {{ status.syncingBy }} is syncing — apply once it finishes
+          </span>
+          <UButton
+            color="neutral"
+            variant="ghost"
+            :disabled="applying"
+            @click="cancelPreview"
+          >
+            Cancel
+          </UButton>
+          <UButton
+            color="info"
+            :loading="applying"
+            :disabled="!pullCanConfirm"
+            @click="confirmPull"
+          >
+            Apply pull
+          </UButton>
+        </div>
+      </div>
+
+      <div
+        v-else-if="pushPreview"
+        class="shrink-0 px-6 py-2 bg-primary/10 border-b border-primary/30 flex flex-wrap items-center gap-3"
+      >
+        <div class="min-w-0">
+          <p class="text-sm font-medium">
+            Review push
+            <span class="font-normal text-muted">
+              · {{ pushKeySel.length }} of {{ pushSelectableCount }} pushable
+              source key(s) selected ({{ pushPreview.sourceLocale }})
+            </span>
+          </p>          <p class="text-xs text-muted">
+            Expires {{ formatTime(pushPreview.expiresAt) }} · nothing is
+            committed until you confirm
+          </p>
+          <p class="text-xs">
+            Ticking a row where Git has newer text overwrites it. Rows changed
+            on both sides can't be ticked — resolve them on the right first.
+          </p>
+        </div>
+        <div class="ml-auto shrink-0 flex items-center gap-2">
+          <span v-if="status?.syncingBy" class="text-xs text-warning">
+            {{ status.syncingBy }} is syncing — apply once it finishes
+          </span>
+          <UButton
+            color="neutral"
+            variant="ghost"
+            :disabled="applying"
+            @click="cancelPreview"
+          >
+            Cancel
+          </UButton>
+          <UButton
+            color="primary"
+            :loading="applying"
+            :disabled="!pushCanConfirm"
+            @click="confirmPush"
+          >
+            Commit push
+          </UButton>
+        </div>
+      </div>
+
+      <!-- Stacks below `lg`, like the Translations page. -->
+      <div class="flex-1 min-h-0 min-w-0 flex flex-col lg:flex-row">
+        <GitReviewList
+          class="max-h-[45%] lg:max-h-none lg:w-96 shrink-0 border-b lg:border-b-0 lg:border-r border-default"
+          :focused="activeItem?.id ?? null"
+          :items="reviewItems"
+          :selected-ids="reviewSelectedIds"
+          :selectable="reviewMode !== 'conflicts'"
+          :header-checked="reviewHeaderChecked"
+          :empty-text="reviewEmptyText"
+          @update:focused="focusedId = $event"
+          @toggle="onReviewToggle"
+          @toggle-all="onReviewToggleAll"
+        />
+        <main class="flex-1 min-h-0 min-w-0 flex flex-col bg-default">
+          <div class="flex-1 min-h-0 overflow-auto">
+            <GitReviewDetail
+              v-model:compare="showCompare"
+              v-model:busy="detailBusy"
+              :item="activeItem"
+              :conflict="activeConflict"
+              :sections="activeSections"
+              :resolving="resolvingId === activeConflict?.id"
+              @resolve="resolve"
+            />
+          </div>
+          <footer
+            class="shrink-0 flex flex-wrap items-center justify-end gap-x-4 gap-y-1 px-4 py-2 border-t border-default text-xs text-muted"
+          >
+            <span class="flex items-center gap-1">
+              <UKbd>↑</UKbd><UKbd>↓</UKbd> Switch row
+            </span>
+            <span class="flex items-center gap-1">
+              <UKbd>C</UKbd> Compare
+            </span>
+            <span v-if="reviewMode !== 'conflicts'" class="flex items-center gap-1">
+              <UKbd>X</UKbd> Select row
+            </span>
+            <template v-if="activeConflict">
+              <span class="flex items-center gap-1">
+                <UKbd>G</UKbd> Use Git
+              </span>
+              <span class="flex items-center gap-1">
+                <UKbd>P</UKbd> Use platform
+              </span>
+            </template>
+          </footer>
+        </main>
+      </div>
+
+      <GitSyncSettingsSlideover
+        v-if="isSteward"
+        v-model:open="showSettings"
+        v-model:form="form"
+        :credential-items="credentialItems"
+        :product-items="productItems"
+        :discovering="discovering"
+        :can-discover="canDiscover"
+        :saving="saving"
+        @load-products="loadProducts"
+        @normalize-url="applyNormalizedRemoteUrl"
+        @save="saveBinding"
+      />
+    </template>
   </div>
 </template>

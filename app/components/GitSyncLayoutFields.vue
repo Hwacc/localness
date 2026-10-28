@@ -69,6 +69,7 @@ function changeAdapter(next: GitSyncAdapter) {
       <UButton
         class="shrink-0"
         color="neutral"
+        variant="soft"
         :loading="props.discovering"
         :disabled="!props.canDiscover"
         @click="emit('loadProducts')"

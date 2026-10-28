@@ -8,7 +8,12 @@ import {
   zGitSyncBindingPut,
 } from '#shared/schemas'
 import { gitSyncLayout } from '#server/libs/git-sync/layouts'
-import { publicGitSyncBinding } from '#server/libs/git-sync/sync'
+import {
+  bindingLocationChanged,
+  publicGitSyncBinding,
+  resetGitSyncState,
+} from '#server/libs/git-sync/sync'
+import { withSyncLease } from '#server/libs/git-sync/engine/lease'
 
 /**
  * @route PUT /api/projects/:id/git-sync
@@ -19,7 +24,11 @@ export default defineEventHandler(async (event) => {
     throw createError({ statusCode: 400, statusMessage: 'Missing project id' })
   }
   const projectId = numericID(id)
-  await requireProjectOwner(event, projectId)
+  const { session } = await requireProjectOwner(event, projectId)
+  const username =
+    typeof session.user.username === 'string'
+      ? session.user.username
+      : 'unknown'
   const body = await readZodBody(event, zGitSyncBindingPut.parse)
   const adapter = body.adapter ?? GitSyncAdapter.LILT_SWBU
   const scopeError = gitSyncLayout(adapter).scopeError(
@@ -49,31 +58,50 @@ export default defineEventHandler(async (event) => {
     normalized.branch ||
     existing?.branch ||
     'main'
-  try {
-    const row = await prisma.gitSyncBinding.upsert({
-      where: { projectId },
-      create: {
-        projectId,
-        enabled: body.enabled ?? true,
-        adapter,
-        remoteUrl,
-        branch,
-        product: body.product,
-        ...(body.options ? { options: body.options } : {}),
-        credentialKind: body.credentialKind,
-        token,
-      },
-      update: {
-        enabled: body.enabled ?? true,
-        adapter,
-        remoteUrl,
-        branch,
-        product: body.product,
-        ...(body.options ? { options: body.options } : {}),
-        credentialKind: body.credentialKind,
-        ...(body.token && body.token.trim() ? { token: body.token.trim() } : {}),
-      },
+  const moved =
+    existing != null &&
+    bindingLocationChanged(existing, {
+      adapter,
+      remoteUrl,
+      branch,
+      product: body.product,
+      options: body.options ?? existing.options,
     })
+  const save = () =>
+    prisma.$transaction(async (tx) => {
+      const saved = await tx.gitSyncBinding.upsert({
+        where: { projectId },
+        create: {
+          projectId,
+          enabled: body.enabled ?? true,
+          adapter,
+          remoteUrl,
+          branch,
+          product: body.product,
+          ...(body.options ? { options: body.options } : {}),
+          credentialKind: body.credentialKind,
+          token,
+        },
+        update: {
+          enabled: body.enabled ?? true,
+          adapter,
+          remoteUrl,
+          branch,
+          product: body.product,
+          ...(body.options ? { options: body.options } : {}),
+          credentialKind: body.credentialKind,
+          ...(body.token && body.token.trim() ? { token: body.token.trim() } : {}),
+        },
+      })
+      if (moved) await resetGitSyncState(projectId, tx)
+      return saved
+    })
+  try {
+    // A move resets bases and seen files; an apply running meanwhile would
+    // write the old location's back, so the move waits for the lease.
+    const row = moved
+      ? await withSyncLease(projectId, username, save)
+      : await save()
     return publicGitSyncBinding(row)
   } catch (error: unknown) {
     const code =
