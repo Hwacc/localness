@@ -1,5 +1,5 @@
 import { publishedSnapshotText, singleKeyGroupId } from '../group-id'
-import type { ConsistencyFinding, LintIssue, ScanContext } from '../types'
+import type { ConsistencyFinding, LintIssue, ScanContext, ScanKeyInput } from '../types'
 import { toMember } from '../types'
 
 /** First match of `pattern` as an excerpt + span, or `null`. */
@@ -25,7 +25,11 @@ export function detectLint(
   ctx: ScanContext,
   rule: { id: string; defaultSeverity: ConsistencyFinding['severity'] },
   applies: (locale: string) => boolean,
-  check: (text: string) => ReturnType<typeof firstMatch>
+  check: (
+    text: string,
+    locale: string,
+    key: ScanKeyInput
+  ) => ReturnType<typeof firstMatch>
 ): ConsistencyFinding[] {
   if (ctx.lintRules[rule.id] === false) return []
 
@@ -36,7 +40,7 @@ export function detectLint(
       const text = row.publishedText ?? ''
       if (!text) continue
       if (!applies(row.locale)) continue
-      const hit = check(text)
+      const hit = check(text, row.locale, key)
       if (hit) {
         issues.push({
           locale: row.locale,

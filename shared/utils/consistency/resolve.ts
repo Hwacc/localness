@@ -8,6 +8,7 @@ import {
   type Token,
 } from './rules/extract'
 import { CJK } from './rules/lint-cjk-spacing'
+import { numberFormatAutoFix } from './number-format'
 import type { I18nDialect } from './dialect'
 import {
   DEFAULT_SCAN_SETTINGS,
@@ -365,6 +366,13 @@ export function autoFix(
   text: string,
   settings: ScanSettings = DEFAULT_SCAN_SETTINGS
 ): string | null {
+  if (ruleId === 'lint.number-format') {
+    const fixed = numberFormatAutoFix(text, locale)
+    return fixed &&
+      !recheckLocale(ruleId, key, sourceLocale, locale, fixed, settings)
+      ? fixed
+      : null
+  }
   return ruleId.startsWith('lint.')
     ? lintAutoFix(ruleId, text)
     : mismatchAutoFix(ruleId, key, sourceLocale, locale, text, settings)

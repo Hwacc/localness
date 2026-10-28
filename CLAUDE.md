@@ -49,6 +49,7 @@ Nuxt 4 · Vue 3 · Prisma (client → `prisma/client`) · SQLite · `@nuxt/ui` �
 
 - I18n keys unique per Project. One `LocaleValue` per locale (`draftText` + `publishedText`). Do not add a second copy table (Vue/React, Release, Git, …).
 - Draft key display: **always** `import { formatI18nKeyDisplay } from '#shared/utils'`.
+- Locale display: **always** `<LocaleBadge :locale="code" />` (flag + code). Never hand-write a locale `UBadge` or plain text. Locale codes are project codes (`zh_cn`, `zh_tw`), not BCP-47 (`zh-CN`); map remote names via `LILT_DEFAULT_LOCALE_MAP`.
 - Export row rules live in `server/helper/export-rows.ts` — keep them there and tested.
 - A Team may have several OWNERs but never zero. Promote / demote / remove / leave / delete-team all consult `server/helper/team-membership.ts` — add rules there, not in the handlers.
 - `/editor` and `/git` are `ssr: false`. Switching project must not change the route.
