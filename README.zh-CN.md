@@ -95,16 +95,16 @@ Localness 的核心是把三件事绑在一起：
 
 ## 技术栈
 
-| 层级     | 技术                                                                   |
-| -------- | ---------------------------------------------------------------------- |
-| 框架     | Nuxt 4（Vue 3、TypeScript）+ Nitro 服务端                              |
-| UI       | Nuxt UI、Tailwind CSS 4、motion-v、Leafer UI 画布                      |
-| 状态     | Pinia                                                                  |
-| 数据库   | SQLite，经 Prisma 7 + better-sqlite3                                   |
-| 认证     | nuxt-auth-utils（session + scrypt），可选 Atlassian OAuth 2.0（3LO）   |
-| 校验     | zod（前后端共用 schema）                                               |
-| 测试     | Vitest（单元 + API）                                                   |
-| 打包部署 | pnpm workspaces、Docker（单容器 + 一个数据卷）                         |
+| 层级     | 技术                                                                 |
+| -------- | -------------------------------------------------------------------- |
+| 框架     | Nuxt 4（Vue 3、TypeScript）+ Nitro 服务端                            |
+| UI       | Nuxt UI、Tailwind CSS 4、motion-v、Leafer UI 画布                    |
+| 状态     | Pinia                                                                |
+| 数据库   | SQLite，经 Prisma 7 + better-sqlite3                                 |
+| 认证     | nuxt-auth-utils（session + scrypt），可选 Atlassian OAuth 2.0（3LO） |
+| 校验     | zod（前后端共用 schema）                                             |
+| 测试     | Vitest（单元 + API）                                                 |
+| 打包部署 | pnpm workspaces、Docker（单容器 + 一个数据卷）                       |
 
 ## 目录结构
 
@@ -147,17 +147,17 @@ pnpm register
 
 ## 脚本
 
-| 命令              | 说明                                         |
-| ----------------- | -------------------------------------------- |
-| `pnpm dev`        | 启动 Nuxt 开发服务器                         |
-| `pnpm build`      | 生产构建                                     |
-| `pnpm preview`    | 本地预览生产构建                             |
-| `pnpm lint`       | ESLint 检查                                  |
-| `pnpm typecheck`  | `nuxi typecheck`（vue-tsc）                  |
-| `pnpm test`       | 运行单元 + API 测试（Vitest）                |
-| `pnpm test:unit`  | 只跑单元测试                                 |
-| `pnpm test:api`   | API 测试（在 `:4000` 启动完整 Nuxt 实例）    |
-| `pnpm register`   | 通过命令行创建用户账号                       |
+| 命令               | 说明                                        |
+| ------------------ | ------------------------------------------- |
+| `pnpm dev`       | 启动 Nuxt 开发服务器                        |
+| `pnpm build`     | 生产构建                                    |
+| `pnpm preview`   | 本地预览生产构建                            |
+| `pnpm lint`      | ESLint 检查                                 |
+| `pnpm typecheck` | `nuxi typecheck`（vue-tsc）               |
+| `pnpm test`      | 运行单元 + API 测试（Vitest）               |
+| `pnpm test:unit` | 只跑单元测试                                |
+| `pnpm test:api`  | API 测试（在 `:4000` 启动完整 Nuxt 实例） |
+| `pnpm register`  | 通过命令行创建用户账号                      |
 
 CI（GitHub Actions）以 `pnpm test` 和 `pnpm typecheck` 作为门禁。
 
@@ -190,20 +190,20 @@ docker compose exec localness tsx scripts/register.ts
 
 所有配置都来自环境变量；Docker 下来自 `.env.docker`（不会打进镜像）。常用项如下，完整列表见 [`.env.docker.example`](.env.docker.example)：
 
-| 变量                                        | 用途                                                       |
-| ------------------------------------------- | ---------------------------------------------------------- |
-| `NUXT_SESSION_PASSWORD`                     | **必填。** session 加密密钥，32 位以上                     |
-| `NUXT_SALT_SIZE`                            | scrypt 盐长度，也是构建参数；上线后不要再改                |
-| `DATABASE_URL`                              | SQLite 文件 URL（默认 `file:/app/runtime/db/localness.db`）|
-| `PORT`                                      | 监听端口（默认 `13000`）                                   |
-| `NUXT_PUBLIC_OSS_ENGINE`                    | 截图存储：`LOCAL` 或 `QINIU`                               |
-| `NUXT_PUBLIC_OSS_BASE_URL`                  | 图片的公开访问前缀（`LOCAL` 时为 `/upload/`）              |
-| `NUXT_QINIU_*`                              | 七牛 OSS 的凭据、空间和域名                                |
-| `NUXT_OPENAI_API_KEY` / `BASE_URL` / `MODEL`| AI 功能共用的 OpenAI 兼容接口                              |
-| `NUXT_OPENAI_I18N_KEY_*`                    | key 命名 AI 的单独配置                                     |
-| `NUXT_OCR_API_KEY` / `NUXT_OCR_API_URL`     | OCR.Space 配置                                             |
-| `NUXT_OAUTH_ATLASSIAN_*`                    | 可选的 Atlassian OAuth 客户端                              |
-| `NUXT_ATLASSIAN_ALLOWED_EMAIL_DOMAINS`      | 邮箱域名白名单，留空表示拒绝所有人                         |
+| 变量                                               | 用途                                                          |
+| -------------------------------------------------- | ------------------------------------------------------------- |
+| `NUXT_SESSION_PASSWORD`                          | **必填。** session 加密密钥，32 位以上                  |
+| `NUXT_SALT_SIZE`                                 | scrypt 盐长度，也是构建参数；上线后不要再改                   |
+| `DATABASE_URL`                                   | SQLite 文件 URL（默认 `file:/app/runtime/db/localness.db`） |
+| `PORT`                                           | 监听端口（默认 `13000`）                                    |
+| `NUXT_PUBLIC_OSS_ENGINE`                         | 截图存储：`LOCAL` 或 `QINIU`                              |
+| `NUXT_PUBLIC_OSS_BASE_URL`                       | 图片的公开访问前缀（`LOCAL` 时为 `/upload/`）             |
+| `NUXT_QINIU_*`                                   | 七牛 OSS 的凭据、空间和域名                                   |
+| `NUXT_OPENAI_API_KEY` / `BASE_URL` / `MODEL` | AI 功能共用的 OpenAI 兼容接口                                 |
+| `NUXT_OPENAI_I18N_KEY_*`                         | key 命名 AI 的单独配置                                        |
+| `NUXT_OCR_API_KEY` / `NUXT_OCR_API_URL`        | OCR.Space 配置                                                |
+| `NUXT_OAUTH_ATLASSIAN_*`                         | 可选的 Atlassian OAuth 客户端                                 |
+| `NUXT_ATLASSIAN_ALLOWED_EMAIL_DOMAINS`           | 邮箱域名白名单，留空表示拒绝所有人                            |
 
 ## 面向调用方的 API 与 MCP
 
