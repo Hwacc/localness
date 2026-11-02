@@ -1257,11 +1257,13 @@ async function applyPushUnderLease(params: ApplyPushParams) {
         // edited since the batch landed must still read as changed next push.
         await checkoutCommit(repoDir, orphan)
         const landed = await layout.readSource(ctx, sourceLocal)
+        // The keys stored when the push was claimed, not today's selection: a
+        // retry that ticks other keys must not record them as pushed.
+        const stored = preview.result as { keys?: unknown } | null
         const overlay: Record<string, string> = {}
-        for (const row of rows) {
-          if (!selected.has(row.key) || row.key.startsWith(DRAFT_KEY_PREFIX)) continue
-          const text = landed.get(row.key)
-          if (text) overlay[row.key] = text
+        for (const key of Array.isArray(stored?.keys) ? stored.keys : []) {
+          const text = typeof key === 'string' ? landed.get(key) : undefined
+          if (text) overlay[key as string] = text
         }
         const result: PushApplyResult = {
           filename: '',
