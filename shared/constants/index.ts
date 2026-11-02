@@ -184,10 +184,14 @@ export enum GitSyncPushReason {
 export const GIT_SYNC_PREVIEW_TTL_MS = 15 * 60 * 1000
 
 /**
- * How long a project's sync lease holds before anyone may take it over. Longer
- * than a clone plus push, so it only expires when the holder died.
+ * How long a project's sync lease holds without a heartbeat before anyone may
+ * take it over. The holder renews every `GIT_SYNC_LEASE_HEARTBEAT_MS`, so it
+ * only expires when the holder died or stalled.
  */
-export const GIT_SYNC_LEASE_TTL_MS = 10 * 60 * 1000
+export const GIT_SYNC_LEASE_TTL_MS = 2 * 60 * 1000
+export const GIT_SYNC_LEASE_HEARTBEAT_MS = 30 * 1000
+/** Heartbeats stop this long after the lease was taken, so a hung holder still lapses. */
+export const GIT_SYNC_LEASE_MAX_HOLD_MS = 30 * 60 * 1000
 
 /** `error.data.code` on a refused sync request, so the UI reacts without parsing text. */
 export enum GitSyncErrorCode {

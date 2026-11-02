@@ -4,8 +4,9 @@ import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { pathToFileURL } from 'node:url'
 import Database from 'better-sqlite3'
-import { afterAll, describe, expect, it } from 'vitest'
+import { afterAll, describe, expect, it, vi } from 'vitest'
 import {
+  GIT_SYNC_LEASE_HEARTBEAT_MS,
   GitCredentialKind,
   GitSyncAdapter,
   GitSyncErrorCode,
@@ -318,7 +319,11 @@ describe('git sync flow', { timeout: 60_000 }, () => {
     const projectId = await createProject({ remoteUrl: remote.url })
     await seedKey({ projectId, key: 'k1', draft: 'Pushed', published: 'Pushed', base: 'Before' })
     const preview = await previewPush(projectId, 'tester')
-
+    // Claimed as pushing just before the commit, which is what a crash leaves.
+    await prisma.gitSyncPreview.update({
+      where: { id: preview.previewId },
+      data: { status: GitSyncPreviewStatus.PUSHING, result: { keys: ['k1'] } },
+    })
     // The batch landed but its bookkeeping never committed; since then the
     // platform moved on.
     remote.commit(
@@ -453,6 +458,26 @@ describe('git sync flow', { timeout: 60_000 }, () => {
     await expect(apply()).resolves.toMatchObject({ applied: 1 })
     const binding = await prisma.gitSyncBinding.findUniqueOrThrow({ where: { projectId } })
     expect(binding.leaseUntil).toBeNull()
+  })
+
+  it('renews the lease while the holder is still running', async () => {
+    const projectId = await createProject({ remoteUrl: createRemote().url })
+    vi.useFakeTimers({ toFake: ['setInterval', 'clearInterval'] })
+    try {
+      await withSyncLease(projectId, 'alice', async () => {
+        await prisma.gitSyncBinding.update({
+          where: { projectId },
+          data: { leaseUntil: new Date(Date.now() + 1000) },
+        })
+        await vi.advanceTimersByTimeAsync(GIT_SYNC_LEASE_HEARTBEAT_MS)
+        await vi.waitFor(async () => {
+          const row = await prisma.gitSyncBinding.findUniqueOrThrow({ where: { projectId } })
+          expect(row.leaseUntil!.getTime()).toBeGreaterThan(Date.now() + 60_000)
+        })
+      })
+    } finally {
+      vi.useRealTimers()
+    }
   })
 
   it('refuses a preview while another sync holds the lease, and keeps its preview', async () => {
