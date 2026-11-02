@@ -32,6 +32,7 @@
     "postinstall": "nuxt prepare",
     "migrate:v2-domain": "tsx ./scripts/migrate-v2-domain.ts",
     "register": "tsx ./scripts/register.ts",
+    "backup:now": "tsx ./scripts/backup-now.ts",
     "license:keygen": "tsx ./scripts/gen-license-keypair.ts",
     "license:sign": "tsx ./scripts/sign-license.ts"
   },

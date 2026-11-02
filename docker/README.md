@@ -242,8 +242,10 @@ touch /mnt/nas-backup/.localness-backup
 ```
 
 `uid=1000,gid=1000` is the image's `node` user; without it the container
-cannot write. Use a service account that can only touch that folder, not a
-personal one. Then in `docker-compose.yml` mount it, and in `.env.docker` set the
+cannot write. Use a dedicated service account that can only touch that folder, not a
+personal one: a personal account reaches everything you can, and its password
+is usually rotated on a schedule, which silently stops the backups until
+someone updates the credentials file and remounts. Then in `docker-compose.yml` mount it, and in `.env.docker` set the
 variables:
 
 ```yaml
@@ -265,6 +267,16 @@ the host leaves an empty directory in its place; without the marker the app
 refuses to write there, rather than quietly filling the host's disk. A refused
 or failed run shows up in `docker compose logs localness` as `[backup] ...`
 (`FAILED` for errors); the previous backups are left untouched.
+
+To check a new mount without waiting for the schedule, run one backup now with
+the same settings:
+
+```bash
+docker compose exec localness tsx scripts/backup-now.ts
+```
+
+It prints the snapshot path, or the reason it refused, and exits non-zero on
+failure.
 
 Restore: stop the container, copy `localness.db` from a snapshot to
 `/app/runtime/db/localness.db` in the volume and `uploads/` over
