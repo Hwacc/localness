@@ -61,9 +61,11 @@ jobs:
 
   # Tag is the version source. Do not bump package.json by hand before tagging.
   # The tagged commit may still show the previous number; this follow-up commit
-  # on the default branch is what the next checkout sees.
+  # on the default branch is what the next checkout sees. Pre-releases skip it:
+  # an rc cut from a dev branch must not touch the default branch.
   version:
     needs: check
+    if: ${{ !contains(github.ref_name, '-') }}
     runs-on: ubuntu-latest
     timeout-minutes: 5
     permissions:
