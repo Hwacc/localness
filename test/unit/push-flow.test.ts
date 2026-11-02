@@ -416,16 +416,22 @@ describe('applyPush', () => {
   it('reconciles instead of pushing a batch that already landed', async () => {
     // The previous attempt pushed successfully but died before its bookkeeping
     // transaction committed. Re-running must not write the batch a second time.
-    db.previews = [pending]
-    db.keys = [key('a', 'text')]
+    // The retry also ticks `b`, which the landed commit does not hold.
+    db.previews = [{ ...pending, status: 'pushing', result: { keys: ['a'] } }]
+    db.keys = [key('a', 'text'), key('b', 'platform-b')]
     remote.orphanSha = 'sha-orphan'
-    remote.source = new Map([['a', 'text']])
+    remote.source = new Map([
+      ['a', 'text'],
+      ['b', 'git-b'],
+    ])
     const result = await applyPush({
       projectId: 2,
       previewId: 1,
-      selectedKeys: ['a'],
+      selectedKeys: ['a', 'b'],
       triggeredBy: 't',
     })
+    expect(result.count).toBe(1)
+    expect(db.basesWritten.map((row) => row.key)).toEqual(['a'])
     expect(result.reconciled).toBe(true)
     expect(result.pushed).toBe(true)
     expect(remote.written).toHaveLength(0)
@@ -584,7 +590,7 @@ describe('applyPush', () => {
   })
 
   it('logs a reconciled batch as a push landing', async () => {
-    db.previews = [pending]
+    db.previews = [{ ...pending, status: 'pushing', result: { keys: ['a'] } }]
     db.keys = [key('a', 'text')]
     remote.orphanSha = 'sha-orphan'
     remote.source = new Map([['a', 'text']])

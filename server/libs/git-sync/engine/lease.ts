@@ -1,7 +1,12 @@
 import { randomUUID } from 'node:crypto'
 import { createError } from 'h3'
 import prisma from '#server/libs/prisma'
-import { GIT_SYNC_LEASE_TTL_MS, GitSyncErrorCode } from '#shared/constants'
+import {
+  GIT_SYNC_LEASE_HEARTBEAT_MS,
+  GIT_SYNC_LEASE_MAX_HOLD_MS,
+  GIT_SYNC_LEASE_TTL_MS,
+  GitSyncErrorCode,
+} from '#shared/constants'
 import { gitSyncError } from './errors'
 
 function syncBusyError(owner: string) {
@@ -65,9 +70,25 @@ export async function withSyncLease<T>(
     }
     throw syncBusyError(holder.leaseOwner)
   }
+  // Renews only while the row still carries our leaseId; once someone else
+  // holds it (we stalled past the TTL) renewing stops rather than stealing back.
+  // Past the absolute cap renewing stops too, so a hung run() cannot hold the lease forever.
+  const heartbeat = setInterval(() => {
+    if (Date.now() - now.getTime() >= GIT_SYNC_LEASE_MAX_HOLD_MS) {
+      clearInterval(heartbeat)
+      return
+    }
+    prisma.gitSyncBinding
+      .updateMany({
+        where: { projectId, leaseId },
+        data: { leaseUntil: new Date(Date.now() + GIT_SYNC_LEASE_TTL_MS) },
+      })
+      .catch(() => {})
+  }, GIT_SYNC_LEASE_HEARTBEAT_MS)
   try {
     return await run()
   } finally {
+    clearInterval(heartbeat)
     await prisma.gitSyncBinding.updateMany({
       where: { projectId, leaseId },
       data: { leaseId: '', leaseOwner: '', leaseUntil: null },
