@@ -7,6 +7,7 @@ import {
 import { expectContract } from './contract'
 
 type KeyRow = { id: number; key: string; releaseIds: number[] }
+type NamespaceRow = { id: number; name: string; sort: number }
 type ValueRow = { locale: string; keyId: number; publishedText: string | null }
 
 const db = vi.hoisted(() => ({
@@ -24,6 +25,7 @@ const db = vi.hoisted(() => ({
     updatedAt: Date
   }>,
   releaseIdByName: new Map<string, number>(),
+  namespaces: [] as NamespaceRow[],
   keys: [] as KeyRow[],
   values: [] as ValueRow[],
   /** Counts reads, so "one query for every locale" is a test and not a hope. */
@@ -81,6 +83,7 @@ function someLocale(row: KeyRow, some: any): boolean {
 function filterKeys(where: any): KeyRow[] {
   return db.keys.filter((row) => {
     if (!matchRelease(row, where)) return false
+    if (where.id?.in && !where.id.in.includes(row.id)) return false
     // `deliveryKey` asks for an exact key; `searchDeliveryKeys` for a substring.
     if (typeof where.key === 'string' && row.key !== where.key) return false
     if (where.key?.contains && !row.key.includes(where.key.contains)) {
@@ -118,6 +121,21 @@ vi.mock('#server/libs/prisma', () => ({
         return id == null ? null : { id }
       },
     },
+    keyNamespace: {
+      findMany: async () => [...db.namespaces].sort((a, b) => a.sort - b.sort),
+      findFirst: async ({ where }: any) => {
+        const matches = (row: NamespaceRow, clause: any) =>
+          (clause.id == null || row.id === clause.id) &&
+          (clause.name == null || row.name === clause.name)
+        return (
+          db.namespaces.find((row) =>
+            where.OR
+              ? where.OR.some((clause: any) => matches(row, clause))
+              : matches(row, where)
+          ) ?? null
+        )
+      },
+    },
     i18nKey: {
       count: async ({ where }: { where: any }) => filterKeys(where).length,
       findFirst: async ({ where, select }: any) => {
@@ -142,6 +160,7 @@ vi.mock('#server/libs/prisma', () => ({
         db.keyQueries++
         const rows = filterKeys(where)
           .map((row) => ({
+            id: row.id,
             key: row.key,
             locales: db.values
               .filter((value) => {
@@ -199,11 +218,15 @@ const {
   listUnpublishedDeliveryKeys,
   LIST_KEYS_DEFAULT_LIMIT,
   projectLocales,
+  resolveDeliveryScope,
   resolveReleaseParam,
   searchDeliveryKeys,
   searchDeliveryKeysByText,
+  WHOLE_PROJECT,
 } = await import('#server/helper/api-delivery')
 const { DEFAULT_LOCALE_FALLBACK } = await import('#shared/constants')
+
+const scope = (releaseId: number | null = null) => ({ ...WHOLE_PROJECT, releaseId })
 
 const at = new Date('2026-09-16T00:00:00.000Z')
 
@@ -222,6 +245,7 @@ beforeEach(() => {
     ['v1', 4],
     ['v2', 5],
   ])
+  db.namespaces = []
   db.keys = []
   db.values = []
   db.keyQueries = 0
@@ -281,6 +305,60 @@ describe('resolveReleaseParam', () => {
   })
 })
 
+describe('resolveDeliveryScope namespace', () => {
+  beforeEach(() => {
+    db.namespaces = [
+      { id: 7, name: 's2w', sort: 0 },
+      { id: 8, name: 'hour', sort: 1 },
+    ]
+    db.keys = [
+      { id: 1, key: 's2w_hardware_ship_term_3', releaseIds: [] },
+      { id: 2, key: 'hour', releaseIds: [] },
+      { id: 3, key: 'hour.ago', releaseIds: [] },
+      { id: 4, key: 'hourly_rate', releaseIds: [] },
+      { id: 5, key: 'misc', releaseIds: [] },
+    ]
+    db.values = db.keys.map((row) => ({
+      locale: 'en',
+      keyId: row.id,
+      publishedText: row.key,
+    }))
+  })
+
+  it('leaves the scope whole when absent', async () => {
+    expect(await resolveDeliveryScope(1, {})).toEqual(WHOLE_PROJECT)
+  })
+
+  it('narrows by name or id with the prefix-and-boundary rule', async () => {
+    const byName = await resolveDeliveryScope(1, { namespace: 'hour' })
+    expect(byName.namespace).toBe('hour')
+    expect(await deliveryKeys(1, byName)).toEqual(['hour.ago'])
+    const byId = await resolveDeliveryScope(1, { namespace: '7' })
+    expect(await deliveryKeys(1, byId)).toEqual(['s2w_hardware_ship_term_3'])
+  })
+
+  it('selects keys in no namespace with __ungrouped__', async () => {
+    const ungrouped = await resolveDeliveryScope(1, { namespace: '__ungrouped__' })
+    expect(await deliveryKeys(1, ungrouped)).toEqual(['hour', 'hourly_rate', 'misc'])
+  })
+
+  it('rejects an unknown name instead of quietly returning everything', async () => {
+    await expect(
+      resolveDeliveryScope(1, { namespace: 'nope' })
+    ).rejects.toMatchObject({ statusCode: 404 })
+  })
+
+  it('lists namespaces in meta and echoes the selected one', async () => {
+    const meta = await deliveryMeta(
+      1,
+      await resolveDeliveryScope(1, { namespace: 's2w' })
+    )
+    expect(meta?.namespace).toBe('s2w')
+    expect(meta?.namespaces?.map((row) => row.name)).toEqual(['s2w', 'hour'])
+    expect(meta?.coverage).toMatchObject({ keys: 1, projectKeys: 5 })
+  })
+})
+
 describe('projectLocales', () => {
   it('reads the project order and drops non-strings', async () => {
     db.settings = { locales: ['ja', 7, 'en'] }
@@ -314,19 +392,19 @@ describe('deliveryMeta', () => {
 
   it('lists the releases a caller can filter by', async () => {
     // Otherwise a caller can only use the filter if told a name out of band.
-    const meta = await deliveryMeta(1, null)
+    const meta = await deliveryMeta(1, scope())
     expect(meta?.releases.map((row) => row.name)).toEqual(['v1', 'v2'])
     expect(meta?.releases[0]).toMatchObject({ id: 4, name: 'v1', sort: 1 })
   })
 
   it('reports project-wide counts, so a slice is recognisable as a slice', async () => {
-    const meta = await deliveryMeta(1, null)
+    const meta = await deliveryMeta(1, scope())
     expect(meta?.coverage.keys).toBe(4)
     expect(meta?.coverage.projectKeys).toBe(4)
   })
 
   it('counts only in-scope keys once filtered', async () => {
-    const meta = await deliveryMeta(1, 4)
+    const meta = await deliveryMeta(1, scope(4))
     expect(meta?.coverage.keys).toBe(2)
     // The project total stays, which is what lets a caller see the remainder.
     expect(meta?.coverage.projectKeys).toBe(4)
@@ -334,39 +412,39 @@ describe('deliveryMeta', () => {
   })
 
   it('counts a key as published only when it has text', async () => {
-    const meta = await deliveryMeta(1, null)
+    const meta = await deliveryMeta(1, scope())
     // Key 3 is unpublished; key 2's ja value is '' and must not count.
     expect(meta?.coverage.publishedPerLocale).toEqual({ en: 2, ja: 1 })
   })
 
   it('hands the caller the fallback instead of merging it in', async () => {
-    const meta = await deliveryMeta(1, null)
+    const meta = await deliveryMeta(1, scope())
     expect(meta?.localeFallback).toBe('en')
     expect(meta?.locales).toEqual(['en', 'ja'])
   })
 
   it('falls back to the platform default when the project sets nothing', async () => {
     db.project = { id: 1, name: 'web', settings: null }
-    expect((await deliveryMeta(1, null))?.localeFallback).toBe(
+    expect((await deliveryMeta(1, scope()))?.localeFallback).toBe(
       DEFAULT_LOCALE_FALLBACK
     )
   })
 
   it('returns null for a project that is gone', async () => {
     db.project = null
-    expect(await deliveryMeta(1, null)).toBeNull()
+    expect(await deliveryMeta(1, scope())).toBeNull()
   })
 
   it('counts every locale in one grouped query, not one per locale', async () => {
     // `meta` is a diagnostic call, not the hot path, but it is one query per
     // locale per request the moment this becomes a loop again.
-    await deliveryMeta(1, null)
+    await deliveryMeta(1, scope())
     expect(db.groupQueries).toBe(1)
   })
 
   it('reports 0 for a locale with nothing published rather than omitting it', async () => {
     db.settings = { locales: ['en', 'ja', 'fr'] }
-    expect((await deliveryMeta(1, null))?.coverage.publishedPerLocale).toEqual({
+    expect((await deliveryMeta(1, scope()))?.coverage.publishedPerLocale).toEqual({
       en: 2,
       ja: 1,
       fr: 0,
@@ -390,15 +468,15 @@ describe('deliveryLocale', () => {
 
   it('leaves unpublished keys out rather than sending an empty string', async () => {
     // An empty string would turn "not translated yet" into "translated to nothing".
-    expect(await deliveryLocale(1, 'en', null)).toEqual({ a: 'A', b: 'B' })
+    expect(await deliveryLocale(1, 'en', scope())).toEqual({ a: 'A', b: 'B' })
   })
 
   it('narrows to the labelled keys', async () => {
-    expect(await deliveryLocale(1, 'en', 4)).toEqual({ a: 'A' })
+    expect(await deliveryLocale(1, 'en', scope(4))).toEqual({ a: 'A' })
   })
 
   it('is empty for a locale with nothing published', async () => {
-    expect(await deliveryLocale(1, 'ja', null)).toEqual({})
+    expect(await deliveryLocale(1, 'ja', scope())).toEqual({})
   })
 })
 
@@ -412,15 +490,15 @@ describe('deliveryBundle', () => {
   })
 
   it('keys the bundle by locale', async () => {
-    const bundle = await deliveryBundle(1, null, ['en', 'ja'])
+    const bundle = await deliveryBundle(1, scope(), ['en', 'ja'])
     // Only `ja` has published text in this fixture.
     expect(bundle).toEqual({ ja: { b: 'B' } })
   })
 
   it('omits a locale that has nothing, so absent means absent', async () => {
-    const bundle = await deliveryBundle(1, null, ['en'])
+    const bundle = await deliveryBundle(1, scope(), ['en'])
     expect(bundle).toEqual({})
-    expect(await deliveryBundle(1, null, ['ja'])).toEqual({
+    expect(await deliveryBundle(1, scope(), ['ja'])).toEqual({
       ja: { b: 'B' },
     })
   })
@@ -430,7 +508,7 @@ describe('deliveryBundle', () => {
       { locale: 'en', keyId: 1, publishedText: 'A' },
       { locale: 'ja', keyId: 1, publishedText: 'A' },
     ]
-    expect(await deliveryBundle(1, 4, ['en', 'ja'])).toEqual({
+    expect(await deliveryBundle(1, scope(4), ['en', 'ja'])).toEqual({
       en: { a: 'A' },
       ja: { a: 'A' },
     })
@@ -442,7 +520,7 @@ describe('deliveryBundle', () => {
       { locale: 'ja', keyId: 1, publishedText: 'A' },
     ]
     // An empty value must not override the consumer's fallback.
-    expect(await deliveryBundle(1, null, ['en', 'ja'])).toEqual({
+    expect(await deliveryBundle(1, scope(), ['en', 'ja'])).toEqual({
       ja: { a: 'A' },
     })
   })
@@ -458,7 +536,7 @@ describe('deliveryBundle', () => {
       { locale: 'ja', keyId: 1, publishedText: 'ア' },
       { locale: 'ja', keyId: 2, publishedText: 'イ' },
     ]
-    const bundle = await deliveryBundle(1, null, ['en', 'ja'])
+    const bundle = await deliveryBundle(1, scope(), ['en', 'ja'])
     expect(db.keyQueries).toBe(1)
     expect(bundle).toEqual({ en: { a: 'A' }, ja: { a: 'ア', b: 'イ' } })
   })
@@ -474,7 +552,7 @@ describe('deliveryBundle', () => {
     ]
     // Byte-stable, so a consumer that hashes the bundle for its own cache gets
     // one answer rather than a reshuffle per request.
-    const bundle = await deliveryBundle(1, null, ['en', 'zh'])
+    const bundle = await deliveryBundle(1, scope(), ['en', 'zh'])
     expect(JSON.stringify(bundle)).toBe(
       JSON.stringify({ en: { a: 'A' }, zh: { b: '乙' } })
     )
@@ -496,12 +574,12 @@ describe('deliveryKeys', () => {
   })
 
   it('lists every published key when no release is named', async () => {
-    expect(await deliveryKeys(1, null)).toEqual(['alpha', 'beta'])
+    expect(await deliveryKeys(1, scope())).toEqual(['alpha', 'beta'])
   })
 
   it('narrows to one release', async () => {
-    expect(await deliveryKeys(1, 4)).toEqual(['alpha'])
-    expect(await deliveryKeys(1, 5)).toEqual(['beta'])
+    expect(await deliveryKeys(1, scope(4))).toEqual(['alpha'])
+    expect(await deliveryKeys(1, scope(5))).toEqual(['beta'])
   })
 
   it('sorts by key, so the result is byte-stable', async () => {
@@ -513,20 +591,20 @@ describe('deliveryKeys', () => {
       { locale: 'en', keyId: 9, publishedText: 'Z' },
       { locale: 'en', keyId: 8, publishedText: 'A' },
     ]
-    expect(await deliveryKeys(1, null)).toEqual(['alpha', 'zulu'])
+    expect(await deliveryKeys(1, scope())).toEqual(['alpha', 'zulu'])
   })
 
   it('omits a key with no published text', async () => {
-    expect(await deliveryKeys(1, null)).not.toContain('gamma')
+    expect(await deliveryKeys(1, scope())).not.toContain('gamma')
   })
 
   it('never misses a key the bundle offers', async () => {
     for (const releaseId of [null, 4, 5]) {
-      const bundle = await deliveryBundle(1, releaseId, ['en', 'ja'])
+      const bundle = await deliveryBundle(1, scope(releaseId), ['en', 'ja'])
       const inBundle = new Set(
         Object.values(bundle).flatMap((entries) => Object.keys(entries))
       )
-      const listed = await deliveryKeys(1, releaseId)
+      const listed = await deliveryKeys(1, scope(releaseId))
       for (const key of inBundle) expect(listed).toContain(key)
     }
   })
@@ -546,7 +624,7 @@ describe('deliveryKey', () => {
   })
 
   it('returns the published text', async () => {
-    expect(await deliveryKey(1, 'a', 'en', null)).toEqual({
+    expect(await deliveryKey(1, 'a', 'en', scope())).toEqual({
       state: 'published',
       text: 'A',
     })
@@ -555,25 +633,25 @@ describe('deliveryKey', () => {
   it('tells an untranslated key apart from one that is not there', async () => {
     // An empty string for both would let a consumer render a blank where it
     // should fall back or report the gap.
-    expect(await deliveryKey(1, 'b', 'en', null)).toEqual({
+    expect(await deliveryKey(1, 'b', 'en', scope())).toEqual({
       state: 'unpublished',
     })
-    expect(await deliveryKey(1, 'nope', 'en', null)).toEqual({ state: 'missing' })
+    expect(await deliveryKey(1, 'nope', 'en', scope())).toEqual({ state: 'missing' })
   })
 
   it('calls a locale the key was never translated into unpublished', async () => {
-    expect(await deliveryKey(1, 'a', 'fr', null)).toEqual({
+    expect(await deliveryKey(1, 'a', 'fr', scope())).toEqual({
       state: 'unpublished',
     })
   })
 
   it('honours the release scope', async () => {
-    expect(await deliveryKey(1, 'a', 'en', 4)).toEqual({
+    expect(await deliveryKey(1, 'a', 'en', scope(4))).toEqual({
       state: 'published',
       text: 'A',
     })
     // 'b' carries no release, so it is out of scope rather than merely empty.
-    expect(await deliveryKey(1, 'b', 'en', 4)).toEqual({ state: 'missing' })
+    expect(await deliveryKey(1, 'b', 'en', scope(4))).toEqual({ state: 'missing' })
   })
 })
 
@@ -595,7 +673,7 @@ describe('searchDeliveryKeys', () => {
   })
 
   it('matches a substring of the key, in key order', async () => {
-    expect(await searchDeliveryKeys(1, 'login', null)).toEqual([
+    expect(await searchDeliveryKeys(1, 'login', scope())).toEqual([
       'login.body',
       'login.title',
     ])
@@ -604,7 +682,7 @@ describe('searchDeliveryKeys', () => {
   it('leaves out keys with nothing published', async () => {
     // `logout` (no text) and `login.footer` (blank text) both drop out, so a
     // search can never name a key the bundle shapes would not.
-    expect(await searchDeliveryKeys(1, 'log', null)).toEqual([
+    expect(await searchDeliveryKeys(1, 'log', scope())).toEqual([
       'login.body',
       'login.title',
     ])
@@ -612,8 +690,8 @@ describe('searchDeliveryKeys', () => {
 
   it('honours the release scope', async () => {
     db.keys = [{ id: 1, key: 'login.title', releaseIds: [4] }]
-    expect(await searchDeliveryKeys(1, 'login', 4)).toEqual(['login.title'])
-    expect(await searchDeliveryKeys(1, 'login', 5)).toEqual([])
+    expect(await searchDeliveryKeys(1, 'login', scope(4))).toEqual(['login.title'])
+    expect(await searchDeliveryKeys(1, 'login', scope(5))).toEqual([])
   })
 })
 
@@ -632,7 +710,7 @@ describe('listDeliveryKeys', () => {
   })
 
   it('lists catalog keys in order and skips draft-only and blank text', async () => {
-    expect(await listDeliveryKeys(1, null)).toMatchObject({
+    expect(await listDeliveryKeys(1, scope())).toMatchObject({
       keys: ['a', 'b'],
       total: 2,
       offset: 0,
@@ -641,7 +719,7 @@ describe('listDeliveryKeys', () => {
   })
 
   it('pages by offset and reports the unpaged total', async () => {
-    expect(await listDeliveryKeys(1, null, 1, 1)).toEqual({
+    expect(await listDeliveryKeys(1, scope(), 1, 1)).toEqual({
       keys: ['b'],
       total: 2,
       offset: 1,
@@ -650,7 +728,7 @@ describe('listDeliveryKeys', () => {
   })
 
   it('honours the release scope', async () => {
-    expect(await listDeliveryKeys(1, 4)).toMatchObject({
+    expect(await listDeliveryKeys(1, scope(4))).toMatchObject({
       keys: ['b'],
       total: 1,
     })
@@ -671,7 +749,7 @@ describe('deliveryKeyLocales', () => {
   })
 
   it('keeps unpublished locales in the map instead of omitting them', async () => {
-    expect(await deliveryKeyLocales(1, 'a', null)).toEqual({
+    expect(await deliveryKeyLocales(1, 'a', scope())).toEqual({
       state: 'found',
       key: 'a',
       locales: {
@@ -682,14 +760,14 @@ describe('deliveryKeyLocales', () => {
   })
 
   it('treats a blank published string as unpublished', async () => {
-    const found = await deliveryKeyLocales(1, 'a', null)
+    const found = await deliveryKeyLocales(1, 'a', scope())
     if (found.state !== 'found') throw new Error('expected found')
     expect(found.locales.ja).toEqual({ published: false })
   })
 
   it('is missing when the key is out of release scope, not unpublished', async () => {
-    expect(await deliveryKeyLocales(1, 'b', 4)).toEqual({ state: 'missing' })
-    expect(await deliveryKeyLocales(1, 'nope', null)).toEqual({
+    expect(await deliveryKeyLocales(1, 'b', scope(4))).toEqual({ state: 'missing' })
+    expect(await deliveryKeyLocales(1, 'nope', scope())).toEqual({
       state: 'missing',
     })
   })
@@ -712,14 +790,14 @@ describe('listUnpublishedDeliveryKeys', () => {
   })
 
   it('names catalog keys that have no published text in that locale', async () => {
-    expect(await listUnpublishedDeliveryKeys(1, 'ja', null)).toMatchObject({
+    expect(await listUnpublishedDeliveryKeys(1, 'ja', scope())).toMatchObject({
       keys: ['b'],
       total: 1,
     })
   })
 
   it('does not list keys that were never published anywhere', async () => {
-    const page = await listUnpublishedDeliveryKeys(1, 'en', null)
+    const page = await listUnpublishedDeliveryKeys(1, 'en', scope())
     expect(page.keys).not.toContain('draft')
     expect(page.keys).toEqual([])
   })
@@ -738,7 +816,7 @@ describe('published contract (@localness/contract)', () => {
   })
 
   it('keeps /meta inside the contract, and the instance block is additive', async () => {
-    const meta = await deliveryMeta(1, 4, true)
+    const meta = await deliveryMeta(1, scope(4), true)
     expectContract(deliveryMetaSchema, meta)
     expectContract(deliveryMetaSchema, {
       ...meta,
@@ -748,14 +826,14 @@ describe('published contract (@localness/contract)', () => {
 
   it('refuses an instance block that leaks more than version and plus', async () => {
     // The customer and the expiry date never leave the session UI.
-    const meta = await deliveryMeta(1, null)
+    const meta = await deliveryMeta(1, scope())
     const leaked = { ...meta, instance: { version: '1', plus: true, customer: 'x' } }
     expect(() => expectContract(deliveryMetaSchema, leaked)).toThrow()
   })
 
   it('keeps /bundle and /locales/:locale inside the contract', async () => {
-    expectContract(deliveryBundleSchema, await deliveryBundle(1, null, ['en', 'ja']))
-    expectContract(deliveryLocaleSchema, await deliveryLocale(1, 'en', null))
+    expectContract(deliveryBundleSchema, await deliveryBundle(1, scope(), ['en', 'ja']))
+    expectContract(deliveryLocaleSchema, await deliveryLocale(1, 'en', scope()))
   })
 })
 
@@ -775,29 +853,29 @@ describe('searchDeliveryKeysByText', () => {
   })
 
   it('matches exact published text in one locale', async () => {
-    expect(await searchDeliveryKeysByText(1, 'en', 'Save', 'exact', null)).toEqual(
+    expect(await searchDeliveryKeysByText(1, 'en', 'Save', 'exact', scope())).toEqual(
       ['save']
     )
   })
 
   it('matches a substring when asked', async () => {
     expect(
-      await searchDeliveryKeysByText(1, 'en', 'Save', 'contains', null)
+      await searchDeliveryKeysByText(1, 'en', 'Save', 'contains', scope())
     ).toEqual(['save', 'save.as'])
   })
 
   it('does not search other locales', async () => {
     expect(
-      await searchDeliveryKeysByText(1, 'ja', 'Save', 'exact', null)
+      await searchDeliveryKeysByText(1, 'ja', 'Save', 'exact', scope())
     ).toEqual([])
     expect(
-      await searchDeliveryKeysByText(1, 'ja', '保存', 'exact', null)
+      await searchDeliveryKeysByText(1, 'ja', '保存', 'exact', scope())
     ).toEqual(['save'])
   })
 
   it('rejects an empty query', async () => {
     await expect(
-      searchDeliveryKeysByText(1, 'en', '   ', 'exact', null)
+      searchDeliveryKeysByText(1, 'en', '   ', 'exact', scope())
     ).rejects.toMatchObject({ statusCode: 400 })
   })
 })

@@ -98,6 +98,11 @@ export const projectDetailInclude = {
     select: { id: true, name: true, sort: true },
     orderBy: [{ sort: 'asc' as const }, { id: 'asc' as const }],
   },
+  // Key namespaces, in display order. Keys join them by name, so no key list.
+  namespaces: {
+    select: { id: true, name: true, sort: true },
+    orderBy: [{ sort: 'asc' as const }, { id: 'asc' as const }],
+  },
 }
 
 export function localesToContent(

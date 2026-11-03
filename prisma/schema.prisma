@@ -165,6 +165,7 @@ model Project {
   gitSyncLogs      GitSyncLog[]
   owners           ProjectOwner[]
   releases         ProjectRelease[]
+  namespaces       KeyNamespace[]
   apiTokenProjects ApiTokenProject[]
   skills           ProjectSkill[]
   consistencyIgnores ConsistencyIgnore[]
@@ -188,6 +189,22 @@ model ProjectRelease {
   project   Project          @relation(fields: [projectId], references: [id], onDelete: Cascade)
   pages     PageRelease[]
   i18nKeys  I18nKeyRelease[]
+
+  @@unique([projectId, name])
+  @@index([projectId])
+}
+
+/// A declared key namespace on a Project. Membership is derived from the key's
+/// name (see `namespaceOf`), never stored, so there is no join to I18nKey and
+/// renaming or deleting a namespace never touches a key.
+model KeyNamespace {
+  id        Int      @id @default(autoincrement())
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+  projectId Int      @map("project_id")
+  name      String
+  sort      Int      @default(0)
+  project   Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
 
   @@unique([projectId, name])
   @@index([projectId])

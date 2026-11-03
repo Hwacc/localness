@@ -12,8 +12,15 @@ const emit = defineEmits<{
 </script>
 
 <template>
-  <div>
+  <!--
+    Fills the pane of a SettingsTabs side layout (fixed height from `sm`).
+    Below `sm` the pane grows with its content, so the editor keeps the
+    300px bytemd ships with. The Vue wrapper mounts `.bytemd` inside a div of
+    its own, so that div needs the height too.
+  -->
+  <div class="markdown-prompt h-75 sm:h-full">
     <BytemdEditor
+      class="h-full"
       placeholder="Enter your prompt"
       :value="modelValue"
       :max-length="2000"
@@ -24,3 +31,9 @@ const emit = defineEmits<{
     />
   </div>
 </template>
+
+<style scoped>
+.markdown-prompt :deep(.bytemd) {
+  height: 100%;
+}
+</style>

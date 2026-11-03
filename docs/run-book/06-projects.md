@@ -25,7 +25,7 @@ Project Owner 管的是这一个项目：项目设置、发行标签的增删改
 - Workspace Bar 项目条最右边的 **+**
 - **Teams** 页 → **Projects** 卡片 → **New Project**
 
-弹窗里有 **Basic** / **Prompt** / **Settings** 三个标签页（**Releases** 只在编辑已有项目时出现）：
+弹窗里有 **Basic** / **Prompt** / **Settings** 三个标签页（**Releases** 和 **Namespaces** 只在编辑已有项目时出现）。窗口够宽时标签页竖排在弹窗左侧，内容在右侧，内容区高度固定、过长时在内部滚动，切换标签页时弹窗不会忽高忽低；窄屏（手机）时回到顶部横排。Page Settings、Tag Info、User Settings 弹窗也是这个布局。各标签页：
 
 - **Basic**：**Name**、**Description**、**Team**（下拉，只在新建时出现）。一个团队都没有时这里会有一条警告，标题 **No team**，正文 `You need to be in a team to create a project. Ask an Admin to create a team, or join with an invite code.`
 - **Settings**：OCR、源语言、key 命名规范，见下面「项目设置」。
@@ -80,6 +80,20 @@ Project Owner 管的是这一个项目：项目设置、发行标签的增删改
 - 改项目名**不会**改已经定下的前缀，它是建项目那一刻存下来的。
 - 这套规范管的是 AI 生成的 key 长什么样、以及生成后的合规检查。手写的 key 不会被它挡住，编辑器里会实时提示哪里不合规，但仍然能保存（第 8 章）。
 - 改了规范只影响之后生成的 key，不会回头改已有的。
+- 前缀那一行下面会提示它和 namespace 的关系：列出现有的 namespace（点一个就把它填进前缀），并告诉你按这个前缀生成的 key 会归到哪个组。归不进任何组时是一行黄字 `Keys under this prefix will be Ungrouped.`，旁边有按钮把前缀的第一段加成 namespace。
+- **新建项目时**，前缀的第一段（`s2w_hw` 里的 `s2w`）会自动建成这个项目的第一个 namespace，提示写着 `The namespace … is created with the project.`
+
+### Namespaces
+
+把词条表左栏的 key 按功能区分组用的（第 9 章）。**只是按 key 名归组，不改名、不搬家**：一条 key 的名字以某个 namespace 开头、并且紧跟 `_ . - : /` 之一，它就属于这个组——`s2w` 收 `s2w_ship_title` 和 `s2w.ship.title`，不收 `s2wx_title`，也不收恰好叫 `s2w` 的 key。哪组都不属于的落在 **Ungrouped**。
+
+- 下面的输入框加一个（`New namespace, e.g. s2w`）。名字首尾必须是字母或数字，中间可以夹 `_ . - : /`；**不能和已有的互为前缀边界**（有了 `s2w` 就不能再加 `s2w_hw`），否则同一条 key 会落进两个组。
+- 点名字改名，上下箭头调顺序——左栏按这个顺序排。
+- 删除问一次 `Delete “…”? No key is renamed or deleted — its keys move to Ungrouped.`
+- 底部 `Suggested from Ungrouped keys:` 列出 Ungrouped 里最常见的第一段，点一下就加。
+- 只有 Project Owner 看得到这个标签页。
+
+API 和 MCP 也能按 namespace 取（第 12 章）。
 
 ### Prompt
 

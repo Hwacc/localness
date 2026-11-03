@@ -10,7 +10,7 @@
 
 左侧栏的 **API**。页头写着：
 
-> Access to published copy. Drafts are never reachable with a token, and versioned by `release` only. A token is read-only unless you mint it as `write`, which also lets a design tool import a frame as a page.
+> Access to published copy. Drafts are never reachable with a token, and narrowed by `release` and key `namespace` only. A token is read-only unless you mint it as `write`, which also lets a design tool import a frame as a page.
 
 **文档和 token 抽屉对所有 Team Member 可见**——消费这个项目的人不一定管这个项目。页面从上到下是：**Manage tokens** 按钮、**Authentication**、**Endpoints**（可复制的例子）、**Importing from a design tool**、**From the browser or Node**、**MCP**。![1790221478500](image/12-api-mcp/1790221478500.png)
 
@@ -22,7 +22,7 @@
 | ----------------------------- | ----------------------------------------------------------------------------------------------------------------------- |
 | **只有已发布**          | 草稿一律取不到。某条词条在这个语言还没发布，它就**不出现**，而不是返回空字符串                                    |
 | **不做回退**            | 缺失的 key**不会**用源语言或别的语言补上。调用方要自己决定缺了怎么显示——直接把 key 名露在界面上是最糟的那种处理 |
-| **只能按 release 收窄** | 没有别的筛选参数                                                                                                        |
+| **只能按 release 和 namespace 收窄** | 没有别的筛选参数                                                                                                        |
 | **写入面服务于创作**   | 只有 `write` token 能建页面、画 Tag、把图层文字写入源语言、给 page / 词条挂发行。再导入时，具名 key 的源语言草稿和已发布文案一起改成图层上的句子；`__draft_` 只写草稿，并清掉已发布源文。**句子没变就整个不写**——手工撤回（Revert to draft）的源文不会被一次重复导入悄悄带回来。其他语言的译文不动。`/bundle` 和 `/locales` 仍只返回已发布文案。建发行标签本身要 Project Owner |
 
 **token 属于你，不属于项目**：一枚 token 可以指定它能碰**哪些**项目。只指定一个时，请求里根本不用写项目名——**改动之前发的 token 全都是这种**，行为和以前一模一样。
@@ -72,7 +72,7 @@
 | 端点                            | 返回                                                                               |
 | ------------------------------- | ---------------------------------------------------------------------------------- |
 | `GET /api/v1/projects`        | **这枚 token 现在能碰哪些项目**。只凭 token 的调用方从这里开始                     |
-| `GET /api/v1/meta`            | 语言列表、`localeFallback`、可用的 release、以及**每个语言有多少条已发布** |
+| `GET /api/v1/meta`            | 语言列表、`localeFallback`、可用的 release 和 namespace、以及**每个语言有多少条已发布** |
 | `GET /api/v1/locales/:locale` | 一个语言的扁平`{ key: text }`                                                    |
 | `GET /api/v1/bundle`          | 一次拿到全部语言：`{ locale: { key: text } }`。只有已发布 |
 | `GET /api/v1/outdated`        | 哪些语言的哪些 key 译文是对着旧源文翻的。只是标记，句子仍在 `/bundle` |
@@ -99,12 +99,15 @@
 页面上每个端点都有一张卡片，写着它的用途和一条能直接复制的 `curl`：
 
 - **Which projects may this token reach?** —— `A token belongs to you and may name several projects, so this is where a consumer starts: it lists what the credential can address, filtered by your current team memberships. An empty list means the token is spent.`
-- **Project metadata** —— `Locales, fallback, the releases you can filter by, and how many keys are published per locale. Add ?project= when the token reaches more than one.`
+- **Project metadata** —— `Locales, fallback, the releases and key namespaces you can filter by, and how many keys are published per locale. Add ?project= when the token reaches more than one.`
 - **One locale** —— `Flat { key: text } map of published copy. Missing keys stay missing on purpose.`
 - **Filtered to a release** —— `Narrow to the keys labelled with one release. Accepts the id or the name.`
+- **Filtered to a key namespace** —— `Narrow to one feature area by key name: a namespace s2w holds s2w_title and s2w.menu.open, never s2wx or a bare s2w. Accepts the id or the name, or __ungrouped__ for keys in none. Combines with ?release=.`
 - **Every locale in one bundle** —— `All locales in a single round trip. Same shape, keyed by locale.`
 
 **按发行取**：在任何端点后面加 `?release=`，**id 和名字都收**（`?release=v1` 和 `?release=3` 等价）。名字写错不是退回全量，而是 `Unknown release: v1` 的 404——免得调用方以为自己在看一个发行，其实拿到的是全部。
+
+**按 namespace 取**：`/meta`、`/locales/:locale`、`/bundle`、`/keys` 都收 `?namespace=`，**id 和名字都收**，`?namespace=__ungrouped__` 取不属于任何 namespace 的 key。归属按 key 名算，规则和 Translations 页左栏一样：名字后面紧跟 `_ . - : /` 之一才算（`s2w` 收 `s2w_title`，不收 `s2wx`，也不收恰好叫 `s2w` 的 key）。可以和 `?release=` 叠加。名字写错同样是 `Unknown namespace: x` 的 404。`/meta` 回 `namespaces`（按显示顺序）和当前的 `namespace`。
 
 **覆盖率**是给调用方看的：`meta` 按项目自己的语言列表逐个报数，一条都没发布的语言报 `0`，不会从列表里消失。
 
@@ -155,9 +158,9 @@ Authorization: Bearer <token>
 
 三条要点：
 
-- **除了 `get_project_info`，每个工具都能带 `release`**，作用等同 `?release=`。这是一致的：agent 从一个工具学到「release 能收窄」，到下一个发现不行，只能猜是遗漏还是有意。
-- **合法值从 `get_project_info` 拿**。它的工具描述里会直接列出这个项目现有的 release 名（没有 release 的项目会说明「不能收窄」）。别的工具的描述只讲「什么时候用」，指向它。
-- **校对业务仓的语言文件时不要带 `release`**——那是拿全量官方目录去对，收窄了会漏。
+- **除了 `get_project_info`，每个工具都能带 `release` 和 `namespace`**，作用等同 `?release=` / `?namespace=`。这是一致的：agent 从一个工具学到「release 能收窄」，到下一个发现不行，只能猜是遗漏还是有意。
+- **合法值从 `get_project_info` 拿**。它的工具描述里会直接列出这个项目现有的 release 名和 namespace 名（没有的会说明）。别的工具的描述只讲「什么时候用」，指向它。
+- **校对业务仓的语言文件时不要带 `release` / `namespace`**——那是拿全量官方目录去对，收窄了会漏。
 
 「未发布」和「不存在」在 MCP 里是两件事：`get_translation` 遇到项目里根本没有的 key 会报错，遇到**有但没发布**的 key 回 `published: false`——后者是一个答案（这个语言待办），不是失败。
 
@@ -175,6 +178,7 @@ Authorization: Bearer <token>
 | `This token's owner is no longer a member of this project's team` | 建这枚 token 的人已经不在该项目的 Team 里了。这就是「离队即失效」                                                                        |
 | `This token is not attached to any project` | 它指定的项目被删光了。已经做不了任何事，重新建一枚                                                                                                          |
 | `Unknown release: v1`                      | `?release=` 的名字这个项目里没有。名字写错不会退回全量                                                                                                    |
+| `Unknown namespace: x`                     | `?namespace=` 的名字这个项目里没有。去 Project Settings → Namespaces 看，或调 `/meta`                                                                         |
 | 调`/meta` 返回的项目名不是你要的           | `?project=` 写错了——**名字必须唯一命中**，有重名就得用 id。别猜，先调`/api/v1/projects`                                                            |
 | 关掉弹窗后 token 找不到了                    | 明文只有创建那一次。吊销重发                                                                                                                                |
 | 某条词条在 `/bundle` 里查不到                       | 它在这个语言还没**发布**。草稿走 `GET /api/v1/pages/:id` 和 `GET /api/v1/keys/search`，不走 bundle |

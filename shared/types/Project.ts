@@ -1,4 +1,8 @@
-import type { ProjectRelease as IProjectRelease } from '../contract'
+import type {
+  I18nKeyNamespaceCounts,
+  KeyNamespace as IKeyNamespace,
+  ProjectRelease as IProjectRelease,
+} from '../contract'
 import type { IUser } from './User'
 import type { IPage } from './Page'
 import type { ID } from '.'
@@ -39,6 +43,15 @@ export interface IProjectOwner {
  */
 export type { IProjectRelease }
 
+/**
+ * A declared key namespace. Keys join it by name, so it carries no key list.
+ * Defined in `@localness/contract` because `/api/v1/meta` returns it.
+ */
+export type { IKeyNamespace }
+
+/** The Translations namespace rail's counts. */
+export type { I18nKeyNamespaceCounts }
+
 /** Which Project Settings tab to open on. */
 export type ProjectSettingsTab =
   | 'basic'
@@ -46,6 +59,7 @@ export type ProjectSettingsTab =
   | 'settings'
   | 'consistency'
   | 'releases'
+  | 'namespaces'
 
 export interface IProject {
   id: ID
@@ -60,6 +74,8 @@ export interface IProject {
   settings?: IProjectSetting
   owners?: IProjectOwner[]
   releases?: IProjectRelease[]
+  /** In display order. */
+  namespaces?: IKeyNamespace[]
   isSteward?: boolean
 }
 
@@ -72,6 +88,7 @@ export class Project implements IProject {
   teamId?: ID
   team?: ITeam
   settings?: IProjectSetting
+  namespaces?: IKeyNamespace[]
 
   constructor(name?: string) {
     this.name = name ?? 'Undefined'

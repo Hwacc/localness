@@ -29,6 +29,7 @@ const baseUrl = computed(() =>
  * reader cannot see, since this page shows no project.
  */
 const RELEASE_EXAMPLE = 'v1'
+const NAMESPACE_EXAMPLE = 's2w'
 
 function curlExample(path: string) {
   return `curl -H "Authorization: Bearer <token>" \\
@@ -45,7 +46,7 @@ const examples = computed(() => [
   {
     title: 'Project metadata',
     description:
-      'Locales, fallback, the releases you can filter by, and how many keys are published per locale. Add ?project= when the token was given several — see Authentication above for when that is.',
+      'Locales, fallback, the releases and key namespaces you can filter by, and how many keys are published per locale. Add ?project= when the token was given several — see Authentication above for when that is.',
     code: curlExample('/api/v1/meta'),
   },
   {
@@ -59,6 +60,12 @@ const examples = computed(() => [
     description:
       'Narrow to the keys labelled with one release. Accepts the id or the name.',
     code: curlExample(`/api/v1/locales/en?release=${RELEASE_EXAMPLE}`),
+  },
+  {
+    title: 'Filtered to a key namespace',
+    description:
+      'Narrow to one feature area by key name: a namespace s2w holds s2w_title and s2w.menu.open, never s2wx or a bare s2w. Accepts the id or the name, or __ungrouped__ for keys in none. Combines with ?release=.',
+    code: curlExample(`/api/v1/bundle?namespace=${NAMESPACE_EXAMPLE}`),
   },
   {
     title: 'Every locale in one bundle',
@@ -147,7 +154,8 @@ async function copy(value: string, label: string) {
         <h1 class="text-xl font-semibold">API</h1>
         <p class="text-sm text-muted">
           Access to published copy. Drafts are never reachable with a token, and
-          versioned by <code class="text-xs">release</code> only. A token is
+          narrowed by <code class="text-xs">release</code> and key
+          <code class="text-xs">namespace</code> only. A token is
           read-only unless you mint it as
           <span class="text-default">write</span>, which also lets a design tool
           import a frame as a page.
@@ -303,10 +311,10 @@ async function copy(value: string, label: string) {
           <code class="text-xs">?project=</code>, so the tool list an agent reads
           stays the same however many projects the token reaches, and one entry
           here means one project. Omit it when the token reaches exactly one.
-          Every tool except the first can also be narrowed to a single release,
-          the same way <code class="text-xs">?release=</code> does above. Omit
-          release when proofreading a product locale folder against the full
-          catalog.
+          Every tool except the first can also be narrowed to a single release
+          or key namespace, the same way <code class="text-xs">?release=</code>
+          and <code class="text-xs">?namespace=</code> do above. Omit both when
+          proofreading a product locale folder against the full catalog.
         </p>
         <pre
           class="rounded-lg border border-default bg-elevated/50 p-3 text-xs overflow-x-auto"

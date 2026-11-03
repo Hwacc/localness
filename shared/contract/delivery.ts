@@ -1,5 +1,6 @@
 import { z } from 'zod/v4'
 import { projectReleaseSchema } from './release'
+import { keyNamespaceSchema } from './namespace'
 
 /**
  * Response shapes of the public `/api/v1` delivery API. Callers outside the
@@ -35,6 +36,13 @@ export const deliveryMetaSchema = z.object({
   release: z.number().nullable(),
   /** The names `?release=` accepts, which a caller cannot otherwise discover. */
   releases: z.array(projectReleaseSchema),
+  /**
+   * The namespace the response is scoped to — its name, or `__ungrouped__` —
+   * or null for all keys. Optional: servers before namespaces omit it.
+   */
+  namespace: z.string().nullable().optional(),
+  /** The names `?namespace=` accepts, in display order. */
+  namespaces: z.array(keyNamespaceSchema).optional(),
   coverage: z.object({
     keys: z.number(),
     projectKeys: z.number(),

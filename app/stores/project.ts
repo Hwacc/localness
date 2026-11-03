@@ -26,6 +26,9 @@ export const useProjectStore = defineStore('project', () => {
   /** The project's release labels, in display order. */
   const curReleases = computed(() => curProject.value.releases ?? [])
 
+  /** The project's key namespaces, in display order. */
+  const curNamespaces = computed(() => curProject.value.namespaces ?? [])
+
   /** The effective scope applies everywhere at once, from the editor sider's list outward. */
   const pageList = computed(() =>
     (curProject.value.pages ?? []).filter((page) =>
@@ -322,6 +325,7 @@ export const useProjectStore = defineStore('project', () => {
     curTeamId,
     curTeam,
     curReleases,
+    curNamespaces,
     curReleaseFilter,
     releaseScope,
     releaseScopeOverride,

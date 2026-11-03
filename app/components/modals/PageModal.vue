@@ -222,6 +222,7 @@ async function onSubmit(_: FormSubmitEvent<ZPage>) {
   <UModal
     :title="title"
     :dismissible="!isLoading"
+    :ui="{ content: 'sm:max-w-3xl' }"
     @update:open="(isOpen) => !isOpen && emit('close', false)"
   >
     <template #body>
@@ -236,12 +237,7 @@ async function onSubmit(_: FormSubmitEvent<ZPage>) {
           unmounting it on a tab switch throws that file away, and a submit made
           from another tab finds no uploader at all.
         -->
-        <UTabs
-          :items="tabsItems"
-          variant="link"
-          :unmount-on-hide="false"
-          :ui="{ trigger: 'grow' }"
-        >
+        <SettingsTabs :items="tabsItems" :unmount-on-hide="false">
           <template #basic>
             <div class="flex flex-col gap-2.5">
               <UFormField label="Name" name="name">
@@ -349,6 +345,19 @@ async function onSubmit(_: FormSubmitEvent<ZPage>) {
                   />
                 </UFormField>
               </div>
+              <KeyPrefixNamespaceHint
+                :prefix="state.settings.keyPrefix ?? ''"
+                :separator="state.settings.keySeparator ?? ''"
+                :names="projectStore.curNamespaces.map((ns) => ns.name)"
+                :project-id="
+                  canManageProjectSettings(projectStore.curProject)
+                    ? projectStore.curProject.id
+                    : undefined
+                "
+                :disabled="!customKeyConvention || isLoading"
+                @pick="state.settings.keyPrefix = $event"
+                @added="projectStore.getProjects()"
+              />
               <div class="flex items-center gap-4">
                 <UFormField
                   class="flex-1"
@@ -385,7 +394,7 @@ async function onSubmit(_: FormSubmitEvent<ZPage>) {
               />
             </div>
           </template>
-        </UTabs>
+        </SettingsTabs>
 
         <div class="w-full flex justify-end gap-6 mt-4">
           <UButton
