@@ -142,6 +142,30 @@ async function refreshProject() {
   await projectStore.getProjects()
 }
 
+/** Seeded from the payload so the prefix hint has names before the first read. */
+const namespaces = ref<IKeyNamespace[]>(project.namespaces ?? [])
+const namespacesLoading = ref(false)
+const namespaceNames = computed(() => namespaces.value.map((ns) => ns.name))
+
+async function loadNamespaces() {
+  if (mode !== 'edit' || !validID(project.id)) return
+  namespacesLoading.value = true
+  try {
+    namespaces.value =
+      (await useApi<IKeyNamespace[]>(
+        `/api/projects/${project.id}/namespaces`
+      )) ?? []
+  } finally {
+    namespacesLoading.value = false
+  }
+}
+
+/** The Translations list reads namespaces off the project payload. */
+async function refreshNamespaces() {
+  await loadNamespaces()
+  await projectStore.getProjects()
+}
+
 async function addRelease() {
   const name = newReleaseName.value.trim()
   if (!name || !validID(project.id)) return
@@ -199,7 +223,7 @@ onMounted(async () => {
     }
     return
   }
-  await loadReleases()
+  await Promise.all([loadReleases(), loadNamespaces()])
 })
 
 watch(
@@ -264,6 +288,12 @@ const tabsItems = computed(() => [
           slot: 'releases',
           value: 'releases',
         },
+        {
+          label: 'Namespaces',
+          icon: 'i-lucide:folder-tree',
+          slot: 'namespaces',
+          value: 'namespaces',
+        },
       ]
     : []),
 ])
@@ -295,7 +325,7 @@ async function onSubmit(_: FormSubmitEvent<ZProject>) {
 <template>
   <UModal
     :title="title"
-    :ui="{ content: 'sm:max-w-2xl' }"
+    :ui="{ content: 'sm:max-w-4xl' }"
     @update:open="(isOpen) => !isOpen && emit('close', false)"
   >
     <template #body>
@@ -305,12 +335,7 @@ async function onSubmit(_: FormSubmitEvent<ZProject>) {
         :state="state"
         @submit="onSubmit"
       >
-        <UTabs
-          v-model="activeTab"
-          :items="tabsItems"
-          variant="link"
-          :ui="{ trigger: 'grow' }"
-        >
+        <SettingsTabs v-model="activeTab" :items="tabsItems">
           <template #basic>
             <div class="flex flex-col gap-2.5">
               <UFormField label="Name" name="name">
@@ -429,6 +454,15 @@ async function onSubmit(_: FormSubmitEvent<ZProject>) {
                   />
                 </UFormField>
               </div>
+              <KeyPrefixNamespaceHint
+                :prefix="state.settings.keyPrefix || prefixPlaceholder"
+                :separator="state.settings.keySeparator"
+                :names="namespaceNames"
+                :project-id="canManageReleases ? project.id : undefined"
+                :creating="mode === 'create'"
+                @pick="state.settings.keyPrefix = $event"
+                @added="refreshNamespaces"
+              />
               <div class="flex items-center gap-4">
                 <UFormField
                   class="flex-1"
@@ -598,7 +632,15 @@ async function onSubmit(_: FormSubmitEvent<ZProject>) {
               </p>
             </div>
           </template>
-        </UTabs>
+          <template #namespaces>
+            <ProjectNamespacesPanel
+              :project-id="project.id"
+              :namespaces="namespaces"
+              :loading="namespacesLoading"
+              @changed="refreshNamespaces"
+            />
+          </template>
+        </SettingsTabs>
         <div class="w-full flex justify-end gap-6 mt-4">
           <UButton
             color="neutral"

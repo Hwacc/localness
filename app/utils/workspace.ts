@@ -181,6 +181,8 @@ export interface TranslationsFilterState {
   /** `'YYYY-MM-DD'`. Absent means that end of the range is unbounded. */
   from?: string
   to?: string
+  /** Absent means All. A deleted namespace is resolved away by the page. */
+  namespace?: 'ungrouped' | number
 }
 
 /**
@@ -212,6 +214,13 @@ export function readTranslationsFilterForProject(
     includeDraftKeys: pickBoolean(raw.includeDraftKeys, fallback.includeDraftKeys),
     from: typeof raw.from === 'string' && raw.from ? raw.from : undefined,
     to: typeof raw.to === 'string' && raw.to ? raw.to : undefined,
+    namespace:
+      raw.namespace === 'ungrouped' ||
+      (typeof raw.namespace === 'number' &&
+        Number.isInteger(raw.namespace) &&
+        raw.namespace > 0)
+        ? raw.namespace
+        : undefined,
   }
 }
 

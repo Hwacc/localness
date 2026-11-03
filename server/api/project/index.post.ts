@@ -6,6 +6,7 @@ import {
   projectDetailInclude,
   shapeProject,
 } from '#server/helper/i18n'
+import { seedNamespaceFromPrefix } from '#server/helper/namespace'
 import { DEFAULT_LOCALES, DEFAULT_LOCALE_FALLBACK } from '#shared/constants'
 import {
   DEFAULT_KEY_CONVENTION,
@@ -36,6 +37,8 @@ export default defineEventHandler(async (event) => {
     assertSourceLocale(settings.localeFallback, [...DEFAULT_LOCALES])
   }
 
+  const keyPrefix = settings?.keyPrefix ?? slugKeyPrefix(name)
+
   const createdProject = await prisma.$transaction(async (tx) => {
     const created = await tx.project.create({
       data: {
@@ -56,13 +59,14 @@ export default defineEventHandler(async (event) => {
         // need not be latin, and the value is stored as a snapshot, so renaming
         // the project later does not move the keys it already produced. An
         // explicitly sent prefix wins, including an empty one.
-        keyPrefix: settings?.keyPrefix ?? slugKeyPrefix(name),
+        keyPrefix,
         keySeparator:
           settings?.keySeparator ?? DEFAULT_KEY_CONVENTION.separator,
         keyStyle: settings?.keyStyle ?? DEFAULT_KEY_CONVENTION.style,
         keyMaxDepth: settings?.keyMaxDepth ?? DEFAULT_KEY_CONVENTION.maxDepth,
       },
     })
+    await seedNamespaceFromPrefix(tx, created.id, keyPrefix)
     await tx.projectOwner.create({
       data: {
         userId,

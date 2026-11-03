@@ -28,7 +28,9 @@ const { $dayjs } = useNuxtApp()
 const route = useRoute()
 const projectStore = useProjectStore()
 const pageStore = usePageStore()
-const { curProject, curReleases, curReleaseFilter } = storeToRefs(projectStore)
+const { curProject, curReleases, curReleaseFilter, curNamespaces } =
+  storeToRefs(projectStore)
+const { openSettings } = useProjectActions()
 
 /*
  * A Consistency "Find" deep link may widen this visit (`?scope=all`) without
@@ -54,6 +56,9 @@ const sourceLocale = computed(
     curProject.value.settings?.localeFallback || DEFAULT_LOCALE_FALLBACK
 )
 
+/** Page-local and remembered per project with the other list filters. */
+const namespaceFilter = ref<NamespaceFilterValue>('all')
+
 /**
  * The shared query owns the request — filters, paging, rows. What stays here is
  * everything particular to this page: remembering the filters per project,
@@ -62,6 +67,7 @@ const sourceLocale = computed(
 const query = useI18nKeyQuery({
   projectId: computed(() => curProject.value.id),
   releaseFilter: listReleaseFilter,
+  namespaceFilter,
   limit: 50,
   // The key table shows auto draft keys; see the option's own note.
   includeDraftKeys: true,
@@ -677,14 +683,29 @@ function openDelete(row: II18nKeyRow) {
  * The inspector refills its fields off `loadCount`, which is bumped only when
  * rows actually land.
  */
-async function loadKeys() {
+async function loadRows() {
   rowSelection.value = {}
   await query.load()
 }
 
+const namespaceCounts = ref<I18nKeyNamespaceCounts | null>(null)
+let countsRequest = 0
+
+/** Only the latest request lands: a project switch can overtake a slow one. */
+async function loadNamespaceCounts() {
+  const request = ++countsRequest
+  const res = await query.namespaceCounts()
+  if (request === countsRequest) namespaceCounts.value = res ?? null
+}
+
+/** Rows and the rail's counts — anything that can change what a key counts toward. */
+async function loadKeys() {
+  await Promise.all([loadRows(), loadNamespaceCounts()])
+}
+
 function onPageChange(next: number) {
   page.value = next
-  loadKeys()
+  loadRows()
 }
 
 function movePage(delta: -1 | 1) {
@@ -745,7 +766,61 @@ function persistFilters() {
     includeDraftKeys: includeDraftKeys.value,
     from: start ? formatRangeDay(start) : undefined,
     to: end ? formatRangeDay(end) : undefined,
+    namespace:
+      namespaceFilter.value === 'all' ? undefined : namespaceFilter.value,
   })
+}
+
+// Counts do not depend on the namespace picked, so only the rows reload.
+const namespaceWatch = watchIgnorable(namespaceFilter, () => {
+  persistFilters()
+  page.value = 1
+  loadRows()
+})
+
+/**
+ * Namespaces change from Project Settings or the rail's suggestions. The
+ * picked one may be gone, and every count may have moved. A project switch
+ * changes them too, but that watcher reloads everything itself.
+ */
+watch(
+  () => [curProject.value.id, curNamespaces.value] as const,
+  ([id], [prevId]) => {
+    if (id !== prevId) return
+    namespaceFilter.value = resolveNamespaceFilterValue(
+      namespaceFilter.value,
+      curNamespaces.value,
+    )
+    loadNamespaceCounts()
+  },
+)
+
+const canManageNamespaces = computed(() =>
+  canManageProjectSettings(curProject.value),
+)
+
+/** Hidden until there is something to group by, or an owner could start. */
+const showNamespaceNav = computed(
+  () =>
+    curNamespaces.value.length > 0 ||
+    (canManageNamespaces.value &&
+      Boolean(namespaceCounts.value?.suggestions.length)),
+)
+
+const addingNamespace = ref(false)
+
+async function addNamespace(name: string) {
+  if (!validID(curProject.value.id)) return
+  addingNamespace.value = true
+  try {
+    const created = await useApi(
+      `/api/projects/${curProject.value.id}/namespaces`,
+      { method: 'POST', body: { name } },
+    )
+    if (created) await projectStore.getProjects()
+  } finally {
+    addingNamespace.value = false
+  }
 }
 
 function restoreFilters(projectId: ID) {
@@ -753,6 +828,12 @@ function restoreFilters(projectId: ID) {
   // These do not nest: each watcher counts changes to its own sources only.
   qWatch.ignoreUpdates(() => {
     q.value = saved.q
+  })
+  namespaceWatch.ignoreUpdates(() => {
+    namespaceFilter.value = resolveNamespaceFilterValue(
+      saved.namespace,
+      curNamespaces.value,
+    )
   })
   statusWatch.ignoreUpdates(() => {
     statusFilter.value = saved.status
@@ -813,6 +894,9 @@ function applyDeepLink(projectId: ID) {
   statusWatch.ignoreUpdates(() => {
     statusFilter.value = I18nKeyStatusFilter.ALL
     includeDraftKeys.value = true
+  })
+  namespaceWatch.ignoreUpdates(() => {
+    namespaceFilter.value = 'all'
   })
   dateWatch.ignoreUpdates(() => {
     dateRange.value = { start: undefined, end: undefined } as typeof dateRange.value
@@ -1165,20 +1249,35 @@ onMounted(async () => {
 
     <!-- Stacks below `lg`, like the Consistency review. -->
     <div class="flex-1 min-h-0 min-w-0 flex flex-col lg:flex-row">
-      <TranslationsKeyList
-        v-model:focused="focusedId"
-        v-model:row-selection="rowSelection"
-        class="max-h-[45%] lg:max-h-none lg:w-96 shrink-0 border-b lg:border-b-0 lg:border-r border-default"
-        :page="page"
-        :project-id="curProject.id"
-        :rows="rows"
-        :loading="loading"
-        :total="total"
-        :limit="limit"
-        :locale-codes="localeCodes"
-        :source-locale="sourceLocale"
-        @update:page="onPageChange"
-      />
+      <div
+        class="max-h-[45%] lg:max-h-none lg:w-96 shrink-0 min-h-0 flex flex-col border-b lg:border-b-0 lg:border-r border-default"
+      >
+        <TranslationsNamespaceNav
+          v-if="showNamespaceNav"
+          v-model="namespaceFilter"
+          class="shrink-0 border-b border-default"
+          :namespaces="curNamespaces"
+          :counts="namespaceCounts"
+          :can-manage="canManageNamespaces"
+          :adding="addingNamespace"
+          @manage="openSettings(undefined, 'namespaces')"
+          @add="addNamespace"
+        />
+        <TranslationsKeyList
+          v-model:focused="focusedId"
+          v-model:row-selection="rowSelection"
+          class="flex-1"
+          :page="page"
+          :project-id="curProject.id"
+          :rows="rows"
+          :loading="loading"
+          :total="total"
+          :limit="limit"
+          :locale-codes="localeCodes"
+          :source-locale="sourceLocale"
+          @update:page="onPageChange"
+        />
+      </div>
       <main class="flex-1 min-h-0 min-w-0 flex flex-col bg-default">
         <div
           v-if="offPage"

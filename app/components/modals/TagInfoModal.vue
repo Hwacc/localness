@@ -437,9 +437,9 @@ const previewLabelStyle = computed(() => {
 
 <template>
   <UModal
-    class="max-w-200"
     title="Tag Info"
     :dismissible="!loading"
+    :ui="{ content: 'sm:max-w-3xl' }"
     @update:open="(isOpen) => !isOpen && emit('close', false)"
   >
     <template #body>
@@ -450,11 +450,7 @@ const previewLabelStyle = computed(() => {
         @submit="onSubmit"
         @error="(e) => console.error('error', e)"
       >
-        <UTabs
-          :items="tabsItems"
-          variant="link"
-          :ui="{ trigger: 'grow', content: 'mt-2' }"
-        >
+        <SettingsTabs :items="tabsItems">
           <template #basic>
             <div class="flex flex-col gap-2.5">
               <UFormField label="Tag Clip">
@@ -789,7 +785,7 @@ const previewLabelStyle = computed(() => {
               </UFormField>
             </div>
           </template>
-        </UTabs>
+        </SettingsTabs>
         <div class="w-full flex justify-end gap-6 mt-6">
           <UButton
             color="neutral"

@@ -3,7 +3,7 @@ import {
   touchApiToken,
 } from '#server/helper/api-token'
 import { resolveTokenProject } from '#server/helper/api-token-project'
-import { deliveryMeta, resolveReleaseParam } from '#server/helper/api-delivery'
+import { deliveryMeta, resolveDeliveryScope } from '#server/helper/api-delivery'
 import { tokenManagesReleases } from '#server/helper/api-capture'
 import { licenseState } from '#server/helper/license'
 import type { DeliveryMeta } from '#shared/contract'
@@ -29,10 +29,10 @@ export default defineEventHandler(async (event): Promise<DeliveryMeta> => {
   )
   const query = getQuery(event)
   const projectId = await resolveTokenProject(token, query.project)
-  const releaseId = await resolveReleaseParam(projectId, query.release)
+  const scope = await resolveDeliveryScope(projectId, query)
 
   const canManageReleases = await tokenManagesReleases(token.createdBy, projectId)
-  const result = await deliveryMeta(projectId, releaseId, canManageReleases)
+  const result = await deliveryMeta(projectId, scope, canManageReleases)
   if (!result) {
     throw createError({ statusCode: 404, statusMessage: 'Project not found' })
   }

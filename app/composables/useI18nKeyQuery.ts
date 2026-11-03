@@ -17,6 +17,8 @@ export function useI18nKeyQuery(options: {
   pageIds?: Ref<number[]>
   /** Restrict to one release label, or to the unlabelled entries. */
   releaseFilter?: Ref<ReleaseFilterValue>
+  /** Restrict to one key namespace, or to the keys in none. */
+  namespaceFilter?: Ref<NamespaceFilterValue>
   limit?: number
   /**
    * Auto draft keys (`__draft_…` from tagging a screenshot) start hidden here,
@@ -82,7 +84,24 @@ export function useI18nKeyQuery(options: {
     } else if (typeof releaseFilter === 'number') {
       params.set('releaseId', String(releaseFilter))
     }
+    const namespaceFilter = options.namespaceFilter?.value
+    if (namespaceFilter === 'ungrouped') {
+      params.set('ungrouped', '1')
+    } else if (typeof namespaceFilter === 'number') {
+      params.set('namespaceId', String(namespaceFilter))
+    }
     return params
+  }
+
+  /**
+   * Keys per namespace under every other filter, so each count is what picking
+   * that namespace would list. The server ignores the namespace filter here.
+   */
+  async function namespaceCounts() {
+    if (!validID(options.projectId.value)) return null
+    return useApi<I18nKeyNamespaceCounts>(
+      `/api/projects/${options.projectId.value}/i18n-keys/namespaces?${baseParams()}`
+    )
   }
 
   async function load() {
@@ -158,5 +177,6 @@ export function useI18nKeyQuery(options: {
     reload,
     matchingIds,
     fetchByIds,
+    namespaceCounts,
   }
 }

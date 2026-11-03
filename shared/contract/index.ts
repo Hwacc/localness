@@ -10,5 +10,6 @@
  * subpath, so a consumer that only wants types never pulls in the logic.
  */
 export * from './release'
+export * from './namespace'
 export * from './delivery'
 export * from './import'

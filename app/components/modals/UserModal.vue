@@ -152,10 +152,11 @@ function confirmDisconnectAtlassian() {
 <template>
   <UModal
     title="User Settings"
+    :ui="{ content: 'sm:max-w-2xl' }"
     @update:open="(isOpen) => !isOpen && emit('close', false)"
   >
     <template #body>
-      <UTabs :items="tabsItems" variant="link" :ui="{ trigger: 'grow' }">
+      <SettingsTabs :items="tabsItems">
         <template #profile>
           <UForm
             class="flex flex-col gap-3 pt-2.5"
@@ -327,7 +328,7 @@ function confirmDisconnectAtlassian() {
             </UForm>
           </div>
         </template>
-      </UTabs>
+      </SettingsTabs>
     </template>
   </UModal>
 </template>
