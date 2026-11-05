@@ -1,3 +1,6 @@
+import { ocrImageFrom } from './ocrClip'
+import type { Rect } from './ocrMargins'
+
 class ImageClipper {
   worker: Worker
   ready: boolean = false
@@ -51,29 +54,35 @@ class ImageClipper {
   }
 
   public async clip({
-    x,
-    y,
-    width,
-    height,
     quality = 0.8,
-  }: {
-    x: number
-    y: number
-    width: number
-    height: number
-    quality?: number
-  }) {
-    return new Promise<string>((resolve, reject) => {
+    ...rect
+  }: Rect & { quality?: number }) {
+    this.draw(await this.bitmap(rect))
+    return this.decodeCanvas.toDataURL('image/jpeg', quality)
+  }
+
+  /** The tag region cropped to its text with even margins, as lossless PNG. */
+  public async clipForOcr(rect: Rect) {
+    // `draw` closed the bitmap, which zeroes its size; the canvas keeps it.
+    this.draw(await this.bitmap(rect))
+    return ocrImageFrom(this.decodeCanvas)
+  }
+
+  private draw(bitmap: ImageBitmap) {
+    this.decodeCanvas.width = bitmap.width
+    this.decodeCanvas.height = bitmap.height
+    this.decodeCanvasCtx?.drawImage(bitmap, 0, 0)
+    bitmap.close()
+  }
+
+  private bitmap({ x, y, width, height }: Rect) {
+    return new Promise<ImageBitmap>((resolve, reject) => {
       const _listener = async (
         e: MessageEvent<{ type: string; data: any }>
       ) => {
         const { type, data: payload } = e.data
         if (type === 'process-image' && payload.operation === 'clip') {
-          const bitmap = payload.data as ImageBitmap
-          this.decodeCanvas.width = bitmap.width
-          this.decodeCanvas.height = bitmap.height
-          this.decodeCanvasCtx?.drawImage(bitmap, 0, 0)
-          resolve(this.decodeCanvas.toDataURL('image/jpeg', quality))
+          resolve(payload.data as ImageBitmap)
         } else if (type === 'error') {
           reject(payload)
         }

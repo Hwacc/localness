@@ -158,7 +158,13 @@
 | 这条词条**已发布**                 | 原文 / 译文 /**I18n Key** / **Releases** 一律改不了（输入框禁用的，服务端也拒）。先点上面那行 **Revert to draft** 解锁；框的样式、锁定、Prompt 不受这条影响，照常能存 |
 | 点**New**（原文那一行右侧的按钮）  | 按当前原文**另建一条**词条，这个框改挂到新的那条上；原来那条留在项目里，别的框可能还指着它。项目里已有相同原文时，会先问你复用还是新建                                            |
 
-**New** 碰到「已有相同原文」时，弹的那个窗长这样：标题 **Warning**，正文 `This translation already exists. Do you want to recover it?`，另有提示 `Create new translation may generate a repeating translation. Make sure to create it carefully.`，按钮是 **Create New** 和 **Recover**。**Recover** 把这条框挂到已有的那条词条上——**不动那条词条的内容**（它本来就装着这句原文），**Create New** 另起一条。这个弹窗点不掉，必须二选一。
+**New** 或 OCR 碰到「已有相同原文」时，会弹出标题为 **Entry already exists** 的窗。「相同」按内容指纹判断，指纹忽略空白，所以只差空格的两句也算相同（比如 OCR 先读出粘连的 `BESTGAMINGMOMENTS`，后来读出 `BEST GAMING MOMENTS`）。按钮上悬停都有说明：
+
+- **Use Existing**：把这条框挂到已有的那条词条上，**不动那条词条的内容**。
+- **Use Existing & Update**：只在两句**只差空白**时出现，弹窗会并排显示 Existing / New 两句。挂到已有词条上，并把它的原文换成新的这句。那条词条已发布时按钮禁用，要先 **Revert to draft**。
+- **Create New**：另起一条，项目里会有两条原文相同的词条。
+
+这个弹窗点不掉，必须选一个。
 
 ## 删掉一个框
 

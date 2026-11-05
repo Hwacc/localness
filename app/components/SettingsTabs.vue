@@ -4,18 +4,19 @@ import { useMediaQuery } from '@vueuse/core'
 
 /**
  * Tabs for settings dialogs: a side column from `sm`, so adding a tab never
- * squeezes the labels, and a fixed height there so the dialog stays still
- * between tabs of very different length — the pane scrolls instead. Below `sm`
- * the modal is full-width and a side column would crowd the fields, so the
- * tabs go back on top.
+ * squeezes the labels, and a minimum height there so the dialog stays still
+ * between short tabs. A longer pane grows the dialog and the modal body
+ * scrolls — the pane has no scroll of its own. Below `sm` the modal is
+ * full-width and a side column would crowd the fields, so the tabs go back on
+ * top.
  */
 const {
   items,
-  height = 'h-[min(34rem,65vh)]',
+  height = 'min-h-[min(34rem,65vh)]',
   unmountOnHide = true,
 } = defineProps<{
   items: T[]
-  /** Tailwind height class for the side layout; size it to the longest pane. */
+  /** Tailwind min-height class for the side layout; size it to the usual pane. */
   height?: string
   unmountOnHide?: boolean
 }>()
@@ -46,7 +47,7 @@ const side = useMediaQuery('(min-width: 640px)')
             list: 'w-40 shrink-0 ms-0 border-s-0 border-e',
             indicator: 'start-auto -end-px',
             trigger: 'w-full justify-start',
-            content: 'min-w-0 flex-1 overflow-y-auto p-1',
+            content: 'min-w-0 flex-1 p-1',
           }
         : { list: 'overflow-x-auto', trigger: 'shrink-0' }
     "

@@ -1,6 +1,6 @@
 import { omit } from 'lodash-es'
 import { DEFAULT_LOCALE_FALLBACK } from '#shared/constants'
-import { AlertModal, UAlert, UButton } from '#components'
+import { AlertModal, UButton, UTooltip } from '#components'
 
 export function useTranslationGenerator() {
   const toast = useToast()
@@ -19,47 +19,102 @@ export function useTranslationGenerator() {
     return String((trans.vue ?? trans.react)?.[sourceLocale.value] ?? '').trim()
   }
 
+  /**
+   * The hit and the new text share a fingerprint, which ignores whitespace,
+   * so they can still differ in spacing — an OCR read that glued words, say.
+   * Null while the two match exactly.
+   */
+  const conflict = shallowRef<{
+    existingText: string
+    newText: string
+    /** Published entries are read-only until reverted to draft. */
+    editable: boolean
+    update: () => void
+  } | null>(null)
+
   const alertModal = overlay.create(AlertModal, {
     props: {
       mode: 'warning',
-      title: 'Warning',
+      title: 'Entry already exists',
       loading: false,
       slots: {
         body: () => {
+          const diff = conflict.value
           return (
             <div class="flex flex-col gap-3">
-              <p>This translation already exists. Do you want to recover it?</p>
-              <UAlert
-                title="Warning"
-                description="Create new translation may generate a repeating translation. Make sure to create it carefully."
-                color="warning"
-                variant="soft"
-              />
+              <p>
+                {diff
+                  ? 'This project already has an entry with the same text, ignoring whitespace. Use Existing links this tag to it instead of adding a duplicate.'
+                  : 'This project already has an entry with this text. Use Existing links this tag to it instead of adding a duplicate.'}
+              </p>
+              {diff && (
+                <div class="flex flex-col gap-2 text-sm">
+                  <div>
+                    <p class="text-xs text-muted">Existing</p>
+                    <p class="font-mono break-words">{diff.existingText}</p>
+                  </div>
+                  <div>
+                    <p class="text-xs text-muted">New</p>
+                    <p class="font-mono break-words">{diff.newText}</p>
+                  </div>
+                </div>
+              )}
             </div>
           )
         },
         footer: ({ close, emit, mode }) => {
+          const diff = conflict.value
           return (
             <div class="w-full flex items-center justify-end gap-2">
-              <UButton
-                label="Create New"
-                color="neutral"
-                variant="ghost"
-                onClick={() => {
-                  emit('cancel', mode, {
-                    close: () => close(true),
-                  })
-                }}
-              />
-              <UButton
-                label="Recover"
-                color="warning"
-                onClick={() => {
-                  emit('ok', mode, {
-                    close: () => close(true),
-                  })
-                }}
-              />
+              <UTooltip text="Add a second entry with the new text, leaving the existing one as it is. The project then holds two entries for the same text.">
+                <UButton
+                  label="Create New"
+                  color="neutral"
+                  variant="ghost"
+                  onClick={() => {
+                    emit('cancel', mode, {
+                      close: () => close(true),
+                    })
+                  }}
+                />
+              </UTooltip>
+              {diff && (
+                <UTooltip
+                  text={
+                    diff.editable
+                      ? 'Link this tag to the existing entry and replace its source text with the new text.'
+                      : 'The existing entry is published. Revert it to draft to change its text.'
+                  }
+                >
+                  {/* A disabled button gets no pointer events; the span keeps the tooltip. */}
+                  <span>
+                    <UButton
+                      label="Use Existing & Update"
+                      color="warning"
+                      variant="outline"
+                      disabled={!diff.editable}
+                      onClick={diff.update}
+                    />
+                  </span>
+                </UTooltip>
+              )}
+              <UTooltip
+                text={
+                  diff
+                    ? 'Link this tag to the existing entry and keep its current text.'
+                    : 'Link this tag to the existing entry.'
+                }
+              >
+                <UButton
+                  label="Use Existing"
+                  color="warning"
+                  onClick={() => {
+                    emit('ok', mode, {
+                      close: () => close(true),
+                    })
+                  }}
+                />
+              </UTooltip>
             </div>
           )
         },
@@ -96,11 +151,39 @@ export function useTranslationGenerator() {
         'releaseIds',
       ])
       if (existing) {
+        const existingText = sourceTextOf(existing)
+        const newText = sourceTextOf(trans)
+        conflict.value =
+          existingText === newText
+            ? null
+            : {
+                existingText,
+                newText,
+                editable: existing.dirty !== false,
+                update: async () => {
+                  try {
+                    alertModal.patch({ loading: true })
+                    const content = await useApi<TranslationContent>(
+                      `/api/translation/${existing.id}/vue`,
+                      {
+                        method: 'POST',
+                        body: { [sourceLocale.value]: newText },
+                      }
+                    )
+                    resolve({ ...existing, vue: content, react: { ...content } })
+                    alertModal.close(true)
+                  } catch (error) {
+                    console.error(error)
+                  } finally {
+                    alertModal.patch({ loading: false })
+                  }
+                },
+              }
         // open ask modal
         alertModal.open()
         alertModal.patch({
           interceptCancel: true,
-          /* Recover links, never writes: the entry already holds this text. */
+          /* Use Existing links, never writes: the entry already holds this text. */
           onOk: (_, { close }) => {
             resolve(existing)
             close()

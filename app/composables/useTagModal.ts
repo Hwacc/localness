@@ -4,6 +4,8 @@ import { isEmpty } from 'lodash-es'
 type TagModalOptions = {
   tag: ITag
   clip: string
+  /** The clip re-cut for OCR (cropped to text, even margins); `clip` is for display. */
+  ocrImage: () => Promise<string>
   onSave?: (updatedTag: ITag | undefined) => void
   onCreateTranslation?: (updatedTag: ITag | undefined) => void
   onClose?: (isOK: boolean) => void
@@ -102,7 +104,7 @@ export function useTagModal() {
           if (type === 'ocr') {
             // ocr -> create translation -> update tag
             const createdTrans = await translationGenerator.ocr({
-              image: opt.clip,
+              image: await opt.ocrImage(),
               releaseIds,
             })
             await handleUpdateTag(createdTrans)

@@ -122,17 +122,8 @@ function onCustomChange(value: boolean) {
   customKeyConvention.value = value
   applyConvention(value)
 }
-watch(
-  () => state.settings.ocrLanguage,
-  (value) => {
-    if (value === 'auto') {
-      state.settings.ocrEngine = 2
-    }
-  }
-)
-const showAlert = computed(() => {
-  return state.settings.ocrLanguage === 'auto'
-})
+// PaddleX has no language option; OCR.space is the only one that reads it.
+const showOcrLanguage = useRuntimeConfig().public.ocrProvider === 'ocrspace'
 
 const title = computed(() => {
   switch (mode) {
@@ -278,39 +269,16 @@ async function onSubmit(_: FormSubmitEvent<ZPage>) {
                 already use, so a heading in those clothes reads as one more
                 label rather than as a section.
               -->
-              <h3 class="text-xs font-medium text-muted uppercase">OCR</h3>
-              <div class="flex items-center gap-4">
-                <UFormField
-                  class="flex-1"
-                  label="OCR Language"
-                  name="settings.ocrLanguage"
-                >
+              <template v-if="showOcrLanguage">
+                <h3 class="text-xs font-medium text-muted uppercase">OCR</h3>
+                <UFormField label="OCR Language" name="settings.ocrLanguage">
                   <OCRLanguageSelect
                     v-model="state.settings.ocrLanguage"
                     class="w-full"
                     default-value="eng"
                   />
                 </UFormField>
-                <UFormField
-                  class="flex-1"
-                  label="OCR Engine"
-                  name="settings.ocrEngine"
-                >
-                  <OCREngineSelect
-                    v-model="state.settings.ocrEngine"
-                    class="w-full"
-                    :disabled="showAlert"
-                    :default-value="1"
-                  />
-                </UFormField>
-              </div>
-              <UAlert
-                v-if="showAlert"
-                variant="soft"
-                color="warning"
-                title="Warning"
-                description="Auto language detection is only supported by Engine 2."
-              />
+              </template>
               <h3 class="text-xs font-medium text-muted uppercase">
                 AI key naming
               </h3>

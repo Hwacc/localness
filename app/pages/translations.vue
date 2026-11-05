@@ -190,14 +190,33 @@ const focusedRow = computed(
 /** The inspected key is not in the list that is on screen. */
 const offPage = computed(() => !listRow.value && Boolean(focusedRow.value))
 
+/**
+ * Set by a filter change. Holding the key only makes sense after a save pushed
+ * it off its page — "Show in list" brings it back there. A key the new filter
+ * leaves out cannot be shown, so focus moves to the first row instead.
+ */
+let refocusOnLoad = false
+function reloadForFilter(load: () => Promise<unknown>) {
+  refocusOnLoad = true
+  page.value = 1
+  load()
+}
+
 /** A focused key that no longer exists falls back to the first one. */
 watch(loadCount, async () => {
+  const refocus = refocusOnLoad
+  refocusOnLoad = false
   const id = focusedId.value
   if (id == null) {
     focusedId.value = rows.value[0]?.id ?? null
     return
   }
   if (listRow.value) return
+  if (refocus) {
+    heldRow.value = null
+    focusedId.value = rows.value[0]?.id ?? null
+    return
+  }
   const [row] = await query.fetchByIds([id])
   // The user may have moved on while the read was in flight.
   if (String(focusedId.value) !== String(id)) return
@@ -722,10 +741,7 @@ function onRowToggleGitSync(row: II18nKeyRow) {
   setGitSync(row, !row.gitSyncEnabled)
 }
 
-const searchDebounced = useDebounceFn(() => {
-  page.value = 1
-  loadKeys()
-}, 300)
+const searchDebounced = useDebounceFn(() => reloadForFilter(loadKeys), 300)
 
 /**
  * Filters are remembered per project, so switching away and back restores what
@@ -742,8 +758,7 @@ const qWatch = watchIgnorable(q, () => {
 // Status is a discrete choice, not typing — apply it immediately.
 const statusWatch = watchIgnorable([statusFilter, includeDraftKeys], () => {
   persistFilters()
-  page.value = 1
-  loadKeys()
+  reloadForFilter(loadKeys)
 })
 
 // Range calendars emit twice (start, then end). Reload on both so a single
@@ -752,8 +767,7 @@ const dateWatch = watchIgnorable(
   () => [dateRange.value.start, dateRange.value.end],
   () => {
     persistFilters()
-    page.value = 1
-    loadKeys()
+    reloadForFilter(loadKeys)
   },
 )
 
@@ -774,8 +788,7 @@ function persistFilters() {
 // Counts do not depend on the namespace picked, so only the rows reload.
 const namespaceWatch = watchIgnorable(namespaceFilter, () => {
   persistFilters()
-  page.value = 1
-  loadRows()
+  reloadForFilter(loadRows)
 })
 
 /**

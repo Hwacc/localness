@@ -164,6 +164,37 @@ function dismissSuggestion() {
   suggestionRowId.value = null
 }
 
+/** Held with its row, like the name suggestion, so a late answer cannot land on another key. */
+const ocrReading = ref<{ rowId: ID; text: string } | null>(null)
+const rowOcrText = computed(() =>
+  ocrReading.value && String(ocrReading.value.rowId) === String(props.row?.id)
+    ? ocrReading.value.text
+    : null,
+)
+/** The fingerprint ignores whitespace, so a glued reading is told apart from a real change. */
+const ocrMatch = computed(() => {
+  const text = rowOcrText.value
+  if (text === null) return null
+  const source = texts.value[props.sourceLocale] ?? ''
+  if (text === source) return 'same' as const
+  return fpTranslation(text) === fpTranslation(source)
+    ? ('whitespace' as const)
+    : ('different' as const)
+})
+
+function onOcr(result: { keyId: ID; text: string }) {
+  ocrReading.value = { rowId: result.keyId, text: result.text }
+}
+
+/** Saved right away: nothing else would commit it, as no field loses focus. */
+async function applyOcr() {
+  const text = rowOcrText.value
+  if (text === null) return
+  texts.value = { ...texts.value, [props.sourceLocale]: text }
+  ocrReading.value = null
+  await saveLocale(props.sourceLocale)
+}
+
 /**
  * Taking the name has to write it here: the confirm button pulls focus off the
  * key field, so no later blur will commit it.
@@ -204,6 +235,7 @@ watch(
     if (String(previous?.[0]) !== String(id)) {
       // The panel answers the row that asked for it, so moving on drops it.
       dismissSuggestion()
+      ocrReading.value = null
     }
     fillFromRow()
   },
@@ -499,6 +531,8 @@ defineExpose({ flushPendingSaves })
           :project-id="projectId"
           :key-id="row.id"
           :tag-count="row.tagCount"
+          :ocr-writable="writable"
+          @ocr="onOcr"
         />
         <USeparator />
         <div
@@ -546,6 +580,53 @@ defineExpose({ flushPendingSaves })
               class="ml-1"
             />
             <span>{{ localeMeta(sourceLocale)?.label || sourceLocale }}</span>
+          </div>
+          <div
+            v-if="rowOcrText !== null && writable"
+            class="flex flex-col gap-2 rounded-md border border-default bg-muted px-3 py-2"
+          >
+            <div class="flex items-center gap-1.5 text-xs">
+              <UIcon name="i-lucide:scan-text" class="size-3.5 text-muted" />
+              <span class="font-semibold uppercase tracking-wider text-muted">
+                From screenshot
+              </span>
+              <span
+                class="ml-auto"
+                :class="ocrMatch === 'different' ? 'text-warning' : 'text-muted'"
+              >
+                {{
+                  ocrMatch === 'same'
+                    ? 'Matches the source'
+                    : ocrMatch === 'whitespace'
+                      ? 'Differs only in spacing'
+                      : 'Differs from the source'
+                }}
+              </span>
+            </div>
+            <p class="whitespace-pre-wrap break-words text-sm">
+              {{ rowOcrText }}
+            </p>
+            <div class="flex items-center justify-end gap-1">
+              <UButton
+                size="xs"
+                color="neutral"
+                variant="ghost"
+                label="Dismiss"
+                @click="ocrReading = null"
+              />
+              <UTooltip text="Replace the source text with this reading">
+                <span>
+                  <UButton
+                    size="xs"
+                    color="primary"
+                    variant="soft"
+                    label="Apply to source"
+                    :disabled="ocrMatch === 'same'"
+                    @click="applyOcr"
+                  />
+                </span>
+              </UTooltip>
+            </div>
           </div>
           <!--
             Nuxt UI pairs `autoresize` with `resize-none`, so the drag handle has

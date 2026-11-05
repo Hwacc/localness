@@ -291,16 +291,17 @@ onMounted(async () => {
   editor.value.connectOn<'connect-tag-info', ITag, ITag | undefined>(
     'connect-tag-info',
     async ({ send, disconnect, payload }) => {
-      const clip = await Editor.imageClipper.clip({
+      const rect = {
         x: payload.x,
         y: payload.y,
         width: payload.width,
         height: payload.height,
-        quality: 1,
-      })
+      }
+      const clip = await Editor.imageClipper.clip({ ...rect, quality: 1 })
       openTagModal({
         tag: payload,
         clip,
+        ocrImage: () => Editor.imageClipper.clipForOcr(rect),
         onSave: (updatedTag) => send(updatedTag),
         onCreateTranslation: (updatedTag) => send(updatedTag),
         onClose: (isOK) => {
