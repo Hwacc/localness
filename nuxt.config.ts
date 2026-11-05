@@ -57,6 +57,8 @@ export default defineNuxtConfig({
     public: {
       ossEngine: process.env.NUXT_PUBLIC_OSS_ENGINE || 'LOCAL',
       ossBaseUrl: process.env.NUXT_PUBLIC_OSS_BASE_URL || '/upload/',
+      // 'ocrspace' | 'paddlex'; the UI hides OCR options the provider ignores.
+      ocrProvider: process.env.NUXT_PUBLIC_OCR_PROVIDER || 'ocrspace',
       appVersion: pkg.version,
       appCommit: buildCommit(),
     },

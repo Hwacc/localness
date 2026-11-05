@@ -1,4 +1,4 @@
-import { ocr } from '#server/libs/ocr'
+import { ocrProvider } from '#server/libs/ocr'
 import { readZodBody } from '#server/helper/validate'
 
 /**
@@ -10,11 +10,9 @@ export default defineEventHandler(async (event) => {
   await requireUserSession(event)
   const { image, language: lang } = await readZodBody(event, zOCR.parse)
   const language = lang ?? 'auto'
-  const result = await ocr(image, { language })
-  if (!result) return null
-  const parsed = result.ParsedResults[0]
-  if (!parsed) return null
-  const text = parsed.ParsedText.replace(
+  const recognized = await ocrProvider().recognize(image, { language })
+  const text = recognized
+    .replace(
     /([^a-zA-Z0-9\u4e00-\u9fa5])\r\n/g,
     ''
   )
