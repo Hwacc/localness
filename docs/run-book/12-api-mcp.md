@@ -142,6 +142,8 @@ Authorization: Bearer <token>
 
 **项目写在 URL 上，不写在工具参数里**——所以工具列表永远是同一套，一个 MCP 条目就代表一个项目。token 只指定了一个项目时，`?project=` 可以不写。
 
+token 指定了多个项目、URL 又没写 `?project=` 时，握手照常成功，但只提供一个 `list_projects` 工具：它列出 token 能访问的项目，并提示把 `?project=<id 或名字>` 加到 URL 上。全局（工作区）配置想用多项目 token，就给每个项目配一个条目（如 `localness-web`、`localness-app`），agent 靠条目名选项目。
+
 **九个工具，全部只读**：
 
 | 工具                      | 干什么                                                                                                              |

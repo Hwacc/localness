@@ -2,6 +2,8 @@ import { createMcpHandler, McpServer } from '@modelcontextprotocol/server'
 import type { AuthInfo } from '@modelcontextprotocol/server'
 import { z } from 'zod'
 import { listReleases } from '#server/helper/release'
+import { listTokenProjects } from '#server/helper/api-token-project'
+import type { TokenIdentity } from '#server/helper/api-token-project'
 import { listNamespaces } from '#server/helper/namespace'
 import { UNGROUPED_NAMESPACE_PARAM } from '#shared/utils/namespace'
 import {
@@ -29,7 +31,8 @@ import type { DeliveryScope } from '#server/helper/api-delivery'
  * reaches, and one MCP server entry means one project. The route resolves it
  * once, from `?project=` when the token reaches several, and passes it through
  * `authInfo.extra` — so the tools never re-derive it and cannot disagree with
- * what was actually authorized.
+ * what was actually authorized. When a multi-project token names none, the
+ * route passes `null` and only `list_projects` is served.
  *
  * Every tool delegates to the same `api-delivery` helpers the REST endpoints
  * use. That is deliberate — two ways to fetch copy that could drift is exactly
@@ -37,15 +40,18 @@ import type { DeliveryScope } from '#server/helper/api-delivery'
  */
 
 /** Set by the route from the authenticated token row. */
-type ProjectScope = { projectId?: number }
+type ProjectScope = {
+  projectId?: number | null
+  token?: TokenIdentity
+}
 
-function projectIdFrom(authInfo: AuthInfo | undefined): number {
-  const projectId = (authInfo?.extra as ProjectScope | undefined)?.projectId
-  if (typeof projectId !== 'number') {
+function scopeFrom(authInfo: AuthInfo | undefined) {
+  const scope = authInfo?.extra as ProjectScope | undefined
+  if (scope?.projectId === undefined || !scope.token) {
     // Unreachable unless the route stops passing it, which is a wiring bug.
     throw new Error('MCP request arrived without a project scope')
   }
-  return projectId
+  return { projectId: scope.projectId, token: scope.token }
 }
 
 const text = (value: unknown) => ({
@@ -125,7 +131,32 @@ function missingKeyError(
 
 export const mcpHandler = createMcpHandler(
   async ({ authInfo }) => {
-    const projectId = projectIdFrom(authInfo)
+    const { projectId: scopedProjectId, token } = scopeFrom(authInfo)
+
+    if (scopedProjectId === null) {
+      // A multi-project token that named no project. Answering the handshake
+      // with a tool list that fails on every call would look like a broken
+      // server; one tool that says what to do is a usable one.
+      const unscoped = new McpServer({ name: 'localness', version: '1.0.0' })
+      unscoped.registerTool(
+        'list_projects',
+        {
+          title: 'List projects',
+          description:
+            'This token reaches several projects and the MCP URL names none, so no dictionary tools are available. Returns the projects the token can address. Then add `?project=<id-or-name>` to the MCP server URL in the client config (one entry per project) and reconnect.',
+        },
+        async () => {
+          const projects = await listTokenProjects(token)
+          return text({
+            projects,
+            next: 'Append ?project=<id-or-name> to the MCP server URL, then reconnect.',
+          })
+        }
+      )
+      return unscoped
+    }
+    // Re-bound so the narrowing survives into the tool callbacks below.
+    const projectId: number = scopedProjectId
 
     // Fetched per request purely so `get_project_info`'s description can name
     // the releases: an agent cannot call a scope it has never heard of, and a
