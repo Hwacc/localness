@@ -52,6 +52,15 @@ export type { IKeyNamespace }
 /** The Translations namespace rail's counts. */
 export type { I18nKeyNamespaceCounts }
 
+/**
+ * The rail's counts as the app reads them. `unnamed` is a page-only group, so
+ * it lives here rather than in the published contract.
+ */
+export interface I18nKeyRailCounts extends I18nKeyNamespaceCounts {
+  /** The editor's placeholder keys (`__draft_…`); `ungrouped` leaves them out. */
+  unnamed: number
+}
+
 /** Which Project Settings tab to open on. */
 export type ProjectSettingsTab =
   | 'basic'

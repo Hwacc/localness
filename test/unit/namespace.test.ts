@@ -112,6 +112,7 @@ describe('resolveNamespaceFilterValue', () => {
     expect(resolveNamespaceFilterValue(3, [{ id: 3 }])).toBe(3)
     expect(resolveNamespaceFilterValue(4, [{ id: 3 }])).toBe('all')
     expect(resolveNamespaceFilterValue('ungrouped', [])).toBe('ungrouped')
+    expect(resolveNamespaceFilterValue('unnamed', [])).toBe('unnamed')
     expect(resolveNamespaceFilterValue('junk', [])).toBe('all')
   })
 })

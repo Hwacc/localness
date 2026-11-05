@@ -172,19 +172,29 @@ export async function seedNamespaceFromPrefix(
   await tx.keyNamespace.create({ data: { projectId, name, sort: 1 } })
 }
 
-/** Which keys a listing should show. null is "All". */
-export type NamespaceFilter = { namespaceId: number } | 'ungrouped' | null
+/**
+ * Which keys a listing should show. null is "All". `unnamed` is the
+ * Translations page's group of `__draft_…` placeholders: a key-name prefix, not
+ * a namespace, so the list's own where applies it.
+ */
+export type NamespaceFilter =
+  | { namespaceId: number }
+  | 'ungrouped'
+  | 'unnamed'
+  | null
 
 /** `namespaceId` wins when both are present, as `releaseId` does over `unassigned`. */
 export function parseNamespaceFilter(query: {
   namespaceId?: unknown
   ungrouped?: unknown
+  unnamed?: unknown
 }): NamespaceFilter {
   const raw = query.namespaceId
   const namespaceId =
     typeof raw === 'number' ? raw : typeof raw === 'string' ? Number(raw) : NaN
   if (Number.isInteger(namespaceId) && namespaceId > 0) return { namespaceId }
   if (query.ungrouped === '1' || query.ungrouped === 'true') return 'ungrouped'
+  if (query.unnamed === '1' || query.unnamed === 'true') return 'unnamed'
   return null
 }
 
@@ -195,7 +205,7 @@ export function parseNamespaceFilter(query: {
  */
 export async function namespaceKeyIds(
   projectId: number,
-  filter: NamespaceFilter
+  filter: Exclude<NamespaceFilter, 'unnamed'>
 ): Promise<number[] | null> {
   if (filter === null) return null
   const names = await namespaceNames(projectId)

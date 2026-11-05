@@ -155,10 +155,6 @@ function pickString(raw: unknown, fallback: string): string {
   return typeof raw === 'string' ? raw : fallback
 }
 
-function pickBoolean(raw: unknown, fallback: boolean): boolean {
-  return typeof raw === 'boolean' ? raw : fallback
-}
-
 /**
  * Keeps a stored enum honest. A value the app no longer knows — after a rename,
  * or from a hand-edited entry — would render as a blank option that cannot be
@@ -177,22 +173,16 @@ function pickEnum<T extends string>(
 export interface TranslationsFilterState {
   q: string
   status: I18nKeyStatusFilter
-  includeDraftKeys: boolean
   /** `'YYYY-MM-DD'`. Absent means that end of the range is unbounded. */
   from?: string
   to?: string
   /** Absent means All. A deleted namespace is resolved away by the page. */
-  namespace?: 'ungrouped' | number
+  namespace?: 'ungrouped' | 'unnamed' | number
 }
 
-/**
- * Mirrors the page's own defaults, including `includeDraftKeys: true` — the key
- * table shows auto-draft keys unless the user says otherwise.
- */
 const TRANSLATIONS_FILTER_DEFAULTS: TranslationsFilterState = {
   q: '',
   status: I18nKeyStatusFilter.ALL,
-  includeDraftKeys: true,
 }
 
 export function readTranslationsFilterForProject(
@@ -211,11 +201,11 @@ export function readTranslationsFilterForProject(
       Object.values(I18nKeyStatusFilter),
       fallback.status
     ),
-    includeDraftKeys: pickBoolean(raw.includeDraftKeys, fallback.includeDraftKeys),
     from: typeof raw.from === 'string' && raw.from ? raw.from : undefined,
     to: typeof raw.to === 'string' && raw.to ? raw.to : undefined,
     namespace:
       raw.namespace === 'ungrouped' ||
+      raw.namespace === 'unnamed' ||
       (typeof raw.namespace === 'number' &&
         Number.isInteger(raw.namespace) &&
         raw.namespace > 0)

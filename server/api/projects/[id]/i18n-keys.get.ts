@@ -9,7 +9,7 @@ import {
 
 /**
  * @route GET /api/projects/:id/i18n-keys
- * @query q, status, from, to, pageIds, ids, releaseId, unassigned, namespaceId, ungrouped, includeDraftKeys, idsOnly, page, limit
+ * @query q, status, from, to, pageIds, ids, releaseId, unassigned, namespaceId, ungrouped, unnamed, includeDraftKeys, idsOnly, page, limit
  * `from`/`to` are ISO instants bounding `updatedAt`; the client sends the
  * local day boundaries so the range means what the user picked on screen.
  * `pageIds` scopes to keys tagged on those pages, plus keys with no tag at all

@@ -87,6 +87,8 @@ export function useI18nKeyQuery(options: {
     const namespaceFilter = options.namespaceFilter?.value
     if (namespaceFilter === 'ungrouped') {
       params.set('ungrouped', '1')
+    } else if (namespaceFilter === 'unnamed') {
+      params.set('unnamed', '1')
     } else if (typeof namespaceFilter === 'number') {
       params.set('namespaceId', String(namespaceFilter))
     }
@@ -99,7 +101,7 @@ export function useI18nKeyQuery(options: {
    */
   async function namespaceCounts() {
     if (!validID(options.projectId.value)) return null
-    return useApi<I18nKeyNamespaceCounts>(
+    return useApi<I18nKeyRailCounts>(
       `/api/projects/${options.projectId.value}/i18n-keys/namespaces?${baseParams()}`
     )
   }
