@@ -69,7 +69,7 @@ const query = useI18nKeyQuery({
   releaseFilter: listReleaseFilter,
   namespaceFilter,
   limit: 50,
-  // The key table shows auto draft keys; see the option's own note.
+  // Every key, placeholders included: the rail's Unnamed group sorts them out.
   includeDraftKeys: true,
 })
 
@@ -82,7 +82,6 @@ const releaseFilterLabel = computed(() => {
   return curReleases.value.find((release) => release.id === value)?.name ?? 'your filter'
 })
 const statusFilter = query.status
-const includeDraftKeys = query.includeDraftKeys
 const hasDateRange = query.hasDateRange
 
 const publishing = ref(false)
@@ -707,7 +706,7 @@ async function loadRows() {
   await query.load()
 }
 
-const namespaceCounts = ref<I18nKeyNamespaceCounts | null>(null)
+const namespaceCounts = ref<I18nKeyRailCounts | null>(null)
 let countsRequest = 0
 
 /** Only the latest request lands: a project switch can overtake a slow one. */
@@ -756,7 +755,7 @@ const qWatch = watchIgnorable(q, () => {
 })
 
 // Status is a discrete choice, not typing — apply it immediately.
-const statusWatch = watchIgnorable([statusFilter, includeDraftKeys], () => {
+const statusWatch = watchIgnorable(statusFilter, () => {
   persistFilters()
   reloadForFilter(loadKeys)
 })
@@ -777,7 +776,6 @@ function persistFilters() {
   writeTranslationsFilterForProject(curProject.value.id, {
     q: q.value,
     status: statusFilter.value,
-    includeDraftKeys: includeDraftKeys.value,
     from: start ? formatRangeDay(start) : undefined,
     to: end ? formatRangeDay(end) : undefined,
     namespace:
@@ -812,10 +810,15 @@ const canManageNamespaces = computed(() =>
   canManageProjectSettings(curProject.value),
 )
 
-/** Hidden until there is something to group by, or an owner could start. */
+/**
+ * Hidden until there is something to group by, an owner could start, or the
+ * editor left placeholder keys — Unnamed is the only way to list just those.
+ */
 const showNamespaceNav = computed(
   () =>
     curNamespaces.value.length > 0 ||
+    Boolean(namespaceCounts.value?.unnamed) ||
+    namespaceFilter.value === 'unnamed' ||
     (canManageNamespaces.value &&
       Boolean(namespaceCounts.value?.suggestions.length)),
 )
@@ -850,7 +853,6 @@ function restoreFilters(projectId: ID) {
   })
   statusWatch.ignoreUpdates(() => {
     statusFilter.value = saved.status
-    includeDraftKeys.value = saved.includeDraftKeys
   })
   dateWatch.ignoreUpdates(() => {
     // `parseDate` hands back our copy's `DateValue`; the calendar's model type
@@ -888,7 +890,7 @@ watch(
 /*
  * A Consistency link names keys the report found regardless of any filter, so
  * for this visit it searches its own text and lifts every list filter that
- * could hide them — status, draft keys, dates. Written through the ignorables:
+ * could hide them — status, namespace, dates. Written through the ignorables:
  * nothing reloads twice, nothing is persisted until the user edits a filter.
  * Applied once, to the first real project (a hard load sets it after mount).
  */
@@ -906,7 +908,6 @@ function applyDeepLink(projectId: ID) {
   }
   statusWatch.ignoreUpdates(() => {
     statusFilter.value = I18nKeyStatusFilter.ALL
-    includeDraftKeys.value = true
   })
   namespaceWatch.ignoreUpdates(() => {
     namespaceFilter.value = 'all'
@@ -1130,17 +1131,6 @@ onMounted(async () => {
           </div>
         </template>
       </UPopover>
-      <UTooltip
-        text="Placeholder keys the editor creates for an unbound tag (__draft_…). Uncheck to hide them. This is not the Draft status filter."
-        :content="{ side: 'top' }"
-      >
-        <UCheckbox
-          v-model="includeDraftKeys"
-          label="Show __draft_ keys"
-          class="items-center"
-          :ui="{ label: 'text-xs whitespace-nowrap' }"
-        />
-      </UTooltip>
       <div class="ml-auto flex items-center gap-2">
         <UButton
           size="sm"

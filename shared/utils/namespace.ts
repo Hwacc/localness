@@ -11,8 +11,12 @@ export const NAMESPACE_BOUNDARY = ['_', '.', '-', ':', '/'] as const
 
 const BOUNDARY = new Set<string>(NAMESPACE_BOUNDARY)
 
-/** Which namespaces a list shows: every key, one namespace by id, or the keys in none. */
-export type NamespaceFilterValue = 'all' | 'ungrouped' | number
+/**
+ * Which namespaces a list shows: every key, one namespace by id, the keys in
+ * none, or the editor's unnamed placeholder keys (`__draft_…`). The last is a
+ * Translations-page group only — the delivery API knows nothing of it.
+ */
+export type NamespaceFilterValue = 'all' | 'ungrouped' | 'unnamed' | number
 
 /** The API's spelling of "keys in no namespace". A name cannot start with `_`. */
 export const UNGROUPED_NAMESPACE_PARAM = '__ungrouped__'
@@ -134,7 +138,7 @@ export function resolveNamespaceFilterValue(
   stored: unknown,
   namespaces: ReadonlyArray<{ id: string | number }> | undefined
 ): NamespaceFilterValue {
-  if (stored === 'ungrouped') return 'ungrouped'
+  if (stored === 'ungrouped' || stored === 'unnamed') return stored
   if (typeof stored !== 'number') return 'all'
   return (namespaces ?? []).some((ns) => Number(ns.id) === stored)
     ? stored

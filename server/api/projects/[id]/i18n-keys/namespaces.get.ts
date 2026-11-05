@@ -8,7 +8,7 @@ import {
 import { listNamespaces } from '#server/helper/namespace'
 import { DRAFT_KEY_PREFIX } from '#shared/utils'
 import { countByNamespace, namespaceSuggestions } from '#shared/utils/namespace'
-import type { I18nKeyNamespaceCounts } from '#shared/contract'
+import type { I18nKeyRailCounts } from '#shared/types/Project'
 
 /**
  * @route GET /api/projects/:id/i18n-keys/namespaces
@@ -16,6 +16,8 @@ import type { I18nKeyNamespaceCounts } from '#shared/contract'
  * @description Key counts per namespace under the list's other filters, so a
  * count is what clicking that namespace shows. A namespace filter in the query
  * is ignored — the rail counts every group, not just the selected one.
+ * `unnamed` counts the editor's `__draft_…` placeholders, which `ungrouped`
+ * leaves out; both are zero for placeholders when `includeDraftKeys` is off.
  * `suggestions` are first segments shared by Ungrouped keys across the whole
  * project, independent of the filters, for an owner to declare in one click.
  */
@@ -49,13 +51,13 @@ export default defineEventHandler(async (event) => {
     }),
   ])
 
-  const counts = countByNamespace(
-    filtered.map((row) => row.key),
-    names
-  )
-  const result: I18nKeyNamespaceCounts = {
+  const filteredKeys = filtered.map((row) => row.key)
+  const named = filteredKeys.filter((key) => !key.startsWith(DRAFT_KEY_PREFIX))
+  const counts = countByNamespace(named, names)
+  const result: I18nKeyRailCounts = {
     total: filtered.length,
     ungrouped: counts.ungrouped,
+    unnamed: filteredKeys.length - named.length,
     byId: Object.fromEntries(
       namespaces.map((ns) => [String(ns.id), counts.byName[ns.name] ?? 0])
     ),

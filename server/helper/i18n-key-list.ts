@@ -137,19 +137,26 @@ export async function i18nKeyListWhere(
   projectId: number,
   filters: I18nKeyListFilters
 ): Promise<Prisma.I18nKeyWhereInput | null> {
+  const { namespace } = filters
   const [statusIds, namespaceIds] = await Promise.all([
     statusKeyIds(projectId, filters.status),
-    namespaceKeyIds(projectId, filters.namespace),
+    namespaceKeyIds(projectId, namespace === 'unnamed' ? null : namespace),
   ])
   if (statusIds?.length === 0 || namespaceIds?.length === 0) return null
+
+  // Unnamed is exactly the placeholder keys; Ungrouped leaves them to it.
+  const draftKeys: Prisma.I18nKeyWhereInput =
+    namespace === 'unnamed'
+      ? { key: { startsWith: DRAFT_KEY_PREFIX } }
+      : namespace === 'ungrouped' || !filters.includeDraftKeys
+        ? { NOT: { key: { startsWith: DRAFT_KEY_PREFIX } } }
+        : {}
 
   const { q, from, to, ids, pageIds } = filters
   return {
     projectId,
     ...releaseWhereFragment(filters.release),
-    ...(filters.includeDraftKeys
-      ? {}
-      : { NOT: { key: { startsWith: DRAFT_KEY_PREFIX } } }),
+    ...draftKeys,
     ...(from || to
       ? {
           updatedAt: {

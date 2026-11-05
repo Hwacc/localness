@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { useElementSize } from '@vueuse/core'
+import { DRAFT_KEY_PREFIX } from '#shared/utils'
 
 /**
  * Namespace tabs on top of the Translations key list: All plus as many
@@ -9,7 +10,7 @@ import { useElementSize } from '@vueuse/core'
  */
 const props = defineProps<{
   namespaces: IKeyNamespace[]
-  counts: I18nKeyNamespaceCounts | null
+  counts: I18nKeyRailCounts | null
   /** A Project Owner can declare suggestions and open the settings tab. */
   canManage: boolean
   adding: boolean
@@ -28,6 +29,8 @@ type Item = {
   icon: string
   count: number | undefined
   mono: boolean
+  /** Shown on hover instead of the label. */
+  hint?: string
 }
 
 const allItem = computed<Item>(() => ({
@@ -56,10 +59,29 @@ const ungroupedItem = computed<Item>(() => ({
   mono: false,
 }))
 
+/**
+ * A fixed system group, not a namespace: the placeholder keys the editor makes
+ * for an unbound tag. Shown while it has keys, or while it is the selection so
+ * renaming the last one does not pull the tab from under the user.
+ */
+const unnamedItem = computed<Item | null>(() =>
+  props.counts?.unnamed || selected.value === 'unnamed'
+    ? {
+        value: 'unnamed',
+        label: 'Unnamed',
+        icon: 'i-lucide:file-question',
+        count: props.counts?.unnamed,
+        mono: false,
+        hint: `Placeholder keys (${DRAFT_KEY_PREFIX}…) the editor made for tags without a name yet. Rename one and it leaves this group.`,
+      }
+    : null
+)
+
 const menuItems = computed(() => [
   allItem.value,
   ...namespaceItems.value,
   ungroupedItem.value,
+  ...(unnamedItem.value ? [unnamedItem.value] : []),
 ])
 
 const strip = ref<HTMLElement | null>(null)
@@ -105,6 +127,12 @@ const tabs = computed<Item[]>(() => {
   if (pinned) budget -= tabWidth(pinned)
 
   const shown = new Set<NamespaceFilterValue>(pinned ? [pinned.value] : [])
+  // Unnamed is a to-do list rather than a folder, so it is kept in view first.
+  const unnamed = unnamedItem.value
+  if (unnamed && !shown.has(unnamed.value) && tabWidth(unnamed) <= budget) {
+    budget -= tabWidth(unnamed)
+    shown.add(unnamed.value)
+  }
   for (const item of namespaceItems.value) {
     if (shown.has(item.value)) continue
     const cost = tabWidth(item)
@@ -112,11 +140,12 @@ const tabs = computed<Item[]>(() => {
     budget -= cost
     shown.add(item.value)
   }
-  // Declared order, with Ungrouped last when it is the selection.
+  // Declared order, then Ungrouped when it is the selection, then Unnamed.
   return [
     allItem.value,
     ...namespaceItems.value.filter((item) => shown.has(item.value)),
     ...(pinned?.value === 'ungrouped' ? [ungroupedItem.value] : []),
+    ...(unnamed && shown.has(unnamed.value) ? [unnamed] : []),
   ]
 })
 
@@ -184,7 +213,7 @@ function pick(value: NamespaceFilterValue) {
           : 'text-muted hover:text-default'
       "
       :aria-current="selected === item.value ? 'true' : undefined"
-      :title="item.label"
+      :title="item.hint ?? item.label"
       @click="selected = item.value"
     >
       <span class="truncate" :class="{ 'font-mono': item.mono }">
@@ -221,6 +250,7 @@ function pick(value: NamespaceFilterValue) {
                   ? 'bg-primary/10 text-primary'
                   : 'text-default hover:bg-elevated/60'
               "
+              :title="item.hint"
               @click="pick(item.value)"
             >
               <UIcon :name="item.icon" class="size-4 shrink-0" />
