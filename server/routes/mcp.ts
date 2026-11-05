@@ -3,7 +3,7 @@ import {
   bearerToken,
   touchApiToken,
 } from '#server/helper/api-token'
-import { resolveTokenProject } from '#server/helper/api-token-project'
+import { resolveMcpProject } from '#server/helper/api-token-project'
 import { mcpHandler } from '#server/helper/mcp'
 
 /**
@@ -22,6 +22,9 @@ import { mcpHandler } from '#server/helper/mcp'
  *
  * It is optional when the token was granted exactly one project, which is every
  * token minted before tokens became personal, so existing configs keep working.
+ * A multi-project token without it still completes the handshake — a global or
+ * workspace config has no single project to name — but is offered only
+ * `list_projects`, which tells the agent to add `?project=` to the URL.
  *
  * Auth is the delivery token — the same one `/api/v1` takes, resolved by the
  * same helper. The SDK ships `requireBearerAuth` and using it here would be a
@@ -44,7 +47,7 @@ export default defineEventHandler(async (event) => {
   // a thrown error into `{isError:true}` at HTTP 200, which is the right shape
   // for "this key does not exist" and the wrong one for "you did not say which
   // project".
-  const projectId = await resolveTokenProject(token, getQuery(event).project)
+  const projectId = await resolveMcpProject(token, getQuery(event).project)
   await touchApiToken(token)
 
   const response = await mcpHandler.fetch(toWebRequest(event), {
@@ -57,7 +60,12 @@ export default defineEventHandler(async (event) => {
       // an OAuth notion, and `extra` is documented as the place for exactly that
       // kind of fact. Resolved once, here, so the tools cannot re-derive
       // something different.
-      extra: { projectId },
+      // `projectId: null` is a multi-project token that named none; the handler
+      // then serves only `list_projects`, which needs the token's identity.
+      extra: {
+        projectId,
+        token: { id: token.id, createdBy: token.createdBy },
+      },
     },
   })
 

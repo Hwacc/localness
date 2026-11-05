@@ -203,6 +203,20 @@ export async function resolveTokenProject(
 }
 
 /**
+ * `resolveTokenProject` for the MCP route, where a multi-project token with no
+ * `?project=` is not an error: the handshake must still succeed so the agent can
+ * be told how to pick a project. `null` means exactly that case.
+ */
+export async function resolveMcpProject(
+  token: TokenIdentity,
+  raw: unknown
+): Promise<number | null> {
+  const unnamed = raw == null || String(raw).trim() === ''
+  if (unnamed && (await tokenProjectIds(token.id)).length > 1) return null
+  return resolveTokenProject(token, raw)
+}
+
+/**
  * The write routes addressed by `pageId` never *need* a project, so it comes
  * from the page. A page outside the token's set is reported as missing rather
  * than forbidden, which is the rule `assertPageInProject` already followed.
