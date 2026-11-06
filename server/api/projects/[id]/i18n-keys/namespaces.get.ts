@@ -6,7 +6,8 @@ import {
   parseI18nKeyListFilters,
 } from '#server/helper/i18n-key-list'
 import { listNamespaces } from '#server/helper/namespace'
-import { DRAFT_KEY_PREFIX } from '#shared/utils'
+import { UNNAMED_KEYS_WHERE } from '#server/helper/i18n-key-list'
+import { isUnnamedKey } from '#shared/utils'
 import { countByNamespace, namespaceSuggestions } from '#shared/utils/namespace'
 import type { I18nKeyRailCounts } from '#shared/types/Project'
 
@@ -16,7 +17,7 @@ import type { I18nKeyRailCounts } from '#shared/types/Project'
  * @description Key counts per namespace under the list's other filters, so a
  * count is what clicking that namespace shows. A namespace filter in the query
  * is ignored — the rail counts every group, not just the selected one.
- * `unnamed` counts the editor's `__draft_…` placeholders, which `ungrouped`
+ * `unnamed` counts the editor's `__unnamed_…` placeholders, which `ungrouped`
  * leaves out; both are zero for placeholders when `includeDraftKeys` is off.
  * `suggestions` are first segments shared by Ungrouped keys across the whole
  * project, independent of the filters, for an owner to declare in one click.
@@ -46,13 +47,13 @@ export default defineEventHandler(async (event) => {
       ? prisma.i18nKey.findMany({ where, select: { key: true } })
       : Promise.resolve([]),
     prisma.i18nKey.findMany({
-      where: { projectId, NOT: { key: { startsWith: DRAFT_KEY_PREFIX } } },
+      where: { projectId, NOT: UNNAMED_KEYS_WHERE },
       select: { key: true },
     }),
   ])
 
   const filteredKeys = filtered.map((row) => row.key)
-  const named = filteredKeys.filter((key) => !key.startsWith(DRAFT_KEY_PREFIX))
+  const named = filteredKeys.filter((key) => !isUnnamedKey(key))
   const counts = countByNamespace(named, names)
   const result: I18nKeyRailCounts = {
     total: filtered.length,

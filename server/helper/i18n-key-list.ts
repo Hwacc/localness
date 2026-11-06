@@ -10,8 +10,16 @@ import {
   type NamespaceFilter,
 } from '#server/helper/namespace'
 import { I18nKeyStatusFilter } from '#shared/constants'
-import { DRAFT_KEY_PREFIX } from '#shared/utils'
+import { LEGACY_DRAFT_KEY_PREFIX, UNNAMED_KEY_PREFIX } from '#shared/utils'
 import type { Prisma } from '~~/prisma/client/client'
+
+/** Placeholder keys under either prefix; the pair is what `isUnnamedKey` tests. */
+export const UNNAMED_KEYS_WHERE: Prisma.I18nKeyWhereInput = {
+  OR: [
+    { key: { startsWith: UNNAMED_KEY_PREFIX } },
+    { key: { startsWith: LEGACY_DRAFT_KEY_PREFIX } },
+  ],
+}
 
 /**
  * The Translations list filters, shared by the paged list and the namespace
@@ -145,18 +153,17 @@ export async function i18nKeyListWhere(
   if (statusIds?.length === 0 || namespaceIds?.length === 0) return null
 
   // Unnamed is exactly the placeholder keys; Ungrouped leaves them to it.
-  const draftKeys: Prisma.I18nKeyWhereInput =
+  const draftKeys: Prisma.I18nKeyWhereInput[] =
     namespace === 'unnamed'
-      ? { key: { startsWith: DRAFT_KEY_PREFIX } }
+      ? [UNNAMED_KEYS_WHERE]
       : namespace === 'ungrouped' || !filters.includeDraftKeys
-        ? { NOT: { key: { startsWith: DRAFT_KEY_PREFIX } } }
-        : {}
+        ? [{ NOT: UNNAMED_KEYS_WHERE }]
+        : []
 
   const { q, from, to, ids, pageIds } = filters
   return {
     projectId,
     ...releaseWhereFragment(filters.release),
-    ...draftKeys,
     ...(from || to
       ? {
           updatedAt: {
@@ -167,6 +174,7 @@ export async function i18nKeyListWhere(
       : {}),
     // Several id sets and two independent OR groups, so they nest under AND.
     AND: [
+      ...draftKeys,
       ...(statusIds ? [{ id: { in: statusIds } }] : []),
       ...(namespaceIds ? [{ id: { in: namespaceIds } }] : []),
       ...(ids.length ? [{ id: { in: ids } }] : []),

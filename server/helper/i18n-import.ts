@@ -4,7 +4,7 @@ import { toKeyConvention } from '#server/helper/key-convention'
 import { setReleaseMembership } from '#server/helper/release'
 import { LogAction, LogStatus } from '#shared/constants/log'
 import { DEFAULT_LOCALE_FALLBACK } from '#shared/constants'
-import { DRAFT_KEY_PREFIX, fpTranslation, parseLocales } from '#shared/utils'
+import { fpTranslation, isUnnamedKey, parseLocales } from '#shared/utils'
 import {
   checkI18nKey,
   type KeyConvention,
@@ -134,7 +134,7 @@ export function classifyImport(input: {
       preview.skipped.push({ key, reason: 'empty-key' })
       continue
     }
-    if (key.startsWith(DRAFT_KEY_PREFIX)) {
+    if (isUnnamedKey(key)) {
       preview.skipped.push({ key, reason: 'reserved-prefix' })
       continue
     }

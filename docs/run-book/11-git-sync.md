@@ -136,7 +136,7 @@
 | **Changed**                            | 平台改过，Git 那边没动                                   | 是             |
 | **Unchanged since last push**          | 和远端一样，没什么可推                                   | 否，默认不显示 |
 | **No published source text**           | 这条 key 的源语言还没发布                                | 否，默认不显示 |
-| **Auto draft key**                     | `__draft_` 占位 key，永远不推                          | 否，默认不显示 |
+| **Auto draft key**                     | `__unnamed_` 占位 key，永远不推                          | 否，默认不显示 |
 | **Cannot be written — clashes with an existing key path in the file** | 仅 Locale files：这条**新** key 在文件里放不下。比如文件里 `home` 是一句文案，新 key `home.sub` 就没地方写；或者 `home` 和 `home.sub` 两个新 key 互相冲突（两条都不写）。改 key 名或改 Format | 否，不能勾 |
 | **Git is ahead — check to overwrite** | Git 那边改了而平台没动。**勾上就是用平台覆盖 Git** | 否，但可以勾   |
 | **Conflict with Git source**           | 两边都改了，不能勾，去冲突卡片                           | 不能勾         |
@@ -215,7 +215,7 @@
 | 裁完冲突再 Pull，那张卡又回来了                       | 不该发生。真出现说明中间有人又改了 Git 那边——重新看一遍卡片上的两份文案                               |
 | 想换 product，下拉里只有当前那一个                    | 候选是**Load products** 现列出来的，换之前再点一次 **Load products**                        |
 | Pull 的下拉里某个文件写着`unmapped (de-DE)`         | 远端这个语言在平台的对照表里找不到，这个文件不参与 Pull                                                 |
-| 词条表里某条 key 不出现在 Push 预览里                 | 它的 Git 同步开关关着（第 9 章），或者它是个`__draft_` 占位 key                                       |
+| 词条表里某条 key 不出现在 Push 预览里                 | 它的 Git 同步开关关着（第 9 章），或者它是个`__unnamed_` 占位 key                                       |
 | Pull 下来的文案马上就出现在导出里了                   | 正常，Pull 的**Apply Git text** 写的是草稿 + 已发布                                               |
 | 远端`translated/` 里的语言一直不更新                | 那一侧由下游（LILT）写，平台只推`source/`                                                             |
 | Locale files：Push 预览里有 **Cannot be written**     | 新 key 和文件里已有的结构撞了（见上面 Push 原因表）。改 key 名，或者换 Flat JSON                         |

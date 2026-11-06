@@ -3,7 +3,7 @@ import {
   GitSyncPushReason,
 } from '#shared/constants'
 import type { ThreeWayDecision } from '#shared/types/GitSync'
-import { DRAFT_KEY_PREFIX, fpTranslation } from '#shared/utils'
+import { fpTranslation, isUnnamedKey } from '#shared/utils'
 import { decideThreeWay } from './three-way'
 
 /**
@@ -45,7 +45,7 @@ export function classifyPush(
   lastPushed: Map<string, string>,
   remote: Map<string, string>
 ): GitSyncPushReason {
-  if (key.startsWith(DRAFT_KEY_PREFIX)) return GitSyncPushReason.DRAFT_KEY
+  if (isUnnamedKey(key)) return GitSyncPushReason.DRAFT_KEY
   if (!text) return GitSyncPushReason.NOT_PUBLISHED
   const base = lastPushed.get(key) ?? ''
   const decision = decideThreeWay(base, text, remote.get(key) ?? base)

@@ -57,7 +57,7 @@ export type { I18nKeyNamespaceCounts }
  * it lives here rather than in the published contract.
  */
 export interface I18nKeyRailCounts extends I18nKeyNamespaceCounts {
-  /** The editor's placeholder keys (`__draft_…`); `ungrouped` leaves them out. */
+  /** The editor's placeholder keys (`__unnamed_…`); `ungrouped` leaves them out. */
   unnamed: number
 }
 

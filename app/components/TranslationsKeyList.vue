@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { TRANSLATION_LANGUAGES } from '#shared/constants'
-import { DRAFT_KEY_PREFIX, formatI18nKeyDisplay } from '#shared/utils'
+import { isUnnamedKey, formatI18nKeyDisplay } from '#shared/utils'
 import { localeCoverageState } from '#shared/utils/coverage'
 
 /**
@@ -185,7 +185,7 @@ watch(focused, async (id) => {
               {{ formatI18nKeyDisplay(row.key) }}
             </code>
             <UTooltip
-              v-if="row.key.startsWith(DRAFT_KEY_PREFIX)"
+              v-if="isUnnamedKey(row.key)"
               text="Placeholder name from the editor — give it a real one"
             >
               <UIcon

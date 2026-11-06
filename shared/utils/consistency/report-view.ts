@@ -1,4 +1,4 @@
-import { DRAFT_KEY_PREFIX } from '../index'
+import { isUnnamedKey } from '../index'
 import {
   describeLint,
   describeMismatch,
@@ -242,7 +242,7 @@ export type MemberBadge = {
 
 /**
  * What state a key is in, spelled out — never the bare word "draft", which
- * read as "unpublished" while meaning the `__draft_` name. A published key with
+ * read as "unpublished" while meaning the `__unnamed_` name. A published key with
  * no pending edit gets no badge.
  */
 export function memberBadges(member: {
@@ -251,11 +251,11 @@ export function memberBadges(member: {
   pendingSourceText?: string
 }): MemberBadge[] {
   const badges: MemberBadge[] = []
-  if (member.key.startsWith(DRAFT_KEY_PREFIX)) {
+  if (isUnnamedKey(member.key)) {
     badges.push({
       label: 'Auto key',
       color: 'neutral',
-      title: 'Generated automatically (__draft_…) for a frame that had no key name. Rename it to a real key before shipping.',
+      title:       'Generated automatically (__unnamed_…) for a frame that had no key name. Rename it to a real key before shipping.',
     })
   } else if (!member.published) {
     badges.push({

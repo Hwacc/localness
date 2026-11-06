@@ -11,7 +11,7 @@ import { toMember } from '../types'
 /**
  * The v1 pair (identical / near-identical source texts on different keys),
  * now one rule with the exact/near judgment kept internal (2026-10-19:
- * severity became a cross-rule axis). `__draft_` placeholder keys are included
+ * severity became a cross-rule axis). `__unnamed_` placeholder keys are included
  * on purpose — a placeholder next to a formal key is the most actionable
  * duplicate a design-capture workflow produces.
  *

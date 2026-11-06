@@ -1,6 +1,6 @@
 import { omit } from 'lodash-es'
 import prisma from '#server/libs/prisma'
-import { isI18nKeyDraft } from '#shared/utils'
+import { isI18nKeyDraft, isUnnamedKey } from '#shared/utils'
 import { DEFAULT_LOCALE_FALLBACK } from '#shared/constants'
 import { isProjectSteward } from '#server/helper/project-owner'
 
@@ -315,7 +315,7 @@ export async function deleteUnusedDraftI18nKey(id: number) {
     where: { id },
     select: { key: true, _count: { select: { tags: true } } },
   })
-  if (!record || !record.key.startsWith('__draft_') || record._count.tags > 0) {
+  if (!record || !isUnnamedKey(record.key) || record._count.tags > 0) {
     return
   }
   await prisma.translationLog.updateMany({
@@ -401,13 +401,13 @@ export async function writeSourceText(
     sourceLocale?: string
     /**
      * Also write `publishedText`. Capture does this for a named key so the
-     * public API and Git push see the source sentence. `__draft_` keys pass
+     * public API and Git push see the source sentence. `__unnamed_` keys pass
      * `clearPublished` instead and stay unpublished. Only ever applied when
      * this call actually changes the wording: capture publishes its own
      * edits, never re-publishes one a human reverted to draft.
      */
     publish?: boolean
-    /** Drop published source text. Capture uses this for `__draft_` keys. */
+    /** Drop published source text. Capture uses this for `__unnamed_` keys. */
     clearPublished?: boolean
   },
   db: Pick<typeof prisma, 'localeValue'> = prisma

@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { useElementSize } from '@vueuse/core'
-import { DRAFT_KEY_PREFIX } from '#shared/utils'
+import { UNNAMED_KEY_PREFIX } from '#shared/utils'
 
 /**
  * Namespace tabs on top of the Translations key list: All plus as many
@@ -72,7 +72,7 @@ const unnamedItem = computed<Item | null>(() =>
         icon: 'i-lucide:file-question',
         count: props.counts?.unnamed,
         mono: false,
-        hint: `Placeholder keys (${DRAFT_KEY_PREFIX}…) the editor made for tags without a name yet. Rename one and it leaves this group.`,
+        hint: `Placeholder keys (${UNNAMED_KEY_PREFIX}…) the editor made for tags without a name yet. Rename one and it leaves this group.`,
       }
     : null
 )

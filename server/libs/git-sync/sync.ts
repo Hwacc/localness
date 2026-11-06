@@ -2,7 +2,7 @@ import { createError } from 'h3'
 import { basename } from 'node:path'
 import prisma from '#server/libs/prisma'
 import {
-  DRAFT_KEY_PREFIX,
+  isUnnamedKey,
   fpTranslation,
 } from '#shared/utils'
 import {
@@ -635,7 +635,7 @@ async function buildPullCandidates(
       continue
     }
     for (const [key, theirs] of map) {
-      if (key.startsWith(DRAFT_KEY_PREFIX)) continue
+      if (isUnnamedKey(key)) continue
       examined.add(conflictId(key, locale))
       const row = keyByName.get(key)
       const loc = row?.locales.find((l) => l.locale === locale)

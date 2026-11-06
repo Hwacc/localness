@@ -74,7 +74,7 @@ const IGNORE = '__ignore__'
 
 const SKIP_REASON_TEXT: Record<I18nImportSkipReason, string> = {
   'no-source-text': 'No text in the source language',
-  'reserved-prefix': 'Uses the reserved __draft_ prefix',
+  'reserved-prefix': 'Uses the reserved __unnamed_ (or legacy __draft_) prefix',
   'empty-key': 'Empty key',
 }
 
