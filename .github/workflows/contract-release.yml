@@ -1,5 +1,6 @@
 # Publish @localness/contract to npm when a contract-v* tag is pushed.
 # Tag format: contract-vMAJOR.MINOR.PATCH (optional -rc.N / -beta.N).
+# After a stable publish, the version is committed back to the default branch.
 # Independent of the Docker release: its `v*.*.*` filter does not match this
 # prefix, so neither workflow fires for the other's tags.
 # Auth is npm Trusted Publishing (OIDC): no token in repo secrets. The package
@@ -44,15 +45,7 @@ jobs:
 
       - name: Set version from tag
         working-directory: packages/contract
-        run: |
-          version="${GITHUB_REF_NAME#contract-v}"
-          VERSION="$version" node -e '
-          const fs = require("fs");
-          const pkg = JSON.parse(fs.readFileSync("package.json", "utf8"));
-          pkg.version = process.env.VERSION;
-          fs.writeFileSync("package.json", JSON.stringify(pkg, null, 2) + "\n");
-          '
-          echo "version=${version}"
+        run: sh "${GITHUB_WORKSPACE}/.github/scripts/set-package-version.sh" "${GITHUB_REF_NAME#contract-v}"
 
       - name: Refuse a version that is already published
         working-directory: packages/contract
@@ -69,3 +62,35 @@ jobs:
       - name: Publish
         working-directory: packages/contract
         run: npm publish --access public --provenance
+
+  # The tag is the version source, and the publish job only rewrites
+  # package.json inside its own runner, so without this the checked-in number
+  # stays behind. Same follow-up commit the Docker release makes; pre-releases
+  # skip it so an rc cut from a dev branch never touches the default branch.
+  version:
+    needs: publish
+    if: ${{ !contains(github.ref_name, '-') }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+
+      - name: Set package.json from tag
+        working-directory: packages/contract
+        run: sh "${GITHUB_WORKSPACE}/.github/scripts/set-package-version.sh" "${GITHUB_REF_NAME#contract-v}"
+
+      - name: Commit version on default branch
+        run: |
+          git add packages/contract/package.json
+          if git diff --staged --quiet; then
+            echo "packages/contract/package.json already at ${GITHUB_REF_NAME#contract-v}"
+            exit 0
+          fi
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git commit -m "chore(contract): set package.json version to ${GITHUB_REF_NAME#contract-v}"
+          git push
