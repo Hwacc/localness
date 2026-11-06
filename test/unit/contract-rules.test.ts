@@ -1,13 +1,15 @@
 import { describe, expect, it } from 'vitest'
 import {
-  DRAFT_KEY_PREFIX,
+  UNNAMED_KEY_PREFIX,
+  LEGACY_DRAFT_KEY_PREFIX,
   entryMatchesReleaseFilter,
   formatI18nKeyDisplay,
   fpTranslation,
+  isUnnamedKey,
 } from '#shared/contract/rules'
 
-// Golden values: a plugin and the server must mint the same draft key for the
-// same sentence. If one of these changes, every stored `__draft_…` key and
+// Golden values: a plugin and the server must mint the same unnamed key for the
+// same sentence. If one of these changes, every stored `__unnamed_…` key and
 // fingerprint stops matching, which is a breaking change of the package.
 describe('fpTranslation', () => {
   it.each([
@@ -23,11 +25,21 @@ describe('fpTranslation', () => {
   })
 })
 
-describe('draft key display', () => {
-  it('cuts a draft fingerprint to five characters', () => {
-    expect(formatI18nKeyDisplay(`${DRAFT_KEY_PREFIX}0123456789`)).toBe(
-      `${DRAFT_KEY_PREFIX}01234`
+describe('unnamed key', () => {
+  it('cuts a fingerprint to five characters, under either prefix', () => {
+    expect(formatI18nKeyDisplay(`${UNNAMED_KEY_PREFIX}0123456789`)).toBe(
+      `${UNNAMED_KEY_PREFIX}01234`
     )
+    expect(formatI18nKeyDisplay(`${LEGACY_DRAFT_KEY_PREFIX}0123456789`)).toBe(
+      `${LEGACY_DRAFT_KEY_PREFIX}01234`
+    )
+  })
+
+  it('recognises both prefixes and nothing else', () => {
+    expect(isUnnamedKey('__unnamed_ab12')).toBe(true)
+    expect(isUnnamedKey('__draft_ab12')).toBe(true)
+    expect(isUnnamedKey('btn.__draft_x')).toBe(false)
+    expect(isUnnamedKey('draft_ab12')).toBe(false)
   })
 
   it('leaves other keys alone', () => {

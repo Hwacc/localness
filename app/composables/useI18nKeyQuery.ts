@@ -21,7 +21,7 @@ export function useI18nKeyQuery(options: {
   namespaceFilter?: Ref<NamespaceFilterValue>
   limit?: number
   /**
-   * Auto draft keys (`__draft_…` from tagging a screenshot) start hidden here,
+   * Auto draft keys (`__unnamed_…` from tagging a screenshot) start hidden here,
    * because the picker's job is choosing keys to export. The translations table
    * needs them visible by default — hiding them made a freshly tagged
    * translation unreachable from any status filter.

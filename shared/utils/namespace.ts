@@ -13,7 +13,7 @@ const BOUNDARY = new Set<string>(NAMESPACE_BOUNDARY)
 
 /**
  * Which namespaces a list shows: every key, one namespace by id, the keys in
- * none, or the editor's unnamed placeholder keys (`__draft_…`). The last is a
+ * none, or the editor's unnamed placeholder keys (`__unnamed_…`). The last is a
  * Translations-page group only — the delivery API knows nothing of it.
  */
 export type NamespaceFilterValue = 'all' | 'ungrouped' | 'unnamed' | number

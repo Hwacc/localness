@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { TRANSLATION_LANGUAGES } from '#shared/constants'
 import {
-  DRAFT_KEY_PREFIX,
+  isUnnamedKey,
   formatI18nKeyDisplay,
   fpTranslation,
   hasUnpublishedDraft,
@@ -95,7 +95,7 @@ const canPublish = computed(
   () => Boolean(props.row) && hasUnpublishedDraft(props.row!.locales),
 )
 const isPlaceholderKey = computed(
-  () => props.row?.key.startsWith(DRAFT_KEY_PREFIX) ?? false,
+  () => (props.row ? isUnnamedKey(props.row.key) : false),
 )
 
 function localeMeta(code: string) {

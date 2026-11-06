@@ -32,21 +32,26 @@ function where(query: Record<string, string>) {
   return i18nKeyListWhere(7, parseI18nKeyListFilters(query))
 }
 
+const unnamed = {
+  OR: [
+    { key: { startsWith: '__unnamed_' } },
+    { key: { startsWith: '__draft_' } },
+  ],
+}
+
 describe('i18nKeyListWhere placeholder keys', () => {
   it('lists only placeholder keys under Unnamed, even without includeDraftKeys', async () => {
     const result = await where({ unnamed: '1' })
-    expect(result).toMatchObject({ key: { startsWith: '__draft_' } })
-    expect(result?.AND).toEqual([])
+    expect(result?.AND).toEqual([unnamed])
   })
 
   it('leaves placeholder keys out of Ungrouped', async () => {
     const result = await where({ ungrouped: '1', includeDraftKeys: '1' })
-    expect(result).toMatchObject({ NOT: { key: { startsWith: '__draft_' } } })
+    expect(result?.AND).toContainEqual({ NOT: unnamed })
   })
 
   it('keeps them in All when asked to', async () => {
     const result = await where({ includeDraftKeys: '1' })
-    expect(result).not.toHaveProperty('NOT')
-    expect(result).not.toHaveProperty('key')
+    expect(result?.AND).toEqual([])
   })
 })

@@ -92,7 +92,7 @@ export const categorySections: Record<
 
 /**
  * The two questions the report answers, each over its own text (2026-10-20):
- * dictionary structure looks at every key, drafts and `__draft_` auto keys
+ * dictionary structure looks at every key, drafts and `__unnamed_` auto keys
  * included; published copy looks only at what users see. The page marks each
  * category header with its scope (icon + tooltip) so the scope is never
  * implicit.

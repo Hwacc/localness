@@ -16,15 +16,31 @@ export const fpTranslation = (text: string) => {
 }
 
 /** Keys that only carry a text's fingerprint, awaiting a real name. */
-export const DRAFT_KEY_PREFIX = '__draft_'
+export const UNNAMED_KEY_PREFIX = '__unnamed_'
 
-/** What a person sees for a key: a draft key's fingerprint is cut to five characters. */
+/**
+ * The prefix before `__unnamed_`. It collided with the Draft publish status, so
+ * it was renamed; keys and clients minted under it still exist, so it is
+ * recognised everywhere but never written.
+ */
+export const LEGACY_DRAFT_KEY_PREFIX = '__draft_'
+
+const unnamedPrefixOf = (key: string) =>
+  [UNNAMED_KEY_PREFIX, LEGACY_DRAFT_KEY_PREFIX].find((prefix) =>
+    key.startsWith(prefix)
+  )
+
+/** Whether a key is a placeholder awaiting a real name, under either prefix. */
+export const isUnnamedKey = (key: string) => unnamedPrefixOf(key) !== undefined
+
+/** What a person sees for a key: an unnamed key's fingerprint is cut to five characters. */
 export function formatI18nKeyDisplay(key: string | null | undefined) {
   if (!key) return ''
-  if (!key.startsWith(DRAFT_KEY_PREFIX)) return key
-  const hash = key.slice(DRAFT_KEY_PREFIX.length)
+  const prefix = unnamedPrefixOf(key)
+  if (!prefix) return key
+  const hash = key.slice(prefix.length)
   if (hash.length <= 5) return key
-  return `${DRAFT_KEY_PREFIX}${hash.slice(0, 5)}`
+  return `${prefix}${hash.slice(0, 5)}`
 }
 
 /**

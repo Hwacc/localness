@@ -1,6 +1,6 @@
 import { createError } from 'h3'
 import prisma from '#server/libs/prisma'
-import { fpTranslation, DRAFT_KEY_PREFIX } from '#shared/utils'
+import { fpTranslation, isUnnamedKey, UNNAMED_KEY_PREFIX } from '#shared/utils'
 import { DEFAULT_LOCALE_FALLBACK } from '#shared/constants'
 import type { ZApiV1Tag } from '#shared/schemas'
 import { writeSourceText } from '#server/helper/i18n'
@@ -127,7 +127,7 @@ type KeyStore = {
 
 /**
  * The key this layer should use. A name in the request wins, including a
- * `__draft_` key the caller picked. The wording only names a placeholder when
+ * `__unnamed_` key the caller picked. The wording only names a placeholder when
  * the request did not name a key at all.
  */
 export function keyChoice(tag: ZApiV1Tag): string | null {
@@ -136,13 +136,13 @@ export function keyChoice(tag: ZApiV1Tag): string | null {
   const explicit = tag.i18nKey?.trim()
   if (explicit) return explicit
   const source = tag.sourceText?.trim()
-  if (source) return `${DRAFT_KEY_PREFIX}${fpTranslation(source)}`
+  if (source) return `${UNNAMED_KEY_PREFIX}${fpTranslation(source)}`
   return null
 }
 
 /**
  * Bind a key that already exists, or create one. `i18nKey` never creates.
- * `keyName` and a `__draft_` placeholder do. Source text is written as the
+ * `keyName` and a `__unnamed_` placeholder do. Source text is written as the
  * source language — draft and published — whenever this layer carried wording.
  */
 async function bindOrCreateKey(
@@ -158,7 +158,7 @@ async function bindOrCreateKey(
   const found = keyIds.get(name)
   const creating =
     found === undefined &&
-    (Boolean(tag.keyName?.trim()) || name.startsWith(DRAFT_KEY_PREFIX))
+    (Boolean(tag.keyName?.trim()) || isUnnamedKey(name))
   if (found === undefined && !creating) return { i18nKey: null, i18nKeyId: null }
 
   let keyId = found
@@ -174,7 +174,7 @@ async function bindOrCreateKey(
     keyIds.set(name, keyId)
   }
   if (tag.sourceText?.trim()) {
-    const placeholder = name.startsWith(DRAFT_KEY_PREFIX)
+    const placeholder = isUnnamedKey(name)
     await writeSourceText(
       {
         projectId,
@@ -310,7 +310,7 @@ export async function createPageWithTags(params: {
 /**
  * Re-import. Geometry and the source sentence follow the design. A formal key
  * in the request is kept; a placeholder follows the wording, so a changed
- * sentence leaves the old `__draft_` key. Nothing is deleted. A tag whose node
+ * sentence leaves the old `__unnamed_` key. Nothing is deleted. A tag whose node
  * was not in this request comes back in `stale` for the caller to act on
  * deliberately.
  */

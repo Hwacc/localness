@@ -47,11 +47,17 @@ export const timestampFilename = (file: File) => {
 
 import { formatI18nKeyDisplay } from '../contract/rules'
 
-export { DRAFT_KEY_PREFIX, fpTranslation, formatI18nKeyDisplay } from '../contract/rules'
+export {
+  UNNAMED_KEY_PREFIX,
+  LEGACY_DRAFT_KEY_PREFIX,
+  isUnnamedKey,
+  fpTranslation,
+  formatI18nKeyDisplay,
+} from '../contract/rules'
 
 /**
  * The key to save when it was typed into a field showing the display form, or
- * null when nothing changed. Without it, saving an untouched `__draft_…` field
+ * null when nothing changed. Without it, saving an untouched `__unnamed_…` field
  * would write its five-character preview over the full fingerprint.
  */
 export function resolveEditedKey(

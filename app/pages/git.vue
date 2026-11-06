@@ -1406,7 +1406,7 @@ function openHistory() {
 
         <div
           v-else
-          class="rounded-xl border border-default bg-default p-5 flex flex-col gap-4"
+          class="rounded-xl border border-default bg-default p-5 flex flex-col justify-center items-center gap-4"
         >
           <!-- The page runs full width for the review lists; form fields are
                capped so inputs do not stretch across the whole screen. -->

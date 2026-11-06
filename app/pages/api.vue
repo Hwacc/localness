@@ -239,7 +239,7 @@ async function copy(value: string, label: string) {
           <span class="text-default">/locales</span> return it — but only when
           the wording changes; a repeat import never re-publishes, so a source
           you reverted to draft stays reverted. A
-          <span class="text-default">__draft_</span> key stays unpublished.
+          <span class="text-default">__unnamed_</span> key stays unpublished.
           Other languages stay as they were.
         </p>
         <div

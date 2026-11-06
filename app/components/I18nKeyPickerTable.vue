@@ -220,12 +220,12 @@ onMounted(() => query.load())
         </template>
       </UPopover>
       <UTooltip
-        text="Placeholder keys the editor creates for an unbound tag (__draft_…). They almost never have published text, so they stay hidden. This is not the Draft status filter."
+        text="Placeholder keys the editor creates for an unbound tag (__unnamed_…). They almost never have published text, so they stay hidden. This is not the Draft status filter."
         :content="{ side: 'top' }"
       >
         <UCheckbox
           v-model="includeDraftKeys"
-          label="Show __draft_ keys"
+          label="Show __unnamed_ keys"
           :ui="{ label: 'text-xs whitespace-nowrap' }"
         />
       </UTooltip>

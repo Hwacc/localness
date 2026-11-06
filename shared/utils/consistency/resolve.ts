@@ -1,4 +1,4 @@
-import { DRAFT_KEY_PREFIX, fpTranslation } from '../index'
+import { fpTranslation, isUnnamedKey } from '../index'
 import { allRules } from './rules'
 import {
   extractPlaceholders,
@@ -46,11 +46,9 @@ function publishedLocaleCount(candidate: MergeCandidate) {
   return candidate.locales.filter((row) => hasText(row.publishedText)).length
 }
 
-const isDraftKeyName = (key: string) => key.startsWith(DRAFT_KEY_PREFIX)
-
 /**
  * The key to keep, and why — in priority order: published (code references
- * its name), a named key over a `__draft_` placeholder, more tags, more
+ * its name), a named key over a `__unnamed_` placeholder, more tags, more
  * published languages, older. Reasons list what the winner actually has, so
  * the drawer can say "Suggested: published · 12 tags · 5 languages".
  */
@@ -61,7 +59,7 @@ export function suggestKeeper(
   const ranked = [...candidates].sort(
     (a, b) =>
       Number(isPublishedKey(b)) - Number(isPublishedKey(a)) ||
-      Number(isDraftKeyName(a.key)) - Number(isDraftKeyName(b.key)) ||
+      Number(isUnnamedKey(a.key)) - Number(isUnnamedKey(b.key)) ||
       b.tagCount - a.tagCount ||
       publishedLocaleCount(b) - publishedLocaleCount(a) ||
       a.createdAt.localeCompare(b.createdAt) ||
@@ -70,7 +68,7 @@ export function suggestKeeper(
   const winner = ranked[0]!
   const reasons: string[] = []
   if (isPublishedKey(winner)) reasons.push('published')
-  if (!isDraftKeyName(winner.key)) reasons.push('named key')
+  if (!isUnnamedKey(winner.key)) reasons.push('named key')
   if (winner.tagCount)
     reasons.push(`${winner.tagCount} ${winner.tagCount === 1 ? 'tag' : 'tags'}`)
   const languages = publishedLocaleCount(winner)

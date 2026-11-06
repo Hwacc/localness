@@ -174,7 +174,7 @@ export async function seedNamespaceFromPrefix(
 
 /**
  * Which keys a listing should show. null is "All". `unnamed` is the
- * Translations page's group of `__draft_…` placeholders: a key-name prefix, not
+ * Translations page's group of `__unnamed_…` placeholders: a key-name prefix, not
  * a namespace, so the list's own where applies it.
  */
 export type NamespaceFilter =
