@@ -66,10 +66,11 @@ jobs:
   # The tag is the version source, and the publish job only rewrites
   # package.json inside its own runner, so without this the checked-in number
   # stays behind. Same follow-up commit the Docker release makes; pre-releases
-  # skip it so an rc cut from a dev branch never touches the default branch.
+  # skip it so an rc cut from a dev branch never touches the default branch. The
+  # tag always contains "-" (`contract-v…`), so test for the pre-release suffixes.
   version:
     needs: publish
-    if: ${{ !contains(github.ref_name, '-') }}
+    if: ${{ !contains(github.ref_name, '-rc.') && !contains(github.ref_name, '-beta.') }}
     runs-on: ubuntu-latest
     timeout-minutes: 5
     permissions:
