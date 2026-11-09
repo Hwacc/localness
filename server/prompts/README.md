@@ -1,7 +1,8 @@
 # AI prompts
 
 Each `<feature>.md` here is the **system prompt** for the agent serving that
-feature (`i18n-key` → `I18nKeyGenerateAgent`). The file is sent to the model
+feature (`i18n-key` → `I18nKeyGenerateAgent`; `translation` → the pre-translation
+agent, not wired up yet). The file is sent to the model
 verbatim, so:
 
 - **Everything is prompt text.** There is no comment syntax — a note you leave
@@ -9,8 +10,11 @@ verbatim, so:
 - **Keep the output contract.** `i18n-key.md` must keep asking for
   `{"i18n_key"}`; `parseI18nKeyContent` enforces exactly that shape and a unit
   test reads this file to catch it drifting.
-- **Keep the word "JSON"** in `i18n-key.md`: it is what makes the provider's JSON
-  mode behave.
+- **Keep the word "JSON"** in `i18n-key.md` and `translation.md`: it is what
+  makes the provider's JSON mode behave.
+- `translation.md` must keep asking for `[{"id", "text"}]`, one object per input
+  item in input order, and must keep the placeholder rule: the exit gate re-checks
+  placeholders, but the prompt is the first line of defence.
 
 The files are read at runtime, re-read when they change, so an edit here takes
 effect without a restart. The directory is `NUXT_PROMPTS_DIR`, which the image

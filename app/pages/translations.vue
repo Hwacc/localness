@@ -132,6 +132,25 @@ const selectedPublishedIds = computed<number[]>(() =>
   selectedRows.value.filter((r) => !r.dirty).map((r) => Number(r.id)),
 )
 
+const { status: aiStatus, refresh: refreshAiStatus } = useAiTranslateStatus(
+  computed(() => curProject.value.id),
+)
+/** A selection wins; otherwise the page the list is showing. */
+const aiKeyIds = computed(() =>
+  (selectedRows.value.length ? selectedRows.value : rows.value).map((r) =>
+    Number(r.id),
+  ),
+)
+const aiScopeLabel = computed(() =>
+  selectedRows.value.length
+    ? `${selectedRows.value.length} selected key(s)`
+    : `${rows.value.length} key(s) on this page`,
+)
+
+async function onAiApplied() {
+  await Promise.all([loadKeys(), refreshAiStatus()])
+}
+
 const overlay = useOverlay()
 const createModal = overlay.create(I18nKeyModal)
 const deleteModal = overlay.create(AlertModal)
@@ -1036,6 +1055,16 @@ onMounted(async () => {
     >
       <h1 class="text-xl font-semibold tracking-tight">Translations</h1>
       <div class="ml-auto shrink-0 flex items-center gap-2">
+        <AiTranslateSlideover
+          v-if="aiStatus?.enabled && aiStatus.configured"
+          :project-id="curProject.id"
+          :key-ids="aiKeyIds"
+          :scope-label="aiScopeLabel"
+          :locale-codes="localeCodes"
+          :source-locale="sourceLocale"
+          :status="aiStatus"
+          @applied="onAiApplied"
+        />
         <ImportKeysSlideover
           v-if="canManageProjectSettings(curProject)"
           :project-id="curProject.id"
@@ -1315,6 +1344,7 @@ onMounted(async () => {
             @unpublish="openUnpublish"
             @delete="openDelete"
             @toggle-git-sync="onRowToggleGitSync"
+            @ai-changed="loadKeys"
           />
         </div>
         <footer

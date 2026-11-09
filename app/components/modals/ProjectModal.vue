@@ -80,6 +80,8 @@ const state = reactive({
         project.settings?.ruleSeverity?.[id] ?? 'error',
       ])
     ) as Record<string, RuleSeverity>,
+    aiTranslate: project.settings?.aiTranslate ?? false,
+    aiDailyLimit: project.settings?.aiDailyLimit ?? null,
   },
 })
 
@@ -266,6 +268,12 @@ const tabsItems = computed(() => [
           icon: 'i-lucide:list-checks',
           slot: 'consistency',
           value: 'consistency',
+        },
+        {
+          label: 'AI translation',
+          icon: 'i-lucide:sparkles',
+          slot: 'ai-translation',
+          value: 'ai-translation',
         },
       ]
     : []),
@@ -530,6 +538,38 @@ async function onSubmit(_: FormSubmitEvent<ZProject>) {
                 color="neutral"
                 icon="i-lucide:info"
                 description="Applies to the Consistency page (Plus) and the live check in its Resolve drawer."
+              />
+            </div>
+          </template>
+          <template #ai-translation>
+            <div class="flex flex-col gap-4">
+              <USwitch
+                v-model="state.settings.aiTranslate"
+                label="AI pre-translation"
+                description="Adds AI pre-translation to the Translations page. Results are only ever saved as drafts."
+              />
+              <UFormField
+                label="Daily limit"
+                name="settings.aiDailyLimit"
+                description="Translations AI may write per day, for the whole project. Leave empty for no limit."
+              >
+                <UInput
+                  :model-value="String(state.settings.aiDailyLimit ?? '')"
+                  type="number"
+                  class="w-40"
+                  :min="1"
+                  placeholder="No limit"
+                  @update:model-value="
+                    state.settings.aiDailyLimit =
+                      String($event) === '' ? null : Number($event)
+                  "
+                />
+              </UFormField>
+              <UAlert
+                variant="soft"
+                color="neutral"
+                icon="i-lucide:info"
+                description="Source text is sent to the AI model your server is configured with. The model itself is set by the server, not here."
               />
             </div>
           </template>
