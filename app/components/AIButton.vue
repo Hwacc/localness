@@ -1,8 +1,12 @@
 <script setup lang="ts">
-const props = defineProps<{
-  loading?: boolean
-  disabled?: boolean
-}>()
+const props = withDefaults(
+  defineProps<{
+    loading?: boolean
+    disabled?: boolean
+    label?: string
+  }>(),
+  { label: 'AI' }
+)
 
 const inactive = computed(() => Boolean(props.disabled || props.loading))
 
@@ -18,11 +22,11 @@ const rootClass = computed(
   <GradientButton :class="rootClass" :disabled="inactive">
     <div class="flex items-center gap-2">
       <UIcon
-        :name="loading ? 'i-lucide:loader-circle' : 'i-mdi:robot'"
+        :name="loading ? 'i-lucide:loader-circle' : 'i-lucide:wand-sparkles'"
         :class="loading ? 'animate-spin' : ''"
         size="16"
       />
-      <span>AI</span>
+      <span>{{ label }}</span>
     </div>
   </GradientButton>
 </template>

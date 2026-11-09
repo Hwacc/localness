@@ -53,7 +53,11 @@ const EMPTY_COUNTS: AiRunCounts = {
 }
 
 /** Whether AI pre-translation is on for the project, and what is left today. */
-export function useAiTranslateStatus(projectId: Ref<ID>) {
+export function useAiTranslateStatus(
+  projectId: Ref<ID>,
+  /** The project's own switch: flipping it in settings must re-ask the server. */
+  enabled?: Ref<boolean | undefined>
+) {
   const status = ref<AiTranslateStatus | null>(null)
 
   async function refresh() {
@@ -71,7 +75,9 @@ export function useAiTranslateStatus(projectId: Ref<ID>) {
     }
   }
 
-  watch(projectId, refresh, { immediate: true })
+  watch(enabled ? [projectId, enabled] : projectId, refresh, {
+    immediate: true,
+  })
   return { status, refresh }
 }
 
@@ -240,7 +246,7 @@ async function* readEventStream(
  */
 export async function streamAiTranslateOne(
   projectId: ID,
-  body: { keyId: number; locale: string },
+  body: { keyId: number; locale: string; save?: boolean },
   handlers: { onToken: (text: string) => void; signal?: AbortSignal }
 ): Promise<AiSingleDone> {
   const response = await fetch(

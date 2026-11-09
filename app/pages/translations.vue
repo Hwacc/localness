@@ -134,6 +134,7 @@ const selectedPublishedIds = computed<number[]>(() =>
 
 const { status: aiStatus, refresh: refreshAiStatus } = useAiTranslateStatus(
   computed(() => curProject.value.id),
+  computed(() => curProject.value.settings?.aiTranslate),
 )
 /** A selection wins; otherwise the page the list is showing. */
 const aiKeyIds = computed(() =>

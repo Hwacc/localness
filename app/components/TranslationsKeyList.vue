@@ -189,7 +189,7 @@ watch(focused, async (id) => {
               text="Placeholder name from the editor — give it a real one"
             >
               <UIcon
-                name="i-lucide:sparkles"
+                name="i-lucide:file-question"
                 class="size-3 shrink-0 text-warning"
               />
             </UTooltip>

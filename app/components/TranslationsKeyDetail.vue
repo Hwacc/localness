@@ -80,21 +80,43 @@ const aiReady = computed(() =>
 )
 /** One cell at a time: the text streams into its own field. */
 const aiRun = ref<{ code: string; controller: AbortController } | null>(null)
-const aiResult = ref<
-  { rowId: ID; code: string; done: AiSingleDone } | null
->(null)
+/** Per language, so starting one cell does not take another's actions away. */
+type AiLocaleResult = { rowId: ID; done: AiSingleDone; proposal: boolean }
+const aiResults = ref<Record<string, AiLocaleResult>>({})
 
-async function onAiTranslate(code: string) {
+function setAiResult(code: string, result: AiLocaleResult | null) {
+  const { [code]: _dropped, ...rest } = aiResults.value
+  aiResults.value = result ? { ...rest, [code]: result } : rest
+}
+
+/**
+ * A published key is read-only, so what AI writes for it is only proposed until
+ * the reviewer accepts; a draft key saves at once and offers Undo.
+ */
+function canAiTranslate(code: string) {
+  if (!aiReady.value || !props.row) return false
+  return (
+    writable.value ||
+    stateOf(code) === 'missing' ||
+    stateOf(code) === 'outdated'
+  )
+}
+
+/** Whether the cell ended with a result, so a run over several can tell when to stop. */
+async function onAiTranslate(
+  code: string,
+  controller = new AbortController(),
+): Promise<boolean> {
   const row = props.row
-  if (!row || aiRun.value) return
-  const controller = new AbortController()
+  if (!row || (aiRun.value && aiRun.value.controller !== controller)) return false
+  const proposal = !writable.value
   aiRun.value = { code, controller }
-  aiResult.value = null
+  setAiResult(code, null)
   texts.value = { ...texts.value, [code]: '' }
   try {
     const done = await streamAiTranslateOne(
       props.projectId,
-      { keyId: Number(row.id), locale: code },
+      { keyId: Number(row.id), locale: code, save: !proposal },
       {
         signal: controller.signal,
         onToken: (piece) => {
@@ -103,16 +125,17 @@ async function onAiTranslate(code: string) {
       },
     )
     texts.value = { ...texts.value, [code]: done.text }
-    aiResult.value = { rowId: row.id, code, done }
+    setAiResult(code, { rowId: row.id, done, proposal })
     // Saved server-side when it passed, so the row is read back rather than patched.
     if (done.batchId) emit('ai-changed')
-    else
+    else if (!proposal)
       toast.add({
         title: 'The result broke a rule and was not saved',
         description: done.issues?.map((issue) => issue.message).join(' · '),
         color: 'warning',
         icon: 'i-lucide:triangle-alert',
       })
+    return true
   } catch (error) {
     texts.value = { ...texts.value, [code]: draftOf(code) }
     if ((error as Error).name !== 'AbortError') {
@@ -123,27 +146,107 @@ async function onAiTranslate(code: string) {
         icon: 'i-lucide:circle-alert',
       })
     }
+    return false
   } finally {
     aiRun.value = null
   }
 }
 
-async function onAiUndo() {
-  const result = aiResult.value
-  if (!result?.done.batchId) return
-  await useApi(
-    `/api/projects/${props.projectId}/ai/translate/batches/${result.done.batchId}/revert`,
-    { method: 'POST' },
+const missingCodes = computed(() =>
+  otherLocales.value.filter((code) => stateOf(code) === 'missing'),
+)
+
+/**
+ * Every empty language of this key, one after another. The list is taken up
+ * front: a saved cell stops being Missing, and must not shift the run.
+ */
+const aiBatch = ref<AbortController | null>(null)
+const aiQueued = ref<string[]>([])
+
+async function onAiTranslateMissing() {
+  if (aiRun.value || aiBatch.value) return
+  const controller = new AbortController()
+  aiBatch.value = controller
+  const rowId = props.row?.id
+  aiQueued.value = [...missingCodes.value]
+  try {
+    while (aiQueued.value.length) {
+      if (controller.signal.aborted || String(props.row?.id) !== String(rowId)) break
+      const code = aiQueued.value[0]!
+      // A failure (the daily limit, a network error) ends the run; the rest stay empty.
+      const ok = await onAiTranslate(code, controller)
+      aiQueued.value = aiQueued.value.filter((c) => c !== code)
+      if (!ok) break
+    }
+  } finally {
+    aiBatch.value = null
+    aiQueued.value = []
+  }
+}
+
+/** Unaccepted proposals that passed the gate, in the order they are shown. */
+const acceptableCodes = computed(() =>
+  Object.keys(aiResults.value).filter((code) => {
+    const result = rowAiResult(code)[0]
+    return result?.proposal && result.done.status !== 'fail'
+  }),
+)
+const proposalCodes = computed(() =>
+  Object.keys(aiResults.value).filter((code) => rowAiResult(code)[0]?.proposal),
+)
+
+async function onAiAcceptAll() {
+  for (const code of [...acceptableCodes.value]) await onAiAccept(code)
+}
+
+function onAiDiscardAll() {
+  for (const code of [...proposalCodes.value]) onAiDiscard(code)
+}
+
+async function onAiAccept(code: string) {
+  const result = aiResults.value[code]
+  if (!result?.proposal) return
+  const accepted = await useApi<{ batchId: string }>(
+    `/api/projects/${props.projectId}/ai/translate/accept`,
+    {
+      method: 'POST',
+      body: {
+        keyId: Number(result.rowId),
+        locale: code,
+        text: texts.value[code] ?? '',
+      },
+    },
   )
-  aiResult.value = null
+  setAiResult(code, {
+    ...result,
+    proposal: false,
+    done: { ...result.done, batchId: accepted.batchId },
+  })
   emit('ai-changed')
 }
 
-const rowAiResult = computed(() =>
-  aiResult.value && String(aiResult.value.rowId) === String(props.row?.id)
-    ? aiResult.value
-    : null,
-)
+function onAiDiscard(code: string) {
+  texts.value = { ...texts.value, [code]: draftOf(code) }
+  setAiResult(code, null)
+}
+
+async function onAiUndo(code: string) {
+  const batchId = aiResults.value[code]?.done.batchId
+  if (!batchId) return
+  await useApi(
+    `/api/projects/${props.projectId}/ai/translate/batches/${batchId}/revert`,
+    { method: 'POST' },
+  )
+  setAiResult(code, null)
+  emit('ai-changed')
+}
+
+function rowAiResult(code: string) {
+  const result = aiResults.value[code]
+  return result && String(result.rowId) === String(props.row?.id)
+    ? [result]
+    : []
+}
 
 /**
  * The row this panel was asked about. An answer takes tens of seconds, so it can
@@ -284,7 +387,13 @@ async function onPickSuggestion(key: string) {
 /** Every locale gets a string: a textarea bound to `undefined` goes uncontrolled. */
 function fillFromRow() {
   const next: Record<string, string> = {}
-  for (const code of props.localeCodes) next[code] = draftOf(code)
+  for (const code of props.localeCodes) {
+    // An unaccepted proposal is not on the row yet, and a running cell is mid-stream.
+    next[code] =
+      aiResults.value[code]?.proposal || aiRun.value?.code === code
+        ? (texts.value[code] ?? '')
+        : draftOf(code)
+  }
   texts.value = next
   keyDraft.value = props.row ? formatI18nKeyDisplay(props.row.key) : ''
   releaseIds.value = (props.row?.releaseIds ?? []).map(Number)
@@ -312,6 +421,7 @@ watch(
       // The panel answers the row that asked for it, so moving on drops it.
       dismissSuggestion()
       ocrReading.value = null
+      aiResults.value = {}
     }
     fillFromRow()
   },
@@ -756,6 +866,52 @@ defineExpose({ flushPendingSaves })
               :content="false"
               :items="filterItems"
             />
+            <template v-if="aiReady">
+              <template v-if="proposalCodes.length > 1 && !aiBatch">
+                <UButton
+                  v-if="acceptableCodes.length > 1"
+                  size="xs"
+                  color="primary"
+                  variant="soft"
+                  :label="`Accept ${acceptableCodes.length}`"
+                  @click="onAiAcceptAll"
+                />
+                <UButton
+                  size="xs"
+                  color="neutral"
+                  variant="ghost"
+                  label="Discard all"
+                  @click="onAiDiscardAll"
+                />
+              </template>
+              <UTooltip
+                v-if="aiBatch"
+                text="Stop"
+              >
+                <UButton
+                  size="xs"
+                  color="neutral"
+                  variant="soft"
+                  icon="i-lucide:square"
+                  aria-label="Stop"
+                  @click="aiBatch.abort()"
+                />
+              </UTooltip>
+              <UTooltip
+                v-else-if="missingCodes.length"
+                :text="`Translate ${missingCodes.length} missing with AI`"
+              >
+                <UButton
+                  size="xs"
+                  color="neutral"
+                  variant="soft"
+                  icon="i-lucide:wand-sparkles"
+                  aria-label="Translate missing languages with AI"
+                  :disabled="Boolean(aiRun)"
+                  @click="onAiTranslateMissing"
+                />
+              </UTooltip>
+            </template>
           </div>
           <p
             v-if="!shownLocales.length"
@@ -792,15 +948,30 @@ defineExpose({ flushPendingSaves })
                   show-text
                 />
                 <UTooltip
-                  v-if="aiReady && writable"
-                  :text="stateOf(code) === 'outdated' ? 'Re-translate with AI' : 'Translate with AI'"
+                  v-if="canAiTranslate(code)"
+                  :text="
+                    aiRun?.code !== code && aiQueued.includes(code)
+                      ? 'Queued'
+                      : stateOf(code) === 'outdated'
+                        ? 'Re-translate with AI'
+                        : 'Translate with AI'
+                  "
                 >
                   <UButton
-                    v-if="aiRun?.code !== code"
+                    v-if="aiRun?.code !== code && aiQueued.includes(code)"
                     size="xs"
                     color="neutral"
                     variant="ghost"
-                    icon="i-lucide:sparkles"
+                    icon="i-lucide:clock"
+                    aria-label="Queued"
+                    disabled
+                  />
+                  <UButton
+                    v-else-if="aiRun?.code !== code"
+                    size="xs"
+                    color="neutral"
+                    variant="ghost"
+                    icon="i-lucide:wand-sparkles"
                     aria-label="Translate with AI"
                     :disabled="Boolean(aiRun)"
                     @click="onAiTranslate(code)"
@@ -828,24 +999,63 @@ defineExpose({ flushPendingSaves })
                 @blur="saveLocale(code)"
               />
               <p
-                v-if="rowAiResult?.code === code"
+                v-for="result in rowAiResult(code)"
+                :key="result.rowId"
                 class="flex items-center gap-1.5 text-xs text-muted"
               >
-                <UIcon name="i-lucide:sparkles" class="size-3.5" />
-                <span>
-                  AI generated · {{ rowAiResult.done.model }}
-                  <template v-if="rowAiResult.done.batchId">
-                    · placeholders OK
+                <UTooltip
+                  :text="result.done.status === 'fail' ? 'Breaks a rule, cannot be accepted' : 'AI generated'"
+                >
+                  <UIcon
+                    name="i-lucide:wand-sparkles"
+                    class="size-3.5"
+                    :class="result.done.status === 'fail' ? 'text-error' : ''"
+                  />
+                </UTooltip>
+                <span>{{ result.done.model }}</span>
+                <div
+                  v-if="result.proposal || result.done.batchId"
+                  class="ml-auto flex items-center gap-1"
+                >
+                  <template v-if="result.proposal">
+                    <UTooltip
+                      v-if="result.done.status !== 'fail'"
+                      text="Accept as draft"
+                    >
+                      <UButton
+                        size="xs"
+                        color="primary"
+                        variant="soft"
+                        icon="i-lucide:check"
+                        aria-label="Accept as draft"
+                        @click="onAiAccept(code)"
+                      />
+                    </UTooltip>
+                    <UTooltip text="Discard">
+                      <UButton
+                        size="xs"
+                        color="neutral"
+                        variant="ghost"
+                        icon="i-lucide:x"
+                        aria-label="Discard"
+                        @click="onAiDiscard(code)"
+                      />
+                    </UTooltip>
                   </template>
-                </span>
-                <UButton
-                  v-if="rowAiResult.done.batchId"
-                  size="xs"
-                  color="neutral"
-                  variant="link"
-                  label="Undo"
-                  @click="onAiUndo"
-                />
+                  <UTooltip
+                    v-else
+                    text="Undo"
+                  >
+                    <UButton
+                      size="xs"
+                      color="neutral"
+                      variant="ghost"
+                      icon="i-lucide:undo-2"
+                      aria-label="Undo"
+                      @click="onAiUndo(code)"
+                    />
+                  </UTooltip>
+                </div>
               </p>
             </div>
           </div>

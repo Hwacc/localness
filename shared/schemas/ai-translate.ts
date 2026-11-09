@@ -32,5 +32,15 @@ export type ZAiTranslateApply = z.infer<typeof zAiTranslateApply>
 export const zAiTranslateSingle = z.object({
   keyId: id,
   locale: z.string().min(1),
+  /** False streams a proposal and leaves saving to a later accept. */
+  save: z.boolean().default(true),
 })
 export type ZAiTranslateSingle = z.infer<typeof zAiTranslateSingle>
+
+/** A proposal the reviewer accepted, as it stands in the field. */
+export const zAiTranslateAccept = z.object({
+  keyId: id,
+  locale: z.string().min(1),
+  text: z.string().refine((value) => value.trim() !== '', 'Text is required'),
+})
+export type ZAiTranslateAccept = z.infer<typeof zAiTranslateAccept>

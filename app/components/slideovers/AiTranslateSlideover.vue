@@ -56,6 +56,43 @@ function textOf(item: AiRunItem) {
 
 const pickedItems = computed(() => run.items.value.filter(isPicked))
 
+function selectable(item: AiRunItem) {
+  return !item.applied && item.text !== null
+}
+
+/** Rows of one key sit together; the key order is the order they first arrived in. */
+const groups = computed(() => {
+  const byKey = new Map<
+    number,
+    { keyId: number; key: string; source: string; items: AiRunItem[] }
+  >()
+  for (const item of run.items.value) {
+    const group = byKey.get(item.keyId)
+    if (group) group.items.push(item)
+    else
+      byKey.set(item.keyId, {
+        keyId: item.keyId,
+        key: item.key,
+        source: item.source,
+        items: [item],
+      })
+  }
+  return [...byKey.values()]
+})
+
+type ItemGroup = (typeof groups.value)[number]
+
+function groupState(group: ItemGroup): boolean | 'indeterminate' {
+  const rows = group.items.filter(selectable)
+  const on = rows.filter(isPicked).length
+  if (!on) return false
+  return on === rows.length ? true : 'indeterminate'
+}
+
+function toggleGroup(group: ItemGroup, value: boolean) {
+  for (const item of group.items.filter(selectable)) picked.value[item.id] = value
+}
+
 watch(open, (value) => {
   if (!value) return
   if (!chosen.value.length) chosen.value = [...targets.value]
@@ -144,14 +181,7 @@ const rowColor: Record<AiRunItem['status'], string> = {
       body: 'p-4 sm:p-4',
     }"
   >
-    <UButton
-      size="sm"
-      color="neutral"
-      variant="soft"
-      label="AI pre-translate"
-      icon="i-lucide:sparkles"
-      :disabled="!keyIds.length"
-    />
+    <AIButton label="AI pre-translate" :disabled="!keyIds.length" />
 
     <template #body>
       <div v-if="!reviewing" class="flex flex-col gap-5">
@@ -241,46 +271,67 @@ const rowColor: Record<AiRunItem['status'], string> = {
           </div>
         </div>
 
-        <ul class="flex flex-col gap-2">
+        <ul class="flex flex-col gap-3">
           <li
-            v-for="item in run.items.value"
-            :key="item.id"
-            class="rounded-md border border-default p-3 flex flex-col gap-2"
-            :class="rowColor[item.status]"
+            v-for="group in groups"
+            :key="group.keyId"
+            class="rounded-md border border-default overflow-hidden"
           >
-            <div class="flex items-center gap-2 text-xs">
-              <UCheckbox
-                :model-value="isPicked(item)"
-                :disabled="item.applied || item.text === null"
-                @update:model-value="picked[item.id] = Boolean($event)"
-              />
-              <span class="truncate font-mono text-muted">
-                {{ formatI18nKeyDisplay(item.key) }}
-              </span>
-              <LocaleBadge :locale="item.locale" />
-              <UBadge v-if="item.applied" size="sm" color="success" variant="subtle" label="Applied" />
-              <UBadge v-else-if="item.status === 'fixed'" size="sm" color="warning" variant="subtle" label="Fixed" />
+            <div class="flex flex-col gap-1 bg-muted px-3 py-2">
+              <div class="flex items-center gap-2 text-xs">
+                <UCheckbox
+                  :model-value="groupState(group)"
+                  :disabled="!group.items.some(selectable)"
+                  @update:model-value="toggleGroup(group, Boolean($event))"
+                />
+                <span class="truncate font-mono font-semibold">
+                  {{ formatI18nKeyDisplay(group.key) }}
+                </span>
+                <span class="ml-auto text-muted tabular-nums">
+                  {{ group.items.filter(isPicked).length }} /
+                  {{ group.items.length }}
+                </span>
+              </div>
+              <p class="text-xs text-muted whitespace-pre-wrap break-words">
+                {{ group.source }}
+              </p>
             </div>
-            <p class="text-xs text-muted whitespace-pre-wrap break-words">
-              {{ item.source }}
-            </p>
-            <UTextarea
-              v-if="item.text !== null"
-              :model-value="textOf(item)"
-              class="w-full"
-              :rows="2"
-              :maxrows="6"
-              autoresize
-              :disabled="item.applied"
-              @update:model-value="edits[item.id] = $event as string"
-            />
-            <p v-else-if="item.status === 'error'" class="text-xs text-error">
-              {{ item.error || 'The model request failed' }}
-            </p>
-            <p v-else class="text-xs text-muted">Waiting…</p>
-            <ul v-if="item.issues?.length" class="text-xs text-error flex flex-col gap-0.5">
-              <li v-for="issue in item.issues" :key="issue.ruleId + issue.message">
-                {{ issue.message }}
+            <ul class="flex flex-col divide-y divide-default">
+              <li
+                v-for="item in group.items"
+                :key="item.id"
+                class="p-3 flex flex-col gap-2"
+                :class="rowColor[item.status]"
+              >
+                <div class="flex items-center gap-2 text-xs">
+                  <UCheckbox
+                    :model-value="isPicked(item)"
+                    :disabled="!selectable(item)"
+                    @update:model-value="picked[item.id] = Boolean($event)"
+                  />
+                  <LocaleBadge :locale="item.locale" />
+                  <UBadge v-if="item.applied" size="sm" color="success" variant="subtle" label="Applied" />
+                  <UBadge v-else-if="item.status === 'fixed'" size="sm" color="warning" variant="subtle" label="Fixed" />
+                </div>
+                <UTextarea
+                  v-if="item.text !== null"
+                  :model-value="textOf(item)"
+                  class="w-full"
+                  :rows="2"
+                  :maxrows="6"
+                  autoresize
+                  :disabled="item.applied"
+                  @update:model-value="edits[item.id] = $event as string"
+                />
+                <p v-else-if="item.status === 'error'" class="text-xs text-error">
+                  {{ item.error || 'The model request failed' }}
+                </p>
+                <p v-else class="text-xs text-muted">Waiting…</p>
+                <ul v-if="item.issues?.length" class="text-xs text-error flex flex-col gap-0.5">
+                  <li v-for="issue in item.issues" :key="issue.ruleId + issue.message">
+                    {{ issue.message }}
+                  </li>
+                </ul>
               </li>
             </ul>
           </li>
@@ -293,7 +344,7 @@ const rowColor: Record<AiRunItem['status'], string> = {
         <template v-if="!reviewing">
           <UButton color="neutral" variant="ghost" label="Close" @click="open = false" />
           <UButton
-            icon="i-lucide:sparkles"
+            icon="i-lucide:wand-sparkles"
             label="Start"
             :loading="run.state.value === 'starting'"
             :disabled="!chosen.length"
