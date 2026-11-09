@@ -14,6 +14,7 @@ import {
   type LocaleCoverageState,
 } from '#shared/utils/coverage'
 import { releaseMembershipDiff } from '#shared/utils/release'
+import type { AiSingleDone } from '~/composables/useAiTranslate'
 
 /**
  * The Translations page's right pane: one key, read from its name and source
@@ -45,6 +46,8 @@ const emit = defineEmits<{
   delete: [row: II18nKeyRow]
   /** Git sync is a setting, not content, so the page owns the call. */
   'toggle-git-sync': [row: II18nKeyRow]
+  /** AI wrote or reverted a draft on the server; the page reloads the list. */
+  'ai-changed': []
 }>()
 
 type LocaleFilter = 'all' | 'missing' | 'outdated'
@@ -68,6 +71,79 @@ const shownLocales = ref<string[]>([])
  * request is still running", the other is "the write is in flight".
  */
 const { loading: generating, suggestion, generate } = useI18nKeyGeneration()
+
+const { status: aiStatus } = useAiTranslateStatus(
+  computed(() => props.projectId),
+)
+const aiReady = computed(() =>
+  Boolean(aiStatus.value?.enabled && aiStatus.value.configured),
+)
+/** One cell at a time: the text streams into its own field. */
+const aiRun = ref<{ code: string; controller: AbortController } | null>(null)
+const aiResult = ref<
+  { rowId: ID; code: string; done: AiSingleDone } | null
+>(null)
+
+async function onAiTranslate(code: string) {
+  const row = props.row
+  if (!row || aiRun.value) return
+  const controller = new AbortController()
+  aiRun.value = { code, controller }
+  aiResult.value = null
+  texts.value = { ...texts.value, [code]: '' }
+  try {
+    const done = await streamAiTranslateOne(
+      props.projectId,
+      { keyId: Number(row.id), locale: code },
+      {
+        signal: controller.signal,
+        onToken: (piece) => {
+          texts.value = { ...texts.value, [code]: (texts.value[code] ?? '') + piece }
+        },
+      },
+    )
+    texts.value = { ...texts.value, [code]: done.text }
+    aiResult.value = { rowId: row.id, code, done }
+    // Saved server-side when it passed, so the row is read back rather than patched.
+    if (done.batchId) emit('ai-changed')
+    else
+      toast.add({
+        title: 'The result broke a rule and was not saved',
+        description: done.issues?.map((issue) => issue.message).join(' · '),
+        color: 'warning',
+        icon: 'i-lucide:triangle-alert',
+      })
+  } catch (error) {
+    texts.value = { ...texts.value, [code]: draftOf(code) }
+    if ((error as Error).name !== 'AbortError') {
+      toast.add({
+        title: 'AI translation failed',
+        description: (error as Error).message,
+        color: 'error',
+        icon: 'i-lucide:circle-alert',
+      })
+    }
+  } finally {
+    aiRun.value = null
+  }
+}
+
+async function onAiUndo() {
+  const result = aiResult.value
+  if (!result?.done.batchId) return
+  await useApi(
+    `/api/projects/${props.projectId}/ai/translate/batches/${result.done.batchId}/revert`,
+    { method: 'POST' },
+  )
+  aiResult.value = null
+  emit('ai-changed')
+}
+
+const rowAiResult = computed(() =>
+  aiResult.value && String(aiResult.value.rowId) === String(props.row?.id)
+    ? aiResult.value
+    : null,
+)
 
 /**
  * The row this panel was asked about. An answer takes tens of seconds, so it can
@@ -715,6 +791,30 @@ defineExpose({ flushPendingSaves })
                   :state="stateOf(code)"
                   show-text
                 />
+                <UTooltip
+                  v-if="aiReady && writable"
+                  :text="stateOf(code) === 'outdated' ? 'Re-translate with AI' : 'Translate with AI'"
+                >
+                  <UButton
+                    v-if="aiRun?.code !== code"
+                    size="xs"
+                    color="neutral"
+                    variant="ghost"
+                    icon="i-lucide:sparkles"
+                    aria-label="Translate with AI"
+                    :disabled="Boolean(aiRun)"
+                    @click="onAiTranslate(code)"
+                  />
+                  <UButton
+                    v-else
+                    size="xs"
+                    color="neutral"
+                    variant="ghost"
+                    icon="i-lucide:square"
+                    aria-label="Stop"
+                    @click="aiRun?.controller.abort()"
+                  />
+                </UTooltip>
               </div>
               <UTextarea
                 v-model="texts[code]"
@@ -723,10 +823,30 @@ defineExpose({ flushPendingSaves })
                 :rows="2"
                 :maxrows="8"
                 autoresize
-                :disabled="!writable"
+                :disabled="!writable || aiRun?.code === code"
                 :placeholder="writable ? 'Not translated yet' : '—'"
                 @blur="saveLocale(code)"
               />
+              <p
+                v-if="rowAiResult?.code === code"
+                class="flex items-center gap-1.5 text-xs text-muted"
+              >
+                <UIcon name="i-lucide:sparkles" class="size-3.5" />
+                <span>
+                  AI generated · {{ rowAiResult.done.model }}
+                  <template v-if="rowAiResult.done.batchId">
+                    · placeholders OK
+                  </template>
+                </span>
+                <UButton
+                  v-if="rowAiResult.done.batchId"
+                  size="xs"
+                  color="neutral"
+                  variant="link"
+                  label="Undo"
+                  @click="onAiUndo"
+                />
+              </p>
             </div>
           </div>
         </section>

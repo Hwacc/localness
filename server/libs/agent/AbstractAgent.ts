@@ -24,7 +24,7 @@ export class AgentError extends Error {
  * feature needs a subclass, a slug here and a Markdown file — no new
  * configuration code.
  */
-export type AgentFeature = 'i18n-key'
+export type AgentFeature = 'i18n-key' | 'translation'
 
 /** `i18n-key` -> `I18N_KEY`. */
 export function featureEnvSuffix(feature: AgentFeature): string {

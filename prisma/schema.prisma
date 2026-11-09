@@ -334,6 +334,10 @@ model ProjectSettings {
   /// Consistency severity overrides by ruleId (error | warning | off).
   /// Absent ruleId = the rule's default.
   ruleSeverity   Json     @default("{}") @map("rule_severity")
+  /// AI pre-translation switch for this project.
+  aiTranslate    Boolean  @default(false) @map("ai_translate")
+  /// Cells AI may translate per calendar day; null = unlimited.
+  aiDailyLimit   Int?     @map("ai_daily_limit")
   project        Project  @relation(fields: [projectID], references: [id], onDelete: Cascade)
 }
 
@@ -679,9 +683,15 @@ model TranslationLog {
   fingerprint String?
   beforeData  Json?    @map("before_data")
   afterData   Json?    @map("after_data")
+  /// Who wrote it: `human` or `ai` (AI pre-translation).
+  source      String   @default("human")
+  /// Groups the rows of one AI batch, so it can be reverted or counted as a unit.
+  batchId     String?  @map("batch_id")
+  model       String?
   i18nKey     I18nKey? @relation(fields: [i18nKeyId], references: [id], onDelete: NoAction)
   user        User?    @relation(fields: [userID], references: [id], onDelete: SetNull)
 
   @@index([userID])
   @@index([createdAt])
+  @@index([batchId])
 }

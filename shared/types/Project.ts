@@ -28,6 +28,10 @@ export interface IProjectSetting {
   i18nDialect?: I18nDialect
   /** Consistency severity overrides by ruleId; absent = rule default. */
   ruleSeverity?: Record<string, RuleSeverity>
+  /** AI pre-translation switch; off by default. */
+  aiTranslate?: boolean
+  /** Cells AI may translate per day; null or absent = no limit. */
+  aiDailyLimit?: number | null
 }
 
 export interface IProjectOwner {

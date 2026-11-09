@@ -1,5 +1,6 @@
 import type {
   ChatCompletionCreateParamsNonStreaming,
+  ChatCompletionCreateParamsStreaming,
   ChatCompletionMessageParam,
 } from 'openai/resources/chat/completions'
 import OpenAI, {
@@ -204,6 +205,61 @@ export abstract class OpenAIAgent extends AbstractAgent {
     return loadAgentPrompt(this.feature, env)
   }
 
+  private buildRequest(
+    messages: ChatCompletionMessageParam[],
+    options: CompletionOptions,
+    env: Env
+  ) {
+    const { jsonMode = true, ...rest } = options
+    const maxTokens = rest.maxTokens ?? MAX_TOKENS
+    const model = resolveModel(this.feature, env)
+    const knobs = toWireParams({ ...rest, maxTokens })
+    const body = {
+      model,
+      messages,
+      ...knobs,
+      ...(jsonMode ? { response_format: { type: 'json_object' as const } } : {}),
+    }
+    return { model, maxTokens, knobs, body }
+  }
+
+  /**
+   * Same call as {@link complete}, answered as it is written. Yields only the
+   * answer text: a reasoning model's chain of thought arrives in a separate
+   * field and is dropped here, so a caller can show every chunk as it comes.
+   * Mid-stream failures surface as {@link AgentError} like the rest.
+   */
+  protected async *stream(
+    messages: ChatCompletionMessageParam[],
+    options: CompletionOptions = {},
+    env: Env = process.env
+  ): AsyncGenerator<string, void> {
+    const { model, knobs, body } = this.buildRequest(messages, options, env)
+    const started = Date.now()
+    let answered = 0
+    try {
+      const chunks = await this.initClient(env).chat.completions.create({
+        ...body,
+        stream: true,
+      } as ChatCompletionCreateParamsStreaming)
+      for await (const chunk of chunks) {
+        const delta = chunk.choices[0]?.delta?.content
+        if (!delta) continue
+        answered += delta.length
+        yield delta
+      }
+      console.log(
+        `[agent:${this.feature}] ${model} ${Date.now() - started}ms ${JSON.stringify(knobs)} stream answer=${answered}c`
+      )
+      if (!answered) {
+        throw new AgentError('upstream', 'The AI service returned an empty answer')
+      }
+    } catch (error) {
+      console.error(`[agent:${this.feature}] stream failed:`, error)
+      throw toOpenAIAgentError(error, model)
+    }
+  }
+
   /**
    * The one place that talks to the model. Returns the assistant text; an
    * answer that never arrived is an error, not an empty string.
@@ -217,20 +273,14 @@ export abstract class OpenAIAgent extends AbstractAgent {
     options: CompletionOptions = {},
     env: Env = process.env
   ): Promise<string> {
-    const { jsonMode = true, ...rest } = options
-    const maxTokens = rest.maxTokens ?? MAX_TOKENS
-    const model = resolveModel(this.feature, env)
-    const knobs = toWireParams({ ...rest, maxTokens })
+    const { model, maxTokens, knobs, body } = this.buildRequest(
+      messages,
+      options,
+      env
+    )
     const started = Date.now()
     try {
-      const params = {
-        model,
-        messages,
-        ...knobs,
-        ...(jsonMode
-          ? { response_format: { type: 'json_object' as const } }
-          : {}),
-      } as ChatCompletionCreateParamsNonStreaming
+      const params = body as ChatCompletionCreateParamsNonStreaming
       const completion = await this.initClient(env).chat.completions.create(
         params
       )
