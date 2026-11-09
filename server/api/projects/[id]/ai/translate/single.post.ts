@@ -18,7 +18,8 @@ import { zAiTranslateSingle } from '#shared/schemas'
  * events carry text to append, then one `done` with the gate verdict. A result
  * that passes (or was repaired) is saved as a draft under its own batch, so it
  * can be reverted; one that fails is only returned, for the reviewer to edit.
- * Reaches published text only when it lags the source.
+ * With `save: false` nothing is written: the result is a proposal, taken by
+ * `single/accept`. Reaches published text only when it lags the source.
  * @access Private (team member)
  */
 export default defineEventHandler(async (event) => {
@@ -77,7 +78,7 @@ export default defineEventHandler(async (event) => {
         text
       )
       let batchId: string | null = null
-      if (gated.status !== 'fail') {
+      if (body.save && gated.status !== 'fail') {
         batchId = randomUUID()
         await applyAiWrites({
           batchId,

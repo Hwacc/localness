@@ -73,6 +73,7 @@ export type ProjectSettingsTab =
   | 'consistency'
   | 'releases'
   | 'namespaces'
+  | 'danger'
 
 export interface IProject {
   id: ID

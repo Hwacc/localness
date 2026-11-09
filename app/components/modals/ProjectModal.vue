@@ -271,7 +271,7 @@ const tabsItems = computed(() => [
         },
         {
           label: 'AI translation',
-          icon: 'i-lucide:sparkles',
+          icon: 'i-lucide:wand-sparkles',
           slot: 'ai-translation',
           value: 'ai-translation',
         },
@@ -293,6 +293,12 @@ const tabsItems = computed(() => [
           slot: 'namespaces',
           value: 'namespaces',
         },
+        {
+          label: 'Danger zone',
+          icon: 'i-lucide:triangle-alert',
+          slot: 'danger',
+          value: 'danger',
+        },
       ]
     : []),
 ])
@@ -306,6 +312,12 @@ const emit = defineEmits<{
     }
   ]
 }>()
+
+async function onProjectDeleted() {
+  // The refresh drops the missing project and repicks a fallback.
+  await projectStore.getProjects()
+  emit('close', true)
+}
 
 async function onSubmit(_: FormSubmitEvent<ZProject>) {
   if (mode === 'create' && !state.teamId) {
@@ -647,6 +659,9 @@ async function onSubmit(_: FormSubmitEvent<ZProject>) {
               :loading="namespacesLoading"
               @changed="refreshNamespaces"
             />
+          </template>
+          <template #danger>
+            <ProjectDangerPanel :project="project" @deleted="onProjectDeleted" />
           </template>
         </SettingsTabs>
         <div class="w-full flex justify-end gap-6 mt-4">
