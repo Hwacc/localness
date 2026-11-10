@@ -1,6 +1,6 @@
 {
   "name": "@localness/contract",
-  "version": "0.1.0",
+  "version": "0.4.1",
   "description": "Response contracts of the Localness public /api/v1: zod schemas and the types inferred from them.",
   "license": "Elastic-2.0",
   "type": "module",
