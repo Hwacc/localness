@@ -272,3 +272,138 @@ export async function streamAiTranslateOne(
   }
   throw new Error('The stream ended without a result')
 }
+
+export interface AiCellResult {
+  keyId: ID
+  done: AiSingleDone
+  /** Not saved yet: the reviewer has to accept it. */
+  proposal: boolean
+}
+
+/**
+ * AI translation of single cells (one language of one key), shared by every
+ * place that edits a key's text. The caller owns where the text lives.
+ *
+ * A writable (draft) key saves at once and offers Undo; anything else is only
+ * proposed until the reviewer accepts. Results are kept per language so that
+ * starting one cell does not take another's actions away.
+ */
+export function useAiCell(opts: {
+  projectId: Ref<ID>
+  keyId: () => ID | null | undefined
+  writable: () => boolean
+  getText: (code: string) => string
+  setText: (code: string, text: string) => void
+  /** What the cell held before AI touched it; Discard and Undo put it back. */
+  original: (code: string) => string
+  /** The server wrote or reverted a draft, so the caller should read it back. */
+  onChanged: () => void
+}) {
+  const toast = useToast()
+  const run = ref<{ code: string; controller: AbortController } | null>(null)
+  const results = ref<Record<string, AiCellResult>>({})
+
+  function setResult(code: string, result: AiCellResult | null) {
+    const { [code]: _dropped, ...rest } = results.value
+    results.value = result ? { ...rest, [code]: result } : rest
+  }
+
+  /** A result belongs to the key it was made for; an answer can outlive the selection. */
+  function resultFor(code: string) {
+    const result = results.value[code]
+    return result && String(result.keyId) === String(opts.keyId()) ? [result] : []
+  }
+
+  /** Whether the cell ended with a result, so a run over several can tell when to stop. */
+  async function translate(
+    code: string,
+    controller = new AbortController()
+  ): Promise<boolean> {
+    const keyId = opts.keyId()
+    if (!keyId || (run.value && run.value.controller !== controller)) return false
+    const proposal = !opts.writable()
+    run.value = { code, controller }
+    setResult(code, null)
+    opts.setText(code, '')
+    try {
+      const done = await streamAiTranslateOne(
+        opts.projectId.value,
+        { keyId: Number(keyId), locale: code, save: !proposal },
+        {
+          signal: controller.signal,
+          onToken: (piece) => opts.setText(code, opts.getText(code) + piece),
+        }
+      )
+      opts.setText(code, done.text)
+      setResult(code, { keyId, done, proposal })
+      // Saved server-side when it passed, so the caller reads it back.
+      if (done.batchId) opts.onChanged()
+      else if (!proposal)
+        toast.add({
+          title: 'The result broke a rule and was not saved',
+          description: done.issues?.map((issue) => issue.message).join(' · '),
+          color: 'warning',
+          icon: 'i-lucide:triangle-alert',
+        })
+      return true
+    } catch (error) {
+      opts.setText(code, opts.original(code))
+      if ((error as Error).name !== 'AbortError') {
+        toast.add({
+          title: 'AI translation failed',
+          description: (error as Error).message,
+          color: 'error',
+          icon: 'i-lucide:circle-alert',
+        })
+      }
+      return false
+    } finally {
+      run.value = null
+    }
+  }
+
+  async function accept(code: string) {
+    const result = results.value[code]
+    if (!result?.proposal) return
+    const accepted = await useApi<{ batchId: string }>(
+      `/api/projects/${opts.projectId.value}/ai/translate/accept`,
+      {
+        method: 'POST',
+        body: {
+          keyId: Number(result.keyId),
+          locale: code,
+          text: opts.getText(code),
+        },
+      }
+    )
+    setResult(code, {
+      ...result,
+      proposal: false,
+      done: { ...result.done, batchId: accepted.batchId },
+    })
+    opts.onChanged()
+  }
+
+  function discard(code: string) {
+    opts.setText(code, opts.original(code))
+    setResult(code, null)
+  }
+
+  async function undo(code: string) {
+    const batchId = results.value[code]?.done.batchId
+    if (!batchId) return
+    await useApi(
+      `/api/projects/${opts.projectId.value}/ai/translate/batches/${batchId}/revert`,
+      { method: 'POST' }
+    )
+    setResult(code, null)
+    opts.setText(code, opts.original(code))
+    opts.onChanged()
+  }
+
+  function clear() {
+    results.value = {}
+  }
+
+  return { run, results, translate, accept, discard, undo, resultFor, clear }
+}

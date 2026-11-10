@@ -14,7 +14,6 @@ import {
   type LocaleCoverageState,
 } from '#shared/utils/coverage'
 import { releaseMembershipDiff } from '#shared/utils/release'
-import type { AiSingleDone } from '~/composables/useAiTranslate'
 
 /**
  * The Translations page's right pane: one key, read from its name and source
@@ -79,15 +78,26 @@ const aiReady = computed(() =>
   Boolean(aiStatus.value?.enabled && aiStatus.value.configured),
 )
 /** One cell at a time: the text streams into its own field. */
-const aiRun = ref<{ code: string; controller: AbortController } | null>(null)
-/** Per language, so starting one cell does not take another's actions away. */
-type AiLocaleResult = { rowId: ID; done: AiSingleDone; proposal: boolean }
-const aiResults = ref<Record<string, AiLocaleResult>>({})
-
-function setAiResult(code: string, result: AiLocaleResult | null) {
-  const { [code]: _dropped, ...rest } = aiResults.value
-  aiResults.value = result ? { ...rest, [code]: result } : rest
-}
+const {
+  run: aiRun,
+  results: aiResults,
+  translate: onAiTranslate,
+  accept: onAiAccept,
+  discard: onAiDiscard,
+  undo: onAiUndo,
+  resultFor: rowAiResult,
+  clear: clearAiResults,
+} = useAiCell({
+  projectId: computed(() => props.projectId),
+  keyId: () => props.row?.id,
+  writable: () => writable.value,
+  getText: (code) => texts.value[code] ?? '',
+  setText: (code, text) => {
+    texts.value = { ...texts.value, [code]: text }
+  },
+  original: (code) => draftOf(code),
+  onChanged: () => emit('ai-changed'),
+})
 
 /**
  * A published key is read-only, so what AI writes for it is only proposed until
@@ -100,56 +110,6 @@ function canAiTranslate(code: string) {
     stateOf(code) === 'missing' ||
     stateOf(code) === 'outdated'
   )
-}
-
-/** Whether the cell ended with a result, so a run over several can tell when to stop. */
-async function onAiTranslate(
-  code: string,
-  controller = new AbortController(),
-): Promise<boolean> {
-  const row = props.row
-  if (!row || (aiRun.value && aiRun.value.controller !== controller)) return false
-  const proposal = !writable.value
-  aiRun.value = { code, controller }
-  setAiResult(code, null)
-  texts.value = { ...texts.value, [code]: '' }
-  try {
-    const done = await streamAiTranslateOne(
-      props.projectId,
-      { keyId: Number(row.id), locale: code, save: !proposal },
-      {
-        signal: controller.signal,
-        onToken: (piece) => {
-          texts.value = { ...texts.value, [code]: (texts.value[code] ?? '') + piece }
-        },
-      },
-    )
-    texts.value = { ...texts.value, [code]: done.text }
-    setAiResult(code, { rowId: row.id, done, proposal })
-    // Saved server-side when it passed, so the row is read back rather than patched.
-    if (done.batchId) emit('ai-changed')
-    else if (!proposal)
-      toast.add({
-        title: 'The result broke a rule and was not saved',
-        description: done.issues?.map((issue) => issue.message).join(' · '),
-        color: 'warning',
-        icon: 'i-lucide:triangle-alert',
-      })
-    return true
-  } catch (error) {
-    texts.value = { ...texts.value, [code]: draftOf(code) }
-    if ((error as Error).name !== 'AbortError') {
-      toast.add({
-        title: 'AI translation failed',
-        description: (error as Error).message,
-        color: 'error',
-        icon: 'i-lucide:circle-alert',
-      })
-    }
-    return false
-  } finally {
-    aiRun.value = null
-  }
 }
 
 const missingCodes = computed(() =>
@@ -201,51 +161,6 @@ async function onAiAcceptAll() {
 
 function onAiDiscardAll() {
   for (const code of [...proposalCodes.value]) onAiDiscard(code)
-}
-
-async function onAiAccept(code: string) {
-  const result = aiResults.value[code]
-  if (!result?.proposal) return
-  const accepted = await useApi<{ batchId: string }>(
-    `/api/projects/${props.projectId}/ai/translate/accept`,
-    {
-      method: 'POST',
-      body: {
-        keyId: Number(result.rowId),
-        locale: code,
-        text: texts.value[code] ?? '',
-      },
-    },
-  )
-  setAiResult(code, {
-    ...result,
-    proposal: false,
-    done: { ...result.done, batchId: accepted.batchId },
-  })
-  emit('ai-changed')
-}
-
-function onAiDiscard(code: string) {
-  texts.value = { ...texts.value, [code]: draftOf(code) }
-  setAiResult(code, null)
-}
-
-async function onAiUndo(code: string) {
-  const batchId = aiResults.value[code]?.done.batchId
-  if (!batchId) return
-  await useApi(
-    `/api/projects/${props.projectId}/ai/translate/batches/${batchId}/revert`,
-    { method: 'POST' },
-  )
-  setAiResult(code, null)
-  emit('ai-changed')
-}
-
-function rowAiResult(code: string) {
-  const result = aiResults.value[code]
-  return result && String(result.rowId) === String(props.row?.id)
-    ? [result]
-    : []
 }
 
 /**
@@ -421,7 +336,7 @@ watch(
       // The panel answers the row that asked for it, so moving on drops it.
       dismissSuggestion()
       ocrReading.value = null
-      aiResults.value = {}
+      clearAiResults()
     }
     fillFromRow()
   },
@@ -998,9 +913,9 @@ defineExpose({ flushPendingSaves })
                 :placeholder="writable ? 'Not translated yet' : '—'"
                 @blur="saveLocale(code)"
               />
-              <p
+              <div
                 v-for="result in rowAiResult(code)"
-                :key="result.rowId"
+                :key="result.keyId"
                 class="flex items-center gap-1.5 text-xs text-muted"
               >
                 <UTooltip
@@ -1056,7 +971,7 @@ defineExpose({ flushPendingSaves })
                     />
                   </UTooltip>
                 </div>
-              </p>
+              </div>
             </div>
           </div>
         </section>

@@ -20,6 +20,8 @@ export function useTagModal() {
       suggestion: null,
       onSave: () => {},
       onCreateTrans: () => {},
+      onReverted: () => {},
+      onAiChanged: () => {},
       onClose: () => {},
     },
   })
@@ -37,6 +39,8 @@ export function useTagModal() {
   const translationGenerator = useTranslationGenerator()
 
   function open(opt: TagModalOptions) {
+    /* AI saves to the entry behind the dialog's back, so the tag is re-read on close. */
+    let aiTouched = false
     tagModal.open({
       tag: opt.tag,
       clip: opt.clip,
@@ -163,7 +167,14 @@ export function useTagModal() {
           opt.onSave?.(refreshed)
         }
       },
-      onClose: (isOK: boolean) => {
+      onAiChanged: () => {
+        aiTouched = true
+      },
+      onClose: async (isOK: boolean) => {
+        if (aiTouched) {
+          const refreshed = await tagStore.refreshTag(opt.tag.id)
+          if (refreshed) opt.onSave?.(refreshed)
+        }
         opt.onClose?.(isOK)
       },
     })
