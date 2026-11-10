@@ -68,6 +68,12 @@ const examples = computed(() => [
     code: curlExample(`/api/v1/bundle?namespace=${NAMESPACE_EXAMPLE}`),
   },
   {
+    title: 'Per-key, per-locale state (includes drafts)',
+    description:
+      'draftText, publishedText and a state (draft, published, outdated, unpublished) for every key and locale. Unlike the other read routes this returns unpublished draft text to a read token. Narrow with ?locales=en,ja, ?release=, ?namespace=; page with ?offset= and ?limit= (max 5000).',
+    code: curlExample('/api/v1/keys/states?locales=en,ja&limit=100'),
+  },
+  {
     title: 'Every locale in one bundle',
     description:
       'All locales in a single round trip. Same shape, keyed by locale.',
@@ -153,9 +159,14 @@ async function copy(value: string, label: string) {
       <header class="flex flex-col gap-2">
         <h1 class="text-xl font-semibold">API</h1>
         <p class="text-sm text-muted">
-          Access to published copy. Drafts are never reachable with a token, and
-          narrowed by <code class="text-xs">release</code> and key
-          <code class="text-xs">namespace</code> only. A token is
+          Access to published copy, narrowed by
+          <code class="text-xs">release</code> and key
+          <code class="text-xs">namespace</code> only. Drafts are not reachable
+          with a token except through
+          <code class="text-xs">/keys/states</code> (and
+          <code class="text-xs">/keys/search</code>,
+          <code class="text-xs">/pages/:id</code>), which return draft text to a
+          read token. A token is
           read-only unless you mint it as
           <span class="text-default">write</span>, which also lets a design tool
           import a frame as a page.

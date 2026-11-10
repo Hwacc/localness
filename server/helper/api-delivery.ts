@@ -6,9 +6,17 @@ import {
   listReleases,
 } from '#server/helper/release'
 import { listNamespaces, namespaceKeyIds } from '#server/helper/namespace'
+import { sourceLocaleOf } from '#server/helper/i18n'
 import { DEFAULT_LOCALE_FALLBACK } from '#shared/constants'
+import { isI18nKeyDraft } from '#shared/utils'
+import { isTranslationOutdated } from '#shared/utils/outdated'
 import { UNGROUPED_NAMESPACE_PARAM } from '#shared/utils/namespace'
-import type { DeliveryBundle, DeliveryMeta } from '#shared/contract'
+import type {
+  DeliveryBundle,
+  DeliveryKeyStates,
+  DeliveryLocaleStateName,
+  DeliveryMeta,
+} from '#shared/contract'
 
 export type { DeliveryBundle, DeliveryMeta }
 
@@ -251,7 +259,7 @@ export async function deliveryMeta(
   const locales = await projectLocales(projectId)
   const filter = scopeWhere(scope)
 
-  const [project, scopedKeys, totalKeys, releases, namespaces, published] =
+  const [project, scopedKeys, totalKeys, releases, namespaces, published, sourceLocale] =
     await Promise.all([
       prisma.project.findUnique({
         where: { id: projectId },
@@ -270,6 +278,7 @@ export async function deliveryMeta(
         },
         _count: { _all: true },
       }),
+      sourceLocaleOf(projectId),
     ])
   if (!project) return null
 
@@ -284,6 +293,7 @@ export async function deliveryMeta(
   return {
     project: { id: project.id, name: project.name },
     locales,
+    sourceLocale,
     localeFallback:
       project.settings?.localeFallback || DEFAULT_LOCALE_FALLBACK,
     release: scope.releaseId,
@@ -493,6 +503,101 @@ export async function listDeliveryKeys(
     }),
   ])
   return { keys: rows.map((row) => row.key), total, offset: skip, limit: take }
+}
+
+/**
+ * Per-key, per-locale draft/published/outdated state, drafts included. The one
+ * read-scope route that exposes draft text; every other delivery shape is
+ * published-only. `draft` and `outdated` are judged on all of a key's locales,
+ * not just the requested ones, so narrowing `locales` never changes them.
+ * Per locale, the first match wins: no published text → `unpublished`; stale
+ * against the source sentence → `outdated`; draft differs from published →
+ * `draft`; otherwise `published`.
+ */
+export async function deliveryKeyStates(
+  projectId: number,
+  scope: DeliveryScope,
+  params: { locales?: string[]; offset?: number; limit?: number }
+): Promise<DeliveryKeyStates> {
+  const skip = clampOffset(params.offset)
+  const take = clampListLimit(params.limit)
+  const [sourceLocale, configured] = await Promise.all([
+    sourceLocaleOf(projectId),
+    projectLocales(projectId),
+  ])
+  const wanted = params.locales?.length ? params.locales : configured
+  const where = { projectId, ...scopeWhere(scope) }
+  const [total, rows] = await Promise.all([
+    prisma.i18nKey.count({ where }),
+    prisma.i18nKey.findMany({
+      where,
+      orderBy: { key: 'asc' },
+      skip,
+      take,
+      select: {
+        id: true,
+        key: true,
+        fingerprint: true,
+        releases: { select: { releaseId: true } },
+        locales: {
+          select: {
+            locale: true,
+            draftText: true,
+            publishedText: true,
+            sourceFingerprint: true,
+          },
+        },
+      },
+    }),
+  ])
+
+  const keys = rows.map((row) => {
+    const keyIsDraft = isI18nKeyDraft(row.locales)
+    const byLocale = new Map(row.locales.map((value) => [value.locale, value]))
+    const locales: DeliveryKeyStates['keys'][number]['locales'] = {}
+    for (const locale of wanted) {
+      const value = byLocale.get(locale)
+      const draftText = value?.draftText ?? null
+      const publishedText = value?.publishedText ?? null
+      let state: DeliveryLocaleStateName
+      if (!hasPublishedText(publishedText)) {
+        state = 'unpublished'
+      } else if (
+        isTranslationOutdated({
+          locale,
+          sourceLocale,
+          draftText,
+          publishedText,
+          sourceFingerprint: value?.sourceFingerprint ?? '',
+          keyFingerprint: row.fingerprint,
+          keyIsDraft,
+        })
+      ) {
+        state = 'outdated'
+      } else if ((draftText ?? '') !== publishedText) {
+        state = 'draft'
+      } else {
+        state = 'published'
+      }
+      locales[locale] = { draftText, publishedText, state }
+    }
+    return {
+      id: row.id,
+      key: row.key,
+      releaseIds: row.releases.map((release) => release.releaseId),
+      draft: keyIsDraft,
+      locales,
+    }
+  })
+
+  return {
+    sourceLocale,
+    keys,
+    total,
+    offset: skip,
+    limit: take,
+    generatedAt: new Date().toISOString(),
+  }
 }
 
 /**

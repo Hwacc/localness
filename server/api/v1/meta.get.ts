@@ -21,7 +21,8 @@ import type { DeliveryMeta } from '#shared/contract'
  *
  * One shape per endpoint: `/meta` never returns a project *list*. When the
  * credential is ambiguous it says so and points at `GET /api/v1/projects`.
- * Published copy only: a draft is never reachable with a token.
+ * Published copy only, except `/keys/states`, which deliberately returns draft
+ * text to a read token (see `DeliveryKeyStates`).
  */
 export default defineEventHandler(async (event): Promise<DeliveryMeta> => {
   const token = await authenticateDeliveryRequest(

@@ -31,6 +31,8 @@ export type DeliveryOutdated = z.infer<typeof deliveryOutdatedSchema>
 export const deliveryMetaSchema = z.object({
   project: z.object({ id: z.number(), name: z.string() }),
   locales: z.array(z.string()),
+  /** The project's source locale. Optional: servers before it omit it. */
+  sourceLocale: z.string().optional(),
   localeFallback: z.string(),
   /** The release the response is scoped to, or null for all keys. */
   release: z.number().nullable(),
@@ -96,3 +98,46 @@ export const deliveryKeysSchema = z.object({
   generatedAt: z.string(),
 })
 export type DeliveryKeys = z.infer<typeof deliveryKeysSchema>
+
+export const deliveryLocaleStateNameSchema = z.enum([
+  'draft',
+  'published',
+  'outdated',
+  'unpublished',
+])
+export type DeliveryLocaleStateName = z.infer<
+  typeof deliveryLocaleStateNameSchema
+>
+
+/**
+ * `GET /api/v1/keys/states` — per-key, per-locale state, drafts included.
+ * Unlike every other delivery shape this carries draft text: a read token sees
+ * what the editor sees.
+ */
+export const deliveryKeyStatesSchema = z.object({
+  sourceLocale: z.string(),
+  keys: z.array(
+    z.object({
+      id: z.number(),
+      key: z.string(),
+      releaseIds: z.array(z.number()),
+      /** True while the key still has unpublished edits or was never published. */
+      draft: z.boolean(),
+      locales: z.record(
+        z.string(),
+        z.object({
+          draftText: z.string().nullable(),
+          publishedText: z.string().nullable(),
+          state: deliveryLocaleStateNameSchema,
+        })
+      ),
+    })
+  ),
+  /** Keys in scope, before paging. */
+  total: z.number(),
+  offset: z.number(),
+  limit: z.number(),
+  /** ISO 8601. */
+  generatedAt: z.string(),
+})
+export type DeliveryKeyStates = z.infer<typeof deliveryKeyStatesSchema>

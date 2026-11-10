@@ -10,7 +10,7 @@
 
 左侧栏的 **API**。页头写着：
 
-> Access to published copy. Drafts are never reachable with a token, and narrowed by `release` and key `namespace` only. A token is read-only unless you mint it as `write`, which also lets a design tool import a frame as a page.
+> Access to published copy, narrowed by `release` and key `namespace` only. Drafts are not reachable with a token **except** through `GET /api/v1/keys/states` (and `/keys/search`, `/pages/:id`), which deliberately return draft text to a read token — treat a read token as able to see unpublished copy. A token is read-only unless you mint it as `write`, which also lets a design tool import a frame as a page.
 
 **文档和 token 抽屉对所有 Team Member 可见**——消费这个项目的人不一定管这个项目。页面从上到下是：**Manage tokens** 按钮、**Authentication**、**Endpoints**（可复制的例子）、**Importing from a design tool**、**From the browser or Node**、**MCP**。![1790221478500](image/12-api-mcp/1790221478500.png)
 
@@ -77,6 +77,7 @@
 | `GET /api/v1/bundle`          | 一次拿到全部语言：`{ locale: { key: text } }`。只有已发布 |
 | `GET /api/v1/outdated`        | 哪些语言的哪些 key 译文是对着旧源文翻的。只是标记，句子仍在 `/bundle` |
 | `GET /api/v1/keys/search?q=`  | 给绑定下拉用。key 和源文，**含草稿**，分页 |
+| `GET /api/v1/keys/states`     | **按 key、按语言**返回 `draftText` / `publishedText` / `state`（`draft`、`published`、`outdated`、`unpublished`），**含草稿文案**。read token 即可；`?locales=en,ja`（缺省为项目全部语言）、`release`、`namespace`、`offset`、`limit`（上限 5000），按 key 升序。meta 另带 `sourceLocale` |
 | `POST /api/v1/match`          | 一批图层文字对上哪些已有词条（草稿优先，否则已发布）。每个命中都返回 |
 | `GET /api/v1/pages/:id`       | Capture 读：这一页的 tag、草稿源文、page 和词条上的发行标签。Preview 只读这份绑定，不在这里改 key |
 | `POST /api/v1/releases`       | 新建发行标签。Project Owner，write token |
@@ -183,7 +184,7 @@ token 指定了多个项目、URL 又没写 `?project=` 时，握手照常成功
 | `Unknown namespace: x`                     | `?namespace=` 的名字这个项目里没有。去 Project Settings → Namespaces 看，或调 `/meta`                                                                         |
 | 调`/meta` 返回的项目名不是你要的           | `?project=` 写错了——**名字必须唯一命中**，有重名就得用 id。别猜，先调`/api/v1/projects`                                                            |
 | 关掉弹窗后 token 找不到了                    | 明文只有创建那一次。吊销重发                                                                                                                                |
-| 某条词条在 `/bundle` 里查不到                       | 它在这个语言还没**发布**。草稿走 `GET /api/v1/pages/:id` 和 `GET /api/v1/keys/search`，不走 bundle |
+| 某条词条在 `/bundle` 里查不到                       | 它在这个语言还没**发布**。草稿走 `GET /api/v1/pages/:id`、`GET /api/v1/keys/search` 和 `GET /api/v1/keys/states`，不走 bundle |
 | 某个语言少了半截 key                         | 那些 key 在这个语言没发布，API**不会**拿别的语言补上                                                                                                  |
 | **Revoke** 点错了                      | 没有二次确认，撤不回来。重新建一枚，名字里带上用途                                                                                                          |
 | 已经吊销的行点**Delete** 没反应        | 只有 token 的主人本人或平台管理员能硬删                                                                                                                      |
