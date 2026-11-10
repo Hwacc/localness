@@ -5,6 +5,7 @@ import {
   I18nKeyStatusFilter,
 } from '#shared/constants'
 import { formatI18nKeyDisplay, parseLocales } from '#shared/utils'
+import { resolveProjectLink } from '#shared/utils/project-link'
 import type { TranslationsKeyDetail } from '#components'
 import {
   AlertModal,
@@ -937,7 +938,7 @@ function applyDeepLink(projectId: ID) {
   })
 }
 
-watch(
+const projectWatch = watchIgnorable(
   () => curProject.value.id,
   (id) => {
     // The outgoing project is already saved — every filter change writes.
@@ -1037,10 +1038,43 @@ async function unpublishKeys(keyIds: number[]) {
   }
 }
 
+/*
+ * `?project=` names the project a link's `?key=` belongs to (a VS Code link, a
+ * shared one). It is consumed once: switched through the store's own
+ * `setCurrentProject` (as the Workspace Bar does) before the page reads its
+ * filters, then dropped from the URL — unlike `key`, it is not page state, and
+ * a stale one would pull a refresh back after the user picked another project.
+ * The switch is ignored by the project watch, which would otherwise treat it as
+ * a user switch and discard the link's key and scope.
+ */
+function applyProjectLink() {
+  const result = resolveProjectLink(
+    route.query.project,
+    projectStore.projects,
+    curProject.value.id,
+  )
+  if (result.kind === 'none') return
+  if (result.kind === 'switch') {
+    projectWatch.ignoreUpdates(() => {
+      projectStore.setCurrentProject(result.project)
+    })
+  } else if (result.kind === 'unavailable') {
+    toast.add({
+      title: 'Project not available',
+      description: `You cannot open project "${result.requested}" — it does not exist or you are not a member. Showing the current project.`,
+      color: 'warning',
+      icon: 'i-lucide:circle-alert',
+    })
+  }
+  const { project: _project, ...rest } = route.query
+  router.replace({ query: rest })
+}
+
 onMounted(async () => {
   if (loggedIn.value && projectStore.projects.length === 0) {
     await projectStore.getProjects()
   }
+  applyProjectLink()
   // Before the first load, so a reload keeps this project's filters too.
   restoreFilters(curProject.value.id)
   applyDeepLink(curProject.value.id)
