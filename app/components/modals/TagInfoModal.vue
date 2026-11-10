@@ -90,6 +90,8 @@ const emit = defineEmits<{
   ]
   /** The entry was reverted to draft here, so the tag has to be picked up again. */
   reverted: []
+  /** AI wrote, accepted or reverted a draft on the entry; the tag is now stale. */
+  aiChanged: []
 }>()
 
 const overlay = useOverlay()
@@ -161,7 +163,90 @@ const isSourceTextChanged = computed(() => {
 })
 
 /** Published entries refuse writes server-side, so the fields are disabled. */
-const isPublished = computed(() => tag.value.translation?.dirty === false)
+const isPublished = computed(() => state.translation?.dirty === false)
+
+const { status: aiStatus } = useAiTranslateStatus(
+  computed(() => projectStore.curProject?.id)
+)
+const aiReady = computed(() =>
+  Boolean(
+    aiStatus.value?.enabled &&
+      aiStatus.value.configured &&
+      validID(tag.value.translationID)
+  )
+)
+
+function storedText(locale: string) {
+  return String(
+    (tag.value.translation?.vue as Record<string, string> | undefined)?.[
+      locale
+    ] ?? ''
+  )
+}
+
+const ai = useAiCell({
+  projectId: computed(() => projectStore.curProject?.id),
+  keyId: () => tag.value.translationID,
+  writable: () => !isPublished.value,
+  getText: (locale) =>
+    String(
+      (state.translation?.vue as Record<string, string> | undefined)?.[
+        locale
+      ] ?? ''
+    ),
+  setText: setLocaleDraft,
+  original: storedText,
+  onChanged: () => emit('aiChanged'),
+})
+const aiResult = computed(() => ai.resultFor(selectedLanguage.value)[0])
+
+/**
+ * Accepting writes a draft for a published entry, and undoing it can hand the
+ * entry back. The dialog's copy of `dirty` follows, so the fields unlock — and
+ * Save posts text — exactly while the server would take it.
+ */
+function syncDirty() {
+  if (tag.value.translation?.dirty !== false || !state.translation) return
+  const accepted = Object.values(ai.results.value).some(
+    (result) => !result.proposal && result.done.batchId
+  )
+  state.translation = { ...state.translation, dirty: accepted }
+}
+async function onAiAccept(locale: string) {
+  await ai.accept(locale)
+  syncDirty()
+}
+async function onAiUndo(locale: string) {
+  await ai.undo(locale)
+  syncDirty()
+}
+
+/** A proposal nobody accepted is not the user's text, so Save must not write it. */
+function withoutProposals<T extends object>(map: T | null | undefined) {
+  const pending = Object.keys(ai.results.value).filter(
+    (locale) => ai.results.value[locale]?.proposal
+  )
+  return map ? omit(map, pending) : map
+}
+
+/** AI writes straight to the entry, so an unsaved edit in the field would be lost. */
+const hasUnsavedLocaleEdit = computed(
+  () =>
+    !aiResult.value &&
+    ai.run.value?.code !== selectedLanguage.value &&
+    editableTranslationContent.value !== storedText(selectedLanguage.value)
+)
+/** A published entry only takes a proposal for a language it has no text in. */
+const canAiTranslate = computed(
+  () => aiReady.value && (!isPublished.value || !storedText(selectedLanguage.value))
+)
+const aiButtonHint = computed(() => {
+  if (ai.run.value?.code === selectedLanguage.value) return 'Stop'
+  if (hasUnsavedLocaleEdit.value) return 'Save your edits first'
+  return storedText(selectedLanguage.value)
+    ? 'Re-translate with AI'
+    : 'Translate with AI'
+})
 
 const i18nKeyDisplay = computed({
   get: () => formatI18nKeyDisplay(state.i18nKey),
@@ -269,6 +354,8 @@ async function onSubmit() {
       translation: {
         id: tag.value.translationID,
         ...state.translation,
+        vue: withoutProposals(state.translation?.vue),
+        react: withoutProposals(state.translation?.react),
       },
       close: () => emit('close', true),
     })
@@ -769,7 +856,29 @@ const previewLabelStyle = computed(() => {
                         </div>
                       </template>
                     </USelect>
-                    <AIButton class="[&>span]:h-6 [&>span]:leading-1" />
+                    <UTooltip v-if="canAiTranslate" :text="aiButtonHint">
+                      <UButton
+                        v-if="ai.run.value?.code !== selectedLanguage"
+                        size="xs"
+                        color="neutral"
+                        variant="soft"
+                        icon="i-lucide:wand-sparkles"
+                        aria-label="Translate with AI"
+                        :disabled="
+                          Boolean(ai.run.value) || hasUnsavedLocaleEdit
+                        "
+                        @click="ai.translate(selectedLanguage)"
+                      />
+                      <UButton
+                        v-else
+                        size="xs"
+                        color="neutral"
+                        variant="soft"
+                        icon="i-lucide:square"
+                        aria-label="Stop"
+                        @click="ai.run.value?.controller.abort()"
+                      />
+                    </UTooltip>
                     <!-- Vue / React switch hidden: both copies hold the same set. -->
                   </div>
                 </template>
@@ -779,8 +888,67 @@ const previewLabelStyle = computed(() => {
                     class="w-full"
                     :maxrows="4"
                     autoresize
-                    :disabled="isPublished"
+                    :disabled="isPublished || ai.run.value?.code === selectedLanguage"
                   />
+                  <div
+                    v-if="aiResult"
+                    class="mt-1.5 flex items-center gap-1.5 text-xs text-muted"
+                  >
+                    <UTooltip
+                      :text="
+                        aiResult.done.status === 'fail'
+                          ? 'Breaks a rule, cannot be accepted'
+                          : 'AI generated'
+                      "
+                    >
+                      <UIcon
+                        name="i-lucide:wand-sparkles"
+                        class="size-3.5"
+                        :class="aiResult.done.status === 'fail' ? 'text-error' : ''"
+                      />
+                    </UTooltip>
+                    <span>{{ aiResult.done.model }}</span>
+                    <div
+                      v-if="aiResult.proposal || aiResult.done.batchId"
+                      class="ml-auto flex items-center gap-1"
+                    >
+                      <template v-if="aiResult.proposal">
+                        <UTooltip
+                          v-if="aiResult.done.status !== 'fail'"
+                          text="Accept as draft"
+                        >
+                          <UButton
+                            size="xs"
+                            color="primary"
+                            variant="soft"
+                            icon="i-lucide:check"
+                            aria-label="Accept as draft"
+                            @click="onAiAccept(selectedLanguage)"
+                          />
+                        </UTooltip>
+                        <UTooltip text="Discard">
+                          <UButton
+                            size="xs"
+                            color="neutral"
+                            variant="ghost"
+                            icon="i-lucide:x"
+                            aria-label="Discard"
+                            @click="ai.discard(selectedLanguage)"
+                          />
+                        </UTooltip>
+                      </template>
+                      <UTooltip v-else text="Undo">
+                        <UButton
+                          size="xs"
+                          color="neutral"
+                          variant="ghost"
+                          icon="i-lucide:undo-2"
+                          aria-label="Undo"
+                          @click="onAiUndo(selectedLanguage)"
+                        />
+                      </UTooltip>
+                    </div>
+                  </div>
                 </template>
               </UFormField>
             </div>
