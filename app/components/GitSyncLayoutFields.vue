@@ -39,7 +39,7 @@ const formatItems = [
 
 const folderModeItems = [
   { label: 'This project only', value: GitSyncFolderMode.EXCLUSIVE },
-  { label: 'Shared with other projects', value: GitSyncFolderMode.SHARED },
+  { label: 'This project and others', value: GitSyncFolderMode.SHARED },
 ]
 
 /** A product name is no directory, nor the other way round. */
@@ -93,7 +93,7 @@ function changeAdapter(next: GitSyncAdapter) {
 
   <UFormField
     v-if="adapter === GitSyncAdapter.LILT_SWBU"
-    label="Folder"
+    label="Used by"
     name="folderMode"
   >
     <USelect v-model="folderMode" class="w-full" :items="folderModeItems" />

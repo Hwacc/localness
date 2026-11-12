@@ -33,7 +33,7 @@
 | **Branch**     | 默认`main`                                                                                                                                                            |
 | **Layout**     | **LILT product folder**（只增不改的批次文件）或 **Locale files**（每个语言一个 JSON，原地更新）                                                                    |
 | **Product**    | 仅 LILT：这个仓里哪个 product 目录。先点**Load products** 才会列出候选                                                                                                |
-| **Folder**     | 仅 LILT：**This project only**（默认，整个 product 目录归这个项目）或 **Shared with other projects**（几个项目共用一个 product 目录，见下文）                          |
+| **Used by**    | 仅 LILT：**This project only**（默认，整个 product 目录归这个项目）或 **This project and others**（几个项目共用一个 product 目录，见下文）                             |
 | **Directory**  | 仅 Locale files：放语言文件的目录，相对仓根，比如 `src/locales`。手填，没有 Load 按钮                                                                                   |
 | **File pattern** | 仅 Locale files：文件名模板，必须含一次 `{locale}`、以 `.json` 结尾。默认 `{locale}.json`，也可以是 `{locale}/messages.json`                                         |
 | **Format**     | 仅 Locale files：**Nested JSON**（`{ "home": { "title": … } }`）或 **Flat JSON**（`{ "home.title": … }`）。只影响文件里还没有的 key 写成什么样                         |
@@ -65,7 +65,7 @@
 
 #### 几个项目共用一个 product 目录
 
-LILT 不会为新项目建新目录时，把几个项目的 **Folder** 都设成 **Shared with other projects**、选同一个 Product。
+LILT 不会为新项目建新目录时，把几个项目的 **Used by** 都设成 **This project and others**、选同一个 Product。
 
 - 批次 id 是 24 位十六进制：前 8 位是时间，**中间 8 位是项目的标签**，后 8 位随机。Push 写出的文件都带本项目标签，LILT 在 `translated/` 里原样保留。
 - Pull 只读带本项目标签的批次。共用之前就在目录里的旧文件，只归**第一个**加入的项目。
