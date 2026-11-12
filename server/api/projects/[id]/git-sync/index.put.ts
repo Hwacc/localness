@@ -2,7 +2,7 @@ import prisma from '#server/libs/prisma'
 import { numericID } from '#server/helper/id'
 import { requireProjectOwner } from '#server/helper/access'
 import { readZodBody } from '#server/helper/validate'
-import { GitSyncAdapter } from '#shared/constants'
+import { GitSyncAdapter, GitSyncFolderMode } from '#shared/constants'
 import {
   normalizeGitHttpsRemote,
   zGitSyncBindingPut,
@@ -14,6 +14,11 @@ import {
   resetGitSyncState,
 } from '#server/libs/git-sync/sync'
 import { withSyncLease } from '#server/libs/git-sync/engine/lease'
+import {
+  folderPeers,
+  parseFolderMode,
+  planFolderBinding,
+} from '#server/libs/git-sync/engine/folder'
 
 /**
  * @route PUT /api/projects/:id/git-sync
@@ -67,8 +72,29 @@ export default defineEventHandler(async (event) => {
       product: body.product,
       options: body.options ?? existing.options,
     })
+  const folderMode =
+    body.folderMode ??
+    (adapter === GitSyncAdapter.LILT_SWBU
+      ? parseFolderMode(existing?.folderMode)
+      : GitSyncFolderMode.EXCLUSIVE)
   const save = () =>
     prisma.$transaction(async (tx) => {
+      const folder = planFolderBinding({
+        adapter,
+        mode: folderMode,
+        existing: existing && {
+          ...existing,
+          sameFolder:
+            existing.adapter === adapter &&
+            existing.remoteUrl === remoteUrl &&
+            existing.product === body.product,
+        },
+        peers: await folderPeers(
+          { adapter, remoteUrl, product: body.product },
+          projectId,
+          tx
+        ),
+      })
       const saved = await tx.gitSyncBinding.upsert({
         where: { projectId },
         create: {
@@ -79,6 +105,7 @@ export default defineEventHandler(async (event) => {
           branch,
           product: body.product,
           ...(body.options ? { options: body.options } : {}),
+          ...folder,
           credentialKind: body.credentialKind,
           token,
         },
@@ -89,6 +116,7 @@ export default defineEventHandler(async (event) => {
           branch,
           product: body.product,
           ...(body.options ? { options: body.options } : {}),
+          ...folder,
           credentialKind: body.credentialKind,
           ...(body.token && body.token.trim() ? { token: body.token.trim() } : {}),
         },
@@ -109,9 +137,10 @@ export default defineEventHandler(async (event) => {
         ? String((error as { code: string }).code)
         : ''
     if (code === 'P2002') {
+      // Only a batch tag can collide now, when two projects join one folder at once.
       throw createError({
         statusCode: 409,
-        statusMessage: 'This remote folder is already bound to another project',
+        statusMessage: 'Another project bound this folder at the same time — save again',
       })
     }
     throw error

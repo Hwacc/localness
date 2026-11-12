@@ -132,7 +132,11 @@ vi.mock('#server/libs/prisma', () => {
           return {}
         },
       },
-      gitSyncBinding: { findUnique: async () => db.binding },
+      gitSyncBinding: {
+        findUnique: async () => db.binding,
+        findMany: async () => [],
+        update: async () => ({}),
+      },
       projectSettings: { findUnique: async () => db.project?.settings ?? null },
       i18nKey: { findMany: async () => db.keys },
       gitSyncBase: { findMany: async () => db.bases },

@@ -4,6 +4,7 @@ import {
   GitSyncAdapter,
   GitSyncConflictStatus,
   GitSyncFileFormat,
+  GitSyncFolderMode,
 } from '#shared/constants'
 
 export function isHttpsRemoteUrl(value: string): boolean {
@@ -82,6 +83,8 @@ export const zGitSyncBindingPut = z.object({
     .refine(isHttpsRemoteUrl, 'Remote URL must be an https Git remote'),
   branch: z.string().min(1).optional(),
   product: z.string().trim().min(1),
+  /** `shared` is accepted for `lilt-swbu` only. Absent keeps the saved mode. */
+  folderMode: z.enum(GitSyncFolderMode).optional(),
   /** `locale-files` only; ignored by `lilt-swbu`. */
   options: z
     .object({

@@ -7,6 +7,7 @@ import {
   GitSyncConflictStatus,
   GitSyncErrorCode,
   GitSyncFileFormat,
+  GitSyncFolderMode,
   GitSyncPreviewKind,
   GitSyncPullReason,
   GitSyncPushReason,
@@ -69,6 +70,7 @@ const form = reactive({
   enabled: true,
   adapter: GitSyncAdapter.LILT_SWBU,
   product: '',
+  folderMode: GitSyncFolderMode.EXCLUSIVE,
   pattern: GIT_SYNC_DEFAULT_PATTERN,
   format: GitSyncFileFormat.NESTED_JSON,
   credentialKind: GitCredentialKind.REPO_ACCESS_TOKEN,
@@ -136,6 +138,10 @@ function applyBindingToForm(binding: GitSyncBindingPublic | null) {
       ? GitSyncAdapter.LOCALE_FILES
       : GitSyncAdapter.LILT_SWBU
   form.product = binding?.product ?? ''
+  form.folderMode =
+    binding?.folderMode === GitSyncFolderMode.SHARED
+      ? GitSyncFolderMode.SHARED
+      : GitSyncFolderMode.EXCLUSIVE
   form.pattern = binding?.options?.pattern || GIT_SYNC_DEFAULT_PATTERN
   form.format =
     binding?.options?.format === GitSyncFileFormat.FLAT_JSON
@@ -348,6 +354,7 @@ async function saveBinding() {
         enabled: form.enabled,
         adapter: form.adapter,
         product: form.product.trim(),
+        folderMode: isLilt.value ? form.folderMode : GitSyncFolderMode.EXCLUSIVE,
         options: isLilt.value
           ? undefined
           : { pattern: form.pattern.trim() || undefined, format: form.format },
@@ -1457,6 +1464,7 @@ function openHistory() {
             <GitSyncLayoutFields
               v-model:adapter="form.adapter"
               v-model:product="form.product"
+              v-model:folder-mode="form.folderMode"
               v-model:pattern="form.pattern"
               v-model:format="form.format"
               :product-items="productItems"

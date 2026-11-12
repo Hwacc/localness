@@ -4,10 +4,12 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import {
   buildSourceFilename,
+  isOwnBatch,
   liltBatchId,
   liltBatchInstant,
   liltBatchIdOf,
   liltBatchSortKey,
+  liltBatchTagOf,
   listRemoteFiles,
   parseLiltFilename,
   readBatchSources,
@@ -257,5 +259,69 @@ describe('validateFlatJson', () => {
     expect(() => validateFlatJson([])).toThrow()
     expect(() => validateFlatJson(null)).toThrow()
     expect(() => validateFlatJson({ a: { b: 'x' } })).toThrow()
+  })
+})
+
+describe('batch tags', () => {
+  const at = new Date(Date.UTC(2026, 8, 10, 8, 37, 2))
+
+  it('embeds the tag after the timestamp and keeps the id sortable', () => {
+    const id = liltBatchId(at, 'a1b2c3d4')
+    expect(id).toMatch(/^[0-9a-f]{24}$/)
+    expect(liltBatchTagOf(id)).toBe('a1b2c3d4')
+    expect(liltBatchInstant('20260910', id)).toBe(Math.floor(at.getTime() / 1000))
+  })
+
+  it('rejects a tag that is not 4 bytes', () => {
+    expect(() => liltBatchId(at, 'abc')).toThrow()
+  })
+
+  it('has no tag for a legacy HHMMSS id', () => {
+    expect(liltBatchTagOf('083702-aa')).toBeNull()
+  })
+
+  it('reads own, skips peers, and reads untagged only when owned', () => {
+    const mine = liltBatchId(at, 'aaaaaaaa')
+    const theirs = liltBatchId(at, 'bbbbbbbb')
+    const legacy = '5dbd3ccd8d999fc715de9a79'
+    const owner = { tag: 'aaaaaaaa', otherTags: ['bbbbbbbb'], readUntagged: true }
+    const joiner = { tag: 'aaaaaaaa', otherTags: ['bbbbbbbb'], readUntagged: false }
+    expect([mine, theirs, legacy, '083702-aa'].map((id) => isOwnBatch(id, owner))).toEqual([
+      true,
+      false,
+      true,
+      true,
+    ])
+    expect([mine, theirs, legacy].map((id) => isOwnBatch(id, joiner))).toEqual([
+      true,
+      false,
+      false,
+    ])
+  })
+
+  it('lists only the binding\'s batches in a shared folder', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'lilt-share-'))
+    try {
+      const src = join(root, 'cortex', 'source')
+      const out = join(root, 'cortex', 'translated')
+      await mkdir(src, { recursive: true })
+      await mkdir(out, { recursive: true })
+      const a = buildSourceFilename('en-US', at, 'aaaaaaaa')
+      const b = buildSourceFilename('en-US', at, 'bbbbbbbb')
+      await writeFile(join(src, a), '{}')
+      await writeFile(join(src, b), '{}')
+      await writeFile(join(out, a.replace('_en-US', '_ja-JP')), '{}')
+      await writeFile(join(out, b.replace('_en-US', '_ja-JP')), '{}')
+      const files = await listRemoteFiles(root, 'cortex', null, undefined, {
+        tag: 'aaaaaaaa',
+        otherTags: ['bbbbbbbb'],
+        readUntagged: true,
+      })
+      expect(files.map((f) => f.relPath.split('/').pop()).sort()).toEqual(
+        [a, a.replace('_en-US', '_ja-JP')].sort()
+      )
+    } finally {
+      await rm(root, { recursive: true, force: true })
+    }
   })
 })

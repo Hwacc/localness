@@ -4,6 +4,7 @@ import { readdir, readFile, writeFile, mkdir, stat } from 'node:fs/promises'
 import { relative, sep, join } from 'node:path'
 import { classifyFile } from '../../engine/filters'
 import { blobSha } from '../../engine/seen-files'
+import type { FolderShare } from '../../engine/folder'
 import type { RemoteFileInfo, RemoteLocaleMap } from '../types'
 import { remoteToLocale } from './locale-map'
 
@@ -151,14 +152,38 @@ export function validateFlatJson(data: unknown): Record<string, string> {
 }
 
 /**
- * 24-hex id. First 4 bytes are unix seconds so same-day source pushes
- * stay ordered. LILT will reuse this id on the matching translated file.
+ * 24-hex id: 4 bytes unix seconds so same-day source pushes stay ordered, then
+ * the binding's 4-byte tag so projects sharing a folder can tell their batches
+ * apart, then 4 random bytes. LILT reuses this id on the matching translated file.
  */
-export function liltBatchId(now = new Date()): string {
+export function liltBatchId(now = new Date(), tag?: string): string {
   const buf = Buffer.alloc(12)
   buf.writeUInt32BE(Math.floor(now.getTime() / 1000), 0)
-  randomBytes(8).copy(buf, 4)
+  if (tag) {
+    const bytes = Buffer.from(tag, 'hex')
+    if (bytes.length !== 4) throw new Error(`Invalid LILT batch tag: ${tag}`)
+    bytes.copy(buf, 4)
+  } else {
+    randomBytes(4).copy(buf, 4)
+  }
+  randomBytes(4).copy(buf, 8)
   return buf.toString('hex')
+}
+
+/**
+ * Bytes 4–8 of a 24-hex batch id. Ids written before tags existed hold random
+ * bytes there; they read as no binding's tag, which is what "untagged" means.
+ */
+export function liltBatchTagOf(batchId: string): string | null {
+  return HEX_24_BATCH_ID.test(batchId) ? batchId.slice(8, 16).toLowerCase() : null
+}
+
+/** Whether a batch in the folder belongs to the binding `share` describes. */
+export function isOwnBatch(batchId: string, share: FolderShare): boolean {
+  const tag = liltBatchTagOf(batchId)
+  if (tag && tag === share.tag) return true
+  if (tag && share.otherTags.includes(tag)) return false
+  return share.readUntagged
 }
 
 /**
@@ -167,9 +192,10 @@ export function liltBatchId(now = new Date()): string {
  */
 export function buildSourceFilename(
   sourceRemoteLocale: string,
-  now = new Date()
+  now = new Date(),
+  tag?: string
 ): string {
-  return `${liltDateStamp(now)}-${liltBatchId(now)}_${sourceRemoteLocale}.json`
+  return `${liltDateStamp(now)}-${liltBatchId(now, tag)}_${sourceRemoteLocale}.json`
 }
 
 type FileHit = {
@@ -221,14 +247,16 @@ function fileSortKey(path: string): FileHit | null {
 
 /**
  * Lists every LILT batch file for the product, in merge order, tagged with
- * why it is (or is not) a pull candidate. Does not read file contents beyond
+ * why it is (or is not) a pull candidate. With `share`, other projects'
+ * batches in a shared folder are left out. Does not read file contents beyond
  * hashing — parsing happens in `readSelectedLocaleMaps`.
  */
 export async function listRemoteFiles(
   repoRoot: string,
   product: string,
   localeOverride?: Record<string, string> | null,
-  seen?: Map<string, string>
+  seen?: Map<string, string>,
+  share?: FolderShare
 ): Promise<RemoteFileInfo[]> {
   const dirs = [
     join(repoRoot, product, 'translated'),
@@ -239,7 +267,7 @@ export async function listRemoteFiles(
     const list = await listJsonFiles(dir)
     for (const path of list) {
       const hit = fileSortKey(path)
-      if (hit) files.push(hit)
+      if (hit && (!share || isOwnBatch(hit.batchId, share))) files.push(hit)
     }
   }
   files.sort((a, b) => a.sortKey.localeCompare(b.sortKey))
@@ -339,15 +367,17 @@ export async function readBatchSources(
 
 /**
  * Merged source-locale dictionary from `product/source/` only (not
- * `translated/`). Later filename wins, same order as Pull.
+ * `translated/`), limited to `share`'s batches. Later filename wins, same
+ * order as Pull.
  */
 export async function readMergedSourceLocale(
   repoRoot: string,
   product: string,
   sourceLocale: string,
-  localeOverride?: Record<string, string> | null
+  localeOverride?: Record<string, string> | null,
+  share?: FolderShare
 ): Promise<Map<string, string>> {
-  const files = await listRemoteFiles(repoRoot, product, localeOverride)
+  const files = await listRemoteFiles(repoRoot, product, localeOverride, undefined, share)
   const sourceFiles = files.filter(
     (f) => f.locale === sourceLocale && isProductSourcePath(f.relPath, product)
   )
@@ -359,11 +389,13 @@ export async function writeSourceBatch(params: {
   repoRoot: string
   product: string
   sourceRemoteLocale: string
+  /** The binding's batch tag, embedded in the new batch id. */
+  tag: string
   entries: Record<string, string>
 }): Promise<string> {
   const dir = join(params.repoRoot, params.product, 'source')
   await mkdir(dir, { recursive: true })
-  const filename = buildSourceFilename(params.sourceRemoteLocale)
+  const filename = buildSourceFilename(params.sourceRemoteLocale, new Date(), params.tag)
   const path = join(dir, filename)
   await writeFile(path, `${JSON.stringify(params.entries, null, '\t')}\n`, 'utf8')
   return filename
