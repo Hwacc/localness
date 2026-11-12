@@ -62,6 +62,12 @@ export interface GitSyncBindingPublic {
   branch: string
   product: string
   options: { pattern?: string; format?: string } | null
+  /** `GitSyncFolderMode`. */
+  folderMode: string
+  /** The tag in this binding's LILT batch ids. */
+  batchTag: string
+  /** Shared folder: whether this binding also reads untagged batches. */
+  ownsUntagged: boolean
   credentialKind: string
   tokenConfigured: boolean
   lastPulledAt: string | null

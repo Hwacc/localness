@@ -97,6 +97,16 @@ export enum GitSyncAdapter {
   LOCALE_FILES = 'locale-files',
 }
 
+/**
+ * Whether a Git binding has its folder to itself. `shared` is LILT only: LILT
+ * does not create a folder per project, so several projects push into one and
+ * tell their batches apart by the tag in the batch id.
+ */
+export enum GitSyncFolderMode {
+  EXCLUSIVE = 'exclusive',
+  SHARED = 'shared',
+}
+
 /** Key layout inside a `locale-files` JSON file. Reading accepts both. */
 export enum GitSyncFileFormat {
   FLAT_JSON = 'flat-json',

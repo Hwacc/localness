@@ -98,6 +98,7 @@ vi.mock('#server/libs/prisma', () => {
     },
     gitSyncBinding: {
       findUnique: async () => db.binding,
+      findMany: async () => [],
       update: async () => ({}),
     },
     gitSyncPreview: {
@@ -118,6 +119,7 @@ vi.mock('#server/libs/prisma', () => {
       ...tx,
       gitSyncBinding: {
         findUnique: async () => db.binding,
+        findMany: async () => [],
         update: async () => ({}),
       },
       gitSyncPreview: {
@@ -135,11 +137,11 @@ vi.mock('#server/libs/prisma', () => {
 
 vi.mock('#server/libs/git-sync/remote/git-remote', () => ({
   remoteHeadSha: async () => remote.headSha,
-  withClonedRepo: async () => {
+  withClonedRepo: async ({ run }: { run: (dir: string) => Promise<unknown> }) => {
     if (remote.scopeTree == null) {
       throw new Error('apply must not clone when the head is unchanged')
     }
-    return remote.scopeTree
+    return run('/repo')
   },
   treeSha: async () => remote.scopeTree,
   commitAndPush: async () => ({ pushed: true, commitSha: 'sha-pushed' }),

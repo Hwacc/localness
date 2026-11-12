@@ -8,10 +8,12 @@ import {
   GIT_SYNC_DEFAULT_PATTERN,
   GitSyncAdapter,
   GitSyncFileFormat,
+  GitSyncFolderMode,
 } from '#shared/constants'
 
 const adapter = defineModel<GitSyncAdapter>('adapter', { required: true })
 const product = defineModel<string>('product', { required: true })
+const folderMode = defineModel<GitSyncFolderMode>('folderMode', { required: true })
 const pattern = defineModel<string>('pattern', { required: true })
 const format = defineModel<GitSyncFileFormat>('format', { required: true })
 
@@ -35,11 +37,17 @@ const formatItems = [
   { label: 'Flat JSON ({ "home.title": … })', value: GitSyncFileFormat.FLAT_JSON },
 ]
 
+const folderModeItems = [
+  { label: 'This project only', value: GitSyncFolderMode.EXCLUSIVE },
+  { label: 'Shared with other projects', value: GitSyncFolderMode.SHARED },
+]
+
 /** A product name is no directory, nor the other way round. */
 function changeAdapter(next: GitSyncAdapter) {
   if (next === adapter.value) return
   adapter.value = next
   product.value = ''
+  if (next !== GitSyncAdapter.LILT_SWBU) folderMode.value = GitSyncFolderMode.EXCLUSIVE
 }
 </script>
 
@@ -81,6 +89,25 @@ function changeAdapter(next: GitSyncAdapter) {
       Paste a token to enable Load products. Listing products clones the
       remote.
     </p>
+  </UFormField>
+
+  <UFormField
+    v-if="adapter === GitSyncAdapter.LILT_SWBU"
+    label="Folder"
+    name="folderMode"
+  >
+    <USelect v-model="folderMode" class="w-full" :items="folderModeItems" />
+    <template #help>
+      <template v-if="folderMode === GitSyncFolderMode.SHARED">
+        Several projects push into this product folder. Each batch file name
+        carries this project's tag, and Pull reads only this project's batches
+        (plus files from before tagging, if this project joined first).
+      </template>
+      <template v-else>
+        Every batch in the product folder belongs to this project. No other
+        project can bind it.
+      </template>
+    </template>
   </UFormField>
 
   <template v-else-if="adapter === GitSyncAdapter.LOCALE_FILES">

@@ -11,6 +11,7 @@ import {
   GitSyncAdapter,
   GitSyncConflictStatus,
   GitSyncErrorCode,
+  GitSyncFolderMode,
   GitSyncLogAction,
   GitSyncLogStatus,
   GitSyncPreviewKind,
@@ -40,6 +41,13 @@ import {
   treeSha,
 } from './remote/git-remote'
 import { seenFileMap } from './engine/seen-files'
+import {
+  folderPeers,
+  folderShare,
+  newBatchTag,
+  parseFolderMode,
+  type FolderShare,
+} from './engine/folder'
 import { gitSyncLayout } from './layouts'
 import { parseLocaleFilesOptions } from './layouts/locale-files/files'
 import type {
@@ -56,6 +64,9 @@ export function publicGitSyncBinding(row: {
   branch: string
   product: string
   options: unknown
+  folderMode: string
+  batchTag: string
+  ownsUntagged: boolean
   credentialKind: string
   token: string
   lastPulledAt: Date | null
@@ -69,6 +80,9 @@ export function publicGitSyncBinding(row: {
     branch: row.branch,
     product: row.product,
     options: row.options ?? null,
+    folderMode: parseFolderMode(row.folderMode),
+    batchTag: row.batchTag,
+    ownsUntagged: row.ownsUntagged,
     credentialKind: row.credentialKind,
     tokenConfigured: Boolean(row.token),
     lastPulledAt: row.lastPulledAt,
@@ -450,21 +464,44 @@ async function requireBinding(projectId: number) {
       statusMessage: 'Remote URL is missing',
     })
   }
-  return { binding: binding as ResolvedBinding, layout, remoteUrl }
+  const peers = await folderPeers(binding, projectId)
+  if (!binding.batchTag) {
+    // Saved before tags existed and missed the backfill; a push must not go out untagged.
+    binding.batchTag = newBatchTag(peers.map((peer) => peer.batchTag))
+    await prisma.gitSyncBinding.update({
+      where: { projectId },
+      data: { batchTag: binding.batchTag },
+    })
+  }
+  return {
+    binding: binding as ResolvedBinding,
+    layout,
+    remoteUrl,
+    share: folderShare(binding, peers),
+  }
 }
 
 function layoutContext(
   projectId: number,
   binding: ResolvedBinding,
-  repoRoot: string
+  repoRoot: string,
+  share: FolderShare
 ): GitSyncLayoutContext {
   return {
     repoRoot,
     scope: binding.product,
     options: binding.options,
     localeMap: localeOverride(binding.localeMap),
+    share,
     loadLocales: () => projectLocales(projectId),
   }
+}
+
+/** Same paths with the same contents: the Git side a pull preview read is unchanged. */
+function sameRemoteFiles(a: RemoteFileInfo[], b: RemoteFileInfo[]): boolean {
+  if (a.length !== b.length) return false
+  const shas = new Map(a.map((file) => [file.relPath, file.sha]))
+  return b.every((file) => shas.get(file.relPath) === file.sha)
 }
 
 export type PullCandidate = {
@@ -507,7 +544,7 @@ export async function previewPull(
   projectId: number,
   createdBy: string
 ): Promise<PullPreview> {
-  const { binding, layout, remoteUrl } = await requireBinding(projectId)
+  const { binding, layout, remoteUrl, share } = await requireBinding(projectId)
   await assertNoSyncRunning(projectId)
   const seen = seenFileMap(binding.seenFiles)
   return withClonedRepo({
@@ -517,7 +554,7 @@ export async function previewPull(
     token: binding.token,
     sparsePath: binding.product,
     run: async (repoDir, commitSha) => {
-      const ctx = layoutContext(projectId, binding, repoDir)
+      const ctx = layoutContext(projectId, binding, repoDir, share)
       const files = await layout.listFiles(ctx, seen)
       // Merge every file so a seen file that still disagrees with the last
       // landing (Git ahead, platform unchanged) shows up as apply-theirs —
@@ -791,7 +828,7 @@ export async function applyPull(params: ApplyPullParams) {
 
 async function applyPullUnderLease(params: ApplyPullParams) {
   const { projectId, previewId } = params
-  const { binding, remoteUrl } = await requireBinding(projectId)
+  const { binding, layout, remoteUrl, share } = await requireBinding(projectId)
   const preview = await loadPendingPreview(
     projectId,
     previewId,
@@ -813,7 +850,9 @@ async function applyPullUnderLease(params: ApplyPullParams) {
     token: binding.token,
   })
   // A commit elsewhere in the repo (another LILT product) moves the head but
-  // not the bound folder. Only a changed folder invalidates the snapshot.
+  // not the bound folder. Only a changed folder invalidates the snapshot. In a
+  // shared folder another project's batch changes the tree too; then only this
+  // binding's own files decide.
   const folderUnchanged =
     head === preview.commitSha ||
     (snapshot.scopeTree != null &&
@@ -823,8 +862,17 @@ async function applyPullUnderLease(params: ApplyPullParams) {
         credentialKind: binding.credentialKind,
         token: binding.token,
         sparsePath: binding.product,
-        run: (repoDir) => treeSha(repoDir, binding.product),
-      })) === snapshot.scopeTree)
+        run: async (repoDir) => {
+          if ((await treeSha(repoDir, binding.product)) === snapshot.scopeTree) {
+            return true
+          }
+          if (parseFolderMode(binding.folderMode) !== GitSyncFolderMode.SHARED) {
+            return false
+          }
+          const ctx = layoutContext(projectId, binding, repoDir, share)
+          return sameRemoteFiles(await layout.listFiles(ctx), snapshot.files)
+        },
+      })))
   if (!folderUnchanged) {
     await prisma.gitSyncPreview.update({
       where: { id: preview.id },
@@ -1027,7 +1075,7 @@ export async function previewPush(
   projectId: number,
   createdBy: string
 ): Promise<PushPreview> {
-  const { binding, layout, remoteUrl } = await requireBinding(projectId)
+  const { binding, layout, remoteUrl, share } = await requireBinding(projectId)
   await assertNoSyncRunning(projectId)
   const sourceLocal = await sourceLocaleOf(projectId)
   // Keys kept out of Git sync never enter the candidate loop. Filtering the
@@ -1054,7 +1102,7 @@ export async function previewPush(
     // History is only needed to find an interrupted push's commit.
     ...(interrupted.length ? { depth: GIT_SYNC_PUSH_CLONE_DEPTH } : {}),
     run: async (repoDir, commitSha) => {
-      const ctx = layoutContext(projectId, binding, repoDir)
+      const ctx = layoutContext(projectId, binding, repoDir, share)
       if (interrupted.length) {
         await reconcileInterruptedPushes({
           projectId,
@@ -1205,7 +1253,7 @@ async function applyPushUnderLease(params: ApplyPushParams) {
       `Resolve ${openCount} open conflict(s) before push`
     )
   }
-  const { binding, layout, remoteUrl } = await requireBinding(projectId)
+  const { binding, layout, remoteUrl, share } = await requireBinding(projectId)
   const preview = await loadPendingPreview(
     projectId,
     previewId,
@@ -1250,7 +1298,7 @@ async function applyPushUnderLease(params: ApplyPushParams) {
     sparsePath: binding.product,
     depth: GIT_SYNC_PUSH_CLONE_DEPTH,
     run: async (repoDir) => {
-      const ctx = layoutContext(projectId, binding, repoDir)
+      const ctx = layoutContext(projectId, binding, repoDir, share)
       const orphan = await findCommitByTrailer(repoDir, trailer)
       if (orphan) {
         // The base is what that commit holds, not today's published text: a key

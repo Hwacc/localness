@@ -440,9 +440,18 @@ model GitSyncBinding {
   leaseId        String    @default("") @map("lease_id")
   leaseOwner     String    @default("") @map("lease_owner")
   leaseUntil     DateTime? @map("lease_until")
+  /// `exclusive`: the only binding on its folder, reads every file there.
+  /// `shared`: several projects use one LILT folder; each reads its own batches.
+  folderMode     String    @default("exclusive") @map("folder_mode")
+  /// 8 hex chars embedded in every LILT batch id this binding writes, unique
+  /// per folder. Pull tells projects in a shared folder apart by it.
+  batchTag       String    @default("") @map("batch_tag")
+  /// Whether this binding reads files no binding on the folder tagged: batches
+  /// pushed before tags existed, or written by another tool. At most one per folder.
+  ownsUntagged   Boolean   @default(true) @map("owns_untagged")
   project        Project   @relation(fields: [projectId], references: [id], onDelete: Cascade)
 
-  @@unique([adapter, remoteUrl, product])
+  @@unique([adapter, remoteUrl, product, batchTag])
 }
 
 model GitSyncBase {
