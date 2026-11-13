@@ -213,11 +213,24 @@ describe('outdatedOnSourceSave', () => {
   }
 
   it('counts up-to-date translations with text when the wording changes', () => {
-    expect(outdatedOnSourceSave({ ...base, text: 'Save the file' })).toBe(1)
+    expect(outdatedOnSourceSave({ ...base, texts: { en: 'Save the file' } })).toBe(1)
   })
 
   it('stays silent for a whitespace-only edit', () => {
-    expect(outdatedOnSourceSave({ ...base, text: 'Save  file ' })).toBe(0)
+    expect(outdatedOnSourceSave({ ...base, texts: { en: 'Save  file ' } })).toBe(0)
+  })
+
+  it('stays silent when the batch leaves the source alone', () => {
+    expect(outdatedOnSourceSave({ ...base, texts: { de: 'Datei sichern' } })).toBe(0)
+  })
+
+  it('skips translations saved in the same batch as the source', () => {
+    expect(
+      outdatedOnSourceSave({
+        ...base,
+        texts: { en: 'Save the file', de: 'Die Datei speichern' },
+      })
+    ).toBe(0)
   })
 
   it('skips translations that are already outdated', () => {
@@ -225,7 +238,7 @@ describe('outdatedOnSourceSave', () => {
       outdatedOnSourceSave({
         ...base,
         locales: [...base.locales, row('fr', 'Enregistrer', 'old')],
-        text: 'Save the file',
+        texts: { en: 'Save the file' },
       })
     ).toBe(1)
   })
@@ -238,7 +251,7 @@ describe('outdatedOnSourceSave', () => {
           ...base.locales,
           { locale: 'fr', draftText: 'Enregistrer', publishedText: null, sourceFingerprint: fp },
         ],
-        text: 'Save the file',
+        texts: { en: 'Save the file' },
       })
     ).toBe(0)
   })

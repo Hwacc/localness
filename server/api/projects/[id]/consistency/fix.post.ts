@@ -10,11 +10,13 @@ import { zConsistencyFix } from '#shared/schemas'
 
 /**
  * @route POST /api/projects/:id/consistency/fix
- * @description Save & publish one locale of one key from the Resolve drawer.
+ * @description Save & publish one or more locales of one key from the Resolve
+ * drawer, in one transaction and one log entry.
  * Mismatch and lint rules read published text, so a draft-only edit would
  * leave the finding in place; writing both columns makes the fix visible on
  * the next scan. Other locales are untouched. Editing the source locale
- * re-fingerprints the key, exactly like the translation editor does.
+ * re-fingerprints the key, exactly like the translation editor does;
+ * translations saved in the same batch are stamped against the new source.
  * @access Private (team member, Plus license)
  */
 export default defineEventHandler(async (event) => {
@@ -36,30 +38,34 @@ export default defineEventHandler(async (event) => {
   }
 
   const sourceLocale = await sourceLocaleOf(nID)
-  const isSource = body.locale === sourceLocale
-  const fingerprint = isSource ? fpTranslation(body.text) : existing.fingerprint
+  const entries = Object.entries(body.texts)
+  const sourceText = body.texts[sourceLocale]
+  const fingerprint =
+    sourceText === undefined ? existing.fingerprint : fpTranslation(sourceText)
 
   const after = await prisma.$transaction(async (tx) => {
-    if (isSource && fingerprint !== existing.fingerprint) {
+    if (fingerprint !== existing.fingerprint) {
       await tx.i18nKey.update({
         where: { id: existing.id },
         data: { fingerprint },
       })
     }
-    const stamp = isSource ? {} : { sourceFingerprint: fingerprint }
-    await tx.localeValue.upsert({
-      where: {
-        i18nKeyId_locale: { i18nKeyId: existing.id, locale: body.locale },
-      },
-      create: {
-        i18nKeyId: existing.id,
-        locale: body.locale,
-        draftText: body.text,
-        publishedText: body.text,
-        ...stamp,
-      },
-      update: { draftText: body.text, publishedText: body.text, ...stamp },
-    })
+    for (const [locale, text] of entries) {
+      const stamp = locale === sourceLocale ? {} : { sourceFingerprint: fingerprint }
+      await tx.localeValue.upsert({
+        where: {
+          i18nKeyId_locale: { i18nKeyId: existing.id, locale },
+        },
+        create: {
+          i18nKeyId: existing.id,
+          locale,
+          draftText: text,
+          publishedText: text,
+          ...stamp,
+        },
+        update: { draftText: text, publishedText: text, ...stamp },
+      })
+    }
     const locales = await tx.localeValue.findMany({
       where: { i18nKeyId: existing.id },
     })
