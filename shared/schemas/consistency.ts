@@ -86,11 +86,19 @@ export const zConsistencyMerge = z.object({
 })
 export type ZConsistencyMerge = z.infer<typeof zConsistencyMerge>
 
-/** Fix one locale of one key and publish it in the same write. */
+/**
+ * Fix one or more locales of one key and publish them in the same write. A
+ * batch that includes the source locale stamps its translations against the
+ * new source, so saving them together never marks them Outdated.
+ */
 export const zConsistencyFix = z.object({
   keyId: z.number().int().positive(),
-  locale: z.string().min(1),
-  text: z.string().refine((value) => value.trim() !== '', 'Text is required'),
+  texts: z
+    .record(
+      z.string().min(1),
+      z.string().refine((value) => value.trim() !== '', 'Text is required')
+    )
+    .refine((value) => Object.keys(value).length > 0, 'Nothing to save'),
 })
 export type ZConsistencyFix = z.infer<typeof zConsistencyFix>
 
