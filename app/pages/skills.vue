@@ -1,6 +1,13 @@
 <script setup lang="ts">
 import { SkillModal, AlertModal } from '#components'
 import { validID } from '#shared/utils'
+import { SKILL_AGENTS } from '#shared/constants/skill-agents'
+import {
+  customAgentFilter,
+  skillAgentChips,
+  skillAgentMatches,
+  type SkillAgents,
+} from '#shared/utils/skill-agents'
 
 definePageMeta({
   middleware: ['protected'],
@@ -12,6 +19,7 @@ type ProjectSkillRow = {
   name: string
   description: string
   originalName: string
+  agents: SkillAgents
   createdBy: number
   createdAt: string
   updatedAt: string
@@ -29,6 +37,38 @@ const { $dayjs } = useNuxtApp()
 const q = ref('')
 const loading = ref(false)
 const rows = ref<ProjectSkillRow[]>([])
+
+const ALL_AGENTS = 'all'
+const agentFilter = ref(ALL_AGENTS)
+const agentFilterItems = computed(() => {
+  const custom = new Map<string, string>()
+  for (const row of rows.value) {
+    for (const name of row.agents.custom) {
+      const key = customAgentFilter(name)
+      if (!custom.has(key)) custom.set(key, name)
+    }
+  }
+  return [
+    { label: 'All agents', value: ALL_AGENTS, icon: 'i-lucide:layers' },
+    ...SKILL_AGENTS.map((agent) => ({
+      label: agent.name,
+      value: agent.id as string,
+      icon: agent.icon as string,
+    })),
+    ...[...custom].map(([value, label]) => ({
+      label,
+      value,
+      icon: 'i-lucide:bot',
+    })),
+  ]
+})
+const visibleRows = computed(() => {
+  const filter = agentFilter.value === ALL_AGENTS ? null : agentFilter.value
+  return rows.value.filter((row) => skillAgentMatches(row.agents, filter))
+})
+const chipsByRow = computed(
+  () => new Map(rows.value.map((row) => [row.id, skillAgentChips(row.agents)]))
+)
 
 const projectId = computed(() => curProject.value?.id)
 const myId = computed(() => Number(user.value?.id))
@@ -126,6 +166,7 @@ function packageKind(filename: string) {
 
 watch(projectId, () => {
   q.value = ''
+  agentFilter.value = ALL_AGENTS
   void load()
 })
 
@@ -150,6 +191,16 @@ onMounted(() => {
         size="sm"
         icon="i-lucide:search"
         placeholder="Search name or description"
+        :disabled="!validID(projectId)"
+      />
+      <USelectMenu
+        v-model="agentFilter"
+        :items="agentFilterItems"
+        value-key="value"
+        :search-input="false"
+        :icon="agentFilterItems.find((item) => item.value === agentFilter)?.icon"
+        class="w-48"
+        size="sm"
         :disabled="!validID(projectId)"
       />
       <span class="ml-auto" />
@@ -182,11 +233,17 @@ onMounted(() => {
         </p>
       </div>
       <div
-        v-else-if="rows.length > 0"
+        v-else-if="!loading && rows.length > 0 && visibleRows.length === 0"
+        class="rounded-xl border border-dashed border-default bg-default px-4 py-12 text-center text-sm text-muted"
+      >
+        No skills work with this agent.
+      </div>
+      <div
+        v-else-if="visibleRows.length > 0"
         class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3"
       >
         <article
-          v-for="row in rows"
+          v-for="row in visibleRows"
           :key="row.id"
           class="flex flex-col rounded-xl border border-default bg-default p-4 transition-colors hover:border-muted"
         >
@@ -209,6 +266,24 @@ onMounted(() => {
           <p class="mt-3 text-sm text-muted line-clamp-3 flex-1">
             {{ row.description }}
           </p>
+          <div
+            v-if="chipsByRow.get(row.id)?.length"
+            class="mt-3 border-t border-default pt-3"
+          >
+            <p class="text-[11px] font-medium uppercase tracking-wide text-dimmed">
+              Works with
+            </p>
+            <ul class="mt-1.5 flex flex-wrap gap-1.5">
+              <li
+                v-for="chip in chipsByRow.get(row.id)"
+                :key="chip.key"
+                class="inline-flex h-6 max-w-full items-center gap-1.5 rounded-full border border-default bg-elevated/50 pl-1.5 pr-2.5 text-xs text-toned"
+              >
+                <UIcon :name="chip.icon" class="size-3.5 shrink-0" />
+                <span class="truncate">{{ chip.name }}</span>
+              </li>
+            </ul>
+          </div>
           <div class="mt-4 flex items-center gap-2 min-w-0">
             <UIcon
               name="i-lucide:user"

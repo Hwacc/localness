@@ -5,6 +5,7 @@ import {
   assertSkillMaintainer,
   assertSkillNameFree,
   assertSkillStorageKey,
+  parseSkillAgents,
   parseSkillDescription,
   parseSkillName,
   parseSkillOriginalName,
@@ -40,6 +41,7 @@ export default defineEventHandler(async (event) => {
     description?: string
     storageKey?: string
     originalName?: string
+    agents?: { ids: string[]; custom: string[] }
   } = {}
 
   if (body?.name != null) {
@@ -54,6 +56,9 @@ export default defineEventHandler(async (event) => {
   if (body?.description != null) {
     data.description = parseSkillDescription(body.description)
   }
+  if (body?.agents != null) {
+    data.agents = parseSkillAgents(body.agents)
+  }
   if (body?.storageKey != null) {
     data.storageKey = assertSkillStorageKey(body.storageKey)
     data.originalName = parseSkillOriginalName(body.originalName)
@@ -67,6 +72,7 @@ export default defineEventHandler(async (event) => {
       name: true,
       description: true,
       originalName: true,
+      agents: true,
       createdBy: true,
       createdAt: true,
       updatedAt: true,

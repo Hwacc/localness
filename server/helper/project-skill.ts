@@ -1,5 +1,10 @@
 import { createError } from 'h3'
 import { SKILL_KEY_PREFIX } from '#shared/constants'
+import {
+  normalizeSkillAgents,
+  readSkillAgents,
+  type SkillAgents,
+} from '#shared/utils/skill-agents'
 
 /**
  * Catalog rules for Project-scoped Skill packages. Handlers consult these so
@@ -53,6 +58,17 @@ export function parseSkillOriginalName(raw: unknown): string {
   return originalName
 }
 
+export function parseSkillAgents(raw: unknown): SkillAgents {
+  try {
+    return normalizeSkillAgents(raw)
+  } catch (error) {
+    throw createError({
+      statusCode: 400,
+      statusMessage: error instanceof Error ? error.message : 'Invalid agents',
+    })
+  }
+}
+
 export function assertSkillStorageKey(raw: unknown): string {
   if (typeof raw !== 'string' || !STORAGE_KEY.test(raw)) {
     throw createError({
@@ -89,6 +105,7 @@ export function shapeProjectSkill(row: {
   name: string
   description: string
   originalName: string
+  agents: unknown
   createdBy: number
   createdAt: Date
   updatedAt: Date
@@ -99,6 +116,7 @@ export function shapeProjectSkill(row: {
     name: row.name,
     description: row.description,
     originalName: row.originalName,
+    agents: readSkillAgents(row.agents),
     createdBy: row.createdBy,
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,

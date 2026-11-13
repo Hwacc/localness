@@ -2,16 +2,29 @@
 import JSZip from 'jszip'
 import { SKILL_MAX_BYTES } from '#shared/constants'
 import {
+  SKILL_AGENT_CUSTOM_ICON,
+  SKILL_AGENT_GENERAL,
+  SKILL_AGENT_GENERAL_ICON,
+  SKILL_AGENTS,
+  SKILL_CUSTOM_AGENT_MAX,
+  SKILL_CUSTOM_AGENT_MAX_LEN,
+} from '#shared/constants/skill-agents'
+import {
   newSkillStorageKey,
   skillPackageExt,
   zipListsSkillMd,
 } from '#shared/utils/skill-package'
+import {
+  normalizeSkillAgents,
+  type SkillAgents,
+} from '#shared/utils/skill-agents'
 
 type SkillFormRow = {
   id: number
   name: string
   description: string
   originalName: string
+  agents: SkillAgents
 }
 
 const props = defineProps<{
@@ -40,6 +53,51 @@ const fileLabel = computed(() =>
 function onPick(event: Event) {
   const input = event.target as HTMLInputElement
   picked.value = input.files?.[0]
+}
+
+/** Select value that reveals the custom-name input; never stored as an id. */
+const CUSTOM = 'custom'
+const initialAgents = props.skill?.agents ?? { ids: [], custom: [] }
+const agentValues = ref<string[]>([
+  ...initialAgents.ids,
+  ...(initialAgents.custom.length ? [CUSTOM] : []),
+])
+const customNames = ref<string[]>([...initialAgents.custom])
+const isGeneral = computed(() =>
+  agentValues.value.includes(SKILL_AGENT_GENERAL)
+)
+const customOn = computed(() => agentValues.value.includes(CUSTOM))
+const agentItems = computed(() => [
+  {
+    label: 'General',
+    value: SKILL_AGENT_GENERAL,
+    icon: SKILL_AGENT_GENERAL_ICON,
+  },
+  ...SKILL_AGENTS.map((agent) => ({
+    label: agent.name,
+    value: agent.id as string,
+    icon: agent.icon as string,
+    disabled: isGeneral.value,
+  })),
+  {
+    label: 'Custom',
+    value: CUSTOM,
+    icon: SKILL_AGENT_CUSTOM_ICON,
+    disabled: isGeneral.value,
+  },
+])
+
+function onAgentsChange(next: string[]) {
+  const generalAdded = next.includes(SKILL_AGENT_GENERAL) && !isGeneral.value
+  agentValues.value = generalAdded ? [SKILL_AGENT_GENERAL] : next
+  if (!agentValues.value.includes(CUSTOM)) customNames.value = []
+}
+
+function agentsBody() {
+  return normalizeSkillAgents({
+    ids: agentValues.value.filter((value) => value !== CUSTOM),
+    custom: customOn.value ? customNames.value : [],
+  })
 }
 
 async function assertSkillFile(file: File) {
@@ -74,6 +132,7 @@ async function onSave() {
   }
   loading.value = true
   try {
+    const agents = agentsBody()
     let storageKey: string | undefined
     let originalName: string | undefined
     if (picked.value) {
@@ -91,6 +150,7 @@ async function onSave() {
           description: description.value,
           storageKey,
           originalName,
+          agents,
         },
       })
     } else {
@@ -101,6 +161,7 @@ async function onSave() {
           body: {
             name: name.value,
             description: description.value,
+            agents,
             ...(storageKey
               ? { storageKey, originalName }
               : {}),
@@ -140,6 +201,37 @@ async function onSave() {
             class="w-full"
             :rows="3"
             placeholder="When to use this skill"
+          />
+        </UFormField>
+        <UFormField
+          label="Works with"
+          :hint="isGeneral ? 'Any agent' : 'Optional'"
+        >
+          <USelectMenu
+            :model-value="agentValues"
+            :items="agentItems"
+            value-key="value"
+            multiple
+            :search-input="false"
+            class="w-full"
+            placeholder="Not specified"
+            @update:model-value="onAgentsChange"
+          />
+        </UFormField>
+        <UFormField
+          v-if="customOn"
+          label="Custom agents"
+          :hint="`${customNames.length}/${SKILL_CUSTOM_AGENT_MAX}`"
+          :help="`Press Enter to add. Up to ${SKILL_CUSTOM_AGENT_MAX_LEN} characters each.`"
+        >
+          <UInputTags
+            v-model="customNames"
+            class="w-full"
+            :max="SKILL_CUSTOM_AGENT_MAX"
+            :max-length="SKILL_CUSTOM_AGENT_MAX_LEN"
+            add-on-blur
+            add-on-paste
+            placeholder="Agent name"
           />
         </UFormField>
         <UFormField :label="isCreate ? 'Package' : 'Replace package'">

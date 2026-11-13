@@ -76,6 +76,17 @@ export default defineNuxtConfig({
     clientBundle: {
       scan: true,
       sizeLimitKb: 256,
+      // Skill "Works with" logos are chosen from data, so `scan` cannot see them.
+      icons: [
+        'simple-icons:claude',
+        'simple-icons:openai',
+        'simple-icons:githubcopilot',
+        'simple-icons:cursor',
+        'simple-icons:googlegemini',
+        'logos:hermes-agent',
+        'lucide:globe',
+        'lucide:bot',
+      ],
     },
   },
   imports: {

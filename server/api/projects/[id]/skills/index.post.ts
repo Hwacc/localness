@@ -4,6 +4,7 @@ import { requireProjectAccess } from '#server/helper/access'
 import {
   assertSkillNameFree,
   assertSkillStorageKey,
+  parseSkillAgents,
   parseSkillDescription,
   parseSkillName,
   parseSkillOriginalName,
@@ -28,6 +29,7 @@ export default defineEventHandler(async (event) => {
   const description = parseSkillDescription(body?.description)
   const storageKey = assertSkillStorageKey(body?.storageKey)
   const originalName = parseSkillOriginalName(body?.originalName)
+  const agents = parseSkillAgents(body?.agents)
 
   const taken = await prisma.projectSkill.findFirst({
     where: { projectId, name },
@@ -43,12 +45,14 @@ export default defineEventHandler(async (event) => {
       description,
       storageKey,
       originalName,
+      agents,
     },
     select: {
       id: true,
       name: true,
       description: true,
       originalName: true,
+      agents: true,
       createdBy: true,
       createdAt: true,
       updatedAt: true,
