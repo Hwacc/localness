@@ -35,11 +35,25 @@ export interface IGitReviewItem {
   text: string
   label: string
   color: 'primary' | 'neutral' | 'warning'
-  /** Conflict rows and rows Push would skip are never ticked. */
+  /** Whether the row can be ticked for the action of the tab it is in. */
   selectable: boolean
   /** An open three-way conflict, resolved in the detail pane. */
   conflict: boolean
+  /** Another locale of this key has an open conflict; it waits for that one. */
+  blocked?: boolean
   staleSource?: boolean
+}
+
+/** What a bulk Use Git / Use platform did with each card it was given. */
+export interface GitSyncBulkResolveResult {
+  /** `text` is what the platform now holds for the key. */
+  resolved: { id: number; key: string; locale: string; text: string }[]
+  /** The platform text changed after the card was opened. */
+  stale: number[]
+  /** Use Git on a card where Git has no text. */
+  skipped: number[]
+  /** Already closed, or not in this project. */
+  alreadyResolved: number[]
 }
 
 /** One side of a row, as the detail pane compares them. */

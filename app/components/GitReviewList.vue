@@ -3,16 +3,14 @@ import { formatI18nKeyDisplay } from '#shared/utils'
 import type { IGitReviewItem } from '#shared/types/GitSync'
 
 /**
- * The Git page's left pane: open conflicts when idle, pull candidates or push
- * keys during a review. Clicking a row focuses it; the checkbox selects it for
- * Apply. Rows that cannot be ticked still focus, so a conflict is resolved in
- * the detail pane.
+ * The Git page's left pane: open conflicts when idle, or one tab of a pull or
+ * push review. Clicking a row focuses it; the checkbox ticks it for the action
+ * of the list it is in. Rows that cannot be ticked still focus. The `header`
+ * slot holds the page's tabs and filters.
  */
 const props = defineProps<{
   items: IGitReviewItem[]
   selectedIds: string[]
-  /** Idle mode lists conflicts only, so there is nothing to tick. */
-  selectable: boolean
   headerChecked: boolean | 'indeterminate'
   emptyText: string
 }>()
@@ -25,6 +23,11 @@ const emit = defineEmits<{
 const focused = defineModel<string | null>('focused', { required: true })
 
 const canTickAny = computed(() => props.items.some((item) => item.selectable))
+
+/** Ticked rows the list still shows. */
+const selectedCount = computed(
+  () => props.items.filter((item) => props.selectedIds.includes(item.id)).length
+)
 
 const listRef = useTemplateRef<HTMLDivElement>('list')
 
@@ -41,10 +44,15 @@ watch(focused, async (id) => {
 <template>
   <div class="min-h-0 flex flex-col">
     <div
+      v-if="$slots.header"
+      class="shrink-0 flex flex-col gap-2 px-3 py-2.5 border-b border-default"
+    >
+      <slot name="header" />
+    </div>
+    <div
       class="shrink-0 flex items-center gap-3 px-4 py-2.5 bg-elevated/40 border-b border-default text-xs text-muted"
     >
       <UCheckbox
-        v-if="selectable"
         :ui="{ base: 'bg-default' }"
         :model-value="headerChecked"
         :disabled="!canTickAny"
@@ -55,6 +63,9 @@ watch(focused, async (id) => {
         <UIcon name="i-lucide:list" class="size-3.5" />
         <span class="tabular-nums">{{ items.length }}</span>
         row{{ items.length === 1 ? '' : 's' }}
+      </span>
+      <span v-if="selectedCount" class="ml-auto tabular-nums">
+        {{ selectedCount }} selected
       </span>
     </div>
 
@@ -84,7 +95,6 @@ watch(focused, async (id) => {
         @click="focused = item.id"
       >
         <UCheckbox
-          v-if="selectable"
           class="mt-0.5"
           :ui="{ base: 'bg-default' }"
           :disabled="!item.selectable"
@@ -97,7 +107,7 @@ watch(focused, async (id) => {
           <div class="flex items-center gap-2">
             <code
               class="min-w-0 truncate text-sm font-medium"
-              :class="{ 'text-muted': selectable && !item.selectable }"
+              :class="{ 'text-muted': !item.selectable }"
               :title="item.key"
             >
               {{ formatI18nKeyDisplay(item.key) }}

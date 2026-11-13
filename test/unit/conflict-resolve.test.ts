@@ -14,7 +14,12 @@ const db = vi.hoisted(() => ({
   tagUpdates: [] as Array<{ where: unknown; data: unknown }>,
   bases: [] as Array<{ projectId: number; key: string; locale: string }>,
   conflictUpdate: null as Record<string, unknown> | null,
+  /** Bulk resolve: cards by id. Single-card tests use `conflict`. */
+  cards: {} as Record<number, Record<string, unknown>>,
+  failUpsert: false,
   reset() {
+    this.cards = {}
+    this.failUpsert = false
     this.conflict = {
       id: 7,
       projectId: 1,
@@ -49,20 +54,24 @@ vi.mock('#server/libs/prisma', () => {
       findUnique: async () => ({ localeFallback: 'en' }),
     },
     gitSyncConflict: {
-      findFirst: async () => {
+      findFirst: async ({ where }: any) => {
         db.calls.push('gitSyncConflict.findFirst')
-        return db.conflict
+        return db.cards[where.id] ?? db.conflict
       },
+      findMany: async ({ where }: any) =>
+        (where.id.in as number[])
+          .map((id) => db.cards[id])
+          .filter(Boolean),
       // The claim: the card's status flips inside the transaction.
       updateMany: async ({ data }: any) => {
         db.calls.push('gitSyncConflict.updateMany')
         db.conflictUpdate = { ...db.conflictUpdate, ...data }
         return { count: 1 }
       },
-      update: async ({ data }: any) => {
+      update: async ({ where, data }: any) => {
         db.calls.push('gitSyncConflict.update')
         db.conflictUpdate = { ...db.conflictUpdate, ...data }
-        return db.conflictUpdate
+        return { ...(db.cards[where.id] ?? db.conflict), ...db.conflictUpdate }
       },
     },
     i18nKey: {
@@ -78,6 +87,7 @@ vi.mock('#server/libs/prisma', () => {
       },
       upsert: async () => {
         db.calls.push('i18nKey.upsert')
+        if (db.failUpsert) throw new Error('disk full')
         return { id: 42 }
       },
     },
@@ -107,7 +117,9 @@ vi.mock('#server/libs/prisma', () => {
   return { default: client }
 })
 
-const { resolveConflict } = await import('#server/libs/git-sync/sync')
+const { resolveConflict, resolveConflicts } = await import(
+  '#server/libs/git-sync/sync'
+)
 
 beforeEach(() => {
   db.reset()
@@ -203,5 +215,66 @@ describe('resolveConflict — the pre-existing actions', () => {
   it('refuses a conflict that is already resolved', async () => {
     db.conflict!.status = 'ours'
     await expect(resolve()).rejects.toThrow(/already resolved/)
+  })
+})
+
+function card(id: number, extra: Record<string, unknown> = {}) {
+  return {
+    id,
+    projectId: 1,
+    key: `k.${id}`,
+    locale: 'en',
+    baseText: 'base',
+    oursText: 'ours',
+    theirsText: `theirs ${id}`,
+    publishedText: null,
+    status: 'open',
+    ...extra,
+  }
+}
+
+describe('resolveConflicts', () => {
+  it('sorts each card by what happened to it', async () => {
+    db.cards = {
+      1: card(1),
+      // The platform moved on after the card was opened.
+      2: card(2, { oursText: 'older ours' }),
+      3: card(3, { theirsText: '' }),
+      4: card(4, { status: 'ours' }),
+    }
+    const result = await resolveConflicts({
+      projectId: 1,
+      conflictIds: [1, 2, 3, 4, 5, 1],
+      action: 'theirs',
+    })
+
+    expect(result).toEqual({
+      resolved: [{ id: 1, key: 'k.1', locale: 'en', text: 'theirs 1' }],
+      stale: [2],
+      skipped: [3],
+      alreadyResolved: [4, 5],
+    })
+  })
+
+  it('does not skip cards without Git text when using platform', async () => {
+    db.cards = { 3: card(3, { theirsText: '' }) }
+    const result = await resolveConflicts({
+      projectId: 1,
+      conflictIds: [3],
+      action: 'ours',
+    })
+
+    expect(result.resolved).toEqual([
+      { id: 3, key: 'k.3', locale: 'en', text: 'ours' },
+    ])
+    expect(result.skipped).toEqual([])
+  })
+
+  it('stops on an error it does not know how to report', async () => {
+    db.cards = { 1: card(1) }
+    db.failUpsert = true
+    await expect(
+      resolveConflicts({ projectId: 1, conflictIds: [1], action: 'theirs' })
+    ).rejects.toThrow(/disk full/)
   })
 })

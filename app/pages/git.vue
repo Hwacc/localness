@@ -16,6 +16,7 @@ import { validID } from '#shared/utils'
 import { isHttpsRemoteUrl, normalizeGitHttpsRemote } from '#shared/schemas'
 import type {
   GitSyncBindingPublic,
+  GitSyncBulkResolveResult,
   GitSyncStatus,
   IGitReviewItem,
   IGitReviewSection,
@@ -27,7 +28,7 @@ import type {
   PushPreview,
   ThreeWayDecision,
 } from '#shared/types/GitSync'
-import { GitSyncHistoryModal } from '#components'
+import { AlertModal, GitSyncHistoryModal, LocaleBadge } from '#components'
 
 definePageMeta({
   middleware: ['protected'],
@@ -62,9 +63,24 @@ const pushKeySel = ref<string[]>([])
 const applying = ref(false)
 const pullQuery = ref('')
 const pushQuery = ref('')
-const pullDecisionFilter = ref<ThreeWayDecision | 'all'>('all')
-const pushReasonFilter = ref<GitSyncPushReason | 'all'>('all')
+const pullDecisionFilter = ref<GitFilterState['pullDecision']>('all')
+const pushReasonFilter = ref<GitFilterState['pushReason']>('all')
 const focusedId = ref<string | null>(null)
+
+/**
+ * A preview splits its rows in two: changes go to Apply / Commit, conflicts to
+ * Use Git / Use platform. Each tab keeps its own ticks, and only the open tab's
+ * buttons show, so a tick never means two things.
+ */
+type ReviewTab = 'changes' | 'conflicts'
+const reviewTab = ref<ReviewTab>('changes')
+/** Ticked conflict cards, by card id. */
+const conflictSel = ref<number[]>([])
+/** Search for the conflict list when no preview is open. */
+const conflictQuery = ref('')
+/** `all`, `older` (Git translates an older source), or a locale code. */
+const conflictFilter = ref('all')
+const bulkResolving = ref(false)
 
 const form = reactive({
   enabled: true,
@@ -106,14 +122,6 @@ const pullCanConfirm = computed(() => {
     (c) => selected.has(candidateId(c)) && isPullActionable(c)
   )
 })
-
-const pushSelectableCount = computed(
-  () => pushPreview.value?.candidates.filter(isPushRowSelectable).length ?? 0
-)
-
-const pullSelectableCount = computed(
-  () => pullPreview.value?.candidates.filter(isPullActionable).length ?? 0
-)
 
 const pushCanConfirm = computed(() => {
   if (!pushPreview.value || !pushKeySel.value.length) return false
@@ -217,6 +225,10 @@ function clearSessionState() {
   pullFileSel.value = []
   pullKeySel.value = []
   pushKeySel.value = []
+  conflictSel.value = []
+  conflictQuery.value = ''
+  conflictFilter.value = 'all'
+  reviewTab.value = 'changes'
   focusedId.value = null
   resolvingId.value = null
   showSettings.value = false
@@ -426,6 +438,8 @@ const pullVisibleFiles = computed(() =>
 const pullTableRows = computed(() => {
   const q = pullQuery.value.trim().toLowerCase()
   return (pullPreview.value?.candidates ?? []).filter((c) => {
+    // Conflicts live in their own tab.
+    if (c.decision === 'conflict') return false
     if (c.relPath && !pullFileSel.value.includes(c.relPath)) return false
     if (
       pullDecisionFilter.value !== 'all' &&
@@ -446,14 +460,15 @@ const pushTableRows = computed(() => {
   const q = pushQuery.value.trim().toLowerCase()
   const reason = pushReasonFilter.value
   return (pushPreview.value?.candidates ?? []).filter((c) => {
+    // Conflicts live in their own tab.
+    if (c.reason === GitSyncPushReason.CONFLICT) return false
     // Default view is the proposal plus rows that still need a decision.
     // Filtered-out reasons are only reachable by picking that reason.
     if (reason !== 'all') {
       if (c.reason !== reason) return false
     } else if (
       !c.eligible &&
-      c.reason !== GitSyncPushReason.REMOTE_CHANGED &&
-      c.reason !== GitSyncPushReason.CONFLICT
+      c.reason !== GitSyncPushReason.REMOTE_CHANGED
     ) {
       return false
     }
@@ -472,7 +487,6 @@ const pullDecisionItems = [
   { label: 'Apply Git text', value: 'apply-theirs' },
   { label: 'Keep platform draft', value: 'keep-ours' },
   { label: 'Align base only', value: 'align' },
-  { label: 'Conflict', value: 'conflict' },
 ]
 
 const pushReasonItems = [
@@ -484,7 +498,6 @@ const pushReasonItems = [
   { label: 'Auto draft key', value: GitSyncPushReason.DRAFT_KEY },
   { label: 'Cannot be written', value: GitSyncPushReason.UNWRITABLE },
   { label: 'Git is ahead', value: GitSyncPushReason.REMOTE_CHANGED },
-  { label: 'Conflict', value: GitSyncPushReason.CONFLICT },
 ]
 
 const pushReasonLabel: Record<string, string> = {
@@ -640,21 +653,131 @@ const reviewMode = computed<ReviewMode>(() => {
   return 'conflicts'
 })
 
+/** The list holds conflict cards: no preview, or a preview's Conflicts tab. */
+const showingConflicts = computed(
+  () => reviewMode.value === 'conflicts' || reviewTab.value === 'conflicts'
+)
+
+/** One search box for both tabs of a preview, its own when no preview is open. */
+const listQuery = computed({
+  get: () => {
+    const mode = reviewMode.value
+    switch (mode) {
+      case 'pull':
+        return pullQuery.value
+      case 'push':
+        return pushQuery.value
+      case 'conflicts':
+        return conflictQuery.value
+      default: {
+        const _exhaustive: never = mode
+        return _exhaustive
+      }
+    }
+  },
+  set: (value: string) => {
+    const mode = reviewMode.value
+    switch (mode) {
+      case 'pull':
+        pullQuery.value = value
+        break
+      case 'push':
+        pushQuery.value = value
+        break
+      case 'conflicts':
+        conflictQuery.value = value
+        break
+      default: {
+        const _exhaustive: never = mode
+        return _exhaustive
+      }
+    }
+  },
+})
+
+/** The pull file of each preview row, so conflicts follow the Files scope. */
+const pullRelPathById = computed(
+  () =>
+    new Map(
+      (pullPreview.value?.candidates ?? []).map((c) => [
+        candidateId(c),
+        c.relPath,
+      ])
+    )
+)
+
+const conflictRows = computed(() => {
+  const mode = reviewMode.value
+  const q = listQuery.value.trim().toLowerCase()
+  const filter = conflictFilter.value
+  return conflicts.value.filter((c) => {
+    if (mode === 'pull') {
+      const relPath = pullRelPathById.value.get(`${c.key}\0${c.locale}`)
+      if (relPath && !pullFileSel.value.includes(relPath)) return false
+    }
+    if (filter === 'older') {
+      if (c.olderSourceText == null) return false
+    } else if (filter !== 'all' && c.locale !== filter) {
+      return false
+    }
+    if (!q) return true
+    return (
+      c.key.toLowerCase().includes(q) ||
+      c.oursText.toLowerCase().includes(q) ||
+      c.theirsText.toLowerCase().includes(q)
+    )
+  })
+})
+
+/** Push conflicts are all in the source locale, so it lists no locales. */
+const conflictFilterItems = computed(() => {
+  const items: { label: string; value: string; locale?: string }[] = [
+    { label: 'All conflicts', value: 'all' },
+    { label: 'Older source only', value: 'older' },
+  ]
+  if (reviewMode.value === 'push') return items
+  const locales = [...new Set(conflicts.value.map((c) => c.locale))].sort()
+  return [
+    ...items,
+    ...locales.map((locale) => ({ label: locale, value: locale, locale })),
+  ]
+})
+
+const conflictItems = computed<IGitReviewItem[]>(() =>
+  conflictRows.value.map((c) => ({
+    id: `c:${c.id}`,
+    key: c.key,
+    locale: c.locale,
+    text: c.theirsText,
+    label: 'Conflict',
+    color: 'warning',
+    selectable: true,
+    conflict: true,
+    staleSource: c.olderSourceText != null,
+  }))
+)
+
 const reviewItems = computed<IGitReviewItem[]>(() => {
+  if (showingConflicts.value) return conflictItems.value
   const mode = reviewMode.value
   switch (mode) {
     case 'pull':
-      return pullTableRows.value.map((c) => ({
-        id: candidateId(c),
-        key: c.key,
-        locale: c.locale,
-        text: c.theirsText,
-        label: decisionLabel[c.decision],
-        color: decisionColor(c.decision),
-        selectable: isPullActionable(c),
-        conflict: c.decision === 'conflict',
-        staleSource: c.staleSource,
-      }))
+      return pullTableRows.value.map((c) => {
+        const blocked =
+          c.decision === 'apply-theirs' && conflictedKeys.value.has(c.key)
+        return {
+          id: candidateId(c),
+          key: c.key,
+          locale: c.locale,
+          text: c.theirsText,
+          label: blocked ? 'Waiting on conflict' : decisionLabel[c.decision],
+          color: blocked ? 'neutral' : decisionColor(c.decision),
+          selectable: isPullActionable(c),
+          conflict: false,
+          blocked,
+          staleSource: c.staleSource,
+        }
+      })
     case 'push':
       return pushTableRows.value.map((c) => ({
         id: c.key,
@@ -666,19 +789,10 @@ const reviewItems = computed<IGitReviewItem[]>(() => {
           c.reason,
         color: pushReasonColor(c.reason),
         selectable: isPushRowSelectable(c),
-        conflict: c.reason === GitSyncPushReason.CONFLICT,
+        conflict: false,
       }))
     case 'conflicts':
-      return conflicts.value.map((c) => ({
-        id: `c:${c.id}`,
-        key: c.key,
-        locale: c.locale,
-        text: c.theirsText,
-        label: 'Conflict',
-        color: 'warning',
-        selectable: false,
-        conflict: true,
-      }))
+      return conflictItems.value
     default: {
       const _exhaustive: never = mode
       return _exhaustive
@@ -697,19 +811,12 @@ const activeItem = computed(
 const activeConflict = computed(() => {
   const item = activeItem.value
   if (!item?.conflict) return null
-  if (reviewMode.value === 'conflicts') {
-    return conflicts.value.find((c) => `c:${c.id}` === item.id) ?? null
-  }
-  return (
-    conflicts.value.find(
-      (c) => c.key === item.key && c.locale === item.locale
-    ) ?? null
-  )
+  return conflicts.value.find((c) => `c:${c.id}` === item.id) ?? null
 })
 
 const activeSections = computed<IGitReviewSection[]>(() => {
   const item = activeItem.value
-  if (!item) return []
+  if (!item || showingConflicts.value) return []
   const mode = reviewMode.value
   switch (mode) {
     case 'pull': {
@@ -725,6 +832,14 @@ const activeSections = computed<IGitReviewSection[]>(() => {
           tone: 'git',
         },
       ]
+      if (item.blocked) {
+        sections.unshift({
+          label: 'Waiting on conflict',
+          hint: 'Another locale of this key has an open conflict. Resolve it on the Conflicts tab first.',
+          text: c.key,
+          tone: 'warning',
+        })
+      }
       if (c.oursText !== c.theirsText) {
         sections.push({
           label: 'On platform (draft)',
@@ -785,7 +900,27 @@ const activeSections = computed<IGitReviewSection[]>(() => {
   }
 })
 
+/** Ticked conflict cards that the current filters still show. */
+const conflictSelVisible = computed(() => {
+  const picked = new Set(conflictSel.value)
+  return conflictRows.value.filter((c) => picked.has(c.id))
+})
+
+/** With nothing ticked, the bulk buttons act on every card the filters show. */
+const bulkTargets = computed(() =>
+  conflictSelVisible.value.length ? conflictSelVisible.value : conflictRows.value
+)
+
+function bulkLabel(action: BulkAction) {
+  const base = action === GitSyncConflictStatus.THEIRS ? 'Use Git' : 'Use platform'
+  const n = bulkTargets.value.length
+  return conflictSelVisible.value.length
+    ? `${base} (${n})`
+    : `${base} for all (${n})`
+}
+
 const reviewSelectedIds = computed(() => {
+  if (showingConflicts.value) return conflictSel.value.map((id) => `c:${id}`)
   const mode = reviewMode.value
   switch (mode) {
     case 'pull':
@@ -801,7 +936,15 @@ const reviewSelectedIds = computed(() => {
   }
 })
 
+function conflictHeaderChecked(): boolean | 'indeterminate' {
+  const n = conflictSelVisible.value.length
+  if (n === 0) return false
+  if (n === conflictRows.value.length) return true
+  return 'indeterminate'
+}
+
 const reviewHeaderChecked = computed(() => {
+  if (showingConflicts.value) return conflictHeaderChecked()
   const mode = reviewMode.value
   switch (mode) {
     case 'pull':
@@ -818,6 +961,14 @@ const reviewHeaderChecked = computed(() => {
 })
 
 const reviewEmptyText = computed(() => {
+  if (showingConflicts.value) {
+    if (conflicts.value.length && !conflictRows.value.length) {
+      return 'No conflicts match the filters.'
+    }
+    return reviewMode.value === 'conflicts'
+      ? 'No open conflicts. Pull or Push to review changes.'
+      : 'No open conflicts.'
+  }
   const mode = reviewMode.value
   switch (mode) {
     case 'pull':
@@ -836,14 +987,122 @@ const reviewEmptyText = computed(() => {
 })
 
 function onReviewToggle(id: string, on: boolean | 'indeterminate') {
+  if (showingConflicts.value) {
+    const cardId = Number(id.slice(2))
+    const has = conflictSel.value.includes(cardId)
+    if (on === true && !has) conflictSel.value = [...conflictSel.value, cardId]
+    else if (on !== true && has) {
+      conflictSel.value = conflictSel.value.filter((item) => item !== cardId)
+    }
+    return
+  }
   if (reviewMode.value === 'pull') setSelected('pullKey', id, on)
   else if (reviewMode.value === 'push') setSelected('pushKey', id, on)
 }
 
 function onReviewToggleAll(on: boolean | 'indeterminate') {
+  if (showingConflicts.value) {
+    const ids = conflictRows.value.map((c) => c.id)
+    if (on === true) {
+      conflictSel.value = [...new Set([...conflictSel.value, ...ids])]
+      return
+    }
+    const drop = new Set(ids)
+    conflictSel.value = conflictSel.value.filter((id) => !drop.has(id))
+    return
+  }
   if (reviewMode.value === 'pull') selectVisiblePull(on === true)
   else if (reviewMode.value === 'push') selectVisiblePush(on === true)
 }
+
+/** Drop ticks on closed cards; leave the Conflicts tab once it is empty. */
+watch(conflicts, (list) => {
+  const open = new Set(list.map((c) => c.id))
+  conflictSel.value = conflictSel.value.filter((id) => open.has(id))
+  if (
+    conflictFilter.value !== 'all' &&
+    conflictFilter.value !== 'older' &&
+    !list.some((c) => c.locale === conflictFilter.value)
+  ) {
+    conflictFilter.value = 'all'
+  }
+  if (!list.length) reviewTab.value = 'changes'
+})
+
+const reviewTabItems = computed(() => [
+  {
+    label: 'Changes',
+    value: 'changes',
+    badge: {
+      label:
+        reviewMode.value === 'pull'
+          ? pullTableRows.value.length
+          : pushTableRows.value.length,
+      color: 'neutral' as const,
+      variant: 'subtle' as const,
+    },
+  },
+  {
+    label: 'Conflicts',
+    value: 'conflicts',
+    badge: {
+      label: conflictRows.value.length,
+      color: conflictRows.value.length ? ('warning' as const) : ('neutral' as const),
+      variant: 'subtle' as const,
+    },
+  },
+])
+
+const reviewBarClass = computed(() => {
+  const mode = reviewMode.value
+  switch (mode) {
+    case 'pull':
+      return 'bg-info/10 border-info/30'
+    case 'push':
+      return 'bg-primary/10 border-primary/30'
+    case 'conflicts':
+      return 'bg-warning/10 border-warning/30'
+    default: {
+      const _exhaustive: never = mode
+      return _exhaustive
+    }
+  }
+})
+
+const reviewBarTitle = computed(() => {
+  const mode = reviewMode.value
+  switch (mode) {
+    case 'pull':
+      return 'Review pull'
+    case 'push':
+      return 'Review push'
+    case 'conflicts':
+      return 'Open conflicts'
+    default: {
+      const _exhaustive: never = mode
+      return _exhaustive
+    }
+  }
+})
+
+const reviewBarHint = computed(() => {
+  if (showingConflicts.value) {
+    return 'Each row changed on both sides. Use Git takes the repo text, Use platform keeps yours. The buttons act on the ticked rows, or on every row the filters show when none are ticked. Merge and Rename are on the right, one row at a time.'
+  }
+  const mode = reviewMode.value
+  switch (mode) {
+    case 'pull':
+      return "Apply pull publishes Git's text for the ticked rows. A key with an open conflict waits in every locale until the conflict is resolved on the Conflicts tab."
+    case 'push':
+      return 'Ticking a row where Git has newer text overwrites it. Rows changed on both sides are on the Conflicts tab; push waits until they are resolved.'
+    case 'conflicts':
+      return ''
+    default: {
+      const _exhaustive: never = mode
+      return _exhaustive
+    }
+  }
+})
 
 function moveFocus(delta: -1 | 1) {
   const items = reviewItems.value
@@ -881,7 +1140,10 @@ function onKeydown(event: KeyboardEvent) {
   if (target?.closest('[role="listbox"],[role="menu"],[role="combobox"]')) return
   const conflict = activeConflict.value
   const canResolve =
-    conflict && resolvingId.value === null && !detailBusy.value
+    conflict &&
+    resolvingId.value === null &&
+    !detailBusy.value &&
+    !bulkResolving.value
   if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
     event.preventDefault()
     moveFocus(event.key === 'ArrowDown' ? 1 : -1)
@@ -937,6 +1199,8 @@ async function startPull() {
       .map(candidateId)
     pullQuery.value = ''
     pullDecisionFilter.value = 'all'
+    conflictSel.value = []
+    reviewTab.value = conflicts.value.length ? 'conflicts' : 'changes'
     if (preview.ignoredLocales?.length) {
       toast.add({
         title: 'Some Git locales were skipped',
@@ -1023,6 +1287,8 @@ async function startPush() {
     if ((preview.counts?.conflict ?? 0) > 0) {
       await loadAll()
     }
+    conflictSel.value = []
+    reviewTab.value = conflicts.value.length ? 'conflicts' : 'changes'
   } catch (error) {
     await recoverFromSyncError(error)
   } finally {
@@ -1266,6 +1532,7 @@ async function resolve(
       markPullCandidateResolved(conflict.key, conflict.locale)
     }
     await loadAll()
+    selectUnblockedPullRows([conflict.key])
   } catch (error) {
     await recoverFromSyncError(error)
   } finally {
@@ -1275,6 +1542,121 @@ async function resolve(
 
 const overlay = useOverlay()
 const historyModal = overlay.create(GitSyncHistoryModal)
+const confirmModal = overlay.create(AlertModal)
+
+/**
+ * Pull rows that waited on a card of the same key join the Apply selection
+ * once the key has no open card left, as they would have at preview time.
+ */
+function selectUnblockedPullRows(keys: string[]) {
+  const preview = pullPreview.value
+  if (!preview) return
+  const touched = new Set(keys)
+  const add = preview.candidates
+    .filter((c) => touched.has(c.key) && isPullBulkSelectable(c))
+    .map(candidateId)
+  if (add.length) pullKeySel.value = [...new Set([...pullKeySel.value, ...add])]
+}
+
+type BulkAction =
+  | typeof GitSyncConflictStatus.OURS
+  | typeof GitSyncConflictStatus.THEIRS
+
+function bulkConfirmBody(cards: IGitSyncConflictRow[], action: BulkAction) {
+  const locales = [...new Set(cards.map((c) => c.locale))].sort()
+  const notes: string[] = []
+  if (action === GitSyncConflictStatus.THEIRS) {
+    const empty = cards.filter((c) => !c.theirsText).length
+    const older = cards.filter(
+      (c) => c.theirsText && c.olderSourceText != null
+    ).length
+    notes.push(
+      `Git text replaces the platform text for ${cards.length - empty} row(s).`
+    )
+    if (older) {
+      notes.push(
+        `${older} translate an older source and will be marked outdated.`
+      )
+    }
+    if (empty) notes.push(`${empty} have no Git text and will be skipped.`)
+  } else {
+    notes.push(
+      'The platform text is kept for every row. Push sends it to Git later.'
+    )
+  }
+  return h('div', { class: 'space-y-3 text-sm' }, [
+    h('p', `${cards.length} conflict(s) in:`),
+    h(
+      'div',
+      { class: 'flex flex-wrap gap-1' },
+      locales.map((locale) => h(LocaleBadge, { locale }))
+    ),
+    h(
+      'ul',
+      { class: 'list-disc pl-5 space-y-1 text-muted' },
+      notes.map((note) => h('li', note))
+    ),
+  ])
+}
+
+function confirmBulkResolve(action: BulkAction) {
+  const cards = bulkTargets.value
+  if (!cards.length || bulkResolving.value) return
+  const name = action === GitSyncConflictStatus.THEIRS ? 'Use Git' : 'Use platform'
+  confirmModal.open({
+    mode: 'warning',
+    title: `${name} for ${cards.length} conflict(s)?`,
+    okText: name,
+    slots: { body: () => bulkConfirmBody(cards, action) },
+    onOk: async (_mode: unknown, { close }: { close: () => void }) => {
+      confirmModal.patch({ loading: true })
+      try {
+        await bulkResolve(cards, action)
+      } finally {
+        confirmModal.patch({ loading: false })
+        close()
+      }
+    },
+  })
+}
+
+async function bulkResolve(cards: IGitSyncConflictRow[], action: BulkAction) {
+  if (!validID(projectId.value)) return
+  bulkResolving.value = true
+  try {
+    const result = await useApi<GitSyncBulkResolveResult>(
+      `/api/projects/${projectId.value}/git-sync/conflicts/resolve`,
+      { method: 'POST', body: { ids: cards.map((c) => c.id), action } }
+    )
+    if (!result) return
+    for (const row of result.resolved) {
+      markPushCandidateResolved(row.key, row.locale, row.text)
+      markPullCandidateResolved(row.key, row.locale)
+    }
+    await loadAll()
+    selectUnblockedPullRows(result.resolved.map((row) => row.key))
+    const notes = [
+      result.stale.length
+        ? `${result.stale.length} changed on the platform since the conflict opened — review them one by one.`
+        : '',
+      result.skipped.length
+        ? `${result.skipped.length} skipped: Git has no text.`
+        : '',
+      result.alreadyResolved.length
+        ? `${result.alreadyResolved.length} were already resolved.`
+        : '',
+    ].filter(Boolean)
+    toast.add({
+      title: `Resolved ${result.resolved.length} conflict(s)`,
+      description: notes.join(' ') || undefined,
+      color: notes.length ? 'warning' : 'success',
+    })
+  } catch (error) {
+    await recoverFromSyncError(error)
+  } finally {
+    bulkResolving.value = false
+  }
+}
 
 function openHistory() {
   if (!validID(projectId.value)) return
@@ -1492,173 +1874,131 @@ function openHistory() {
 
     <template v-else-if="status">
       <div
-        v-if="reviewMode !== 'conflicts'"
-        class="shrink-0 px-6 py-3 bg-default border-b border-default flex flex-wrap items-center gap-2"
+        v-if="reviewMode !== 'conflicts' || conflicts.length"
+        class="shrink-0 px-6 py-2 border-b flex flex-wrap items-center gap-x-3 gap-y-2"
+        :class="reviewBarClass"
       >
-        <UPopover v-if="reviewMode === 'pull'">
-          <UButton
-            size="sm"
-            color="neutral"
-            variant="outline"
-            icon="i-lucide:files"
-            :label="`Files ${pullFileSel.length}/${pullVisibleFiles.length}`"
-          />
-          <template #content>
-            <div class="w-80 max-h-80 overflow-auto p-2 flex flex-col gap-1">
-              <p
-                v-if="!pullVisibleFiles.length"
-                class="p-2 text-sm text-muted"
-              >
-                No files to show.
-              </p>
-              <div
-                v-for="file in pullVisibleFiles"
-                :key="file.relPath"
-                class="flex items-center gap-3 rounded-lg bg-muted px-3 py-1.5"
-              >
-                <UCheckbox
-                  :model-value="isSelected('pullFile', file.relPath)"
-                  @update:model-value="
-                    setPullFileSelected(file.relPath, $event)
-                  "
-                />
-                <div class="min-w-0 flex-1">
-                  <p class="truncate text-sm" :title="file.relPath">
-                    {{ file.relPath }}
-                  </p>
-                  <p class="flex items-center gap-1.5 text-xs text-muted">
-                    {{ pullReasonLabel[file.reason] ?? file.reason }} ·
-                    <LocaleBadge v-if="file.locale" :locale="file.locale" />
-                    <template v-else>
-                      unmapped ({{ file.remoteLocale }})
-                    </template>
-                  </p>
+        <div class="min-w-0 flex flex-wrap items-center gap-x-2 gap-y-1">
+          <p class="text-sm font-medium">{{ reviewBarTitle }}</p>
+          <LocaleBadge v-if="pushPreview" :locale="pushPreview.sourceLocale" />
+          <span class="text-xs text-muted">
+            <template v-if="pullPreview">
+              Remote {{ pullPreview.commitSha.slice(0, 8) }} · expires
+              {{ formatTime(pullPreview.expiresAt) }}
+            </template>
+            <template v-else-if="pushPreview">
+              Expires {{ formatTime(pushPreview.expiresAt) }} · nothing is
+              committed until you confirm
+            </template>
+            <template v-else>{{ conflicts.length }} open</template>
+          </span>
+          <UPopover mode="hover" :open-delay="150">
+            <UButton
+              size="xs"
+              color="neutral"
+              variant="ghost"
+              square
+              icon="i-lucide:info"
+              aria-label="About this review"
+            />
+            <template #content>
+              <p class="w-80 p-3 text-xs text-muted">{{ reviewBarHint }}</p>
+            </template>
+          </UPopover>
+          <UPopover v-if="pullPreview">
+            <UButton
+              size="xs"
+              color="neutral"
+              variant="outline"
+              icon="i-lucide:files"
+              :label="`Files ${pullFileSel.length}/${pullVisibleFiles.length}`"
+            />
+            <template #content>
+              <div class="w-80 max-h-80 overflow-auto p-2 flex flex-col gap-1">
+                <p
+                  v-if="!pullVisibleFiles.length"
+                  class="p-2 text-sm text-muted"
+                >
+                  No files to show.
+                </p>
+                <div
+                  v-for="file in pullVisibleFiles"
+                  :key="file.relPath"
+                  class="flex items-center gap-3 rounded-lg bg-muted px-3 py-1.5"
+                >
+                  <UCheckbox
+                    :model-value="isSelected('pullFile', file.relPath)"
+                    @update:model-value="
+                      setPullFileSelected(file.relPath, $event)
+                    "
+                  />
+                  <div class="min-w-0 flex-1">
+                    <p class="truncate text-sm" :title="file.relPath">
+                      {{ file.relPath }}
+                    </p>
+                    <p class="flex items-center gap-1.5 text-xs text-muted">
+                      {{ pullReasonLabel[file.reason] ?? file.reason }} ·
+                      <LocaleBadge v-if="file.locale" :locale="file.locale" />
+                      <template v-else>
+                        unmapped ({{ file.remoteLocale }})
+                      </template>
+                    </p>
+                  </div>
                 </div>
               </div>
-            </div>
-          </template>
-        </UPopover>
-        <template v-if="reviewMode === 'pull'">
-          <UInput
-            v-model="pullQuery"
-            size="sm"
-            class="w-56"
-            icon="i-lucide:search"
-            placeholder="Search key or text"
-          />
-          <USelectMenu
-            v-model="pullDecisionFilter"
-            :items="pullDecisionItems"
-            value-key="value"
-            size="sm"
-            class="w-48"
-            :search-input="false"
-          />
-        </template>
-        <template v-else>
-          <UInput
-            v-model="pushQuery"
-            size="sm"
-            class="w-56"
-            icon="i-lucide:search"
-            placeholder="Search key or text"
-          />
-          <USelectMenu
-            v-model="pushReasonFilter"
-            :items="pushReasonItems"
-            value-key="value"
-            size="sm"
-            class="w-48"
-            :search-input="false"
-          />
-        </template>
-      </div>
-
-      <div
-        v-if="pullPreview"
-        class="shrink-0 px-6 py-2 bg-info/10 border-b border-info/30 flex flex-wrap items-center gap-3"
-      >
-        <div class="min-w-0">
-          <p class="text-sm font-medium">
-            Review pull
-            <span class="font-normal text-muted">
-              · {{ pullFileSel.length }} of {{ pullPreview.files.length }}
-              file(s) · {{ pullKeySel.length }} of {{ pullSelectableCount }}
-              selectable change(s) selected
-            </span>
-          </p>
-          <p class="text-xs text-muted">
-            Remote {{ pullPreview.commitSha.slice(0, 8) }} · expires
-            {{ formatTime(pullPreview.expiresAt) }}
-          </p>
-          <p class="text-xs">
-            Apply pull publishes Git's text for the ticked rows. A key with an
-            open conflict can't be ticked in any locale until it is resolved on
-            the right; everything else can be applied now.
-          </p>
+            </template>
+          </UPopover>
         </div>
         <div class="ml-auto shrink-0 flex items-center gap-2">
-          <span v-if="status?.syncingBy" class="text-xs text-warning">
+          <span
+            v-if="status?.syncingBy && reviewMode !== 'conflicts'"
+            class="text-xs text-warning"
+          >
             {{ status.syncingBy }} is syncing — apply once it finishes
           </span>
           <UButton
+            v-if="reviewMode !== 'conflicts'"
             color="neutral"
             variant="ghost"
-            :disabled="applying"
+            :disabled="applying || bulkResolving"
             @click="cancelPreview"
           >
             Cancel
           </UButton>
+          <template v-if="showingConflicts">
+            <UButton
+              color="neutral"
+              variant="outline"
+              :disabled="!bulkTargets.length || applying"
+              :loading="bulkResolving"
+              :label="bulkLabel(GitSyncConflictStatus.OURS)"
+              @click="confirmBulkResolve(GitSyncConflictStatus.OURS)"
+            />
+            <UButton
+              color="warning"
+              :disabled="!bulkTargets.length || applying"
+              :loading="bulkResolving"
+              :label="bulkLabel(GitSyncConflictStatus.THEIRS)"
+              @click="confirmBulkResolve(GitSyncConflictStatus.THEIRS)"
+            />
+          </template>
           <UButton
+            v-else-if="pullPreview"
             color="info"
             :loading="applying"
             :disabled="!pullCanConfirm"
             @click="confirmPull"
           >
-            Apply pull
-          </UButton>
-        </div>
-      </div>
-
-      <div
-        v-else-if="pushPreview"
-        class="shrink-0 px-6 py-2 bg-primary/10 border-b border-primary/30 flex flex-wrap items-center gap-3"
-      >
-        <div class="min-w-0">
-          <p class="text-sm font-medium">
-            Review push
-            <span class="font-normal text-muted">
-              · {{ pushKeySel.length }} of {{ pushSelectableCount }} pushable
-              source key(s) selected ({{ pushPreview.sourceLocale }})
-            </span>
-          </p>          <p class="text-xs text-muted">
-            Expires {{ formatTime(pushPreview.expiresAt) }} · nothing is
-            committed until you confirm
-          </p>
-          <p class="text-xs">
-            Ticking a row where Git has newer text overwrites it. Rows changed
-            on both sides can't be ticked — resolve them on the right first.
-          </p>
-        </div>
-        <div class="ml-auto shrink-0 flex items-center gap-2">
-          <span v-if="status?.syncingBy" class="text-xs text-warning">
-            {{ status.syncingBy }} is syncing — apply once it finishes
-          </span>
-          <UButton
-            color="neutral"
-            variant="ghost"
-            :disabled="applying"
-            @click="cancelPreview"
-          >
-            Cancel
+            Apply pull ({{ pullKeySel.length }})
           </UButton>
           <UButton
+            v-else-if="pushPreview"
             color="primary"
             :loading="applying"
             :disabled="!pushCanConfirm"
             @click="confirmPush"
           >
-            Commit push
+            Commit push ({{ pushKeySel.length }})
           </UButton>
         </div>
       </div>
@@ -1670,13 +2010,80 @@ function openHistory() {
           :focused="activeItem?.id ?? null"
           :items="reviewItems"
           :selected-ids="reviewSelectedIds"
-          :selectable="reviewMode !== 'conflicts'"
           :header-checked="reviewHeaderChecked"
           :empty-text="reviewEmptyText"
           @update:focused="focusedId = $event"
           @toggle="onReviewToggle"
           @toggle-all="onReviewToggleAll"
-        />
+        >
+          <template #header>
+            <UTabs
+              v-if="reviewMode !== 'conflicts'"
+              v-model="reviewTab"
+              :items="reviewTabItems"
+              :content="false"
+              size="xs"
+              class="w-full"
+              :ui="{
+                trailingBadge:
+                  'in-data-[state=active]:bg-inverted/20 in-data-[state=active]:text-inverted in-data-[state=active]:ring-0',
+              }"
+              @update:model-value="focusedId = null"
+            />
+            <div class="flex items-center gap-2">
+              <UInput
+                v-model="listQuery"
+                size="sm"
+                class="min-w-0 flex-1"
+                icon="i-lucide:search"
+                placeholder="Search"
+              />
+              <USelectMenu
+                v-if="showingConflicts"
+                v-model="conflictFilter"
+                :items="conflictFilterItems"
+                value-key="value"
+                size="sm"
+                class="w-35 shrink-0"
+                :search-input="false"
+              >
+                <template #default="{ modelValue }">
+                  <LocaleBadge
+                    v-if="modelValue !== 'all' && modelValue !== 'older'"
+                    :locale="String(modelValue)"
+                  />
+                  <span v-else class="truncate">
+                    {{
+                      modelValue === 'older' ? 'Older source only' : 'All conflicts'
+                    }}
+                  </span>
+                </template>
+                <template #item-label="{ item }">
+                  <LocaleBadge v-if="item.locale" :locale="item.locale" />
+                  <template v-else>{{ item.label }}</template>
+                </template>
+              </USelectMenu>
+              <USelectMenu
+                v-else-if="reviewMode === 'pull'"
+                v-model="pullDecisionFilter"
+                :items="pullDecisionItems"
+                value-key="value"
+                size="sm"
+                class="w-35 shrink-0"
+                :search-input="false"
+              />
+              <USelectMenu
+                v-else
+                v-model="pushReasonFilter"
+                :items="pushReasonItems"
+                value-key="value"
+                size="sm"
+                class="w-35 shrink-0"
+                :search-input="false"
+              />
+            </div>
+          </template>
+        </GitReviewList>
         <main class="flex-1 min-h-0 min-w-0 flex flex-col bg-default">
           <div class="flex-1 min-h-0 overflow-auto">
             <GitReviewDetail
@@ -1698,7 +2105,7 @@ function openHistory() {
             <span class="flex items-center gap-1">
               <UKbd>C</UKbd> Compare
             </span>
-            <span v-if="reviewMode !== 'conflicts'" class="flex items-center gap-1">
+            <span class="flex items-center gap-1">
               <UKbd>X</UKbd> Select row
             </span>
             <template v-if="activeConflict">

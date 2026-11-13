@@ -24,6 +24,7 @@ import { assertNoSyncRunning, withSyncLease } from './engine/lease'
 import { sourceLocaleOf } from '#server/helper/i18n'
 import { projectLocales } from '#server/helper/api-delivery'
 import type { ThreeWayDecision } from './engine/three-way'
+import type { GitSyncBulkResolveResult } from '#shared/types/GitSync'
 import {
   classifyPull,
   classifyPush,
@@ -1889,4 +1890,66 @@ export async function resolveConflict(params: {
     )
   }
   return resolved
+}
+
+/**
+ * Use Git / Use platform for many cards at once. Each card is resolved on its
+ * own, exactly as a single resolve would, so one stale card does not undo the
+ * rest. Cards that cannot take the action are reported, not thrown.
+ */
+export async function resolveConflicts(params: {
+  projectId: number
+  conflictIds: number[]
+  action: 'ours' | 'theirs'
+  userId?: number | null
+}): Promise<GitSyncBulkResolveResult> {
+  const result: GitSyncBulkResolveResult = {
+    resolved: [],
+    stale: [],
+    skipped: [],
+    alreadyResolved: [],
+  }
+  const ids = [...new Set(params.conflictIds)]
+  const cards = await prisma.gitSyncConflict.findMany({
+    where: { id: { in: ids }, projectId: params.projectId },
+    select: { id: true, status: true, theirsText: true },
+  })
+  const byId = new Map(cards.map((card) => [card.id, card]))
+  for (const id of ids) {
+    const card = byId.get(id)
+    if (!card || card.status !== GitSyncConflictStatus.OPEN) {
+      result.alreadyResolved.push(id)
+      continue
+    }
+    if (params.action === 'theirs' && !card.theirsText) {
+      result.skipped.push(id)
+      continue
+    }
+    try {
+      const row = await resolveConflict({
+        projectId: params.projectId,
+        conflictId: id,
+        action: params.action,
+        userId: params.userId,
+      })
+      result.resolved.push({
+        id,
+        key: row.key,
+        locale: row.locale,
+        text: row.mergedText ?? '',
+      })
+    } catch (error) {
+      switch (gitSyncErrorCode(error)) {
+        case GitSyncErrorCode.CONFLICT_STALE:
+          result.stale.push(id)
+          break
+        case GitSyncErrorCode.CONFLICT_RESOLVED:
+          result.alreadyResolved.push(id)
+          break
+        default:
+          throw error
+      }
+    }
+  }
+  return result
 }
