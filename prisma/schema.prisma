@@ -300,6 +300,8 @@ model ProjectSkill {
   description  String
   storageKey   String   @map("storage_key")
   originalName String   @map("original_name")
+  /// "Works with" tags: { ids: string[], custom: string[] }
+  agents       Json     @default("{\"ids\":[],\"custom\":[]}")
   project      Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
   user         User     @relation(fields: [createdBy], references: [id], onDelete: Cascade)
 

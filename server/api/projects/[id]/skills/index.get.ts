@@ -37,6 +37,7 @@ export default defineEventHandler(async (event) => {
       name: true,
       description: true,
       originalName: true,
+      agents: true,
       createdBy: true,
       createdAt: true,
       updatedAt: true,

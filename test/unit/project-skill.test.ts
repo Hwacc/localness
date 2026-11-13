@@ -71,6 +71,7 @@ describe('shapeProjectSkill', () => {
       name: 'i18n-assistant',
       description: 'Replace hardcoded copy',
       originalName: 'i18n-assistant.zip',
+      agents: { ids: ['cursor'], custom: [] },
       createdBy: 4,
       createdAt: new Date('2026-09-17T00:00:00.000Z'),
       updatedAt: new Date('2026-09-17T00:00:00.000Z'),
