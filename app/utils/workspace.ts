@@ -226,8 +226,9 @@ export function writeTranslationsFilterForProject(
 export interface GitFilterState {
   pullQuery: string
   pushQuery: string
-  pullDecision: ThreeWayDecision | 'all'
-  pushReason: GitSyncPushReason | 'all'
+  /** Conflicts have their own tab, so they are not a filter value. */
+  pullDecision: Exclude<ThreeWayDecision, 'conflict'> | 'all'
+  pushReason: Exclude<GitSyncPushReason, GitSyncPushReason.CONFLICT> | 'all'
 }
 
 const GIT_FILTER_DEFAULTS: GitFilterState = {
@@ -242,9 +243,15 @@ const PULL_DECISION_FILTERS = [
   'all',
   'apply-theirs',
   'keep-ours',
-  'conflict',
   'align',
 ] as const
+
+const PUSH_REASON_FILTERS = [
+  'all',
+  ...Object.values(GitSyncPushReason).filter(
+    (reason) => reason !== GitSyncPushReason.CONFLICT
+  ),
+] as GitFilterState['pushReason'][]
 
 export function readGitFilterForProject(projectId: ID): GitFilterState {
   const fallback = GIT_FILTER_DEFAULTS
@@ -263,7 +270,7 @@ export function readGitFilterForProject(projectId: ID): GitFilterState {
     ),
     pushReason: pickEnum(
       raw.pushReason,
-      ['all', ...Object.values(GitSyncPushReason)],
+      PUSH_REASON_FILTERS,
       fallback.pushReason
     ),
   }

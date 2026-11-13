@@ -87,14 +87,20 @@ LILT 不会为新项目建新目录时，把几个项目的 **Used by** 都设�
 
 ## Pull：先预览，再落地
 
-点 **Pull** 不会直接改任何东西，先出一块 **Review pull** 面板：
+点 **Pull** 不会直接改任何东西，页面顶部先出一条蓝色的 **Review pull** 栏：
 
-- 标题下面写着这次的范围：`3 of 5 file(s) · 8 of 12 change(s) selected.`
 - `Remote <commit 前 8 位> · expires <时间>`——预览有有效期，过期要重新拉。
+- ⓘ 悬停能看到这次操作的说明。
+- 右边是 **Cancel** 和 **Apply pull (n)**，n 是勾了几行。
 
-**Files**：这次涉及的远端文件，一条一个勾选框，后面写着来源和对应的平台语言（`New file` / `Content changed` / `Already pulled`）。**不勾的文件不会落地，下次 Pull 还会是候选**，不会被悄悄标记成「看过了」。
+**Files**（栏里的按钮）：这次涉及的远端文件，一条一个勾选框，后面写着来源和对应的平台语言（`New file` / `Content changed` / `Already pulled`）。**不勾的文件不会落地，下次 Pull 还会是候选**，不会被悄悄标记成「看过了」。Changes 和 Conflicts 两个标签都按它过滤。
 
-**Changes**：逐条 key 的变更，列是 **Key** / **Locale** / **Reason**（裁决结果）/ **Text**（Git 那边的文案）。可以按 key 或文案搜，也可以按裁决筛。展开一行能看到 **Git** 和 **Platform draft** 两份文案对照。
+左侧列表分两个标签：
+
+- **Changes**：除冲突外的逐条变更。勾选 = 交给 **Apply pull**。
+- **Conflicts**：两边都改了的行。勾选 = 交给批量的 **Use Git** / **Use platform**（见下面「冲突」一节）。
+
+两个标签的勾选各自保存，栏右边只显示当前标签的按钮。有冲突时默认打开 **Conflicts**，冲突处理完自动切回 **Changes**。列表头部有搜索（两个标签共用）和一个下拉：Changes 里按裁决筛，Conflicts 里按语言或 **Older source only** 筛。点一行，右边能看到 **Git** 和 **Platform draft** 两份文案对照。
 
 ![1790221324119](image/11-git-sync/1790221324119.png)
 
@@ -105,7 +111,7 @@ LILT 不会为新项目建新目录时，把几个项目的 **Used by** 都设�
 | **Apply Git text**      | 只有 Git 改了，平台这边没动 | 能勾，这是唯一能勾的一种     |
 | **Keep platform draft** | 只有平台改了，Git 没动      | 不能勾，本来就不会动它       |
 | **Align base only**     | 两边一样                    | 不能勾，只是把基线记上       |
-| **Conflict**            | 两边都改了，而且不一样      | 不能勾，去下面的冲突卡片处理 |
+| **Conflict**            | 两边都改了，而且不一样      | 在 **Conflicts** 标签里处理 |
 
 勾完点 **Apply pull**：
 
@@ -128,15 +134,13 @@ LILT 不会为新项目建新目录时，把几个项目的 **Used by** 都设�
 - 选 **Use Git**：落地后同样显示为过期；
 - 选 **Edit** 并保存你改过的文本：视为已按当前源文处理，不显示过期。
 
-**有没解决的冲突时 Apply pull 是按不动的**，先把卡片处理掉。
+**同一条 key 在任何语言有没解决的冲突，它的其他语言也要等**：这些行留在 Changes 里，标着 **Waiting on conflict**，不能勾。冲突处理掉以后它们自动解锁并勾上。其余的行现在就能 Apply。
 
 **远端在你预览之后又变了**（别人推了一版），点 Apply 会告诉你 `Remote changed since preview — run a new preview`，这次预览作废，重新点一次 Pull。
 
 ## Push：先预览，再提交
 
-点 **Push** 同样先出 **Review push** 面板：
-
-> `3 of 7 source key(s) selected (en). Nothing is committed until you confirm. Git-ahead keys stay on Git unless you check them (overwrites Git). Both-changed keys cannot be checked — use the conflict cards below.`
+点 **Push** 同样先出一条 **Review push** 栏（带源语言徽章），右边是 **Cancel** 和 **Commit push (n)**。在你确认之前什么都不会提交。列表同样分 **Changes** / **Conflicts** 两个标签。
 
 推的是**已发布的源语言**文案。每条 key 有一个原因：
 
@@ -149,9 +153,9 @@ LILT 不会为新项目建新目录时，把几个项目的 **Used by** 都设�
 | **Auto draft key**                     | `__unnamed_` 占位 key，永远不推                          | 否，默认不显示 |
 | **Cannot be written — clashes with an existing key path in the file** | 仅 Locale files：这条**新** key 在文件里放不下。比如文件里 `home` 是一句文案，新 key `home.sub` 就没地方写；或者 `home` 和 `home.sub` 两个新 key 互相冲突（两条都不写）。改 key 名或改 Format | 否，不能勾 |
 | **Git is ahead — check to overwrite** | Git 那边改了而平台没动。**勾上就是用平台覆盖 Git** | 否，但可以勾   |
-| **Conflict with Git source**           | 两边都改了，不能勾，去冲突卡片                           | 不能勾         |
+| **Conflict with Git source**           | 两边都改了，在 **Conflicts** 标签处理                     | 不在 Changes 里 |
 
-上面那张表里写「默认不显示」的几种，要用右上角的原因筛选专门挑出来才看得到；默认视图只给你**要推的**和**要你决定的**。
+上面那张表里写「默认不显示」的几种，要用列表头部的原因筛选专门挑出来才看得到；默认视图只给你**要推的**和**要你决定的**。
 
 展开一行能看到 **Published source**（平台要推的）、**Git source**（远端现在的）和 **Last pushed**（上次推的是什么）。
 
@@ -162,11 +166,22 @@ LILT 不会为新项目建新目录时，把几个项目的 **Used by** 都设�
 - 没有可推的：`Nothing to push`
 - 远端其实已经有一模一样的批次了：`Already on Git — records updated` / `3 keys had already landed; platform records are now in sync`
 
-**有没解决的冲突时，连 Push 按钮本身都按不动**（卡片上方会写着 `N open conflict(s). Resolve the cards below before Apply pull or Push.`）。
+**有没解决的冲突时，连 Push 按钮本身都按不动**。没有预览时，页面顶部是一条琥珀色的 **Open conflicts** 栏，列表里就是所有打开的冲突。
 
 ## 冲突卡片
 
-**冲突就是同一条 key 的同一种语言，Git 和平台两边都改了，而且改得不一样。** 每次都发生在预览的时候——只要你点过 Pull 或 Push 的预览，有冲突就出现在页面下方的 **Conflicts** 区，没冲突时那里写着 `No open conflicts.`
+**冲突就是同一条 key 的同一种语言，Git 和平台两边都改了，而且改得不一样。** 每次都发生在预览的时候。预览里它们在 **Conflicts** 标签；没有预览时，列表本身就是冲突列表，没冲突时写着 `No open conflicts. Pull or Push to review changes.`
+
+### 批量处理
+
+冲突多的时候，用栏右边的 **Use platform** / **Use Git**：
+
+- 勾了行，就只处理勾选的、并且当前筛选还看得见的行，按钮写 `Use Git (n)`。
+- 一行都没勾，就处理当前筛选下的全部行，按钮写 `Use Git for all (n)`。
+- 点了先弹确认框，写明条数、涉及哪些语言；**Use Git** 还会写明会覆盖几条平台文案、几条翻的是旧源文（落地后显示为过期）、几条 Git 没有文案（会跳过）。
+- 做完弹一条汇总：处理了几条；预览之后平台又改过的行不处理，要逐条看；Git 没文案的跳过。
+
+批量只有这两种。**Edit**、**Rename** 还是一条一条来。
 
 一张卡片长这样：
 

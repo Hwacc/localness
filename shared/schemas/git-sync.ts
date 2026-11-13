@@ -128,3 +128,12 @@ export const zGitSyncConflictResolve = z.object({
   newKey: z.string().trim().min(1).optional(),
 })
 export type ZGitSyncConflictResolve = z.infer<typeof zGitSyncConflictResolve>
+
+/** Bulk Use Git / Use platform. Merge and rename need a person per card. */
+export const zGitSyncConflictResolveBulk = z.object({
+  ids: z.array(z.number().int().positive()).min(1).max(1000),
+  action: z.enum([GitSyncConflictStatus.OURS, GitSyncConflictStatus.THEIRS]),
+})
+export type ZGitSyncConflictResolveBulk = z.infer<
+  typeof zGitSyncConflictResolveBulk
+>
