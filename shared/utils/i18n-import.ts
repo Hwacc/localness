@@ -5,6 +5,11 @@ import {
   type ParseError,
 } from 'jsonc-parser'
 import { TRANSLATION_LANGUAGES } from '../constants'
+import {
+  LOCALE_KEY_SEPARATOR,
+  emptyEntries,
+  normalizeLocaleText,
+} from '../contract/locale-file'
 
 /**
  * Parsing for the translations import. Runs in the browser — the server only
@@ -16,9 +21,6 @@ import { TRANSLATION_LANGUAGES } from '../constants'
  * definition was and which one won, so duplicates are kept as data rather than
  * collapsed into a one-line warning.
  */
-
-/** Nested JSON joins its path with this. Not the project's key separator: see `parseLocaleJson`. */
-export const IMPORT_KEY_SEPARATOR = '.'
 
 /** Distinct keys one import may carry. Headroom for real locale files, a stop for runaway ones. */
 export const IMPORT_MAX_KEYS = 20_000
@@ -213,26 +215,6 @@ export function importDuplicateDropped(duplicate: ImportDuplicate): string[] {
   }
 }
 
-/**
- * The text to store, or null for "no translation". Only line endings and the
- * ends are touched: inner whitespace is copy, and the fingerprint already
- * ignores it for matching.
- */
-export function normalizeImportText(value: unknown): string | null {
-  let text: string
-  if (typeof value === 'string') text = value
-  else if (typeof value === 'number' && Number.isFinite(value)) text = String(value)
-  else if (typeof value === 'boolean') text = String(value)
-  else return null
-  const normalized = text.replace(/\r\n?/g, '\n').trim()
-  return normalized === '' ? null : normalized
-}
-
-/** No prototype, so a key named `__proto__` is stored like any other. */
-export function emptyEntries(): Record<string, string> {
-  return Object.create(null) as Record<string, string>
-}
-
 /** 1-based line of each offset, by binary search over the line starts. */
 function lineLocator(source: string): (offset: number) => number {
   const starts = [0]
@@ -282,7 +264,7 @@ export function parseLocaleJson(source: string): ImportParsed {
       const [nameNode, valueNode] = property.children ?? []
       if (!nameNode || !valueNode) continue
       const segments = [...path, String(nameNode.value)]
-      const written = segments.join(IMPORT_KEY_SEPARATOR)
+      const written = segments.join(LOCALE_KEY_SEPARATOR)
       const line = lineOf(property.offset)
       switch (valueNode.type) {
         case 'object':
@@ -299,7 +281,7 @@ export function parseLocaleJson(source: string): ImportParsed {
         case 'string':
         case 'number':
         case 'boolean': {
-          const text = normalizeImportText(valueNode.value)
+          const text = normalizeLocaleText(valueNode.value)
           if (text === null) break
           const key = written.trim()
           const definitions = byKey.get(key) ?? []
@@ -440,7 +422,7 @@ export function readXlsxSheet(rows: unknown[][]): ImportSheetResult {
     const row = offset + 2
     const written = rawCellText(cells?.[keyColumn])
     const key = written.trim()
-    const texts = columns.map((column) => normalizeImportText(cells?.[column.index]))
+    const texts = columns.map((column) => normalizeLocaleText(cells?.[column.index]))
     if (!key) {
       if (texts.some((text) => text !== null)) {
         warnings.push({ kind: 'missing-key', row })

@@ -88,7 +88,7 @@ const form = reactive({
   product: '',
   folderMode: GitSyncFolderMode.EXCLUSIVE,
   pattern: GIT_SYNC_DEFAULT_PATTERN,
-  format: GitSyncFileFormat.NESTED_JSON,
+  format: GitSyncFileFormat.NESTED_JSON as GitSyncFileFormat,
   credentialKind: GitCredentialKind.REPO_ACCESS_TOKEN,
   token: '',
   remoteUrl: '',

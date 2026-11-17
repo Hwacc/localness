@@ -1,7 +1,7 @@
+import { localeFilesScopeError } from '#shared/contract/locale-file'
 import type { GitSyncLayout, GitSyncLayoutContext } from '../types'
 import {
   listLocaleFiles,
-  localeFilesScopeError,
   parseLocaleFilesOptions,
   readLocaleFileMaps,
   readLocaleFileSource,
@@ -25,7 +25,7 @@ async function localeFilesContext(
 /** `locale-files`: one JSON per locale, rewritten in place on push. */
 export const localeFiles: GitSyncLayout = {
   scopeError: (scope, options) =>
-    localeFilesScopeError(scope, parseLocaleFilesOptions(options)),
+    localeFilesScopeError(scope, parseLocaleFilesOptions(options).pattern),
   discover: null,
   listFiles: async (ctx, seen) => listLocaleFiles(await localeFilesContext(ctx), seen),
   readLocales: (ctx, files) => readLocaleFileMaps(ctx.repoRoot, files),

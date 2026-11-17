@@ -111,13 +111,11 @@ export enum GitSyncFolderMode {
 }
 
 /** Key layout inside a `locale-files` JSON file. Reading accepts both. */
-export enum GitSyncFileFormat {
-  FLAT_JSON = 'flat-json',
-  NESTED_JSON = 'nested-json',
-}
-
-export const GIT_SYNC_LOCALE_PLACEHOLDER = '{locale}'
-export const GIT_SYNC_DEFAULT_PATTERN = `${GIT_SYNC_LOCALE_PLACEHOLDER}.json`
+export {
+  LocaleFileFormat as GitSyncFileFormat,
+  LOCALE_PLACEHOLDER as GIT_SYNC_LOCALE_PLACEHOLDER,
+  DEFAULT_LOCALE_FILE_PATTERN as GIT_SYNC_DEFAULT_PATTERN,
+} from '../contract/locale-file'
 
 export enum GitCredentialKind {
   REPO_ACCESS_TOKEN = 'repo_access_token',

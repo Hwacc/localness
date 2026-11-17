@@ -10,6 +10,17 @@ const meta: DeliveryMeta = deliveryMetaSchema.parse(await res.json())
 
 `zod` ^4 is a peer dependency.
 
+## Locale files
+
+`@localness/contract/locale-file` reads and writes one-JSON-per-locale files exactly as Localness git-sync does: flat or nested keys, edits in place (key order, indentation, comments and line endings are kept), new keys appended. The `localness` CLI uses it, so a file written by either one is identical. It does not need `zod`.
+
+```ts
+import { readLocaleFile, writeLocaleFile } from '@localness/contract/locale-file'
+
+const { entries } = readLocaleFile(source)
+const next = writeLocaleFile(source, { 'home.title': 'Welcome', 'old.key': null }, 'nested-json')
+```
+
 ## Versioning
 
 Independent of the Localness server version.

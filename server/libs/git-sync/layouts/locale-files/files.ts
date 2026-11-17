@@ -1,20 +1,19 @@
 import { mkdir, readFile, stat, writeFile } from 'node:fs/promises'
-import { dirname, join, posix } from 'node:path'
+import { dirname, join } from 'node:path'
 import { createError } from 'h3'
 import {
-  GIT_SYNC_DEFAULT_PATTERN,
-  GIT_SYNC_LOCALE_PLACEHOLDER,
-  GitSyncFileFormat,
-} from '#shared/constants'
-import { classifyFile } from '../../engine/filters'
-import { blobSha } from '../../engine/seen-files'
-import type { RemoteFileInfo, RemoteLocaleMap } from '../types'
-import {
+  DEFAULT_LOCALE_FILE_PATTERN,
+  LocaleFileFormat,
+  localeFileName,
+  localeFilePath,
   readLocaleFile,
   unwritableKeys,
   writeLocaleFile,
   type LocaleFileContent,
-} from './json-file'
+} from '#shared/contract/locale-file'
+import { classifyFile } from '../../engine/filters'
+import { blobSha } from '../../engine/seen-files'
+import type { RemoteFileInfo, RemoteLocaleMap } from '../types'
 
 /**
  * `locale-files` layout: one file per locale under a directory, named by a
@@ -25,7 +24,7 @@ import {
 
 export type LocaleFilesOptions = {
   pattern: string
-  format: GitSyncFileFormat
+  format: LocaleFileFormat
 }
 
 export type LocaleFilesContext = {
@@ -36,12 +35,6 @@ export type LocaleFilesContext = {
   locales: string[]
 }
 
-const SEGMENT = /^[A-Za-z0-9][A-Za-z0-9._-]*$/
-
-function validPath(path: string): boolean {
-  return path.split('/').every((segment) => SEGMENT.test(segment))
-}
-
 export function parseLocaleFilesOptions(raw: unknown): LocaleFilesOptions {
   const obj =
     raw && typeof raw === 'object' && !Array.isArray(raw)
@@ -50,55 +43,16 @@ export function parseLocaleFilesOptions(raw: unknown): LocaleFilesOptions {
   const pattern =
     typeof obj.pattern === 'string' && obj.pattern.trim()
       ? obj.pattern.trim()
-      : GIT_SYNC_DEFAULT_PATTERN
+      : DEFAULT_LOCALE_FILE_PATTERN
   const format =
-    obj.format === GitSyncFileFormat.FLAT_JSON
-      ? GitSyncFileFormat.FLAT_JSON
-      : GitSyncFileFormat.NESTED_JSON
+    obj.format === LocaleFileFormat.FLAT_JSON
+      ? LocaleFileFormat.FLAT_JSON
+      : LocaleFileFormat.NESTED_JSON
   return { pattern, format }
 }
 
-/** Error text for an unusable directory / pattern, or null. */
-export function localeFilesScopeError(
-  dir: string,
-  options: LocaleFilesOptions
-): string | null {
-  if (!validPath(dir)) {
-    return 'Directory must be a relative path like src/locales'
-  }
-  const { pattern } = options
-  if (pattern.split(GIT_SYNC_LOCALE_PLACEHOLDER).length !== 2) {
-    return `File pattern must contain ${GIT_SYNC_LOCALE_PLACEHOLDER} exactly once`
-  }
-  if (!pattern.toLowerCase().endsWith('.json')) {
-    return 'File pattern must end with .json'
-  }
-  if (!validPath(pattern.replace(GIT_SYNC_LOCALE_PLACEHOLDER, 'en'))) {
-    return 'File pattern must be a relative path like {locale}.json'
-  }
-  return null
-}
-
-/**
- * `zh_cn` → `zh-CN`, `en` → `en`: the BCP 47 shape app repos name files by.
- * An explicit `localeMap` entry wins.
- */
-export function localeFileName(
-  locale: string,
-  localeMap: Record<string, string> | null
-): string {
-  const mapped = localeMap?.[locale]
-  if (mapped) return mapped
-  const [language, ...rest] = locale.split('_')
-  return [language, ...rest.map((part) => part.toUpperCase())].join('-')
-}
-
 function relPathOf(ctx: LocaleFilesContext, locale: string): string {
-  const name = ctx.options.pattern.replace(
-    GIT_SYNC_LOCALE_PLACEHOLDER,
-    localeFileName(locale, ctx.localeMap)
-  )
-  return posix.join(ctx.dir, name)
+  return localeFilePath(ctx.dir, ctx.options.pattern, locale, ctx.localeMap)
 }
 
 async function isFile(path: string): Promise<boolean> {

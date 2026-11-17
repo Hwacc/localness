@@ -3,11 +3,10 @@ import { mkdtemp, mkdir, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { GitSyncFileFormat, GitSyncPullReason } from '#shared/constants'
+import { localeFileName, localeFilesScopeError } from '#shared/contract/locale-file'
 import { blobSha } from '#server/libs/git-sync/engine/seen-files'
 import {
   listLocaleFiles,
-  localeFileName,
-  localeFilesScopeError,
   parseLocaleFilesOptions,
   readLocaleFileMaps,
   readLocaleFileSource,
@@ -32,7 +31,7 @@ describe('parseLocaleFilesOptions', () => {
 })
 
 describe('localeFilesScopeError', () => {
-  const ok = parseLocaleFilesOptions(null)
+  const ok = '{locale}.json'
 
   it('accepts a relative directory', () => {
     expect(localeFilesScopeError('src/locales', ok)).toBeNull()
@@ -45,8 +44,7 @@ describe('localeFilesScopeError', () => {
   })
 
   it('requires exactly one {locale} and a .json name', () => {
-    const at = (pattern: string) =>
-      localeFilesScopeError('locales', parseLocaleFilesOptions({ pattern }))
+    const at = (pattern: string) => localeFilesScopeError('locales', pattern)
     expect(at('all.json')).toMatch(/exactly once/)
     expect(at('{locale}/{locale}.json')).toMatch(/exactly once/)
     expect(at('{locale}.yaml')).toMatch(/\.json/)

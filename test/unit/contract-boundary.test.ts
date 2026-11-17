@@ -4,10 +4,10 @@ import { describe, expect, it } from 'vitest'
 
 const dir = join(process.cwd(), 'shared', 'contract')
 
-const ALLOWED = new Set(['zod', 'zod/v4', 'spark-md5'])
+const ALLOWED = new Set(['zod', 'zod/v4', 'spark-md5', 'jsonc-parser'])
 
 describe('shared/contract boundary', () => {
-  it('imports only zod, spark-md5 and sibling files', () => {
+  it('imports only zod, spark-md5, jsonc-parser and sibling files', () => {
     const bad: string[] = []
     for (const f of readdirSync(dir).filter((n) => n.endsWith('.ts'))) {
       const src = readFileSync(join(dir, f), 'utf8')

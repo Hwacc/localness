@@ -1,13 +1,13 @@
 import { describe, expect, it } from 'vitest'
-import { GitSyncFileFormat } from '#shared/constants'
 import {
+  LocaleFileFormat,
   readLocaleFile,
   unwritableKeys,
   writeLocaleFile,
-} from '#server/libs/git-sync/layouts/locale-files/json-file'
+} from '#shared/contract/locale-file'
 
-const NESTED = GitSyncFileFormat.NESTED_JSON
-const FLAT = GitSyncFileFormat.FLAT_JSON
+const NESTED = LocaleFileFormat.NESTED_JSON
+const FLAT = LocaleFileFormat.FLAT_JSON
 
 describe('readLocaleFile', () => {
   it('joins nested keys with dots and remembers each path', () => {
@@ -93,5 +93,12 @@ describe('writeLocaleFile', () => {
   it('keeps CRLF line endings', () => {
     const out = writeLocaleFile('{\r\n  "a": "x"\r\n}\r\n', { b: 'y' }, NESTED)
     expect(out).toBe('{\r\n  "a": "x",\r\n  "b": "y"\r\n}\r\n')
+  })
+
+  it('removes a key given null, and the nested objects it leaves empty', () => {
+    const source = '{\n  "a": {\n    "b": {\n      "c": "x"\n    },\n    "d": "y"\n  },\n  "e": "z"\n}\n'
+    const out = writeLocaleFile(source, { 'a.b.c': null, missing: null }, NESTED)
+    expect(out).toBe('{\n  "a": {\n    "d": "y"\n  },\n  "e": "z"\n}\n')
+    expect(JSON.parse(writeLocaleFile(out, { 'a.d': null }, NESTED))).toEqual({ e: 'z' })
   })
 })

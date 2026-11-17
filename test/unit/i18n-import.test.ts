@@ -8,12 +8,12 @@ import {
   importWarningText,
   isLosslessDuplicate,
   localeLabelFromFilename,
-  normalizeImportText,
   parseLocaleJson,
   readXlsxSheet,
   restrictSheetDuplicate,
   type ImportSheetDuplicate,
 } from '#shared/utils/i18n-import'
+import { normalizeLocaleText } from '#shared/contract/locale-file'
 
 const LOCALES = ['en', 'zh_cn', 'zh_tw', 'ja', 'pt']
 
@@ -22,24 +22,24 @@ function json(...lines: string[]): string {
   return lines.join('\n')
 }
 
-describe('normalizeImportText', () => {
+describe('normalizeLocaleText', () => {
   it('unifies line endings and trims the ends only', () => {
-    expect(normalizeImportText('  a\r\nb\rc  ')).toBe('a\nb\nc')
-    expect(normalizeImportText('a  b')).toBe('a  b')
+    expect(normalizeLocaleText('  a\r\nb\rc  ')).toBe('a\nb\nc')
+    expect(normalizeLocaleText('a  b')).toBe('a  b')
   })
 
   it('stringifies numbers and booleans', () => {
-    expect(normalizeImportText(1)).toBe('1')
-    expect(normalizeImportText(false)).toBe('false')
+    expect(normalizeLocaleText(1)).toBe('1')
+    expect(normalizeLocaleText(false)).toBe('false')
   })
 
   it('treats null, empty and whitespace as no translation', () => {
-    expect(normalizeImportText(null)).toBeNull()
-    expect(normalizeImportText(undefined)).toBeNull()
-    expect(normalizeImportText('')).toBeNull()
-    expect(normalizeImportText('   ')).toBeNull()
-    expect(normalizeImportText(Number.NaN)).toBeNull()
-    expect(normalizeImportText({})).toBeNull()
+    expect(normalizeLocaleText(null)).toBeNull()
+    expect(normalizeLocaleText(undefined)).toBeNull()
+    expect(normalizeLocaleText('')).toBeNull()
+    expect(normalizeLocaleText('   ')).toBeNull()
+    expect(normalizeLocaleText(Number.NaN)).toBeNull()
+    expect(normalizeLocaleText({})).toBeNull()
   })
 })
 
