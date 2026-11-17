@@ -970,7 +970,7 @@ const projectWatch = watchIgnorable(
 
 // Always scoped to explicit keys. The endpoint also accepts an empty body to
 // publish the whole project, but no UI offers that — bulk actions cover it.
-async function publishKeys(keyIds: number[]) {
+async function publishKeys(keyIds: number[], locales?: string[]) {
   if (!validID(curProject.value.id) || keyIds.length === 0) return
   publishing.value = true
   try {
@@ -980,7 +980,7 @@ async function publishKeys(keyIds: number[]) {
       `/api/projects/${curProject.value.id}/publish`,
       {
         method: 'POST',
-        body: { keyIds },
+        body: { keyIds, ...(locales?.length ? { locales } : {}) },
       },
     )
     // `useApi` has already reported a failed request.
@@ -1386,6 +1386,7 @@ onMounted(async () => {
             :publishing="publishing"
             :load-count="loadCount + heldTick"
             @publish="onRowPublish"
+            @publish-locale="(row, locale) => publishKeys([Number(row.id)], [locale])"
             @unpublish="openUnpublish"
             @delete="openDelete"
             @toggle-git-sync="onRowToggleGitSync"

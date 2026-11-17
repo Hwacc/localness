@@ -202,6 +202,7 @@ Translations 标题行的魔棒图标按钮（提示 `Translate N missing with A
 **发布**把草稿文字复制成已发布文字。
 
 - 单条：右栏的 **Publish**，或勾选后点工具栏的 **Publish N**。
+- 单个语言：原文或某个语言的草稿和已发布不一样时，那一格的状态旁有个上传按钮（**Publish this language only**），只发布这一个语言，其余语言的草稿原样保留。只发布原文时，其他语言会照常变成 **Outdated**。
 - 提示里的数字是**语言行数**，不是词条条数：一条词条只有 2 个语言的草稿有变化，就写 `2 locale row(s) published`。
 - 没有任何语言的草稿和已发布不一样时，弹的是 **Nothing to publish**，说明 `No draft text on the selected rows differs from what is already published.`
 

@@ -42,6 +42,7 @@ const props = defineProps<{
 
 const emit = defineEmits<{
   publish: [row: II18nKeyRow]
+  'publish-locale': [row: II18nKeyRow, locale: string]
   /** The page owns the confirm dialogs and the reload that follows them. */
   unpublish: [row: II18nKeyRow]
   delete: [row: II18nKeyRow]
@@ -268,6 +269,12 @@ function publishedChange(locale: string): string | null {
   const published = value?.publishedText ?? ''
   if (!published.trim() || (value?.draftText ?? '') === published) return null
   return published
+}
+
+function canPublishLocale(locale: string) {
+  return hasUnpublishedDraft(
+    props.row?.locales.filter((l) => l.locale === locale) ?? [],
+  )
 }
 
 async function revertLocale(locale: string) {
@@ -765,6 +772,20 @@ defineExpose({ flushPendingSaves })
                   @click="toggleCompare(sourceLocale)"
                 />
               </UTooltip>
+              <UTooltip
+                v-if="canPublishLocale(sourceLocale)"
+                text="Publish this language only"
+              >
+                <UButton
+                  size="xs"
+                  color="primary"
+                  variant="ghost"
+                  icon="i-lucide:upload"
+                  aria-label="Publish this language only"
+                  :disabled="publishing || saving"
+                  @click="emit('publish-locale', row, sourceLocale)"
+                />
+              </UTooltip>
             </div>
             <div
               v-if="rowOcrText !== null"
@@ -965,6 +986,20 @@ defineExpose({ flushPendingSaves })
                       icon="i-lucide:git-compare"
                       aria-label="Compare with published"
                       @click="toggleCompare(code)"
+                    />
+                  </UTooltip>
+                  <UTooltip
+                    v-if="canPublishLocale(code)"
+                    text="Publish this language only"
+                  >
+                    <UButton
+                      size="xs"
+                      color="primary"
+                      variant="ghost"
+                      icon="i-lucide:upload"
+                      aria-label="Publish this language only"
+                      :disabled="publishing || saving || aiRun?.code === code"
+                      @click="emit('publish-locale', row, code)"
                     />
                   </UTooltip>
                   <UTooltip
