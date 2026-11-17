@@ -699,6 +699,10 @@ model TranslationLog {
   /// Groups the rows of one AI batch, so it can be reverted or counted as a unit.
   batchId     String?  @map("batch_id")
   model       String?
+  /// The tool a token write came through, as it reported itself (`cli/0.1.0`, `vscode/0.4.2`). Null for the web app.
+  client      String?
+  /// The tool said a coding agent drove it. Self-reported, like `client`.
+  agent       Boolean  @default(false)
   i18nKey     I18nKey? @relation(fields: [i18nKeyId], references: [id], onDelete: NoAction)
   user        User?    @relation(fields: [userID], references: [id], onDelete: SetNull)
 

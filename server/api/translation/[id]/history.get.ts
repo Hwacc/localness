@@ -26,7 +26,10 @@ export default defineEventHandler(async (event) => {
       createdAt: 'desc',
     },
     include: {
-      user: true,
+      // Never the whole row: it carries the password hash and email.
+      user: {
+        select: { id: true, username: true, nickname: true, avatar: true },
+      },
       i18nKey: true,
     },
   })

@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { HistoryModal } from '#components'
 import { TRANSLATION_LANGUAGES } from '#shared/constants'
 import {
   isUnnamedKey,
@@ -51,6 +52,21 @@ const emit = defineEmits<{
 }>()
 
 type LocaleFilter = 'all' | 'missing' | 'outdated'
+
+const historyModal = useOverlay().create(HistoryModal)
+const historyLoading = ref(false)
+async function openHistory(row: II18nKeyRow) {
+  historyLoading.value = true
+  try {
+    const history = await useApi<ITranslationLog[]>(
+      `/api/translation/${row.id}/history`,
+      { method: 'GET' },
+    )
+    historyModal.open({ title: 'Translation History', history })
+  } finally {
+    historyLoading.value = false
+  }
+}
 
 const toast = useToast()
 const texts = ref<Record<string, string>>({})
@@ -124,7 +140,8 @@ async function onAiTranslateMissing() {
   aiQueued.value = [...missingCodes.value]
   try {
     while (aiQueued.value.length) {
-      if (controller.signal.aborted || String(props.row?.id) !== String(rowId)) break
+      if (controller.signal.aborted || String(props.row?.id) !== String(rowId))
+        break
       const code = aiQueued.value[0]!
       // A failure (the daily limit, a network error) ends the run; the rest stay empty.
       const ok = await onAiTranslate(code, controller)
@@ -190,8 +207,8 @@ const gitSyncBusy = computed(
 const canPublish = computed(
   () => Boolean(props.row) && hasUnpublishedDraft(props.row!.locales),
 )
-const isPlaceholderKey = computed(
-  () => (props.row ? isUnnamedKey(props.row.key) : false),
+const isPlaceholderKey = computed(() =>
+  props.row ? isUnnamedKey(props.row.key) : false,
 )
 
 function localeMeta(code: string) {
@@ -423,7 +440,8 @@ async function saveLocale(locale: string) {
   // In place, not reloaded: the list reads this same object for its dots.
   const text = decision.body[locale]!
   const target = row.locales.find((l) => l.locale === locale)
-  const stamp = locale === props.sourceLocale ? undefined : (row.fingerprint ?? '')
+  const stamp =
+    locale === props.sourceLocale ? undefined : (row.fingerprint ?? '')
   if (target) {
     target.draftText = text
     if (stamp !== undefined) target.sourceFingerprint = stamp
@@ -579,6 +597,15 @@ defineExpose({ flushPendingSaves })
           Saving…
         </span>
         <UButton
+          size="xs"
+          color="neutral"
+          variant="ghost"
+          icon="i-lucide:history"
+          label="History"
+          :loading="historyLoading"
+          @click="openHistory(row)"
+        />
+        <UButton
           v-if="!published"
           size="xs"
           color="error"
@@ -652,406 +679,416 @@ defineExpose({ flushPendingSaves })
       window's: the list beside it takes a fixed share.
     -->
     <div class="@container p-4">
-    <!--
+      <!--
       Narrow: context and settings first, then the text. Wide: the text takes
       the main column and they move to a side column that stays in view.
     -->
-    <div
-      class="grid gap-4 @3xl:grid-cols-[minmax(0,1fr)_22rem] @3xl:items-start"
-    >
-      <aside
-        class="@container min-w-0 flex flex-col gap-4 @3xl:col-start-2 @3xl:row-start-1 @3xl:sticky @3xl:top-[4.25rem]"
+      <div
+        class="grid gap-4 @3xl:grid-cols-[minmax(0,1fr)_22rem] @3xl:items-start"
       >
-        <KeyContextStrip
-          :project-id="projectId"
-          :key-id="row.id"
-          :tag-count="row.tagCount"
-          @ocr="onOcr"
-        />
-        <USeparator />
-        <div
-          class="grid gap-3 rounded-lg bg-muted px-3 py-2.5 @md:grid-cols-[minmax(0,1fr)_auto] @md:items-end"
+        <aside
+          class="@container min-w-0 flex flex-col gap-4 @3xl:col-start-2 @3xl:row-start-1 @3xl:sticky @3xl:top-[4.25rem]"
         >
-          <UFormField label="Releases">
-            <!--
+          <KeyContextStrip
+            :project-id="projectId"
+            :key-id="row.id"
+            :tag-count="row.tagCount"
+            @ocr="onOcr"
+          />
+          <USeparator />
+          <div
+            class="grid gap-3 rounded-lg bg-muted px-3 py-2.5 @md:grid-cols-[minmax(0,1fr)_auto] @md:items-end"
+          >
+            <UFormField label="Releases">
+              <!--
               Disabled rather than dropping a second toggle: the picker emits the
               whole new set, and swallowing one would lose the user's change.
             -->
-            <ReleaseSelect
-              :model-value="releaseIds"
-              :disabled="releasing"
-              @update:model-value="commitReleases"
-            />
-          </UFormField>
-          <div class="flex items-center justify-between gap-3 @md:h-8">
-            <span class="inline-flex items-center gap-1.5 text-sm">
-              Git sync
-              <UTooltip
-                text="Off keeps this key out of pull and push. It is still served on the published API."
-              >
-                <UIcon name="i-lucide:info" class="size-3.5 text-muted" />
-              </UTooltip>
-            </span>
-            <USwitch
-              :model-value="row.gitSyncEnabled"
-              :loading="gitSyncBusy"
-              @update:model-value="emit('toggle-git-sync', row)"
-            />
-          </div>
-        </div>
-      </aside>
-
-      <div
-        class="@container min-w-0 flex flex-col gap-4 @3xl:col-start-1 @3xl:row-start-1"
-      >
-        <!-- The source leads: it is what every other language is read against. -->
-        <section class="flex flex-col gap-1.5">
-          <div class="flex items-center gap-1.5 text-xs text-muted">
-            <h2 class="font-semibold uppercase tracking-wider">Source</h2>
-            <UIcon
-              :name="localeMeta(sourceLocale)?.icon || 'i-lucide:languages'"
-              size="14"
-              class="ml-1"
-            />
-            <span>{{ localeMeta(sourceLocale)?.label || sourceLocale }}</span>
-            <LocaleStateDot
-              class="ml-auto"
-              :state="stateOf(sourceLocale)"
-              show-text
-            />
-            <UTooltip
-              v-if="publishedChange(sourceLocale) !== null"
-              :text="comparing.includes(sourceLocale) ? 'Hide published text' : 'Compare with published'"
-            >
-              <UButton
-                size="xs"
-                :color="comparing.includes(sourceLocale) ? 'primary' : 'neutral'"
-                variant="ghost"
-                icon="i-lucide:git-compare"
-                aria-label="Compare with published"
-                @click="toggleCompare(sourceLocale)"
+              <ReleaseSelect
+                :model-value="releaseIds"
+                :disabled="releasing"
+                @update:model-value="commitReleases"
               />
-            </UTooltip>
-          </div>
-          <div
-            v-if="rowOcrText !== null"
-            class="flex flex-col gap-2 rounded-md border border-default bg-muted px-3 py-2"
-          >
-            <div class="flex items-center gap-1.5 text-xs">
-              <UIcon name="i-lucide:scan-text" class="size-3.5 text-muted" />
-              <span class="font-semibold uppercase tracking-wider text-muted">
-                From screenshot
+            </UFormField>
+            <div class="flex items-center justify-between gap-3 @md:h-8">
+              <span class="inline-flex items-center gap-1.5 text-sm">
+                Git sync
+                <UTooltip
+                  text="Off keeps this key out of pull and push. It is still served on the published API."
+                >
+                  <UIcon name="i-lucide:info" class="size-3.5 text-muted" />
+                </UTooltip>
               </span>
-              <span
-                class="ml-auto"
-                :class="ocrMatch === 'different' ? 'text-warning' : 'text-muted'"
-              >
-                {{
-                  ocrMatch === 'same'
-                    ? 'Matches the source'
-                    : ocrMatch === 'whitespace'
-                      ? 'Differs only in spacing'
-                      : 'Differs from the source'
-                }}
-              </span>
-            </div>
-            <p class="whitespace-pre-wrap break-words text-sm">
-              {{ rowOcrText }}
-            </p>
-            <div class="flex items-center justify-end gap-1">
-              <UButton
-                size="xs"
-                color="neutral"
-                variant="ghost"
-                label="Dismiss"
-                @click="ocrReading = null"
+              <USwitch
+                :model-value="row.gitSyncEnabled"
+                :loading="gitSyncBusy"
+                @update:model-value="emit('toggle-git-sync', row)"
               />
-              <UTooltip text="Replace the source text with this reading">
-                <span>
-                  <UButton
-                    size="xs"
-                    color="primary"
-                    variant="soft"
-                    label="Apply to source"
-                    :disabled="ocrMatch === 'same'"
-                    @click="applyOcr"
-                  />
-                </span>
-              </UTooltip>
             </div>
           </div>
-          <!--
-            Nuxt UI pairs `autoresize` with `resize-none`, so the drag handle has
-            to be taken back explicitly: auto-grow covers the usual case, the
-            handle covers text longer than `maxrows`.
-          -->
-          <UTextarea
-            v-model="texts[sourceLocale]"
-            class="w-full"
-            :ui="{ base: 'resize-y text-base' }"
-            :rows="5"
-            :maxrows="10"
-            autoresize
-            @blur="saveLocale(sourceLocale)"
-          />
-          <PublishedTextCompare
-            v-if="comparedText(sourceLocale) !== null"
-            :text="comparedText(sourceLocale)!"
-            :disabled="saving"
-            @revert="revertLocale(sourceLocale)"
-          />
-        </section>
+        </aside>
 
-        <section
-          v-if="otherLocales.length"
-          class="flex flex-col gap-3 border-t border-default pt-4"
+        <div
+          class="@container min-w-0 flex flex-col gap-4 @3xl:col-start-1 @3xl:row-start-1"
         >
-          <div class="flex flex-wrap items-center gap-2">
-            <h2
-              class="text-xs font-semibold uppercase tracking-wider text-muted"
-            >
-              Translations
-            </h2>
-            <span class="text-xs text-muted tabular-nums">
-              {{ counts.filled }}/{{ otherLocales.length }}
-            </span>
-            <UPopover mode="hover" :open-delay="150">
-              <UButton
-                size="xs"
-                color="neutral"
-                variant="ghost"
-                icon="i-lucide:info"
-                aria-label="Legend"
+          <!-- The source leads: it is what every other language is read against. -->
+          <section class="flex flex-col gap-1.5">
+            <div class="flex items-center gap-1.5 text-xs text-muted">
+              <h2 class="font-semibold uppercase tracking-wider">Source</h2>
+              <UIcon
+                :name="localeMeta(sourceLocale)?.icon || 'i-lucide:languages'"
+                size="14"
+                class="ml-1"
               />
-              <template #content>
-                <div class="w-80 p-3">
-                  <LocaleStateLegend />
-                </div>
-              </template>
-            </UPopover>
-            <UTabs
-              v-model="localeFilter"
-              class="ml-auto"
-              size="xs"
-              variant="pill"
-              :content="false"
-              :items="filterItems"
-            />
-            <template v-if="aiReady">
-              <template v-if="proposalCodes.length > 1 && !aiBatch">
+              <span>{{ localeMeta(sourceLocale)?.label || sourceLocale }}</span>
+              <LocaleStateDot
+                class="ml-auto"
+                :state="stateOf(sourceLocale)"
+                show-text
+              />
+              <UTooltip
+                v-if="publishedChange(sourceLocale) !== null"
+                :text="
+                  comparing.includes(sourceLocale)
+                    ? 'Hide published text'
+                    : 'Compare with published'
+                "
+              >
                 <UButton
-                  v-if="acceptableCodes.length > 1"
                   size="xs"
-                  color="primary"
-                  variant="soft"
-                  :label="`Accept ${acceptableCodes.length}`"
-                  @click="onAiAcceptAll"
+                  :color="
+                    comparing.includes(sourceLocale) ? 'primary' : 'neutral'
+                  "
+                  variant="ghost"
+                  icon="i-lucide:git-compare"
+                  aria-label="Compare with published"
+                  @click="toggleCompare(sourceLocale)"
                 />
+              </UTooltip>
+            </div>
+            <div
+              v-if="rowOcrText !== null"
+              class="flex flex-col gap-2 rounded-md border border-default bg-muted px-3 py-2"
+            >
+              <div class="flex items-center gap-1.5 text-xs">
+                <UIcon name="i-lucide:scan-text" class="size-3.5 text-muted" />
+                <span class="font-semibold uppercase tracking-wider text-muted">
+                  From screenshot
+                </span>
+                <span
+                  class="ml-auto"
+                  :class="
+                    ocrMatch === 'different' ? 'text-warning' : 'text-muted'
+                  "
+                >
+                  {{
+                    ocrMatch === 'same'
+                      ? 'Matches the source'
+                      : ocrMatch === 'whitespace'
+                        ? 'Differs only in spacing'
+                        : 'Differs from the source'
+                  }}
+                </span>
+              </div>
+              <p class="whitespace-pre-wrap break-words text-sm">
+                {{ rowOcrText }}
+              </p>
+              <div class="flex items-center justify-end gap-1">
                 <UButton
                   size="xs"
                   color="neutral"
                   variant="ghost"
-                  label="Discard all"
-                  @click="onAiDiscardAll"
+                  label="Dismiss"
+                  @click="ocrReading = null"
                 />
-              </template>
-              <UTooltip
-                v-if="aiBatch"
-                text="Stop"
-              >
-                <UButton
-                  size="xs"
-                  color="neutral"
-                  variant="soft"
-                  icon="i-lucide:square"
-                  aria-label="Stop"
-                  @click="aiBatch.abort()"
-                />
-              </UTooltip>
-              <UTooltip
-                v-else-if="missingCodes.length"
-                :text="`Translate ${missingCodes.length} missing with AI`"
-              >
-                <UButton
-                  size="xs"
-                  color="neutral"
-                  variant="soft"
-                  icon="i-lucide:wand-sparkles"
-                  aria-label="Translate missing languages with AI"
-                  :disabled="Boolean(aiRun)"
-                  @click="onAiTranslateMissing"
-                />
-              </UTooltip>
-            </template>
-          </div>
-          <p
-            v-if="!shownLocales.length"
-            class="py-4 text-center text-xs text-muted"
-          >
-            {{
-              localeFilter === 'missing'
-                ? 'Every language has text.'
-                : 'Nothing written against an older source.'
-            }}
-          </p>
-          <!-- Columns follow the width: one when narrow, more as it widens. -->
-          <div
-            v-else
-            class="grid gap-x-4 gap-y-3 @2xl:grid-cols-2 @6xl:grid-cols-3"
-          >
-            <div
-              v-for="code in shownLocales"
-              :key="code"
-              class="min-w-0 flex flex-col gap-1"
-            >
-              <div class="flex items-center gap-1.5 text-xs">
-                <UIcon
-                  v-if="localeMeta(code)?.icon"
-                  :name="localeMeta(code)!.icon"
-                  size="14"
-                />
-                <span class="truncate font-medium">
-                  {{ localeMeta(code)?.label || code }}
-                </span>
-                <LocaleStateDot
-                  class="ml-auto"
-                  :state="stateOf(code)"
-                  show-text
-                />
-                <UTooltip
-                  v-if="publishedChange(code) !== null"
-                  :text="comparing.includes(code) ? 'Hide published text' : 'Compare with published'"
-                >
-                  <UButton
-                    size="xs"
-                    :color="comparing.includes(code) ? 'primary' : 'neutral'"
-                    variant="ghost"
-                    icon="i-lucide:git-compare"
-                    aria-label="Compare with published"
-                    @click="toggleCompare(code)"
-                  />
-                </UTooltip>
-                <UTooltip
-                  v-if="canAiTranslate(code)"
-                  :text="
-                    aiRun?.code !== code && aiQueued.includes(code)
-                      ? 'Queued'
-                      : stateOf(code) === 'outdated'
-                        ? 'Re-translate with AI'
-                        : 'Translate with AI'
-                  "
-                >
-                  <UButton
-                    v-if="aiRun?.code !== code && aiQueued.includes(code)"
-                    size="xs"
-                    color="neutral"
-                    variant="ghost"
-                    icon="i-lucide:clock"
-                    aria-label="Queued"
-                    disabled
-                  />
-                  <UButton
-                    v-else-if="aiRun?.code !== code"
-                    size="xs"
-                    color="neutral"
-                    variant="ghost"
-                    icon="i-lucide:wand-sparkles"
-                    aria-label="Translate with AI"
-                    :disabled="Boolean(aiRun)"
-                    @click="onAiTranslate(code)"
-                  />
-                  <UButton
-                    v-else
-                    size="xs"
-                    color="neutral"
-                    variant="ghost"
-                    icon="i-lucide:square"
-                    aria-label="Stop"
-                    @click="aiRun?.controller.abort()"
-                  />
+                <UTooltip text="Replace the source text with this reading">
+                  <span>
+                    <UButton
+                      size="xs"
+                      color="primary"
+                      variant="soft"
+                      label="Apply to source"
+                      :disabled="ocrMatch === 'same'"
+                      @click="applyOcr"
+                    />
+                  </span>
                 </UTooltip>
               </div>
-              <UTextarea
-                v-model="texts[code]"
-                class="w-full"
-                :ui="{ base: 'resize-y' }"
-                :rows="2"
-                :maxrows="8"
-                autoresize
-                :disabled="aiRun?.code === code"
-                placeholder="Not translated yet"
-                @blur="saveLocale(code)"
-              />
-              <PublishedTextCompare
-                v-if="comparedText(code) !== null"
-                :text="comparedText(code)!"
-                :disabled="saving || aiRun?.code === code"
-                @revert="revertLocale(code)"
-              />
-              <div
-                v-for="result in rowAiResult(code)"
-                :key="result.keyId"
-                class="flex items-center gap-1.5 text-xs text-muted"
+            </div>
+            <!--
+            Nuxt UI pairs `autoresize` with `resize-none`, so the drag handle has
+            to be taken back explicitly: auto-grow covers the usual case, the
+            handle covers text longer than `maxrows`.
+          -->
+            <UTextarea
+              v-model="texts[sourceLocale]"
+              class="w-full"
+              :ui="{ base: 'resize-y text-base' }"
+              :rows="5"
+              :maxrows="10"
+              autoresize
+              @blur="saveLocale(sourceLocale)"
+            />
+            <PublishedTextCompare
+              v-if="comparedText(sourceLocale) !== null"
+              :text="comparedText(sourceLocale)!"
+              :disabled="saving"
+              @revert="revertLocale(sourceLocale)"
+            />
+          </section>
+
+          <section
+            v-if="otherLocales.length"
+            class="flex flex-col gap-3 border-t border-default pt-4"
+          >
+            <div class="flex flex-wrap items-center gap-2">
+              <h2
+                class="text-xs font-semibold uppercase tracking-wider text-muted"
               >
-                <UTooltip
-                  :text="result.done.status === 'fail' ? 'Breaks a rule, cannot be accepted' : 'AI generated'"
-                >
-                  <UIcon
-                    name="i-lucide:wand-sparkles"
-                    class="size-3.5"
-                    :class="result.done.status === 'fail' ? 'text-error' : ''"
+                Translations
+              </h2>
+              <span class="text-xs text-muted tabular-nums">
+                {{ counts.filled }}/{{ otherLocales.length }}
+              </span>
+              <UPopover mode="hover" :open-delay="150">
+                <UButton
+                  size="xs"
+                  color="neutral"
+                  variant="ghost"
+                  icon="i-lucide:info"
+                  aria-label="Legend"
+                />
+                <template #content>
+                  <div class="w-80 p-3">
+                    <LocaleStateLegend />
+                  </div>
+                </template>
+              </UPopover>
+              <UTabs
+                v-model="localeFilter"
+                class="ml-auto"
+                size="xs"
+                variant="pill"
+                :content="false"
+                :items="filterItems"
+              />
+              <template v-if="aiReady">
+                <template v-if="proposalCodes.length > 1 && !aiBatch">
+                  <UButton
+                    v-if="acceptableCodes.length > 1"
+                    size="xs"
+                    color="primary"
+                    variant="soft"
+                    :label="`Accept ${acceptableCodes.length}`"
+                    @click="onAiAcceptAll"
+                  />
+                  <UButton
+                    size="xs"
+                    color="neutral"
+                    variant="ghost"
+                    label="Discard all"
+                    @click="onAiDiscardAll"
+                  />
+                </template>
+                <UTooltip v-if="aiBatch" text="Stop">
+                  <UButton
+                    size="xs"
+                    color="neutral"
+                    variant="soft"
+                    icon="i-lucide:square"
+                    aria-label="Stop"
+                    @click="aiBatch.abort()"
                   />
                 </UTooltip>
-                <span>{{ result.done.model }}</span>
-                <div
-                  v-if="result.proposal || result.done.batchId"
-                  class="ml-auto flex items-center gap-1"
+                <UTooltip
+                  v-else-if="missingCodes.length"
+                  :text="`Translate ${missingCodes.length} missing with AI`"
                 >
-                  <template v-if="result.proposal">
-                    <UTooltip
-                      v-if="result.done.status !== 'fail'"
-                      text="Accept as draft"
-                    >
-                      <UButton
-                        size="xs"
-                        color="primary"
-                        variant="soft"
-                        icon="i-lucide:check"
-                        aria-label="Accept as draft"
-                        @click="onAiAccept(code)"
-                      />
-                    </UTooltip>
-                    <UTooltip text="Discard">
+                  <UButton
+                    size="xs"
+                    color="neutral"
+                    variant="soft"
+                    icon="i-lucide:wand-sparkles"
+                    aria-label="Translate missing languages with AI"
+                    :disabled="Boolean(aiRun)"
+                    @click="onAiTranslateMissing"
+                  />
+                </UTooltip>
+              </template>
+            </div>
+            <p
+              v-if="!shownLocales.length"
+              class="py-4 text-center text-xs text-muted"
+            >
+              {{
+                localeFilter === 'missing'
+                  ? 'Every language has text.'
+                  : 'Nothing written against an older source.'
+              }}
+            </p>
+            <!-- Columns follow the width: one when narrow, more as it widens. -->
+            <div
+              v-else
+              class="grid gap-x-4 gap-y-3 @2xl:grid-cols-2 @6xl:grid-cols-3"
+            >
+              <div
+                v-for="code in shownLocales"
+                :key="code"
+                class="min-w-0 flex flex-col gap-1"
+              >
+                <div class="flex items-center gap-1.5 text-xs">
+                  <UIcon
+                    v-if="localeMeta(code)?.icon"
+                    :name="localeMeta(code)!.icon"
+                    size="14"
+                  />
+                  <span class="truncate font-medium">
+                    {{ localeMeta(code)?.label || code }}
+                  </span>
+                  <LocaleStateDot
+                    class="ml-auto"
+                    :state="stateOf(code)"
+                    show-text
+                  />
+                  <UTooltip
+                    v-if="publishedChange(code) !== null"
+                    :text="
+                      comparing.includes(code)
+                        ? 'Hide published text'
+                        : 'Compare with published'
+                    "
+                  >
+                    <UButton
+                      size="xs"
+                      :color="comparing.includes(code) ? 'primary' : 'neutral'"
+                      variant="ghost"
+                      icon="i-lucide:git-compare"
+                      aria-label="Compare with published"
+                      @click="toggleCompare(code)"
+                    />
+                  </UTooltip>
+                  <UTooltip
+                    v-if="canAiTranslate(code)"
+                    :text="
+                      aiRun?.code !== code && aiQueued.includes(code)
+                        ? 'Queued'
+                        : stateOf(code) === 'outdated'
+                          ? 'Re-translate with AI'
+                          : 'Translate with AI'
+                    "
+                  >
+                    <UButton
+                      v-if="aiRun?.code !== code && aiQueued.includes(code)"
+                      size="xs"
+                      color="neutral"
+                      variant="ghost"
+                      icon="i-lucide:clock"
+                      aria-label="Queued"
+                      disabled
+                    />
+                    <UButton
+                      v-else-if="aiRun?.code !== code"
+                      size="xs"
+                      color="neutral"
+                      variant="ghost"
+                      icon="i-lucide:wand-sparkles"
+                      aria-label="Translate with AI"
+                      :disabled="Boolean(aiRun)"
+                      @click="onAiTranslate(code)"
+                    />
+                    <UButton
+                      v-else
+                      size="xs"
+                      color="neutral"
+                      variant="ghost"
+                      icon="i-lucide:square"
+                      aria-label="Stop"
+                      @click="aiRun?.controller.abort()"
+                    />
+                  </UTooltip>
+                </div>
+                <UTextarea
+                  v-model="texts[code]"
+                  class="w-full"
+                  :ui="{ base: 'resize-y' }"
+                  :rows="2"
+                  :maxrows="8"
+                  autoresize
+                  :disabled="aiRun?.code === code"
+                  placeholder="Not translated yet"
+                  @blur="saveLocale(code)"
+                />
+                <PublishedTextCompare
+                  v-if="comparedText(code) !== null"
+                  :text="comparedText(code)!"
+                  :disabled="saving || aiRun?.code === code"
+                  @revert="revertLocale(code)"
+                />
+                <div
+                  v-for="result in rowAiResult(code)"
+                  :key="result.keyId"
+                  class="flex items-center gap-1.5 text-xs text-muted"
+                >
+                  <UTooltip
+                    :text="
+                      result.done.status === 'fail'
+                        ? 'Breaks a rule, cannot be accepted'
+                        : 'AI generated'
+                    "
+                  >
+                    <UIcon
+                      name="i-lucide:wand-sparkles"
+                      class="size-3.5"
+                      :class="result.done.status === 'fail' ? 'text-error' : ''"
+                    />
+                  </UTooltip>
+                  <span>{{ result.done.model }}</span>
+                  <div
+                    v-if="result.proposal || result.done.batchId"
+                    class="ml-auto flex items-center gap-1"
+                  >
+                    <template v-if="result.proposal">
+                      <UTooltip
+                        v-if="result.done.status !== 'fail'"
+                        text="Accept as draft"
+                      >
+                        <UButton
+                          size="xs"
+                          color="primary"
+                          variant="soft"
+                          icon="i-lucide:check"
+                          aria-label="Accept as draft"
+                          @click="onAiAccept(code)"
+                        />
+                      </UTooltip>
+                      <UTooltip text="Discard">
+                        <UButton
+                          size="xs"
+                          color="neutral"
+                          variant="ghost"
+                          icon="i-lucide:x"
+                          aria-label="Discard"
+                          @click="onAiDiscard(code)"
+                        />
+                      </UTooltip>
+                    </template>
+                    <UTooltip v-else text="Undo">
                       <UButton
                         size="xs"
                         color="neutral"
                         variant="ghost"
-                        icon="i-lucide:x"
-                        aria-label="Discard"
-                        @click="onAiDiscard(code)"
+                        icon="i-lucide:undo-2"
+                        aria-label="Undo"
+                        @click="onAiUndo(code)"
                       />
                     </UTooltip>
-                  </template>
-                  <UTooltip
-                    v-else
-                    text="Undo"
-                  >
-                    <UButton
-                      size="xs"
-                      color="neutral"
-                      variant="ghost"
-                      icon="i-lucide:undo-2"
-                      aria-label="Undo"
-                      @click="onAiUndo(code)"
-                    />
-                  </UTooltip>
+                  </div>
                 </div>
               </div>
             </div>
-          </div>
-        </section>
+          </section>
+        </div>
       </div>
-    </div>
     </div>
   </div>
 </template>

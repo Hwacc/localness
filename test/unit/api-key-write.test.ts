@@ -48,20 +48,22 @@ vi.mock('#server/libs/prisma', () => ({
         db.keys.push(row)
         return row
       },
-      update: async ({ where, data }: any) => Object.assign(findKey(where)!, data),
+      update: async ({ where, data }: any) =>
+        Object.assign(findKey(where)!, data),
     },
     localeValue: {
       findUnique: async ({ where }: any) => {
         const { i18nKeyId, locale } = where.i18nKeyId_locale
         return (
-          db.values.find((v) => v.i18nKeyId === i18nKeyId && v.locale === locale) ??
-          null
+          db.values.find(
+            (v) => v.i18nKeyId === i18nKeyId && v.locale === locale,
+          ) ?? null
         )
       },
       upsert: async ({ where, create, update }: any) => {
         const { i18nKeyId, locale } = where.i18nKeyId_locale
         const found = db.values.find(
-          (v) => v.i18nKeyId === i18nKeyId && v.locale === locale
+          (v) => v.i18nKeyId === i18nKeyId && v.locale === locale,
         )
         if (found) return Object.assign(found, update)
         const row = { sourceFingerprint: '', ...create }
@@ -75,22 +77,28 @@ vi.mock('#server/libs/prisma', () => ({
   },
 }))
 
-const { createKeyFromSource, updateKeyDrafts } = await import(
-  '#server/helper/api-key-write'
-)
+const { createKeyFromSource, updateKeyDrafts, writeClientOf } =
+  await import('#server/helper/api-key-write')
 
 const v = (
   i18nKeyId: number,
   locale: string,
   draftText: string | null,
   publishedText: string | null,
-  sourceFingerprint = ''
+  sourceFingerprint = '',
 ): Value => ({ i18nKeyId, locale, draftText, publishedText, sourceFingerprint })
 
 beforeEach(() => {
   db.nextId = 100
   db.logs = []
-  db.keys = [{ id: 1, projectId: 1, key: 'home.title', fingerprint: fpTranslation('Hello') }]
+  db.keys = [
+    {
+      id: 1,
+      projectId: 1,
+      key: 'home.title',
+      fingerprint: fpTranslation('Hello'),
+    },
+  ]
   db.values = [
     v(1, 'en', 'Hello', 'Hello'),
     v(1, 'ja', 'こんにちは', 'こんにちは', fpTranslation('Hello')),
@@ -114,14 +122,24 @@ describe('createKeyFromSource', () => {
       state: 'published',
     })
     expect(result.key.locales.ja?.state).toBe('unpublished')
-    expect(db.logs).toMatchObject([{ action: 'CREATE', status: 'SUCCESS', userID: 7 }])
+    expect(db.logs).toMatchObject([
+      { action: 'CREATE', status: 'SUCCESS', userID: 7 },
+    ])
   })
 
   it('reuses the unnamed key of the same text and keeps it a draft', async () => {
-    const first = await createKeyFromSource({ projectId: 1, userId: 7, sourceText: 'Buy' })
+    const first = await createKeyFromSource({
+      projectId: 1,
+      userId: 7,
+      sourceText: 'Buy',
+    })
     expect(first.key.key).toBe(`${UNNAMED_KEY_PREFIX}${fpTranslation('Buy')}`)
     expect(first.key.locales.en?.publishedText).toBeNull()
-    const second = await createKeyFromSource({ projectId: 1, userId: 7, sourceText: 'Buy' })
+    const second = await createKeyFromSource({
+      projectId: 1,
+      userId: 7,
+      sourceText: 'Buy',
+    })
     expect(second.created).toBe(false)
     expect(second.key.id).toBe(first.key.id)
     expect(db.keys).toHaveLength(2)
@@ -129,7 +147,12 @@ describe('createKeyFromSource', () => {
 
   it('refuses a name the project has, and the reserved prefix', async () => {
     await expect(
-      createKeyFromSource({ projectId: 1, userId: 7, key: 'home.title', sourceText: 'Hi' })
+      createKeyFromSource({
+        projectId: 1,
+        userId: 7,
+        key: 'home.title',
+        sourceText: 'Hi',
+      }),
     ).rejects.toMatchObject({ statusCode: 409 })
     expect(db.logs).toMatchObject([{ status: 'REFUSED' }])
     await expect(
@@ -138,8 +161,29 @@ describe('createKeyFromSource', () => {
         userId: 7,
         key: `${UNNAMED_KEY_PREFIX}x`,
         sourceText: 'Hi',
-      })
+      }),
     ).rejects.toMatchObject({ statusCode: 400 })
+  })
+})
+
+describe('writeClientOf', () => {
+  it('reads the tool and the agent flag from the header', () => {
+    expect(writeClientOf('cli/0.1.0; agent')).toEqual({
+      client: 'cli/0.1.0',
+      agent: true,
+    })
+    expect(writeClientOf(' vscode/0.4.2 ')).toEqual({
+      client: 'vscode/0.4.2',
+      agent: false,
+    })
+  })
+
+  it('records nothing for a missing or malformed header', () => {
+    const none = { client: null, agent: false }
+    expect(writeClientOf(undefined)).toEqual(none)
+    expect(writeClientOf('cli')).toEqual(none)
+    expect(writeClientOf('cli/1.0; robot')).toEqual(none)
+    expect(writeClientOf(`cli/${'9'.repeat(40)}`)).toEqual(none)
   })
 })
 
@@ -148,6 +192,7 @@ describe('updateKeyDrafts', () => {
     const result = await updateKeyDrafts({
       projectId: 1,
       userId: 7,
+      via: { client: 'cli/0.1.0', agent: true },
       key: 'home.title',
       locales: { ja: { text: 'やあ', expected: 'こんにちは' } },
     })
@@ -158,7 +203,9 @@ describe('updateKeyDrafts', () => {
       publishedText: 'こんにちは',
       state: 'draft',
     })
-    expect(db.logs).toMatchObject([{ action: 'UPDATE', status: 'SUCCESS' }])
+    expect(db.logs).toMatchObject([
+      { action: 'UPDATE', status: 'SUCCESS', client: 'cli/0.1.0', agent: true },
+    ])
   })
 
   it('refuses the whole request when any expected draft is stale', async () => {
@@ -189,7 +236,7 @@ describe('updateKeyDrafts', () => {
     expect(result.key.locales.en?.draftText).toBe('Hello there')
     // Flagged outdated once published; a draft key is never outdated.
     expect(db.values.find((x) => x.locale === 'ja')!.sourceFingerprint).toBe(
-      fpTranslation('Hello')
+      fpTranslation('Hello'),
     )
   })
 
@@ -204,7 +251,7 @@ describe('updateKeyDrafts', () => {
       },
     })
     expect(db.values.find((x) => x.locale === 'ja')!.sourceFingerprint).toBe(
-      fpTranslation('Hello there')
+      fpTranslation('Hello there'),
     )
     expect(result.key.locales.ja?.state).toBe('draft')
   })
@@ -212,17 +259,25 @@ describe('updateKeyDrafts', () => {
   it('rejects an unknown key, an unknown locale and an empty source', async () => {
     const base = { projectId: 1, userId: 7 }
     await expect(
-      updateKeyDrafts({ ...base, key: 'nope', locales: { ja: { text: 'x', expected: '' } } })
+      updateKeyDrafts({
+        ...base,
+        key: 'nope',
+        locales: { ja: { text: 'x', expected: '' } },
+      }),
     ).rejects.toMatchObject({ statusCode: 404 })
     await expect(
-      updateKeyDrafts({ ...base, key: 'home.title', locales: { fr: { text: 'x', expected: '' } } })
+      updateKeyDrafts({
+        ...base,
+        key: 'home.title',
+        locales: { fr: { text: 'x', expected: '' } },
+      }),
     ).rejects.toMatchObject({ statusCode: 400 })
     await expect(
       updateKeyDrafts({
         ...base,
         key: 'home.title',
         locales: { en: { text: '  ', expected: 'Hello' } },
-      })
+      }),
     ).rejects.toMatchObject({ statusCode: 400 })
   })
 
@@ -238,6 +293,8 @@ describe('updateKeyDrafts', () => {
   })
 
   it('needs at least one locale in the body', () => {
-    expect(zApiV1KeyUpdate.safeParse({ key: 'a', locales: {} }).success).toBe(false)
+    expect(zApiV1KeyUpdate.safeParse({ key: 'a', locales: {} }).success).toBe(
+      false,
+    )
   })
 })

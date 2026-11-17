@@ -1,7 +1,14 @@
-import { authenticateWriteRequest, touchApiToken } from '#server/helper/api-token'
+import {
+  authenticateWriteRequest,
+  touchApiToken,
+} from '#server/helper/api-token'
 import { resolveTokenProject } from '#server/helper/api-token-project'
 import { readZodBody } from '#server/helper/validate'
-import { updateKeyDrafts } from '#server/helper/api-key-write'
+import {
+  CLIENT_HEADER,
+  updateKeyDrafts,
+  writeClientOf,
+} from '#server/helper/api-key-write'
 import { zApiV1KeyUpdate } from '#shared/schemas'
 import type { KeyWriteResult } from '#shared/contract'
 
@@ -14,13 +21,14 @@ import type { KeyWriteResult } from '#shared/contract'
  */
 export default defineEventHandler(async (event): Promise<KeyWriteResult> => {
   const token = await authenticateWriteRequest(
-    getRequestHeader(event, 'authorization')
+    getRequestHeader(event, 'authorization'),
   )
   const projectId = await resolveTokenProject(token, getQuery(event).project)
   const body = await readZodBody(event, zApiV1KeyUpdate.parse)
   const result = await updateKeyDrafts({
     projectId,
     userId: token.createdBy,
+    via: writeClientOf(getRequestHeader(event, CLIENT_HEADER)),
     ...body,
   })
   await touchApiToken(token)

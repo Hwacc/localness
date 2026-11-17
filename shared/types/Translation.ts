@@ -39,4 +39,8 @@ export class Translation implements ITranslation {
 export interface ITranslationLog extends ILog<ITranslation> {
   translationID: ID
   translation?: ITranslation | null
+  /** The tool behind a token write (`cli/0.1.0`); null for the web app. */
+  client: string | null
+  /** The tool reported that a coding agent drove it. */
+  agent: boolean
 }

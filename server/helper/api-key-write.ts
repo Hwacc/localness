@@ -34,6 +34,27 @@ async function stateLocales(projectId: number, sourceLocale: string) {
     : [sourceLocale, ...configured]
 }
 
+export const CLIENT_HEADER = 'x-localness-client'
+
+/** The tool behind a token write, for the key's history. */
+export interface WriteClient {
+  client: string | null
+  agent: boolean
+}
+
+const CLIENT_PATTERN = /^([a-z][a-z0-9-]{0,31}\/[\w.+-]{1,32})\s*(;\s*agent)?$/i
+
+/**
+ * `X-Localness-Client: cli/0.1.0; agent`, as the SDK sends it. Self-reported,
+ * so a label in the history and never a permission; anything else, or no
+ * header, records nothing rather than echoing arbitrary text into the log.
+ */
+export function writeClientOf(header: string | undefined): WriteClient {
+  const match = header?.trim().match(CLIENT_PATTERN)
+  if (!match) return { client: null, agent: false }
+  return { client: match[1]!, agent: Boolean(match[2]) }
+}
+
 async function loadKeyState(id: number) {
   return prisma.i18nKey.findUniqueOrThrow({
     where: { id },
@@ -52,6 +73,7 @@ async function loadKeyState(id: number) {
 export async function createKeyFromSource(params: {
   projectId: number
   userId: number
+  via?: WriteClient
   key?: string
   sourceText: string
 }): Promise<KeyWriteResult> {
@@ -88,6 +110,7 @@ export async function createKeyFromSource(params: {
         i18nKeyId: existing.id,
         fingerprint,
         userID: params.userId,
+        ...params.via,
       },
     })
     throw createError({
@@ -97,7 +120,7 @@ export async function createKeyFromSource(params: {
           key: existing.key,
           sourceText: sourceTextOf(existing.locales, sourceLocale),
         },
-        sourceText
+        sourceText,
       ),
     })
   }
@@ -122,6 +145,7 @@ export async function createKeyFromSource(params: {
       i18nKeyId: record.id,
       fingerprint,
       userID: params.userId,
+      ...params.via,
     },
   })
   return {
@@ -146,13 +170,14 @@ export async function createKeyFromSource(params: {
 export async function updateKeyDrafts(params: {
   projectId: number
   userId: number
+  via?: WriteClient
   key: string
   locales: Record<string, { text: string; expected: string }>
 }): Promise<KeyWriteResult> {
   const sourceLocale = await sourceLocaleOf(params.projectId)
   const wanted = await stateLocales(params.projectId, sourceLocale)
   const unknown = Object.keys(params.locales).filter(
-    (locale) => !wanted.includes(locale)
+    (locale) => !wanted.includes(locale),
   )
   if (unknown.length) {
     throw createError({
@@ -164,7 +189,7 @@ export async function updateKeyDrafts(params: {
     Object.entries(params.locales).map(([locale, edit]) => [
       locale,
       locale === sourceLocale ? edit.text.trim() : edit.text,
-    ])
+    ]),
   )
   if (sourceLocale in edits && !edits[sourceLocale]) {
     throw createError({ statusCode: 400, statusMessage: 'Missing source text' })
@@ -179,7 +204,7 @@ export async function updateKeyDrafts(params: {
   }
 
   const drafts = new Map(
-    existing.locales.map((value) => [value.locale, value.draftText ?? ''])
+    existing.locales.map((value) => [value.locale, value.draftText ?? '']),
   )
   const stale = Object.entries(params.locales)
     .filter(([locale, edit]) => (drafts.get(locale) ?? '') !== edit.expected)
@@ -197,7 +222,7 @@ export async function updateKeyDrafts(params: {
   }
 
   const changed = Object.entries(edits).filter(
-    ([locale, text]) => (drafts.get(locale) ?? '') !== text
+    ([locale, text]) => (drafts.get(locale) ?? '') !== text,
   )
   if (!changed.length) {
     return {
@@ -208,7 +233,9 @@ export async function updateKeyDrafts(params: {
   }
 
   const sourceText = changed.find(([locale]) => locale === sourceLocale)?.[1]
-  const fingerprint = sourceText ? fpTranslation(sourceText) : existing.fingerprint
+  const fingerprint = sourceText
+    ? fpTranslation(sourceText)
+    : existing.fingerprint
   if (sourceText) {
     await prisma.i18nKey.update({
       where: { id: existing.id },
@@ -217,7 +244,7 @@ export async function updateKeyDrafts(params: {
   }
   await upsertLocaleDrafts(
     existing.id,
-    Object.fromEntries(changed.filter(([locale]) => locale !== sourceLocale))
+    Object.fromEntries(changed.filter(([locale]) => locale !== sourceLocale)),
   )
   if (sourceText) {
     await writeSourceText({
@@ -237,6 +264,7 @@ export async function updateKeyDrafts(params: {
       i18nKeyId: existing.id,
       fingerprint,
       userID: params.userId,
+      ...params.via,
     },
   })
   return {
