@@ -113,7 +113,7 @@ describe('createKeyFromSource', () => {
       publishedText: 'Buy now',
       state: 'published',
     })
-    expect(result.key.locales.ja.state).toBe('unpublished')
+    expect(result.key.locales.ja?.state).toBe('unpublished')
     expect(db.logs).toMatchObject([{ action: 'CREATE', status: 'SUCCESS', userID: 7 }])
   })
 
@@ -186,7 +186,7 @@ describe('updateKeyDrafts', () => {
       locales: { en: { text: ' Hello there ', expected: 'Hello' } },
     })
     expect(db.keys[0]!.fingerprint).toBe(fpTranslation('Hello there'))
-    expect(result.key.locales.en.draftText).toBe('Hello there')
+    expect(result.key.locales.en?.draftText).toBe('Hello there')
     // Flagged outdated once published; a draft key is never outdated.
     expect(db.values.find((x) => x.locale === 'ja')!.sourceFingerprint).toBe(
       fpTranslation('Hello')
@@ -206,7 +206,7 @@ describe('updateKeyDrafts', () => {
     expect(db.values.find((x) => x.locale === 'ja')!.sourceFingerprint).toBe(
       fpTranslation('Hello there')
     )
-    expect(result.key.locales.ja.state).toBe('draft')
+    expect(result.key.locales.ja?.state).toBe('draft')
   })
 
   it('rejects an unknown key, an unknown locale and an empty source', async () => {
