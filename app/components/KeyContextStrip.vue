@@ -10,8 +10,6 @@ const props = defineProps<{
   projectId: ID
   keyId: ID
   tagCount: number
-  /** Published keys are read-only, so there is nothing to put a reading into. */
-  ocrWritable: boolean
 }>()
 
 const emit = defineEmits<{
@@ -236,11 +234,7 @@ function openInEditor() {
           </p>
           <div class="flex items-center gap-1">
             <UTooltip
-              :text="
-                ocrWritable
-                  ? 'Read the text from this screenshot to check the source'
-                  : 'Published keys are read-only'
-              "
+              text="Read the text from this screenshot to check the source"
             >
               <!-- A disabled button fires no hover, so the span carries the tooltip. -->
               <span>
@@ -251,7 +245,7 @@ function openInEditor() {
                   icon="i-lucide:scan-text"
                   label="OCR"
                   :loading="recognizing"
-                  :disabled="!ocrWritable || !page.image"
+                  :disabled="!page.image"
                   @click="recognize"
                 />
               </span>

@@ -116,6 +116,33 @@ curl -X POST -H "Authorization: Bearer <token>" \\
       'What an importer fetches before deciding what to update. A page the token was not granted looks exactly like one that does not exist.',
     code: curlExample('/api/v1/pages/12/tags'),
   },
+  {
+    title: 'Create a key from hardcoded text',
+    description:
+      'A named key publishes the source sentence, since the code already shows it; edits after that are drafts. Leave out `key` to get an unpublished `__unnamed_` key named later; an existing name is a 409.',
+    code: `curl -X POST -H "Authorization: Bearer <token>" \\
+  -H "Content-Type: application/json" \\
+  -d '{"key":"home.title","sourceText":"Welcome back"}' \\
+  "${baseUrl.value}/api/v1/keys?project=<id-or-name>"`,
+  },
+  {
+    title: 'Edit a key’s drafts',
+    description:
+      'Published keys too: the edit is a draft, and the published text is served until someone publishes again. `expected` is the draft you last read (`""` for none); if any locale changed meanwhile the whole request is a 409 with the current state in `data`.',
+    code: `curl -X PATCH -H "Authorization: Bearer <token>" \\
+  -H "Content-Type: application/json" \\
+  -d '{"key":"home.title","locales":{"en":{"text":"Welcome back!","expected":"Welcome back"}}}' \\
+  "${baseUrl.value}/api/v1/keys?project=<id-or-name>"`,
+  },
+  {
+    title: 'Suggest a key name',
+    description:
+      'An AI name for a sentence, following the project’s key convention. Nothing is written.',
+    code: `curl -X POST -H "Authorization: Bearer <token>" \\
+  -H "Content-Type: application/json" \\
+  -d '{"sourceText":"Welcome back"}' \\
+  "${baseUrl.value}/api/v1/keys/suggest-name?project=<id-or-name>"`,
+  },
 ])
 
 const fetchExample = computed(
@@ -249,7 +276,7 @@ async function copy(value: string, label: string) {
           <span class="text-default">/bundle</span> and
           <span class="text-default">/locales</span> return it — but only when
           the wording changes; a repeat import never re-publishes, so a source
-          you reverted to draft stays reverted. A
+          you unpublished stays unpublished. A
           <span class="text-default">__unnamed_</span> key stays unpublished.
           Other languages stay as they were.
         </p>

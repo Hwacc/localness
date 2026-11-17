@@ -23,7 +23,7 @@
 | **只有已发布**          | 草稿一律取不到。某条词条在这个语言还没发布，它就**不出现**，而不是返回空字符串                                    |
 | **不做回退**            | 缺失的 key**不会**用源语言或别的语言补上。调用方要自己决定缺了怎么显示——直接把 key 名露在界面上是最糟的那种处理 |
 | **只能按 release 和 namespace 收窄** | 没有别的筛选参数                                                                                                        |
-| **写入面服务于创作**   | 只有 `write` token 能建页面、画 Tag、把图层文字写入源语言、给 page / 词条挂发行。再导入时，具名 key 的源语言草稿和已发布文案一起改成图层上的句子；`__unnamed_` 只写草稿，并清掉已发布源文。**句子没变就整个不写**——手工撤回（Revert to draft）的源文不会被一次重复导入悄悄带回来。其他语言的译文不动。`/bundle` 和 `/locales` 仍只返回已发布文案。建发行标签本身要 Project Owner |
+| **写入面服务于创作**   | 只有 `write` token 能建页面、画 Tag、把图层文字写入源语言、给 page / 词条挂发行、**建词条和改词条草稿**（`/keys`，见下）。设计稿再导入时，具名 key 的源语言草稿和已发布文案一起改成图层上的句子；`__unnamed_` 只写草稿，并清掉已发布源文。**句子没变就整个不写**，所以手工 Unpublish 过的源文不会被一次重复导入悄悄带回来。其他语言的译文不动。`/keys` 只写草稿、从不发布。`/bundle` 和 `/locales` 仍只返回已发布文案。建发行标签本身要 Project Owner |
 
 **token 属于你，不属于项目**：一枚 token 可以指定它能碰**哪些**项目。只指定一个时，请求里根本不用写项目名——**改动之前发的 token 全都是这种**，行为和以前一模一样。
 
@@ -77,11 +77,14 @@
 | `GET /api/v1/bundle`          | 一次拿到全部语言：`{ locale: { key: text } }`。只有已发布 |
 | `GET /api/v1/outdated`        | 哪些语言的哪些 key 译文是对着旧源文翻的。只是标记，句子仍在 `/bundle` |
 | `GET /api/v1/keys/search?q=`  | 给绑定下拉用。key 和源文，**含草稿**，分页 |
-| `GET /api/v1/keys/states`     | **按 key、按语言**返回 `draftText` / `publishedText` / `state`（`draft`、`published`、`outdated`、`unpublished`），**含草稿文案**。read token 即可；`?locales=en,ja`（缺省为项目全部语言）、`release`、`namespace`、`offset`、`limit`（上限 5000），按 key 升序。meta 另带 `sourceLocale` |
-| `POST /api/v1/match`          | 一批图层文字对上哪些已有词条（草稿优先，否则已发布）。每个命中都返回 |
+| `GET /api/v1/keys/states`     | **按 key、按语言**返回 `draftText` / `publishedText` / `state`（`draft`、`published`、`outdated`、`unpublished`），**含草稿文案**。read token 即可；`?locales=en,ja`（缺省为项目全部语言）、`?keys=a.b,c.d`（只返回这些 key，查不到的名字直接略去）、`release`、`namespace`、`offset`、`limit`（上限 5000），按 key 升序。meta 另带 `sourceLocale` |
+| `POST /api/v1/match`          | 一批图层文字对上哪些已有词条：图层文字等于草稿或已发布任一份都算命中。命中的 `sourceText` 是草稿（没有草稿时用已发布），`draft` 表示该词条源语言还没有发布过 |
 | `GET /api/v1/pages/:id`       | Capture 读：这一页的 tag、草稿源文、page 和词条上的发行标签。Preview 只读这份绑定，不在这里改 key |
 | `POST /api/v1/releases`       | 新建发行标签。Project Owner，write token |
 | `POST /api/v1/release-membership` | 给 page 或词条追加 / 摘掉一个发行。不删内容 |
+| `POST /api/v1/keys`           | 从一句硬编码文字建词条，写 token。body `{ key?, sourceText }`：给了 `key` 时源语言**直接发布**（这句话本来就在代码里上线了，不发布反而让页面显示 key 名），之后的修改都是草稿。不给 `key` 时建一条 `__unnamed_` 占位，只写草稿、不发布（同一句话再建会复用，返回 `created: false`）；给的名字已被占用报 409。返回 `{ sourceLocale, created, key }`，`key` 是和 `/keys/states` 同形的一条状态 |
+| `PATCH /api/v1/keys`          | 改一条词条的草稿，写 token，**已发布的也能改**。body `{ key, locales: { <语言>: { text, expected } } }`。`expected` 是你上次读到的草稿（没有就填 `""`），任何一个语言对不上就整单 409，`data` 里是 `{ locales: [对不上的语言], key: 当前状态 }`，什么都不写。源语言不能清空。返回同 `POST` |
+| `POST /api/v1/keys/suggest-name` | 按项目的命名规范让 AI 给一句话起 key 名，写 token（花项目的 AI 额度），不落库 |
 
 **什么时候要带 `?project=`：数这枚 token 当初被指定了**几个**项目**（不是"现在还能碰到几个"）。
 

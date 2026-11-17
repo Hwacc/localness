@@ -5,6 +5,7 @@ import {
   formatI18nKeyDisplay,
   fpTranslation,
   hasUnpublishedDraft,
+  hasPublishedLocale,
   isI18nKeyDraft,
   localeDraftWrite,
   resolveEditedKey,
@@ -90,7 +91,7 @@ const {
 } = useAiCell({
   projectId: computed(() => props.projectId),
   keyId: () => props.row?.id,
-  writable: () => writable.value,
+  writable: () => true,
   getText: (code) => texts.value[code] ?? '',
   setText: (code, text) => {
     texts.value = { ...texts.value, [code]: text }
@@ -99,17 +100,9 @@ const {
   onChanged: () => emit('ai-changed'),
 })
 
-/**
- * A published key is read-only, so what AI writes for it is only proposed until
- * the reviewer accepts; a draft key saves at once and offers Undo.
- */
-function canAiTranslate(code: string) {
-  if (!aiReady.value || !props.row) return false
-  return (
-    writable.value ||
-    stateOf(code) === 'missing' ||
-    stateOf(code) === 'outdated'
-  )
+/** AI writes land as drafts like typing does, so any cell can be translated. */
+function canAiTranslate(_code: string) {
+  return aiReady.value && Boolean(props.row)
 }
 
 const missingCodes = computed(() =>
@@ -180,8 +173,17 @@ const otherLocales = computed(() =>
   props.localeCodes.filter((code) => code !== props.sourceLocale),
 )
 
-/** The same predicate the server's writable gate uses: text and key follow it, labels do not. */
-const writable = computed(() => Boolean(props.row?.dirty))
+/**
+ * Text is always editable: it lands as a draft, and a published key keeps
+ * serving its published text until the next publish. The name is not — code and
+ * `/bundle` look it up — so it is fixed while anything is published.
+ */
+const renamable = computed(
+  () => Boolean(props.row) && !hasPublishedLocale(props.row!.locales),
+)
+const published = computed(
+  () => Boolean(props.row) && hasPublishedLocale(props.row!.locales),
+)
 const gitSyncBusy = computed(
   () => Boolean(props.row) && props.gitSyncBusyId === props.row!.id,
 )
@@ -241,6 +243,35 @@ watch(otherLocales, applyLocaleFilter)
 
 function draftOf(locale: string) {
   return props.row?.locales.find((l) => l.locale === locale)?.draftText ?? ''
+}
+
+/** Published text a saved draft has moved away from; null when they agree or nothing is published. */
+function publishedChange(locale: string): string | null {
+  const value = props.row?.locales.find((l) => l.locale === locale)
+  const published = value?.publishedText ?? ''
+  if (!published.trim() || (value?.draftText ?? '') === published) return null
+  return published
+}
+
+async function revertLocale(locale: string) {
+  const published = publishedChange(locale)
+  if (published === null) return
+  texts.value = { ...texts.value, [locale]: published }
+  comparing.value = comparing.value.filter((code) => code !== locale)
+  await saveLocale(locale)
+}
+
+/** Languages whose published text is shown under the field; closed by default. */
+const comparing = ref<string[]>([])
+
+function toggleCompare(locale: string) {
+  comparing.value = comparing.value.includes(locale)
+    ? comparing.value.filter((code) => code !== locale)
+    : [...comparing.value, locale]
+}
+
+function comparedText(locale: string): string | null {
+  return comparing.value.includes(locale) ? publishedChange(locale) : null
 }
 
 /** Naming needs the text, exactly as the create dialog does: nothing to name without it. */
@@ -336,6 +367,7 @@ watch(
       // The panel answers the row that asked for it, so moving on drops it.
       dismissSuggestion()
       ocrReading.value = null
+      comparing.value = []
       clearAiResults()
     }
     fillFromRow()
@@ -345,7 +377,7 @@ watch(
 
 async function saveLocale(locale: string) {
   const row = props.row
-  if (!row || !row.dirty) return
+  if (!row) return
   const decision = localeDraftWrite({
     locale,
     sourceLocale: props.sourceLocale,
@@ -411,7 +443,7 @@ async function saveLocale(locale: string) {
 
 async function commitKey() {
   const row = props.row
-  if (!row || !row.dirty) return
+  if (!row || !renamable.value) return
   const next = resolveEditedKey(row.key, keyDraft.value)
   if (next === null) return
   if (!next) {
@@ -513,13 +545,7 @@ defineExpose({ flushPendingSaves })
     <div
       class="sticky top-0 z-10 flex flex-wrap items-center gap-2 px-4 py-3 bg-default border-b border-default"
     >
-      <UBadge
-        :color="row.dirty ? 'warning' : 'success'"
-        variant="subtle"
-        size="md"
-      >
-        {{ row.dirty ? 'Draft' : 'Published' }}
-      </UBadge>
+      <I18nKeyStatusBadge :locales="row.locales" size="md" />
       <div class="min-w-48 flex-1 flex items-center gap-1">
         <UInput
           v-model="keyDraft"
@@ -527,7 +553,7 @@ defineExpose({ flushPendingSaves })
           size="sm"
           variant="ghost"
           :ui="{ base: 'font-mono font-semibold' }"
-          :disabled="!writable"
+          :disabled="!renamable"
           aria-label="Key"
           @keydown.enter="commitKey"
           @keydown.esc="keyDraft = formatI18nKeyDisplay(row.key)"
@@ -538,7 +564,7 @@ defineExpose({ flushPendingSaves })
           let whichever answer lands last decide what is on screen.
         -->
         <AIButton
-          v-if="writable"
+          v-if="renamable"
           :loading="generating"
           :disabled="generating"
           @click="onGenerate"
@@ -552,57 +578,65 @@ defineExpose({ flushPendingSaves })
           <UIcon name="i-lucide:loader-circle" class="size-3 animate-spin" />
           Saving…
         </span>
-        <template v-if="row.dirty">
-          <UButton
-            size="xs"
-            color="error"
-            variant="ghost"
-            icon="i-lucide:trash-2"
-            label="Delete"
-            @click="emit('delete', row)"
-          />
-          <UTooltip
-            :text="
-              canPublish
-                ? 'Publish this key'
-                : 'Nothing to publish — no draft text on this key'
-            "
-          >
-            <UButton
-              size="xs"
-              color="primary"
-              icon="i-lucide:upload"
-              label="Publish"
-              :loading="publishing"
-              :disabled="!canPublish"
-              @click="emit('publish', row)"
-            />
-          </UTooltip>
-        </template>
+        <UButton
+          v-if="!published"
+          size="xs"
+          color="error"
+          variant="ghost"
+          icon="i-lucide:trash-2"
+          label="Delete"
+          @click="emit('delete', row)"
+        />
         <UButton
           v-else
           size="xs"
           color="warning"
-          variant="soft"
+          variant="ghost"
           icon="i-lucide:undo-2"
-          label="Revert to draft"
+          label="Unpublish"
           :disabled="publishing"
           @click="emit('unpublish', row)"
         />
+        <UTooltip
+          :text="
+            canPublish
+              ? 'Publish this key'
+              : published
+                ? 'Nothing to publish — no edits since the last publish'
+                : 'Nothing to publish — no draft text on this key'
+          "
+        >
+          <UButton
+            size="xs"
+            color="primary"
+            icon="i-lucide:upload"
+            label="Publish"
+            :loading="publishing"
+            :disabled="!canPublish"
+            @click="emit('publish', row)"
+          />
+        </UTooltip>
       </span>
     </div>
 
     <p
-      v-if="!row.dirty"
+      v-if="published"
       class="px-4 py-2 text-xs text-muted border-b border-default"
     >
-      Published keys are read-only. Revert to edit the text or the name.
+      Edits are saved as drafts; the published text is served until you publish
+      again. Unpublish to rename or delete.
     </p>
     <p
-      v-else-if="isPlaceholderKey && writable && !rowSuggestion"
+      v-else-if="isPlaceholderKey && !rowSuggestion"
       class="px-4 py-2 text-xs text-warning border-b border-default"
     >
       Placeholder name from the editor. Rename it, or let AI suggest one.
+    </p>
+    <p
+      v-else-if="!isPlaceholderKey"
+      class="px-4 py-2 text-xs text-muted border-b border-default"
+    >
+      Not published yet; export and the API include it only after you publish.
     </p>
     <div v-if="rowSuggestion" class="px-4 py-3 border-b border-default">
       <AIKeySuggestion
@@ -632,7 +666,6 @@ defineExpose({ flushPendingSaves })
           :project-id="projectId"
           :key-id="row.id"
           :tag-count="row.tagCount"
-          :ocr-writable="writable"
           @ocr="onOcr"
         />
         <USeparator />
@@ -681,9 +714,27 @@ defineExpose({ flushPendingSaves })
               class="ml-1"
             />
             <span>{{ localeMeta(sourceLocale)?.label || sourceLocale }}</span>
+            <LocaleStateDot
+              class="ml-auto"
+              :state="stateOf(sourceLocale)"
+              show-text
+            />
+            <UTooltip
+              v-if="publishedChange(sourceLocale) !== null"
+              :text="comparing.includes(sourceLocale) ? 'Hide published text' : 'Compare with published'"
+            >
+              <UButton
+                size="xs"
+                :color="comparing.includes(sourceLocale) ? 'primary' : 'neutral'"
+                variant="ghost"
+                icon="i-lucide:git-compare"
+                aria-label="Compare with published"
+                @click="toggleCompare(sourceLocale)"
+              />
+            </UTooltip>
           </div>
           <div
-            v-if="rowOcrText !== null && writable"
+            v-if="rowOcrText !== null"
             class="flex flex-col gap-2 rounded-md border border-default bg-muted px-3 py-2"
           >
             <div class="flex items-center gap-1.5 text-xs">
@@ -741,8 +792,13 @@ defineExpose({ flushPendingSaves })
             :rows="5"
             :maxrows="10"
             autoresize
-            :disabled="!writable"
             @blur="saveLocale(sourceLocale)"
+          />
+          <PublishedTextCompare
+            v-if="comparedText(sourceLocale) !== null"
+            :text="comparedText(sourceLocale)!"
+            :disabled="saving"
+            @revert="revertLocale(sourceLocale)"
           />
         </section>
 
@@ -863,6 +919,19 @@ defineExpose({ flushPendingSaves })
                   show-text
                 />
                 <UTooltip
+                  v-if="publishedChange(code) !== null"
+                  :text="comparing.includes(code) ? 'Hide published text' : 'Compare with published'"
+                >
+                  <UButton
+                    size="xs"
+                    :color="comparing.includes(code) ? 'primary' : 'neutral'"
+                    variant="ghost"
+                    icon="i-lucide:git-compare"
+                    aria-label="Compare with published"
+                    @click="toggleCompare(code)"
+                  />
+                </UTooltip>
+                <UTooltip
                   v-if="canAiTranslate(code)"
                   :text="
                     aiRun?.code !== code && aiQueued.includes(code)
@@ -909,9 +978,15 @@ defineExpose({ flushPendingSaves })
                 :rows="2"
                 :maxrows="8"
                 autoresize
-                :disabled="!writable || aiRun?.code === code"
-                :placeholder="writable ? 'Not translated yet' : '—'"
+                :disabled="aiRun?.code === code"
+                placeholder="Not translated yet"
                 @blur="saveLocale(code)"
+              />
+              <PublishedTextCompare
+                v-if="comparedText(code) !== null"
+                :text="comparedText(code)!"
+                :disabled="saving || aiRun?.code === code"
+                @revert="revertLocale(code)"
               />
               <div
                 v-for="result in rowAiResult(code)"

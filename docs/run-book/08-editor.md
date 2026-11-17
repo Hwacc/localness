@@ -122,7 +122,7 @@
 
 底部是 **Cancel** / **Save**。**Info 里改的东西要点 Save 才落库。**
 
-**这条词条已发布时**，最上面多一行锁形提示（`Published, so its text is read-only. Revert it to draft to edit.`）带一个 **Revert to draft** 按钮：**I18n Key**、**AI**、原文、译文四处输入和 **Releases** 都禁用（和词条表右栏一个口径；服务端本就拒绝写已发布词条），**Link** / **New** / **History** 以及框的样式、锁定、Prompt 照旧。点 **Revert to draft** 先问一次 `Revert "…" to draft? It will drop out of published export until you publish again.`，确认后这条词条变回 **Draft**，输入随即解锁 —— 和词条表右栏的撤回是同一件事（第 9 章）。
+**这条词条已发布时**，最上面多一行锁形提示（`Published. Text edits are saved as drafts and go live when you publish; unpublish to change the key.`）带一个 **Unpublish** 按钮。**原文、译文、AI 翻译和 Releases 照常能改**：改动存成草稿，已发布文字继续对外，直到在词条表里再点 **Publish**（草稿叠加，见第 9 章「已发布词条的草稿」）。只有 **I18n Key** 和它旁边的 **AI** 起名禁用，因为代码和交付 API 按名字取文案。**Link** / **New** / **History** 以及框的样式、锁定、Prompt 照旧。点 **Unpublish** 会先确认一次：`Unpublish "…"? Its published text is withdrawn from export and delivery until you publish again; drafts stay.`。确认后已发布文字清空，key 也就能改名了；这和词条表右栏的 Unpublish 是同一个操作。从没发布过的，那里是一行灰字 `Not published yet; export and the API include it only after you publish.`
 
 ### 让 AI 起名
 
@@ -155,13 +155,13 @@
 | 改了**I18n Key**                   | 给当前这条词条**改名**。多个框共用它的话，一起改                                                                                                                                  |
 | 改成一个**已被别的文案占用**的 key | 保存后这条框会挂到**那条已有词条**上，你在这个框里填的原文不生效                                                                                                                  |
 | 改了源语言那一块的原文                   | **原地改这条词条的原文**，和词条表里改源语言那一格是一回事。多个框共用这条词条的话，它们一起变                                                                                    |
-| 这条词条**已发布**                 | 原文 / 译文 /**I18n Key** / **Releases** 一律改不了（输入框禁用的，服务端也拒）。先点上面那行 **Revert to draft** 解锁；框的样式、锁定、Prompt 不受这条影响，照常能存 |
+| 这条词条**已发布**                 | 原文、译文、**Releases** 照常能改。文字存成草稿，再发布之前对外仍是旧文字。**I18n Key** 改不了，要改名先点上面那行 **Unpublish**。框的样式、锁定、Prompt 不受影响 |
 | 点**New**（原文那一行右侧的按钮）  | 按当前原文**另建一条**词条，这个框改挂到新的那条上；原来那条留在项目里，别的框可能还指着它。项目里已有相同原文时，会先问你复用还是新建                                            |
 
 **New** 或 OCR 碰到「已有相同原文」时，会弹出标题为 **Entry already exists** 的窗。「相同」按内容指纹判断，指纹忽略空白，所以只差空格的两句也算相同（比如 OCR 先读出粘连的 `BESTGAMINGMOMENTS`，后来读出 `BEST GAMING MOMENTS`）。按钮上悬停都有说明：
 
 - **Use Existing**：把这条框挂到已有的那条词条上，**不动那条词条的内容**。
-- **Use Existing & Update**：只在两句**只差空白**时出现，弹窗会并排显示 Existing / New 两句。挂到已有词条上，并把它的原文换成新的这句。那条词条已发布时按钮禁用，要先 **Revert to draft**。
+- **Use Existing & Update**：只在两句**只差空白**时出现，弹窗会并排显示 Existing / New 两句。挂到已有词条上，并把它的原文换成新的这句。如果那条词条已发布，新原文存成它的草稿，再发布之前对外仍是旧原文。
 - **Create New**：另起一条，项目里会有两条原文相同的词条。
 
 这个弹窗点不掉，必须选一个。

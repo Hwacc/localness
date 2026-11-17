@@ -64,6 +64,7 @@ const {
 const statusItems = [
   { label: 'All statuses', value: I18nKeyStatusFilter.ALL },
   { label: 'Draft', value: I18nKeyStatusFilter.DRAFT },
+  { label: 'Edited', value: I18nKeyStatusFilter.EDITED },
   { label: 'Published', value: I18nKeyStatusFilter.PUBLISHED },
 ]
 
@@ -297,12 +298,11 @@ onMounted(() => query.load())
         </template>
         <template #status-cell="{ row }">
           <div class="flex items-center gap-1">
-            <UBadge
-              variant="subtle"
-              :color="row.original.dirty ? 'neutral' : 'success'"
-            >
-              {{ row.original.dirty ? 'Draft' : 'Published' }}
-            </UBadge>
+            <I18nKeyStatusBadge
+              :locales="row.original.locales"
+              size="md"
+              draft-color="neutral"
+            />
             <UBadge
               v-if="!hasPublished(row.original)"
               variant="subtle"

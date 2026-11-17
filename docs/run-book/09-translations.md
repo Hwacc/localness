@@ -14,7 +14,7 @@
 
 表头写着 **Translations** 和当前项目名，右上角是 **Import**（Project Owner）和 **New translation**。下面是筛选栏，再下面分左右两栏：
 
-- **左栏是词条列表**，一条两行：上面是 key 和状态（**Draft** / **Published**），下面是原文和一排小圆点。
+- **左栏是词条列表**，一条两行：上面是 key 和状态（**Draft** / **Edited** / **Published**），下面是原文和一排小圆点。
 - **右栏是选中那条的详情**：key、截图缩略图、原文、各语言译文、发行标签和 Git 同步。
 
 点左栏的一行，右栏就换成那一条。窗口窄于约 1024px 时两栏改成上下排。
@@ -26,7 +26,7 @@
 | 控件                           | 做什么                                                                                                           |
 | ------------------------------ | ---------------------------------------------------------------------------------------------------------------- |
 | **Search key or text**   | 搜 key，也搜**任意语言**的草稿文本——不用管原文存在哪个语言下                                             |
-| 状态下拉                       | **All statuses** / **Draft** / **Published** / **Outdated**                                    |
+| 状态下拉                       | **All statuses** / **Draft** / **Published** / **Outdated**。**Draft** 筛的是有未发布修改的词条，所以 **Edited** 的也列在这里 |
 | 日期                           | 默认**Updated: any time**。选一天，或选一段起止日期；按钮上显示的就是你选的日期，右边 **Clear** 清掉 |
 | 刷新按钮                       | 重新拉一遍列表                                                                                                   |
 
@@ -53,7 +53,7 @@
 | ---------------- | ------------------------------------------------------------------------------------------------------------ |
 | 复选框           | 勾选做批量操作。顶上那个是**本页全选**。勾选和「点开」是两回事：点行看详情，点框才是选中                   |
 | key              | 等宽字体。编辑器自动建的占位 key（`__unnamed_…`）后面有个黄色的 ✨，提醒它还没起正式名字                     |
-| 状态             | 行右上角的 **Draft**（黄）或 **Published**（绿）                                                            |
+| 状态             | 行右上角的 **Draft**（黄，从没发布过）、**Edited**（蓝，已发布但有未发布的修改）或 **Published**（绿）         |
 | 原文             | 第二行，太长会截断。原文是空的写 `No source text`                                                           |
 | 圆点             | **除原文外每个语言一个**，顺序沿用项目的语言顺序。鼠标停在这排圆点上会弹出一个小面板，逐行列出语言、状态和那条译文 |
 
@@ -90,10 +90,16 @@
 
 各部分：
 
-1. **顶栏：状态、key 和操作**（往下滚动时固定在右栏顶部，样子和 Consistency 页右栏一致）。最左是状态徽章；接着是 key，草稿的 key 可以直接点进去改名，旁边的**机器人按钮**让 AI 起名（见下）；最右是操作：草稿是 **Delete** 和 **Publish**，已发布是 **Revert to draft**。正在保存时操作左边显示 **Saving…**。顶栏下面一行灰字提示：已发布的写着 `Published keys are read-only. Revert to edit the text or the name.`，占位 key 写着去起名（黄字）。
+1. **顶栏：状态、key 和操作**（往下滚动时固定在右栏顶部，样子和 Consistency 页右栏一致）。
+   - 最左是状态徽章：**Draft**（从没发布过）、**Edited**（已发布，但有还没发布的修改）、**Published**。
+   - 接着是 key。没发布过的 key 可以直接点进去改名，旁边的**机器人按钮**让 AI 起名（见下）。
+   - 最右是操作：没发布过的有 **Delete** 和 **Publish**；发布过的有 **Unpublish** 和 **Publish**，没有新修改时 **Publish** 是灰的。正在保存时，操作左边显示 **Saving…**。
+   - 顶栏下面有一行提示。已发布的写着 `Edits are saved as drafts; the published text is served until you publish again. Unpublish to rename or delete.`；从没发布过的写着 `Not published yet; export and the API include it only after you publish.`；占位 key 提示去起名（黄字）。
 2. **截图缩略图**。一个小图，自动放大到这条 key 的框附近。旁边是它出现在哪些页（多页时点页名切换）、一共几个框，以及 **Larger**（打开大图预览，见「看这条词条被哪些框引用」）和 **Open in editor**（跳编辑器并选中那个框）。点缩略图本身也打开大图。没绑框时写 `Not on any screenshot yet.`
-3. **原文**。带 **Source** 徽章的大输入框，是这条词条唯一存原文的地方（第 6 章的 Source language）。
+3. **原文**。带 **Source** 徽章的大输入框，是这条词条唯一存原文的地方（第 6 章的 Source language）。右侧和译文一样有状态（**Published** / **Draft**）。
 4. **Translations**。标题旁是「有译文的语言数 / 总语言数」，例如 `3/5`，再旁边的 i 按钮是图例。右边三个切换：**All** / **Missing N** / **Outdated N**，只看缺的或只看过期的。每个语言一格：语言名、右侧带颜色的状态（**Published** / **Draft** / **Outdated** / **Missing**），下面是输入框。
+
+原文或某个语言的草稿和已发布不一样时，那一格的状态旁多一个对比按钮（**Compare with published**），默认收起。点开后输入框下面出现一行灰底的 **Published**，写着当前对外的文字；再点一次收起，换一条词条也会自动收起。**Published** 那行的 **Revert** 丢掉草稿、改回已发布的文字，立即保存。
 5. **Releases** 和 **Git sync**。挂发行标签（第 7 章）；Git 同步开关，i 图标里写着 `Off keeps this key out of pull and push. It is still served on the published API.`
 
 筛成 **Missing** 后在某个语言里填了字，这一行**不会立刻消失**；换一条词条或重新点一下筛选才会刷新。
@@ -102,7 +108,8 @@
 
 点进输入框就改，点到别处就存，**没有保存按钮**。
 
-- 只有**草稿**能改原文、译文和 key。已发布时它们是灰的，先 **Revert to draft**：先问一次，确认后这条变回草稿，当场解锁。
+- 原文和译文**随时能改**，已发布的也一样：改动存成草稿，徽章变成 **Edited**，对外（导出、`/bundle`、Git push）仍是上次发布的文字，直到再点 **Publish**。
+- **key 只有从没发布过才能改名**。发布过的 key 是灰的，要改名先 **Unpublish**：会先确认一次，确认后已发布文字清空，草稿保留。
 - **Releases 和 Git sync 在已发布时也能改。**
 - 原文不能清空，清空会弹 **Source text is required** 并恢复原样。
 - key 留空会弹 **Key is required**；按 `Esc` 恢复原名，`Enter` 或点到别处提交。
@@ -114,9 +121,9 @@
 
 - **原文自己不会"过期"**，没有圆点。
 - **没翻过的语言不算**：草稿和已发布都空着的是 Missing，不是 Outdated。
-- **草稿状态的词条整个不标**：它自己还在改（原文可能还会变），圆点和 Outdated 筛选都跳过它——只对标成 **Published** 的词条生效。
+- **有未发布修改的词条整个不标**：**Draft** 和 **Edited** 的词条自己还在改（原文可能还会变），圆点和 Outdated 筛选都跳过它，只对标成 **Published** 的词条生效。
 - 什么时候会出现：原文在译文之后改过——在编辑器里改了原文、从设计稿更新了原文、导入覆盖了源语言、或 Git Pull 拉到新的原文。
-- 怎么消掉：**对照新原文改那一行，再发布**。已发布的先 **Revert to draft**。只是确认过"这句不用改"，撤回后原样再发布一次，提示同样消失。
+- 怎么消掉：**对照新原文改那一行，再发布**。只是确认过"这句不用改"，原样再发布一次，提示同样消失。
 - 状态下拉选 **Outdated**，只列出**至少一个语言过期的已发布词条**，方便整个过一遍；右栏再切到 **Outdated** 只看过期的那几个语言。
 
 ### 建一条新词条
@@ -184,13 +191,11 @@
 
 ### 单格翻译
 
-草稿词条的每个语言栏标题右边有一个 ✨：译文**流式**写进输入框，可随时点方块停止。通过校验就直接存为草稿，下方出现「AI generated · 模型」一行，点 **Undo** 撤销；没通过则不保存并给出原因。各语言的结果各自保留，互不影响。
-
-已发布的词条是只读的，但 **Missing** / **Outdated** 的格子也有 ✨：结果只是**建议**，不会保存，显示「AI proposal」。点 **Accept as draft** 存为草稿（词条因此变成可编辑），点 **Discard** 丢弃；没通过校验的建议只能丢弃。
+每个语言栏标题右边都有一个 ✨，已发布词条也有。点它后译文**流式**写进输入框，可随时点方块停止。通过校验就直接存为草稿，下方出现「AI generated · 模型」一行，点 **Undo** 可撤销；没通过则不保存，并给出原因。各语言的结果各自保留，互不影响。已发布词条存下的也只是草稿，再发布之前对外不变。
 
 ### 一键翻译缺失语言
 
-Translations 标题行的魔棒图标按钮（提示 `Translate N missing with AI`）按顺序流式翻译该词条所有 **Missing** 的语言，不含 Outdated；没有缺失时不显示。运行中按钮变成方块，点它停止。草稿词条每格各自保存并可 Undo；已发布词条每格都是建议，多于一条时标题行出现 **Accept N** / **Discard all**。额度用完或出错时安静停下并弹出提示。
+Translations 标题行的魔棒图标按钮（提示 `Translate N missing with AI`）按顺序流式翻译该词条所有 **Missing** 的语言，不含 Outdated；没有缺失时不显示。运行中按钮变成方块，点它停止。每格各自保存，并且可以 Undo。额度用完或出错时安静停下并弹出提示。
 
 ## 发布和撤回
 
@@ -200,15 +205,19 @@ Translations 标题行的魔棒图标按钮（提示 `Translate N missing with A
 - 提示里的数字是**语言行数**，不是词条条数：一条词条只有 2 个语言的草稿有变化，就写 `2 locale row(s) published`。
 - 没有任何语言的草稿和已发布不一样时，弹的是 **Nothing to publish**，说明 `No draft text on the selected rows differs from what is already published.`
 
-**撤回**（**Revert to draft**）把已发布文字**清空**，这条词条回到草稿。
+### 已发布词条的草稿
 
-- 撤回确认框写着 `Revert “x” to draft? It will drop out of published export until you publish again.`
-- 撤回之后它就从导出和对外 API 里消失了，草稿文字还在，改完可以再发布。
-- **已发布的词条不能直接删**，先撤回。
+已发布的词条随时能改文字（编辑器 Tag Info、词条表、VS Code 插件和设计稿导入都一样）。改动只写**草稿**，已发布文字原样对外，所以线上始终有一版能用的文案。修改攒够了，在这里再点 **Publish** 一次性上线。插件不能发布，发布权只在这个页面。
+
+**Unpublish** 把已发布文字**清空**，草稿保留。
+
+- 确认框写着 `Unpublish “x”? Its published text is withdrawn from export and delivery until you publish again; drafts stay.`
+- 撤回之后，它就从导出和对外 API 里消失了；草稿文字还在，改完可以再发布。
+- **发布过的词条不能直接删，也不能改名或被合并**，因为代码可能还在按这个名字取文案。要先 Unpublish。
 
 ## 删除
 
-只有草稿能删，两个入口：右栏的 **Delete**，或勾选后走批量的 **Delete N draft**。
+只有**从没发布过**的词条能删，两个入口：右栏的 **Delete**，或勾选后走批量的 **Delete N draft**。
 
 确认框会点名后果：
 
@@ -233,14 +242,14 @@ Translations 标题行的魔棒图标按钮（提示 `Translate N missing with A
 
 ## 批量操作
 
-勾选若干条之后，筛选栏下方出现一条工具栏，写着 `N selected`；草稿和已发布混选时会补一行 `X draft · Y published`。
+勾选若干条之后，筛选栏下方出现一条工具栏，写着 `N selected`。从没发布过的和发布过的混选时，会补一行 `X draft · Y published`。
 
 | 动作                  | 怎么做                                                                              |
 | --------------------- | ----------------------------------------------------------------------------------- |
-| 发布                  | 工具栏上的**Publish N**（只对选中的草稿生效）                                 |
+| 发布                  | 工具栏上的**Publish N**（只对有未发布修改的生效）                             |
 | 挂发行 / 去掉发行     | **Release** 按钮弹出的小面板（第 7 章）                                       |
-| 撤回已发布            | ⋯ 菜单 →**Revert N published**                                              |
-| 删除草稿              | ⋯ 菜单 →**Delete N draft**（红色）                                          |
+| 撤回已发布            | ⋯ 菜单 →**Unpublish N**                                                     |
+| 删除草稿              | ⋯ 菜单 →**Delete N draft**（红色，只删从没发布过的）                         |
 | 纳入 Git 同步         | ⋯ 菜单 →**Include in Git sync**                                             |
 | 排除 Git 同步         | ⋯ 菜单 →**Exclude from Git sync**                                           |
 | 复制 / 移动到别的项目 | ⋯ 菜单 →**Copy N to another project** / **Move N to another project** |
@@ -306,7 +315,7 @@ Git 同步那两项是活的：选中的行**全都开着**时 **Include** 是�
 | 你看到                                                                               | 原因                                                                          |
 | ------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------- |
 | 左栏空着写`No keys match. Tag a screenshot in the editor, or create one with New translation.` | 没有词条，或者被筛选挡住了。先看筛选栏；确实没有就去编辑器里画框 OCR，或者点**New translation** |
-| 右栏的输入框是灰的                                                                   | 这条已发布，先**Revert to draft**                                       |
+| key 输入框是灰的                                                                     | 这条发布过，名字要保住。要改名先**Unpublish**                                  |
 | key 旁边没有机器人按钮                                                               | 同上，已发布的 key 保住名字                                                   |
 | 改名时弹**Key is required**                                                    | 名字不能留空                                                                  |
 | 改名报`Key "x" already belongs to a different text`                                | 这个名字是另一条词条的，换一个名字                                            |

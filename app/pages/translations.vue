@@ -112,25 +112,33 @@ function clearDateRange() {
 const statusItems = [
   { label: 'All statuses', value: I18nKeyStatusFilter.ALL },
   { label: 'Draft', value: I18nKeyStatusFilter.DRAFT },
+  { label: 'Edited', value: I18nKeyStatusFilter.EDITED },
   { label: 'Published', value: I18nKeyStatusFilter.PUBLISHED },
   { label: 'Outdated', value: I18nKeyStatusFilter.OUTDATED },
 ]
 
-/** Selected rows split by status — bulk actions only apply to one side each. */
+/**
+ * Selected rows split by status. Delete needs a never-published key; publish
+ * and unpublish apply to whatever has something to change.
+ */
 const selectedRows = computed<II18nKeyRow[]>(() =>
   rows.value.filter((r) => rowSelection.value[String(r.id)]),
 )
 const selectedDraftIds = computed<number[]>(() =>
-  selectedRows.value.filter((r) => r.dirty).map((r) => Number(r.id)),
+  selectedRows.value
+    .filter((r) => !hasPublishedLocale(r.locales))
+    .map((r) => Number(r.id)),
 )
-/** Selected drafts the endpoint would actually change; the rest report zero. */
+/** Selected keys the endpoint would actually change; the rest report zero. */
 const selectedPublishableIds = computed<number[]>(() =>
   selectedRows.value
-    .filter((r) => r.dirty && hasUnpublishedDraft(r.locales))
+    .filter((r) => hasUnpublishedDraft(r.locales))
     .map((r) => Number(r.id)),
 )
 const selectedPublishedIds = computed<number[]>(() =>
-  selectedRows.value.filter((r) => !r.dirty).map((r) => Number(r.id)),
+  selectedRows.value
+    .filter((r) => hasPublishedLocale(r.locales))
+    .map((r) => Number(r.id)),
 )
 
 const { status: aiStatus, refresh: refreshAiStatus } = useAiTranslateStatus(
@@ -312,12 +320,12 @@ onMounted(() => window.addEventListener('keydown', onKeydown))
 onUnmounted(() => window.removeEventListener('keydown', onKeydown))
 
 function openUnpublish(row: II18nKeyRow) {
-  if (row.dirty || !validID(curProject.value.id)) return
+  if (!hasPublishedLocale(row.locales) || !validID(curProject.value.id)) return
   unpublishModal.open({
     mode: 'warning',
-    title: 'Revert to draft',
-    message: `Revert “${formatI18nKeyDisplay(row.key)}” to draft? It will drop out of published export until you publish again.`,
-    okText: 'Revert',
+    title: 'Unpublish',
+    message: `Unpublish “${formatI18nKeyDisplay(row.key)}”? Its published text is withdrawn from export and delivery until you publish again; drafts stay.`,
+    okText: 'Unpublish',
     onOk: async (_mode, { close }) => {
       unpublishModal.patch({ loading: true })
       try {
@@ -419,8 +427,8 @@ const bulkMenuItems = computed<DropdownMenuItem[][]>(() => [
   [
     {
       label: selectedPublishedIds.value.length
-        ? `Revert ${selectedPublishedIds.value.length} published`
-        : 'Revert published',
+        ? `Unpublish ${selectedPublishedIds.value.length}`
+        : 'Unpublish',
       icon: 'i-lucide:undo-2',
       disabled: !selectedPublishedIds.value.length || publishing.value,
       onSelect: () => openBulkUnpublish(),
@@ -440,7 +448,9 @@ const bulkMenuItems = computed<DropdownMenuItem[][]>(() => [
 ])
 
 function openBulkDelete() {
-  const targets = selectedRows.value.filter((r) => r.dirty)
+  const targets = selectedRows.value.filter(
+    (r) => !hasPublishedLocale(r.locales),
+  )
   if (!targets.length) return
   const tagTotal = targets.reduce((sum, r) => sum + (r.tagCount ?? 0), 0)
   const tagHint =
@@ -492,8 +502,8 @@ function openBulkUnpublish() {
   if (!ids.length) return
   unpublishModal.open({
     mode: 'delete',
-    title: 'Revert to draft',
-    message: `Revert ${ids.length} published key(s) to draft? They will drop out of the published export until published again.`,
+    title: 'Unpublish',
+    message: `Unpublish ${ids.length} key(s)? Their published text is withdrawn from export and delivery until published again; drafts stay.`,
     onOk: async (_mode, { close }) => {
       unpublishModal.patch({ loading: true })
       try {
@@ -578,7 +588,7 @@ const transferableProjects = computed(() =>
 
 /** A copy of a published key lands published, so the confirmation says so. */
 const selectionHasPublished = computed(() =>
-  selectedRows.value.some((row) => !row.dirty)
+  selectedRows.value.some((row) => hasPublishedLocale(row.locales))
 )
 
 /** Both modes act on the whole selection — drafts and published alike. */
@@ -684,7 +694,7 @@ function reportTransfer(result: II18nTransferResult, mode: 'copy' | 'move') {
 }
 
 function openDelete(row: II18nKeyRow) {
-  if (!row.dirty) return
+  if (hasPublishedLocale(row.locales)) return
   const tagHint =
     row.tagCount > 0
       ? ` This will also delete ${row.tagCount} bound tag(s).`
@@ -1019,14 +1029,14 @@ async function unpublishKeys(keyIds: number[]) {
     if (!res) return
     if (res.updated === 0) {
       toast.add({
-        title: 'Nothing to revert',
+        title: 'Nothing to unpublish',
         description: 'The selected rows have no published text to withdraw.',
         color: 'warning',
         icon: 'i-lucide:circle-alert',
       })
     } else {
       toast.add({
-        title: 'Reverted to draft',
+        title: 'Unpublished',
         description: `${res.updated} locale row(s) unpublished`,
         color: 'success',
         icon: 'i-lucide:undo-2',

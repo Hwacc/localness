@@ -26,24 +26,33 @@ export const UNNAMED_KEYS_WHERE: Prisma.I18nKeyWhereInput = {
  * counts so a count always means "rows you would see after clicking it".
  */
 
-/**
- * Mirrors `isI18nKeyDraft` in SQL. A key is draft when it has no locale rows,
- * when nothing is published yet, or when any locale's draft differs from what
- * is published. The comparison spans two columns, so Prisma's `where` cannot
- * express it and filtering client-side would break pagination.
- */
-const DRAFT_PREDICATE = `
+/** Nothing published yet, or no locale rows at all: the badge's Draft. */
+const NEVER_PUBLISHED_PREDICATE = `
   NOT EXISTS (
     SELECT 1 FROM "LocaleValue" lv
     WHERE lv."i18n_key_id" = k."id"
       AND COALESCE(lv."published_text", '') != ''
   )
-  OR EXISTS (
+`
+
+const UNPUBLISHED_EDIT_PREDICATE = `
+  EXISTS (
     SELECT 1 FROM "LocaleValue" lv
     WHERE lv."i18n_key_id" = k."id"
       AND COALESCE(lv."draft_text", '') != COALESCE(lv."published_text", '')
   )
 `
+
+/**
+ * Mirrors `isI18nKeyDraft` in SQL: never published, or any locale's draft
+ * differs from what is published. The comparison spans two columns, so
+ * Prisma's `where` cannot express it and filtering client-side would break
+ * pagination.
+ */
+const DRAFT_PREDICATE = `(${NEVER_PUBLISHED_PREDICATE}) OR (${UNPUBLISHED_EDIT_PREDICATE})`
+
+/** Published, with unpublished edits on top: the badge's Edited. */
+const EDITED_PREDICATE = `NOT (${NEVER_PUBLISHED_PREDICATE}) AND (${UNPUBLISHED_EDIT_PREDICATE})`
 
 /** A published key with a non-source translation written against an older source sentence. */
 const OUTDATED_PREDICATE = `
@@ -98,17 +107,26 @@ export interface I18nKeyListFilters {
   includeDraftKeys: boolean
 }
 
+const STATUS_PREDICATES: Record<
+  Exclude<I18nKeyStatusFilter, I18nKeyStatusFilter.ALL>,
+  string
+> = {
+  [I18nKeyStatusFilter.DRAFT]: NEVER_PUBLISHED_PREDICATE,
+  [I18nKeyStatusFilter.EDITED]: EDITED_PREDICATE,
+  [I18nKeyStatusFilter.PUBLISHED]: `NOT (${DRAFT_PREDICATE})`,
+  [I18nKeyStatusFilter.OUTDATED]: OUTDATED_PREDICATE,
+}
+
+function isStatusFilter(raw: unknown): raw is I18nKeyStatusFilter {
+  return Object.values(I18nKeyStatusFilter).includes(raw as I18nKeyStatusFilter)
+}
+
 export function parseI18nKeyListFilters(
   query: Record<string, unknown>
 ): I18nKeyListFilters {
   return {
     q: typeof query.q === 'string' ? query.q.trim() : '',
-    status:
-      query.status === I18nKeyStatusFilter.DRAFT ||
-      query.status === I18nKeyStatusFilter.PUBLISHED ||
-      query.status === I18nKeyStatusFilter.OUTDATED
-        ? query.status
-        : I18nKeyStatusFilter.ALL,
+    status: isStatusFilter(query.status) ? query.status : I18nKeyStatusFilter.ALL,
     from: isoBound(query.from),
     to: isoBound(query.to),
     pageIds: idList(query.pageIds),
@@ -125,13 +143,7 @@ async function statusKeyIds(
 ): Promise<number[] | null> {
   if (status === I18nKeyStatusFilter.ALL) return null
   const rows = await prisma.$queryRawUnsafe<{ id: number }[]>(
-    `SELECT k."id" FROM "I18nKey" k WHERE k."project_id" = ? AND (${
-      status === I18nKeyStatusFilter.DRAFT
-        ? DRAFT_PREDICATE
-        : status === I18nKeyStatusFilter.OUTDATED
-          ? OUTDATED_PREDICATE
-          : `NOT (${DRAFT_PREDICATE})`
-    })`,
+    `SELECT k."id" FROM "I18nKey" k WHERE k."project_id" = ? AND (${STATUS_PREDICATES[status]})`,
     projectId
   )
   return rows.map((row) => Number(row.id))

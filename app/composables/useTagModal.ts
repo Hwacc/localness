@@ -48,9 +48,8 @@ export function useTagModal() {
       onSave: async ({ tag, settings, translation }) => {
         try {
           tagModal.patch({ loading: true })
-          /* Refused on a published entry; a failure would lose the whole save. */
-          const textEditable = translation?.dirty !== false
-          if (translation && textEditable) {
+          /* Published entries take text as drafts too; publishing stays separate. */
+          if (translation) {
             /* Edits land on the bound entry; `New` is what creates another. */
             /* One request: `vue` and `react` hold the same set either way. */
             const content = translation.vue ?? translation.react

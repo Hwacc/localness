@@ -8,8 +8,8 @@ import { shapeI18nKeyRow } from '#server/helper/i18n'
  * @route POST /api/projects/:id/i18n-keys/:keyId/git-sync
  * @description Include this key in Git sync, or keep it out of it.
  *
- * Deliberately not part of `PATCH /i18n-keys/:keyId`, which runs
- * `assertI18nKeyWritable` and so refuses anything published. This is a sync
+ * Deliberately not part of `PATCH /i18n-keys/:keyId`, whose renames wait for
+ * an unpublish. This is a sync
  * setting rather than content, and the keys that most need switching off are
  * exactly the published ones.
  *

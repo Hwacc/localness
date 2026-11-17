@@ -13,6 +13,7 @@ import { isTranslationOutdated } from '#shared/utils/outdated'
 import { UNGROUPED_NAMESPACE_PARAM } from '#shared/utils/namespace'
 import type {
   DeliveryBundle,
+  DeliveryKeyState,
   DeliveryKeyStates,
   DeliveryLocaleStateName,
   DeliveryMeta,
@@ -505,6 +506,79 @@ export async function listDeliveryKeys(
   return { keys: rows.map((row) => row.key), total, offset: skip, limit: take }
 }
 
+/** What `deliveryKeyState` reads from a key; select it with `DELIVERY_KEY_STATE_SELECT`. */
+export const DELIVERY_KEY_STATE_SELECT = {
+  id: true,
+  key: true,
+  fingerprint: true,
+  releases: { select: { releaseId: true } },
+  locales: {
+    select: {
+      locale: true,
+      draftText: true,
+      publishedText: true,
+      sourceFingerprint: true,
+    },
+  },
+} as const
+
+export interface DeliveryKeyStateRow {
+  id: number
+  key: string
+  fingerprint: string
+  releases: { releaseId: number }[]
+  locales: {
+    locale: string
+    draftText: string | null
+    publishedText: string | null
+    sourceFingerprint: string
+  }[]
+}
+
+/** One key in the `/keys/states` shape; the rules are on `deliveryKeyStates`. */
+export function deliveryKeyState(
+  row: DeliveryKeyStateRow,
+  sourceLocale: string,
+  wanted: string[]
+): DeliveryKeyState {
+  const keyIsDraft = isI18nKeyDraft(row.locales)
+  const byLocale = new Map(row.locales.map((value) => [value.locale, value]))
+  const locales: DeliveryKeyState['locales'] = {}
+  for (const locale of wanted) {
+    const value = byLocale.get(locale)
+    const draftText = value?.draftText ?? null
+    const publishedText = value?.publishedText ?? null
+    let state: DeliveryLocaleStateName
+    if (!hasPublishedText(publishedText)) {
+      state = 'unpublished'
+    } else if (
+      isTranslationOutdated({
+        locale,
+        sourceLocale,
+        draftText,
+        publishedText,
+        sourceFingerprint: value?.sourceFingerprint ?? '',
+        keyFingerprint: row.fingerprint,
+        keyIsDraft,
+      })
+    ) {
+      state = 'outdated'
+    } else if ((draftText ?? '') !== publishedText) {
+      state = 'draft'
+    } else {
+      state = 'published'
+    }
+    locales[locale] = { draftText, publishedText, state }
+  }
+  return {
+    id: row.id,
+    key: row.key,
+    releaseIds: row.releases.map((release) => release.releaseId),
+    draft: keyIsDraft,
+    locales,
+  }
+}
+
 /**
  * Per-key, per-locale draft/published/outdated state, drafts included. The one
  * read-scope route that exposes draft text; every other delivery shape is
@@ -517,7 +591,7 @@ export async function listDeliveryKeys(
 export async function deliveryKeyStates(
   projectId: number,
   scope: DeliveryScope,
-  params: { locales?: string[]; offset?: number; limit?: number }
+  params: { locales?: string[]; keys?: string[]; offset?: number; limit?: number }
 ): Promise<DeliveryKeyStates> {
   const skip = clampOffset(params.offset)
   const take = clampListLimit(params.limit)
@@ -526,7 +600,11 @@ export async function deliveryKeyStates(
     projectLocales(projectId),
   ])
   const wanted = params.locales?.length ? params.locales : configured
-  const where = { projectId, ...scopeWhere(scope) }
+  const where = {
+    projectId,
+    ...scopeWhere(scope),
+    ...(params.keys?.length ? { key: { in: params.keys } } : {}),
+  }
   const [total, rows] = await Promise.all([
     prisma.i18nKey.count({ where }),
     prisma.i18nKey.findMany({
@@ -534,61 +612,11 @@ export async function deliveryKeyStates(
       orderBy: { key: 'asc' },
       skip,
       take,
-      select: {
-        id: true,
-        key: true,
-        fingerprint: true,
-        releases: { select: { releaseId: true } },
-        locales: {
-          select: {
-            locale: true,
-            draftText: true,
-            publishedText: true,
-            sourceFingerprint: true,
-          },
-        },
-      },
+      select: DELIVERY_KEY_STATE_SELECT,
     }),
   ])
 
-  const keys = rows.map((row) => {
-    const keyIsDraft = isI18nKeyDraft(row.locales)
-    const byLocale = new Map(row.locales.map((value) => [value.locale, value]))
-    const locales: DeliveryKeyStates['keys'][number]['locales'] = {}
-    for (const locale of wanted) {
-      const value = byLocale.get(locale)
-      const draftText = value?.draftText ?? null
-      const publishedText = value?.publishedText ?? null
-      let state: DeliveryLocaleStateName
-      if (!hasPublishedText(publishedText)) {
-        state = 'unpublished'
-      } else if (
-        isTranslationOutdated({
-          locale,
-          sourceLocale,
-          draftText,
-          publishedText,
-          sourceFingerprint: value?.sourceFingerprint ?? '',
-          keyFingerprint: row.fingerprint,
-          keyIsDraft,
-        })
-      ) {
-        state = 'outdated'
-      } else if ((draftText ?? '') !== publishedText) {
-        state = 'draft'
-      } else {
-        state = 'published'
-      }
-      locales[locale] = { draftText, publishedText, state }
-    }
-    return {
-      id: row.id,
-      key: row.key,
-      releaseIds: row.releases.map((release) => release.releaseId),
-      draft: keyIsDraft,
-      locales,
-    }
-  })
+  const keys = rows.map((row) => deliveryKeyState(row, sourceLocale, wanted))
 
   return {
     sourceLocale,

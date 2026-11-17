@@ -193,14 +193,7 @@ watch(focused, async (id) => {
                 class="size-3 shrink-0 text-warning"
               />
             </UTooltip>
-            <UBadge
-              class="ml-auto shrink-0"
-              :color="row.dirty ? 'warning' : 'success'"
-              variant="subtle"
-              size="sm"
-            >
-              {{ row.dirty ? 'Draft' : 'Published' }}
-            </UBadge>
+            <I18nKeyStatusBadge class="ml-auto shrink-0" :locales="row.locales" />
           </div>
           <div class="flex items-center gap-2">
             <p

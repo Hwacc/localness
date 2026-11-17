@@ -43,8 +43,8 @@ Admin 在 **Teams** 页的队伍详情里显示为一个徽标，和 Team Owner 
 
 后面每章都会碰到 Draft 这个词，它在三个地方含义不同：
 
-- **Draft / Published** 是词条的发布状态，显示在词条表每一条的右上角。从未发布过，或任一语言的草稿与已发布不一致，就是 Draft。
-- 词条表筛选器里的 **All statuses / Draft / Published** 只决定列表显示哪些词条，不改任何东西。
+- **Draft / Edited / Published** 是词条的发布状态，显示在词条表每一条的右上角。从未发布过是 Draft；发布过、但任一语言的草稿与已发布不一致是 Edited；其余是 Published。
+- 词条表筛选器里的 **All statuses / Draft / Edited / Published / Outdated** 只决定列表显示哪些词条，不改任何东西，各项与词条右上角的状态一一对应；Outdated 指已发布、但有语言的译文落后于源语言。
 - `__unnamed_…` 是编辑器给还没命名的框自动建的占位 key，界面上显示成 `__unnamed_` 加 5 位短哈希。词条表默认把它们一并列出来，不想看就取消勾 **Show `__unnamed_` keys**；导出时选 key 的那张表相反，默认不列，勾上才有。更早建的占位 key 前缀是 `__draft_`，升级时已自动改名；改不了的（同名已存在）仍按占位 key 对待。
 
 导出和对外 API 永远只取已发布文案，草稿取不到

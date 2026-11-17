@@ -71,6 +71,7 @@ function filter(where: any): Key[] {
     const some = where.releases?.some
     if (some && !row.releaseIds.includes(some.releaseId)) return false
     if (where.id?.in && !where.id.in.includes(row.id)) return false
+    if (where.key?.in && !where.key.in.includes(row.key)) return false
     return true
   })
 }
@@ -170,6 +171,12 @@ describe('GET /api/v1/keys/states', () => {
   it('honours the locales filter', async () => {
     const { keys } = await run({ locales: 'ja, en' })
     expect(Object.keys(keys[0].locales)).toEqual(['ja', 'en'])
+  })
+
+  it('narrows to the named keys', async () => {
+    const result = await run({ keys: 'd.edited, a.published,nope' })
+    expect(result.keys.map((k: any) => k.key)).toEqual(['a.published', 'd.edited'])
+    expect(result.total).toBe(2)
   })
 
   it('pages and clamps the limit', async () => {

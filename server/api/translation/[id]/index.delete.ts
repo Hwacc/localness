@@ -3,7 +3,7 @@ import prisma from '#server/libs/prisma'
 import { numericID } from '#server/helper/id'
 import { requireI18nKeyTeamMember } from '#server/helper/access'
 import { purgeI18nKey, shapeI18nKey } from '#server/helper/i18n'
-import { isI18nKeyDraft } from '#shared/utils'
+import { hasPublishedLocale } from '#shared/utils'
 
 /**
  * @route DELETE /api/translation/:id
@@ -31,10 +31,10 @@ export default defineEventHandler(async (event) => {
       statusMessage: 'Translation not found',
     })
   }
-  if (!isI18nKeyDraft(existing.locales)) {
+  if (hasPublishedLocale(existing.locales)) {
     throw createError({
       statusCode: 409,
-      statusMessage: 'Only draft translations can be deleted',
+      statusMessage: 'Published translations cannot be deleted; unpublish first',
     })
   }
 

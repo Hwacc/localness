@@ -191,12 +191,12 @@ watch(
   }
 )
 
-function revertToDraft(member: MemberData) {
+function unpublish(member: MemberData) {
   confirmModal.open({
     mode: 'warning',
-    title: 'Revert to draft',
-    message: `“${formatI18nKeyDisplay(member.key)}” stops being published in every language — the delivery API and Git no longer serve it. Do this only if no code reads this key name, or you are about to merge it into another key.`,
-    okText: 'Revert to draft',
+    title: 'Unpublish',
+    message: `“${formatI18nKeyDisplay(member.key)}” stops being published in every language — the delivery API and Git no longer serve it; drafts stay. Do this only if no code reads this key name, or you are about to merge it into another key.`,
+    okText: 'Unpublish',
     onOk: async (_mode, { close }) => {
       try {
         await useApi(`/api/projects/${props.projectId}/unpublish`, {
@@ -761,9 +761,9 @@ const title = computed(() => {
                       color="warning"
                       variant="soft"
                       class="ml-auto shrink-0"
-                      @click="revertToDraft(member)"
+                      @click="unpublish(member)"
                     >
-                      Revert to draft
+                      Unpublish
                     </UButton>
                   </div>
                   <UCheckbox
@@ -886,15 +886,15 @@ const title = computed(() => {
               class="flex items-center gap-2 text-xs text-warning"
             >
               <UIcon name="i-lucide:lock" class="shrink-0" />
-              <span>Published — code may read this key name. Revert it to draft before deleting.</span>
+              <span>Published — code may read this key name. Unpublish it before deleting.</span>
               <UButton
                 size="xs"
                 color="warning"
                 variant="soft"
                 class="ml-auto shrink-0"
-                @click="revertToDraft(lead)"
+                @click="unpublish(lead)"
               >
-                Revert to draft
+                Unpublish
               </UButton>
             </div>
             <UButton

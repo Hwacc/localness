@@ -32,10 +32,13 @@ export enum NotificationAction {
   NONE = 'none',
 }
 
-/** Status filter on the translations table. Not stored — a query option only. */
+/** Status filter on the translations table, matching the key badge. Not stored — a query option only. */
 export enum I18nKeyStatusFilter {
   ALL = 'all',
+  /** Never published. */
   DRAFT = 'draft',
+  /** Published, with unpublished edits. */
+  EDITED = 'edited',
   PUBLISHED = 'published',
   OUTDATED = 'outdated',
 }

@@ -72,7 +72,7 @@ export default defineEventHandler(async (event) => {
   if (published.length) {
     throw createError({
       statusCode: 409,
-      statusMessage: `Revert to draft before merging: ${published.map((c) => c.key).join(', ')}`,
+      statusMessage: `Unpublish before merging: ${published.map((c) => c.key).join(', ')}`,
     })
   }
 

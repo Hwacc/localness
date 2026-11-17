@@ -5,7 +5,6 @@ import { readZodBody } from '#server/helper/validate'
 import { LogAction, LogStatus } from '#shared/constants/log'
 import { requireI18nKeyTeamMember } from '#server/helper/access'
 import {
-  assertI18nKeyWritable,
   shapeI18nKey,
   sourceLocaleOf,
   upsertLocaleDrafts,
@@ -41,7 +40,6 @@ export default defineEventHandler(async (event) => {
       statusMessage: 'Translation not found',
     })
   }
-  assertI18nKeyWritable(existing.locales)
   const sourceLocale = await sourceLocaleOf(existing.projectId)
   const content = body.vue || body.react
   const sourceText = String(content?.[sourceLocale] ?? '').trim()

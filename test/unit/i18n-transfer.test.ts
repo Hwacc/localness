@@ -308,7 +308,7 @@ describe('transferKeys — copy', () => {
   })
 
   it('allows a published key through', async () => {
-    // `assertI18nKeyWritable` would 409 here; a transfer must not consult it.
+    // Rename and delete refuse a published key; a transfer must not consult that.
     db.keys.push(
       key({
         id: 1,

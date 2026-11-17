@@ -79,7 +79,7 @@ export function suggestKeeper(
 
 /**
  * Why a member cannot be merged away, or null. A published key must be
- * reverted to draft first — deleting it would break whatever reads its name.
+ * unpublished first — deleting it would break whatever reads its name.
  */
 export function mergeBlockReason(
   candidate: Pick<MergeCandidate, 'locales'>

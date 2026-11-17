@@ -109,6 +109,24 @@ export type DeliveryLocaleStateName = z.infer<
   typeof deliveryLocaleStateNameSchema
 >
 
+/** One key as `/keys/states` lists it; the key write routes answer with it too. */
+export const deliveryKeyStateSchema = z.object({
+  id: z.number(),
+  key: z.string(),
+  releaseIds: z.array(z.number()),
+  /** True while the key still has unpublished edits or was never published. */
+  draft: z.boolean(),
+  locales: z.record(
+    z.string(),
+    z.object({
+      draftText: z.string().nullable(),
+      publishedText: z.string().nullable(),
+      state: deliveryLocaleStateNameSchema,
+    })
+  ),
+})
+export type DeliveryKeyState = z.infer<typeof deliveryKeyStateSchema>
+
 /**
  * `GET /api/v1/keys/states` — per-key, per-locale state, drafts included.
  * Unlike every other delivery shape this carries draft text: a read token sees
@@ -116,23 +134,7 @@ export type DeliveryLocaleStateName = z.infer<
  */
 export const deliveryKeyStatesSchema = z.object({
   sourceLocale: z.string(),
-  keys: z.array(
-    z.object({
-      id: z.number(),
-      key: z.string(),
-      releaseIds: z.array(z.number()),
-      /** True while the key still has unpublished edits or was never published. */
-      draft: z.boolean(),
-      locales: z.record(
-        z.string(),
-        z.object({
-          draftText: z.string().nullable(),
-          publishedText: z.string().nullable(),
-          state: deliveryLocaleStateNameSchema,
-        })
-      ),
-    })
-  ),
+  keys: z.array(deliveryKeyStateSchema),
   /** Keys in scope, before paging. */
   total: z.number(),
   offset: z.number(),

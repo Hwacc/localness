@@ -27,8 +27,8 @@ export function useTranslationGenerator() {
   const conflict = shallowRef<{
     existingText: string
     newText: string
-    /** Published entries are read-only until reverted to draft. */
-    editable: boolean
+    /** The edit lands as a draft; a published entry serves its old text until republished. */
+    published: boolean
     update: () => void
   } | null>(null)
 
@@ -81,21 +81,17 @@ export function useTranslationGenerator() {
               {diff && (
                 <UTooltip
                   text={
-                    diff.editable
-                      ? 'Link this tag to the existing entry and replace its source text with the new text.'
-                      : 'The existing entry is published. Revert it to draft to change its text.'
+                    diff.published
+                      ? 'Link this tag to the existing entry and save the new text as its source draft. The published text stays live until you publish again.'
+                      : 'Link this tag to the existing entry and replace its source text with the new text.'
                   }
                 >
-                  {/* A disabled button gets no pointer events; the span keeps the tooltip. */}
-                  <span>
-                    <UButton
-                      label="Use Existing & Update"
-                      color="warning"
-                      variant="outline"
-                      disabled={!diff.editable}
-                      onClick={diff.update}
-                    />
-                  </span>
+                  <UButton
+                    label="Use Existing & Update"
+                    color="warning"
+                    variant="outline"
+                    onClick={diff.update}
+                  />
                 </UTooltip>
               )}
               <UTooltip
@@ -159,7 +155,7 @@ export function useTranslationGenerator() {
             : {
                 existingText,
                 newText,
-                editable: existing.dirty !== false,
+                published: existing.published === true,
                 update: async () => {
                   try {
                     alertModal.patch({ loading: true })

@@ -21,8 +21,10 @@ export interface ITranslation extends Record<string, any> {
   updatedAt?: string
   vue?: TranslationContent
   react?: TranslationContent
-  /** False once published: the entry is read-only until it is reverted to draft. */
+  /** True while any locale has unpublished text. */
   dirty?: boolean
+  /** Some locale is published: text edits land as drafts, the key cannot be renamed. */
+  published?: boolean
   /** Release labels of this entry. Absent on the client means "not loaded". */
   releaseIds?: number[]
 }
