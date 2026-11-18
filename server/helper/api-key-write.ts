@@ -15,6 +15,7 @@ import {
   deliveryKeyState,
   projectLocales,
 } from '#server/helper/api-delivery'
+import { assertReleaseIdsInProject, throwReleaseHttp } from '#server/helper/release'
 
 /**
  * The key writes behind `/api/v1/keys`: what an IDE plugin needs to turn text in
@@ -76,6 +77,7 @@ export async function createKeyFromSource(params: {
   via?: WriteClient
   key?: string
   sourceText: string
+  releaseId?: number
 }): Promise<KeyWriteResult> {
   const sourceText = params.sourceText.trim()
   const named = params.key?.trim() || undefined
@@ -84,6 +86,12 @@ export async function createKeyFromSource(params: {
       statusCode: 400,
       statusMessage: `"${UNNAMED_KEY_PREFIX}" is reserved for unnamed keys; omit the key instead`,
     })
+  }
+  if (params.releaseId !== undefined) {
+    await assertReleaseIdsInProject({
+      projectId: params.projectId,
+      releaseIds: [params.releaseId],
+    }).catch(throwReleaseHttp)
   }
   const sourceLocale = await sourceLocaleOf(params.projectId)
   const wanted = await stateLocales(params.projectId, sourceLocale)
@@ -126,7 +134,14 @@ export async function createKeyFromSource(params: {
   }
 
   const record = await prisma.i18nKey.create({
-    data: { projectId: params.projectId, key: name, fingerprint },
+    data: {
+      projectId: params.projectId,
+      key: name,
+      fingerprint,
+      ...(params.releaseId !== undefined && {
+        releases: { create: { releaseId: params.releaseId } },
+      }),
+    },
     select: { id: true },
   })
   await writeSourceText({

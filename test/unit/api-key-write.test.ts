@@ -11,7 +11,13 @@ type Value = {
   publishedText: string | null
   sourceFingerprint: string
 }
-type Key = { id: number; projectId: number; key: string; fingerprint: string }
+type Key = {
+  id: number
+  projectId: number
+  key: string
+  fingerprint: string
+  releaseIds?: number[]
+}
 
 const db = vi.hoisted(() => ({
   keys: [] as Key[],
@@ -24,7 +30,7 @@ function loadKey(row: Key | undefined) {
   if (!row) return null
   return {
     ...row,
-    releases: [],
+    releases: (row.releaseIds ?? []).map((releaseId) => ({ releaseId })),
     locales: db.values.filter((value) => value.i18nKeyId === row.id),
   }
 }
@@ -43,8 +49,12 @@ vi.mock('#server/libs/prisma', () => ({
     i18nKey: {
       findUnique: async ({ where }: any) => loadKey(findKey(where)),
       findUniqueOrThrow: async ({ where }: any) => loadKey(findKey(where))!,
-      create: async ({ data }: any) => {
-        const row = { id: db.nextId++, ...data }
+      create: async ({ data: { releases, ...data } }: any) => {
+        const row = {
+          id: db.nextId++,
+          ...data,
+          releaseIds: releases ? [releases.create.releaseId] : [],
+        }
         db.keys.push(row)
         return row
       },
@@ -73,6 +83,9 @@ vi.mock('#server/libs/prisma', () => ({
     },
     translationLog: {
       create: async ({ data }: any) => db.logs.push(data),
+    },
+    projectRelease: {
+      findMany: async () => [{ id: 5 }],
     },
   },
 }))
@@ -143,6 +156,36 @@ describe('createKeyFromSource', () => {
     expect(second.created).toBe(false)
     expect(second.key.id).toBe(first.key.id)
     expect(db.keys).toHaveLength(2)
+  })
+
+  it('labels a key it creates, never a reused one, and refuses a foreign release', async () => {
+    const created = await createKeyFromSource({
+      projectId: 1,
+      userId: 7,
+      key: 'home.cta',
+      sourceText: 'Buy now',
+      releaseId: 5,
+    })
+    expect(created.key.releaseIds).toEqual([5])
+    await createKeyFromSource({ projectId: 1, userId: 7, sourceText: 'Buy' })
+    const reused = await createKeyFromSource({
+      projectId: 1,
+      userId: 7,
+      sourceText: 'Buy',
+      releaseId: 5,
+    })
+    expect(reused.created).toBe(false)
+    expect(reused.key.releaseIds).toEqual([])
+    await expect(
+      createKeyFromSource({
+        projectId: 1,
+        userId: 7,
+        key: 'home.other',
+        sourceText: 'Other',
+        releaseId: 9,
+      }),
+    ).rejects.toMatchObject({ statusCode: 400 })
+    expect(db.keys).toHaveLength(3)
   })
 
   it('refuses a name the project has, and the reserved prefix', async () => {

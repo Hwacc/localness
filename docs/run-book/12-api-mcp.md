@@ -81,8 +81,8 @@
 | `POST /api/v1/match`          | 一批图层文字对上哪些已有词条：图层文字等于草稿或已发布任一份都算命中。命中的 `sourceText` 是草稿（没有草稿时用已发布），`draft` 表示该词条源语言还没有发布过 |
 | `GET /api/v1/pages/:id`       | Capture 读：这一页的 tag、草稿源文、page 和词条上的发行标签。Preview 只读这份绑定，不在这里改 key |
 | `POST /api/v1/releases`       | 新建发行标签。Project Owner，write token |
-| `POST /api/v1/release-membership` | 给 page 或词条追加 / 摘掉一个发行。不删内容 |
-| `POST /api/v1/keys`           | 从一句硬编码文字建词条，写 token。body `{ key?, sourceText }`：给了 `key` 时源语言**直接发布**（这句话本来就在代码里上线了，不发布反而让页面显示 key 名），之后的修改都是草稿。不给 `key` 时建一条 `__unnamed_` 占位，只写草稿、不发布（同一句话再建会复用，返回 `created: false`）；给的名字已被占用报 409。返回 `{ sourceLocale, created, key }`，`key` 是和 `/keys/states` 同形的一条状态 |
+| `POST /api/v1/release-membership` | 给 page 或词条追加 / 摘掉一个发行，写 token 即可。body `{ releaseId, kind: 'page' \| 'key', ids, mode: 'add' \| 'remove' }`，重复追加不报错。不删内容 |
+| `POST /api/v1/keys`           | 从一句硬编码文字建词条，写 token。body `{ key?, sourceText, releaseId? }`：给了 `key` 时源语言**直接发布**（这句话本来就在代码里上线了，不发布反而让页面显示 key 名），之后的修改都是草稿。不给 `key` 时建一条 `__unnamed_` 占位，只写草稿、不发布（同一句话再建会复用，返回 `created: false`）；给的名字已被占用报 409。`releaseId` 只给本次**新建**的词条打发行标签，复用的占位不动标签；不是本项目的发行报 400。返回 `{ sourceLocale, created, key }`，`key` 是和 `/keys/states` 同形的一条状态 |
 | `PATCH /api/v1/keys`          | 改一条词条的草稿，写 token，**已发布的也能改**。body `{ key, locales: { <语言>: { text, expected } } }`。`expected` 是你上次读到的草稿（没有就填 `""`），任何一个语言对不上就整单 409，`data` 里是 `{ locales: [对不上的语言], key: 当前状态 }`，什么都不写。源语言不能清空。返回同 `POST` |
 | `POST /api/v1/keys/suggest-name` | 按项目的命名规范让 AI 给一句话起 key 名，写 token（花项目的 AI 额度），不落库 |
 

@@ -86,6 +86,8 @@ const API_V1_KEY_NAME = z.string().trim().min(1).max(200)
 export const zApiV1KeyCreate = z.object({
   key: API_V1_KEY_NAME.optional(),
   sourceText: z.string().trim().min(1).max(10_000),
+  /** A release label for a key this request creates; a reused key keeps its labels. */
+  releaseId: z.number().int().positive().optional(),
 })
 export type ZApiV1KeyCreate = z.infer<typeof zApiV1KeyCreate>
 
