@@ -1,14 +1,15 @@
 /**
- * Key namespaces: a project's declared key groups. Names are relative to the
- * project's key prefix: a key belongs to the namespace that what follows its
- * prefix starts with, followed by a boundary character — derived from the key
- * on every read, never stored, so renaming a key regroups it.
- *
- * Any boundary counts, not just the project's `keySeparator`: imports flatten
- * nested JSON with `.`, so one project routinely holds both `s2w_a` and `s2w.a`.
+ * Key namespaces: a project's declared key groups. Membership is derived from
+ * the key on every read, never stored, so renaming a key regroups it. The
+ * matching rule itself lives in the contract, which clients share.
  */
+import {
+  NAMESPACE_BOUNDARY,
+  namespaceOf,
+  stripProjectPrefix
+} from '../contract/key-namespace'
 
-export const NAMESPACE_BOUNDARY = ['_', '.', '-', ':', '/'] as const
+export { NAMESPACE_BOUNDARY, namespaceOf, stripProjectPrefix }
 
 const BOUNDARY = new Set<string>(NAMESPACE_BOUNDARY)
 
@@ -22,39 +23,6 @@ export type NamespaceFilterValue = 'all' | 'ungrouped' | 'unnamed' | number
 /** The API's spelling of "keys in no namespace". A name cannot start with `_`. */
 export const UNGROUPED_NAMESPACE_PARAM = '__ungrouped__'
 
-function startsWithBoundary(text: string, head: string) {
-  return Boolean(head) && text.startsWith(head) && BOUNDARY.has(text.charAt(head.length))
-}
-
-/**
- * The key without the project's prefix and the boundary after it. A key that
- * does not carry the prefix comes back whole, so imported or legacy keys still
- * group by the same relative names.
- */
-export function stripProjectPrefix(key: string, projectPrefix: string): string {
-  return startsWithBoundary(key, projectPrefix)
-    ? key.slice(projectPrefix.length + 1)
-    : key
-}
-
-/**
- * Names are relative to the project prefix. Case-sensitive, like keys. The
- * longest name wins should two ever both match.
- */
-export function namespaceOf(
-  key: string,
-  names: readonly string[],
-  projectPrefix: string
-): string | null {
-  const path = stripProjectPrefix(key, projectPrefix)
-  let best: string | null = null
-  for (const name of names) {
-    if (!startsWithBoundary(path, name)) continue
-    if (!best || name.length > best.length) best = name
-  }
-  return best
-}
-
 /** Everything before the first boundary; `''` when the text starts with one. */
 export function firstSegment(text: string): string {
   const index = [...text].findIndex((char) => BOUNDARY.has(char))
@@ -64,18 +32,18 @@ export function firstSegment(text: string): string {
 /** Two names overlap when keys of one would also match the other. */
 function namesOverlap(a: string, b: string) {
   const [short, long] = a.length <= b.length ? [a, b] : [b, a]
-  return startsWithBoundary(long, short)
+  return namespaceOf(long, [short], '') === short
 }
 
-export type NamespaceNameRejection = 'empty' | 'charset' | 'duplicate' | 'overlap'
+export type NamespaceNameRejection =
+  'empty' | 'charset' | 'duplicate' | 'overlap'
 
 export const NAMESPACE_NAME_MESSAGES: Record<NamespaceNameRejection, string> = {
   empty: 'A namespace name is required',
   charset:
     'Use letters and digits, optionally joined by _ . - : / — no spaces, and not starting or ending with a separator',
   duplicate: 'A namespace with this name already exists',
-  overlap:
-    'Overlaps an existing namespace — one would contain the other’s keys',
+  overlap: 'Overlaps an existing namespace — one would contain the other’s keys'
 }
 
 const NAME_PATTERN = /^[A-Za-z0-9](?:[A-Za-z0-9_.\-:/]*[A-Za-z0-9])?$/

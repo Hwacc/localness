@@ -1,6 +1,7 @@
 import { z } from 'zod/v4'
 import { projectReleaseSchema } from './release'
 import { keyNamespaceSchema } from './namespace'
+import { KEY_STYLE_VALUES } from './key-convention'
 
 /**
  * Response shapes of the public `/api/v1` delivery API. Callers outside the
@@ -27,6 +28,21 @@ export const deliveryOutdatedSchema = z.object({
 })
 export type DeliveryOutdated = z.infer<typeof deliveryOutdatedSchema>
 
+/**
+ * The project's key naming rules, for clients that name keys themselves and
+ * group them by namespace (`checkI18nKey` and `namespaceOf` in `/rules`).
+ * `prefix` is without its trailing separator; `''` means no prefix.
+ */
+export const deliveryKeyConventionSchema = z.object({
+  prefix: z.string(),
+  separator: z.string(),
+  style: z.enum(KEY_STYLE_VALUES),
+  maxDepth: z.number(),
+  /** The project's naming guidance, or null when unset. */
+  guidance: z.string().nullable(),
+})
+export type DeliveryKeyConvention = z.infer<typeof deliveryKeyConventionSchema>
+
 /** `GET /api/v1/meta` — what a caller holding only a token learns first. */
 export const deliveryMetaSchema = z.object({
   project: z.object({ id: z.number(), name: z.string() }),
@@ -45,6 +61,8 @@ export const deliveryMetaSchema = z.object({
   namespace: z.string().nullable().optional(),
   /** The names `?namespace=` accepts, in display order. */
   namespaces: z.array(keyNamespaceSchema).optional(),
+  /** Optional: servers before it omit it. */
+  keyConvention: deliveryKeyConventionSchema.optional(),
   coverage: z.object({
     keys: z.number(),
     projectKeys: z.number(),

@@ -7,6 +7,7 @@ import {
 } from '#server/helper/release'
 import { listNamespaces, namespaceKeyIds } from '#server/helper/namespace'
 import { sourceLocaleOf } from '#server/helper/i18n'
+import { toKeyConvention } from '#server/helper/key-convention'
 import { DEFAULT_LOCALE_FALLBACK } from '#shared/constants'
 import { isI18nKeyDraft } from '#shared/utils'
 import { isTranslationOutdated } from '#shared/utils/outdated'
@@ -303,6 +304,10 @@ export async function deliveryMeta(
     namespace: scope.namespace,
     /** The names `?namespace=` accepts, in display order. */
     namespaces,
+    keyConvention: {
+      ...toKeyConvention(project.settings),
+      guidance: project.settings?.prompt || null,
+    },
     coverage: {
       keys: scopedKeys,
       projectKeys: totalKeys,

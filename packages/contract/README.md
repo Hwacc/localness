@@ -10,6 +10,18 @@ const meta: DeliveryMeta = deliveryMetaSchema.parse(await res.json())
 
 `zod` ^4 is a peer dependency.
 
+## Rules
+
+`@localness/contract/rules` holds the pure rules a client must apply the way the server does: `fpTranslation` (the text fingerprint behind unnamed keys), `checkI18nKey` (why a key name breaks the project's key convention, with `KEY_VIOLATION_TEXT`) and `namespaceOf` (which declared namespace a key belongs to: names are relative to the project's key prefix). The convention and the namespace names come from `GET /api/v1/meta` (`keyConvention`, `namespaces`). It does not need `zod`.
+
+```ts
+import { checkI18nKey, namespaceOf } from '@localness/contract/rules'
+
+const { keyConvention, namespaces } = meta
+checkI18nKey('shop_login_title', keyConvention) // []
+namespaceOf('shop_login_title', namespaces.map((ns) => ns.name), keyConvention.prefix) // 'login'
+```
+
 ## Locale files
 
 `@localness/contract/locale-file` reads and writes one-JSON-per-locale files exactly as Localness git-sync does: flat or nested keys, edits in place (key order, indentation, comments and line endings are kept), new keys appended. The `localness` CLI uses it, so a file written by either one is identical. It does not need `zod`.

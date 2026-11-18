@@ -2,9 +2,10 @@ import { z } from 'zod/v4'
 import { idSchema } from './release'
 
 /**
- * A declared key namespace. Keys are grouped by name — a key belongs to the
- * namespace it starts with, followed by a separator — so this carries no list
- * of keys and never renames one.
+ * A declared key namespace. Keys are grouped by name — after the project's key
+ * prefix, a key belongs to the namespace it starts with, followed by a boundary
+ * (`namespaceOf` in `/rules`) — so this carries no list of keys and never
+ * renames one.
  */
 export const keyNamespaceSchema = z.object({
   id: idSchema,

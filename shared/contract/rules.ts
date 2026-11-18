@@ -1,5 +1,8 @@
 import SparkMD5 from 'spark-md5'
 
+export * from './key-convention'
+export * from './key-namespace'
+
 /**
  * Rules a client must apply the same way the server does. A draft key is named
  * after the text it was created from, so a plugin and the server that disagree

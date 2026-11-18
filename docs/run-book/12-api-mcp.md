@@ -72,7 +72,7 @@
 | 端点                            | 返回                                                                               |
 | ------------------------------- | ---------------------------------------------------------------------------------- |
 | `GET /api/v1/projects`        | **这枚 token 现在能碰哪些项目**。只凭 token 的调用方从这里开始                     |
-| `GET /api/v1/meta`            | 语言列表、`localeFallback`、可用的 release 和 namespace、以及**每个语言有多少条已发布** |
+| `GET /api/v1/meta`            | 语言列表、`localeFallback`、可用的 release 和 namespace、项目的 key 命名规范 `keyConvention`（`prefix`、`separator`、`style`、`maxDepth` 和项目命名指引 `guidance`，给本地起名、按 namespace 分组的客户端），以及**每个语言有多少条已发布** |
 | `GET /api/v1/locales/:locale` | 一个语言的扁平`{ key: text }`                                                    |
 | `GET /api/v1/bundle`          | 一次拿到全部语言：`{ locale: { key: text } }`。只有已发布 |
 | `GET /api/v1/outdated`        | 哪些语言的哪些 key 译文是对着旧源文翻的。只是标记，句子仍在 `/bundle` |
@@ -85,7 +85,6 @@
 | `POST /api/v1/keys`           | 从一句硬编码文字建词条，写 token。body `{ key?, sourceText, releaseId? }`：给了 `key` 时源语言**直接发布**（这句话本来就在代码里上线了，不发布反而让页面显示 key 名），之后的修改都是草稿。不给 `key` 时建一条 `__unnamed_` 占位，只写草稿、不发布（同一句话再建会复用，返回 `created: false`）；给的名字已被占用报 409。`releaseId` 只给本次**新建**的词条打发行标签，复用的占位不动标签；不是本项目的发行报 400。返回 `{ sourceLocale, created, key }`，`key` 是和 `/keys/states` 同形的一条状态 |
 | `PATCH /api/v1/keys`          | 改一条词条的草稿，写 token，**已发布的也能改**。body `{ key, locales: { <语言>: { text, expected } } }`。`expected` 是你上次读到的草稿（没有就填 `""`），任何一个语言对不上就整单 409，`data` 里是 `{ locales: [对不上的语言], key: 当前状态 }`，什么都不写。源语言不能清空。返回同 `POST` |
 | `POST /api/v1/keys/suggest-name` | 按项目的命名规范让 AI 给一句话起 key 名，写 token（花项目的 AI 额度），不落库 |
-| `GET /api/v1/key-convention` | 项目的 key 命名规范 `{ prefix, separator, style, maxDepth, prompt }`，写 token（`prompt` 是内部指引）。给在本地自己起名的客户端（如 agent 批量提取硬编码文字），不用每句话调一次 `suggest-name` |
 
 **什么时候要带 `?project=`：数这枚 token 当初被指定了**几个**项目**（不是"现在还能碰到几个"）。
 

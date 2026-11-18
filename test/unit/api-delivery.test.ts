@@ -14,7 +14,14 @@ const db = vi.hoisted(() => ({
   project: null as {
     id: number
     name: string
-    settings: { localeFallback: string } | null
+    settings: {
+      localeFallback: string
+      keyPrefix?: string | null
+      keySeparator?: string | null
+      keyStyle?: string | null
+      keyMaxDepth?: number | null
+      prompt?: string | null
+    } | null
   } | null,
   settings: null as { locales: unknown } | null,
   releases: [] as Array<{
@@ -225,6 +232,7 @@ const {
   WHOLE_PROJECT,
 } = await import('#server/helper/api-delivery')
 const { DEFAULT_LOCALE_FALLBACK } = await import('#shared/constants')
+const { DEFAULT_KEY_CONVENTION } = await import('#shared/utils/key-convention')
 
 const scope = (releaseId: number | null = null) => ({ ...WHOLE_PROJECT, releaseId })
 
@@ -428,6 +436,36 @@ describe('deliveryMeta', () => {
     expect((await deliveryMeta(1, scope()))?.localeFallback).toBe(
       DEFAULT_LOCALE_FALLBACK
     )
+  })
+
+  it('hands clients the project key convention and naming guidance', async () => {
+    db.project = {
+      id: 1,
+      name: 'web',
+      settings: {
+        localeFallback: 'en',
+        keyPrefix: 'shop',
+        keySeparator: '.',
+        keyStyle: 'camelCase',
+        keyMaxDepth: 3,
+        prompt: 'Name by screen.',
+      },
+    }
+    expect((await deliveryMeta(1, scope()))?.keyConvention).toEqual({
+      prefix: 'shop',
+      separator: '.',
+      style: 'camelCase',
+      maxDepth: 3,
+      guidance: 'Name by screen.',
+    })
+  })
+
+  it('falls back to the default key convention without settings', async () => {
+    db.project = { id: 1, name: 'web', settings: null }
+    expect((await deliveryMeta(1, scope()))?.keyConvention).toEqual({
+      ...DEFAULT_KEY_CONVENTION,
+      guidance: null,
+    })
   })
 
   it('returns null for a project that is gone', async () => {
