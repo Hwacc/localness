@@ -62,7 +62,22 @@ export const keyNameSuggestionSchema = z.object({
       key: z.string(),
       sourceText: z.string(),
       sameSourceText: z.boolean(),
-    })
+    }),
   ),
 })
 export type KeyNameSuggestion = z.infer<typeof keyNameSuggestionSchema>
+
+/**
+ * `GET /api/v1/key-convention` — the project's key naming rules, so a client
+ * can name keys itself instead of calling `suggest-name` once per text.
+ * `prefix` is without its trailing separator; `''` means no prefix.
+ */
+export const keyConventionSchema = z.object({
+  prefix: z.string(),
+  separator: z.string(),
+  style: z.enum(['snake_case', 'camelCase']),
+  maxDepth: z.number(),
+  /** The project's naming guidance for the AI, or null when unset. */
+  prompt: z.string().nullable(),
+})
+export type KeyConventionInfo = z.infer<typeof keyConventionSchema>
