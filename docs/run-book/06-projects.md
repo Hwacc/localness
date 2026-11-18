@@ -80,14 +80,18 @@ Project Owner 管的是这一个项目：项目设置、发行标签的增删改
 - 改项目名**不会**改已经定下的前缀，它是建项目那一刻存下来的。
 - 这套规范管的是 AI 生成的 key 长什么样、以及生成后的合规检查。手写的 key 不会被它挡住，编辑器里会实时提示哪里不合规，但仍然能保存（第 8 章）。
 - 改了规范只影响之后生成的 key，不会回头改已有的。
-- 前缀那一行下面会提示它和 namespace 的关系：列出现有的 namespace（点一个就把它填进前缀），并告诉你按这个前缀生成的 key 会归到哪个组。归不进任何组时是一行黄字 `Keys under this prefix will be Ungrouped.`，旁边有按钮把前缀的第一段加成 namespace。
-- **新建项目时**，前缀的第一段（`s2w_hw` 里的 `s2w`）会自动建成这个项目的第一个 namespace，提示写着 `The namespace … is created with the project.`
+- **一条 key 由三段拼成**：项目前缀 + 页面的 Key Path（见下文「页面级设置」）+ AI 起的名字。以前缀 `shop`、页面路径 `login` 为例，生成出来是 `shop_login_title`。前缀说明写着 `Optional. Namespaces and page key paths sit after it.`
+- **Key Max Depth 数的是前缀之后的段数**，页面路径的段也算在里面。
+- **改已有项目的前缀时**，如果有 key 以旧前缀开头，下面会出现一条黄色提示，写明有多少条、它们不会被改名。之后新生成的 key 用新前缀；旧 key 只有在全名本身以某个 namespace 开头时才归组。
 
 ### Namespaces
 
-把词条表左栏的 key 按功能区分组用的（第 9 章）。**只是按 key 名归组，不改名、不搬家**：一条 key 的名字以某个 namespace 开头、并且紧跟 `_ . - : /` 之一，它就属于这个组——`s2w` 收 `s2w_ship_title` 和 `s2w.ship.title`，不收 `s2wx_title`，也不收恰好叫 `s2w` 的 key。哪组都不属于的落在 **Ungrouped**。
+把词条表左栏的 key 按功能区分组用的（第 9 章）。**只是按 key 名归组，不改名、不搬家**：一条 key 去掉项目前缀之后，如果以某个 namespace 开头、并且紧跟 `_ . - : /` 之一，它就属于这个组。哪组都不属于的落在 **Ungrouped**。
 
-- 下面的输入框加一个（`New namespace, e.g. s2w`）。名字首尾必须是字母或数字，中间可以夹 `_ . - : /`；**不能和已有的互为前缀边界**（有了 `s2w` 就不能再加 `s2w_hw`），否则同一条 key 会落进两个组。
+- **namespace 名是相对前缀的**。前缀是 `shop` 时，namespace `login` 收 `shop_login_title` 和 `shop.login.title`，不收 `shop_loginx_title`，也不收恰好叫 `shop_login` 的 key。
+- 不以「前缀 + 分隔符」开头的老 key 按全名匹配：前缀是 `shop` 时，`login_title` 也归 `login`。
+- 项目没有前缀时，就直接按 key 全名匹配。
+- 下面的输入框加一个（`New namespace, e.g. login`）。名字首尾必须是字母或数字，中间可以夹 `_ . - : /`；**不能和已有的互为前缀边界**（有了 `s2w` 就不能再加 `s2w_hw`），否则同一条 key 会落进两个组。
 - 点名字改名，上下箭头调顺序——左栏按这个顺序排。
 - 删除问一次 `Delete “…”? No key is renamed or deleted — its keys move to Ungrouped.`
 - 底部 `Suggested from Ungrouped keys:` 列出 Ungrouped 里最常见的第一段，点一下就加。
@@ -114,7 +118,11 @@ API 和 MCP 也能按 namespace 取（第 12 章）。
 两类设置的继承行为**不一样**，这是最容易误会的地方：
 
 - **OCR Language / OCR Engine**：建页面时从项目**抄一份**过来，之后各改各的。项目后来改了 OCR，已经建好的页面不会跟着变。
-- **key 命名规范**：这里是一个开关 **Custom key convention**。关着的时候四个字段是灰的，显示的是项目当前的值，说明写着 `Off, this page follows the project's key naming rules.`——这种继承是**活的**，项目改了规范，这一页立刻跟着变。打开开关之后填这一页自己的值（四个字段要一起填），从此这一页就固定用自己的，不再跟项目走。
+- **Key Path**：页面只有这一个与命名有关的字段，接在项目前缀后面。输入框左边灰色那截就是项目前缀加分隔符，下方会显示示例 `Generated keys look like …`。分隔符、大小写风格和最大深度都只来自项目，项目一改，这一页立刻跟着变。
+  - 留空：AI 起的名字直接接在项目前缀后面。
+  - 路径可以有多段（如 `checkout_payment`），但必须符合项目的风格，并给 AI 至少留一段；不合规时字段下面会报错，提交不了。
+  - 下面会列出现有的 namespace（点一个就填进来），并告诉你这一页生成的 key 会归到哪个组。归不进任何组时是一行黄字 `Keys under this path will be Ungrouped.`；Project Owner 旁边有按钮把路径的第一段加成 namespace，其他人看到的是 `A project owner can add … as a namespace.`
+  - 只对 AI 在这一页命名有效；手写的 key 不受影响。
 
 页面也有自己的 **Prompt** 标签页，作用同项目那层，只对这一页的框生效。
 
@@ -125,7 +133,7 @@ API 和 MCP 也能按 namespace 取（第 12 章）。
 | 建项目时**Team** 下拉是空的，或弹出 **No team** | 你还没进任何团队（第 3、5 章）                                         |
 | 找不到**Project settings**                            | 你不是这个项目的 Project Owner；Team Owner 身份不带 Project Owner 权限 |
 | **Owners** 里选不到某个人                             | 只能从本队成员里选                                                     |
-| 页面上 key 规范的四个字段是灰的                             | **Custom key convention** 关着，这一页在继承项目                 |
+| 页面 Key Path 提示 `… segments`，交不上去                   | 路径段数加上 AI 至少一段，超过了项目的 Key Max Depth             |
 | 选了 OCR 语言**Auto**，引擎自己变成 Engine 2 还变灰   | 正常，自动识别语言只有 Engine 2 支持                                   |
 | 改了项目前缀，老的 key 没变                                 | 命名规范只影响之后生成的 key                                           |
 | 找不到改语言集合的地方                                      | 目前没有这个入口，找管理员                                             |

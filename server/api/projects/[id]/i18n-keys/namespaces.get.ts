@@ -5,7 +5,7 @@ import {
   i18nKeyListWhere,
   parseI18nKeyListFilters,
 } from '#server/helper/i18n-key-list'
-import { listNamespaces } from '#server/helper/namespace'
+import { listNamespaces, projectKeyPrefix } from '#server/helper/namespace'
 import { UNNAMED_KEYS_WHERE } from '#server/helper/i18n-key-list'
 import { isUnnamedKey } from '#shared/utils'
 import { countByNamespace, namespaceSuggestions } from '#shared/utils/namespace'
@@ -38,7 +38,10 @@ export default defineEventHandler(async (event) => {
     namespace: null,
     ids: [],
   }
-  const namespaces = await listNamespaces(projectId)
+  const [namespaces, projectPrefix] = await Promise.all([
+    listNamespaces(projectId),
+    projectKeyPrefix(projectId),
+  ])
   const names = namespaces.map((ns) => ns.name)
 
   const where = await i18nKeyListWhere(projectId, filters)
@@ -54,7 +57,7 @@ export default defineEventHandler(async (event) => {
 
   const filteredKeys = filtered.map((row) => row.key)
   const named = filteredKeys.filter((key) => !isUnnamedKey(key))
-  const counts = countByNamespace(named, names)
+  const counts = countByNamespace(named, names, projectPrefix)
   const result: I18nKeyRailCounts = {
     total: filtered.length,
     ungrouped: counts.ungrouped,
@@ -64,7 +67,8 @@ export default defineEventHandler(async (event) => {
     ),
     suggestions: namespaceSuggestions(
       all.map((row) => row.key),
-      names
+      names,
+      projectPrefix
     ),
   }
   return result

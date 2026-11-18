@@ -3,6 +3,7 @@ import type { KeyConvention } from '#shared/utils/key-convention'
 import {
   DEFAULT_KEY_CONVENTION,
   checkI18nKey,
+  checkKeyPath,
   slugKeyPrefix,
 } from '#shared/utils/key-convention'
 import {
@@ -155,54 +156,32 @@ describe('resolveKeyConvention', () => {
     keyStyle: 'snake_case',
     keyMaxDepth: 4,
   }
-  const NOTHING = {
-    keyPrefix: null,
-    keySeparator: null,
-    keyStyle: null,
-    keyMaxDepth: null,
-  }
 
-  it('uses the project when the page sets nothing', () => {
-    expect(resolveKeyConvention(NOTHING, PROJECT)).toEqual({
+  it('uses the project when the page has no key path', () => {
+    const expected = {
       prefix: 'cortex',
       separator: '_',
       style: 'snake_case',
       maxDepth: 4,
+    }
+    expect(resolveKeyConvention({ keyPath: null }, PROJECT)).toEqual(expected)
+    expect(resolveKeyConvention({ keyPath: '  ' }, PROJECT)).toEqual(expected)
+  })
+
+  it('nests the page path under the project prefix and spends its depth', () => {
+    expect(resolveKeyConvention({ keyPath: 'login_form' }, PROJECT)).toEqual({
+      prefix: 'cortex_login_form',
+      separator: '_',
+      style: 'snake_case',
+      maxDepth: 2,
     })
   })
 
-  it('lets the page override the project', () => {
+  it('makes the path the whole prefix when the project has none', () => {
     expect(
-      resolveKeyConvention(
-        {
-          keyPrefix: 'app',
-          keySeparator: '.',
-          keyStyle: 'camelCase',
-          keyMaxDepth: 3,
-        },
-        PROJECT
-      )
-    ).toEqual({
-      prefix: 'app',
-      separator: '.',
-      style: 'camelCase',
-      maxDepth: 3,
-    })
-  })
-
-  it('keeps an empty prefix from the page instead of inheriting', () => {
-    // The whole reason the page columns are nullable: `''` means "no prefix",
-    // so it has to survive as a value rather than falling back to the project's.
-    expect(
-      resolveKeyConvention({ ...NOTHING, keyPrefix: '' }, PROJECT).prefix
-    ).toBe('')
-  })
-
-  it('falls back field by field when a row only sets some', () => {
-    expect(
-      resolveKeyConvention({ ...NOTHING, keyPrefix: 'app' }, PROJECT)
-        .separator
-    ).toBe('_')
+      resolveKeyConvention({ keyPath: 'login' }, { ...PROJECT, keyPrefix: '' })
+        .prefix
+    ).toBe('login')
   })
 
   it('ends at the built-in defaults when neither level has anything', () => {
@@ -223,6 +202,27 @@ describe('resolveKeyConvention', () => {
       style: DEFAULT_KEY_CONVENTION.style,
       maxDepth: DEFAULT_KEY_CONVENTION.maxDepth,
     })
+  })
+})
+
+describe('checkKeyPath', () => {
+  const PROJECT: KeyConvention = {
+    prefix: 'shop',
+    separator: '_',
+    style: 'snake_case',
+    maxDepth: 3,
+  }
+
+  it('accepts a path that leaves room for the generated tail', () => {
+    expect(checkKeyPath('login_form', PROJECT)).toEqual([])
+  })
+
+  it('rejects a path that uses the whole depth budget', () => {
+    expect(checkKeyPath('a_b_c', PROJECT)).toEqual(['depth'])
+  })
+
+  it('applies the project style to the path itself', () => {
+    expect(checkKeyPath('loginForm', PROJECT)).toEqual(['case'])
   })
 })
 

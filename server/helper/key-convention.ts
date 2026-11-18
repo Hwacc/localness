@@ -3,15 +3,15 @@ import type { KeyConvention, KeyStyle } from '#shared/utils/key-convention'
 import {
   DEFAULT_KEY_CONVENTION,
   KEY_STYLE_VALUES,
+  checkKeyPath,
+  keyPathViolationText,
+  withKeyPath,
 } from '#shared/utils/key-convention'
 
 /**
- * The four convention columns as they come off a settings row.
- *
- * Every field is nullable because the same shape covers both levels: on a
- * project row `null` is "unset, use the built-in default", and on a page row it
- * is "unset, ask the project". The empty string is *not* that signal — for the
- * prefix it is a real choice.
+ * The four convention columns as they come off a project settings row. `null`
+ * is "unset, use the built-in default". The empty string is *not* that signal —
+ * for the prefix it is a real choice.
  */
 export type KeyConventionSource = {
   keyPrefix: string | null
@@ -41,25 +41,37 @@ export function toKeyConvention(
 }
 
 /**
- * What a page actually runs on: its own convention where it has one, else the
- * project's, else the defaults.
- *
- * The fallback is per field even though the page form writes all four together
- * or leaves all four alone — a row written outside the API should not be able
- * to produce a half-defined convention, and per field is what makes it safe.
- * Note `''` survives both levels: a page that customises to an empty prefix
- * means "no prefix", not "ask the project".
+ * What a page actually runs on: the project's convention, with the page's key
+ * path appended to the prefix. A page can only add segments, never replace or
+ * drop the project's prefix, so every key it names still passes the project's
+ * own check.
  */
 export function resolveKeyConvention(
-  page: KeyConventionSource | null | undefined,
+  page: { keyPath: string | null } | null | undefined,
   project: KeyConventionSource | null | undefined
 ): KeyConvention {
-  return toKeyConvention({
-    keyPrefix: page?.keyPrefix ?? project?.keyPrefix ?? null,
-    keySeparator: page?.keySeparator ?? project?.keySeparator ?? null,
-    keyStyle: page?.keyStyle ?? project?.keyStyle ?? null,
-    keyMaxDepth: page?.keyMaxDepth ?? project?.keyMaxDepth ?? null,
-  })
+  return withKeyPath(toKeyConvention(project), page?.keyPath)
+}
+
+/**
+ * The page key path to store: trimmed, `null` for none. A path the project's
+ * convention rejects is a 400 — the page would hand the AI a start that every
+ * key it names then fails.
+ */
+export function normalizeKeyPath(
+  path: string | null | undefined,
+  project: KeyConventionSource | null | undefined
+): string | null {
+  const trimmed = path?.trim()
+  if (!trimmed) return null
+  const violations = checkKeyPath(trimmed, toKeyConvention(project))
+  if (violations.length) {
+    throw createError({
+      statusCode: 400,
+      statusMessage: `Invalid key path: ${violations.map(keyPathViolationText).join('; ')}`,
+    })
+  }
+  return trimmed
 }
 
 /**

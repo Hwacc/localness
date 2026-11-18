@@ -360,10 +360,7 @@ describe('createPageWithTags', () => {
     expect(settings).toMatchObject({
       ocrLanguage: 'jpn',
       ocrEngine: 2,
-      keyPrefix: null,
-      keySeparator: null,
-      keyStyle: null,
-      keyMaxDepth: null,
+      keyPath: null,
     })
   })
 

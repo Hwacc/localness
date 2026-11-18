@@ -1,7 +1,8 @@
 /**
- * Key namespaces: a project's declared key groups. A key belongs to the
- * namespace its name starts with, followed by a boundary character — derived
- * from the key on every read, never stored, so renaming a key regroups it.
+ * Key namespaces: a project's declared key groups. Names are relative to the
+ * project's key prefix: a key belongs to the namespace that what follows its
+ * prefix starts with, followed by a boundary character — derived from the key
+ * on every read, never stored, so renaming a key regroups it.
  *
  * Any boundary counts, not just the project's `keySeparator`: imports flatten
  * nested JSON with `.`, so one project routinely holds both `s2w_a` and `s2w.a`.
@@ -21,13 +22,34 @@ export type NamespaceFilterValue = 'all' | 'ungrouped' | 'unnamed' | number
 /** The API's spelling of "keys in no namespace". A name cannot start with `_`. */
 export const UNGROUPED_NAMESPACE_PARAM = '__ungrouped__'
 
-/** Case-sensitive, like keys. The longest name wins should two ever both match. */
-export function namespaceOf(key: string, names: readonly string[]): string | null {
+function startsWithBoundary(text: string, head: string) {
+  return Boolean(head) && text.startsWith(head) && BOUNDARY.has(text.charAt(head.length))
+}
+
+/**
+ * The key without the project's prefix and the boundary after it. A key that
+ * does not carry the prefix comes back whole, so imported or legacy keys still
+ * group by the same relative names.
+ */
+export function stripProjectPrefix(key: string, projectPrefix: string): string {
+  return startsWithBoundary(key, projectPrefix)
+    ? key.slice(projectPrefix.length + 1)
+    : key
+}
+
+/**
+ * Names are relative to the project prefix. Case-sensitive, like keys. The
+ * longest name wins should two ever both match.
+ */
+export function namespaceOf(
+  key: string,
+  names: readonly string[],
+  projectPrefix: string
+): string | null {
+  const path = stripProjectPrefix(key, projectPrefix)
   let best: string | null = null
   for (const name of names) {
-    if (!name || !key.startsWith(name) || !BOUNDARY.has(key.charAt(name.length))) {
-      continue
-    }
+    if (!startsWithBoundary(path, name)) continue
     if (!best || name.length > best.length) best = name
   }
   return best
@@ -42,7 +64,7 @@ export function firstSegment(text: string): string {
 /** Two names overlap when keys of one would also match the other. */
 function namesOverlap(a: string, b: string) {
   const [short, long] = a.length <= b.length ? [a, b] : [b, a]
-  return long.startsWith(short) && BOUNDARY.has(long.charAt(short.length))
+  return startsWithBoundary(long, short)
 }
 
 export type NamespaceNameRejection = 'empty' | 'charset' | 'duplicate' | 'overlap'
@@ -76,27 +98,28 @@ export function namespaceNameRejectReason(input: {
   return null
 }
 
-/** The namespace keys generated under this prefix would land in, or null for Ungrouped. */
-export function prefixNamespace(
-  prefix: string,
+/** The namespace keys generated under this page path would land in, or null for Ungrouped. */
+export function keyPathNamespace(
+  path: string,
   separator: string,
   names: readonly string[]
 ): string | null {
-  if (!prefix) return null
-  return namespaceOf(`${prefix}${separator}x`, names)
+  if (!path) return null
+  return namespaceOf(`${path}${separator}x`, names, '')
 }
 
 /** Key counts per namespace name, plus the keys in none. */
 export function countByNamespace(
   keys: readonly string[],
-  names: readonly string[]
+  names: readonly string[],
+  projectPrefix: string
 ): { byName: Record<string, number>; ungrouped: number } {
   const byName: Record<string, number> = Object.fromEntries(
     names.map((name) => [name, 0])
   )
   let ungrouped = 0
   for (const key of keys) {
-    const name = namespaceOf(key, names)
+    const name = namespaceOf(key, names, projectPrefix)
     if (name) byName[name] = (byName[name] ?? 0) + 1
     else ungrouped += 1
   }
@@ -111,15 +134,17 @@ export function countByNamespace(
 export function namespaceSuggestions(
   keys: readonly string[],
   names: readonly string[],
+  projectPrefix: string,
   options: { minCount?: number; limit?: number } = {}
 ): Array<{ name: string; count: number }> {
   const minCount = options.minCount ?? 2
   const limit = options.limit ?? 20
   const counts = new Map<string, number>()
   for (const key of keys) {
-    if (namespaceOf(key, names)) continue
-    const segment = firstSegment(key)
-    if (!segment || segment === key) continue
+    if (namespaceOf(key, names, projectPrefix)) continue
+    const path = stripProjectPrefix(key, projectPrefix)
+    const segment = firstSegment(path)
+    if (!segment || segment === path) continue
     counts.set(segment, (counts.get(segment) ?? 0) + 1)
   }
   return [...counts]

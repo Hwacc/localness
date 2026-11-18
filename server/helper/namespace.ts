@@ -1,12 +1,10 @@
 import prisma from '#server/libs/prisma'
 import {
   NAMESPACE_NAME_MESSAGES,
-  firstSegment,
   namespaceNameRejectReason,
   namespaceOf,
   type NamespaceNameRejection,
 } from '#shared/utils/namespace'
-import type { Prisma } from '~~/prisma/client/client'
 
 /**
  * Key namespaces: declared names a project's keys are grouped by. Membership is
@@ -59,6 +57,15 @@ async function namespaceNames(projectId: number) {
     select: { name: true },
   })
   return rows.map((row) => row.name)
+}
+
+/** Namespace names are relative to this; '' when the project has none. */
+export async function projectKeyPrefix(projectId: number) {
+  const settings = await prisma.projectSettings.findUnique({
+    where: { projectID: projectId },
+    select: { keyPrefix: true },
+  })
+  return settings?.keyPrefix ?? ''
 }
 
 async function takenNames(projectId: number, exceptId?: number) {
@@ -159,20 +166,6 @@ export async function reorderNamespaces(params: { projectId: number; ids: number
 }
 
 /**
- * The namespace a new project starts with, from the first segment of its key
- * prefix — the same rule the migration seeded existing projects with.
- */
-export async function seedNamespaceFromPrefix(
-  tx: Prisma.TransactionClient,
-  projectId: number,
-  keyPrefix: string
-) {
-  const name = firstSegment(keyPrefix)
-  if (namespaceNameRejectReason({ name, takenNames: [] })) return
-  await tx.keyNamespace.create({ data: { projectId, name, sort: 1 } })
-}
-
-/**
  * Which keys a listing should show. null is "All". `unnamed` is the
  * Translations page's group of `__unnamed_…` placeholders: a key-name prefix, not
  * a namespace, so the list's own where applies it.
@@ -209,6 +202,7 @@ export async function namespaceKeyIds(
 ): Promise<number[] | null> {
   if (filter === null) return null
   const names = await namespaceNames(projectId)
+  const projectPrefix = await projectKeyPrefix(projectId)
   let target: string | null = null
   if (filter !== 'ungrouped') {
     const row = await prisma.keyNamespace.findFirst({
@@ -223,6 +217,6 @@ export async function namespaceKeyIds(
     select: { id: true, key: true },
   })
   return keys
-    .filter((row) => namespaceOf(row.key, names) === target)
+    .filter((row) => namespaceOf(row.key, names, projectPrefix) === target)
     .map((row) => row.id)
 }

@@ -14,6 +14,9 @@ const props = defineProps<{
   projectId: ID
   namespaces: IKeyNamespace[]
   loading: boolean
+  /** Names are relative to it; '' when the project has none. */
+  keyPrefix: string
+  separator: string
 }>()
 
 const emit = defineEmits<{ changed: [] }>()
@@ -22,6 +25,10 @@ const overlay = useOverlay()
 const confirmModal = overlay.create(AlertModal)
 
 const names = computed(() => props.namespaces.map((ns) => ns.name))
+
+const lead = computed(() =>
+  props.keyPrefix ? props.keyPrefix + props.separator : ''
+)
 
 const newName = ref('')
 const adding = ref(false)
@@ -130,9 +137,9 @@ onMounted(loadSuggestions)
       Loading…
     </p>
     <p v-else-if="namespaces.length === 0" class="text-xs text-muted">
-      No namespaces yet. A key joins one when its name starts with the
-      namespace followed by a separator — <code>s2w</code> holds
-      <code>s2w_ship_title</code> and <code>s2w.ship.title</code>.
+      No namespaces yet. A key joins one when what follows the project key
+      prefix starts with the namespace and a separator —
+      <code>login</code> holds <code>{{ lead }}login{{ separator }}title</code>.
     </p>
     <ul v-else class="flex flex-col gap-1">
       <li
@@ -195,7 +202,7 @@ onMounted(loadSuggestions)
           v-model="newName"
           class="min-w-0 flex-1 font-mono"
           size="sm"
-          placeholder="New namespace, e.g. s2w"
+          placeholder="New namespace, e.g. login"
           @keydown.enter.prevent="!newNameError && addNamespace(newName)"
         />
         <UButton
@@ -226,6 +233,11 @@ onMounted(loadSuggestions)
       </UButton>
     </div>
     <p class="text-xs text-muted">
+      <template v-if="lead">
+        Names are relative to the key prefix: <code>login</code> matches
+        <code>{{ lead }}login…</code>, and a key without the prefix by its full
+        name.
+      </template>
       Order here is the order of the Translations list. Renaming or deleting a
       namespace never renames a key.
     </p>

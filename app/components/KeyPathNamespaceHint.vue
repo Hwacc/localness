@@ -1,23 +1,22 @@
 <script setup lang="ts">
 import {
   firstSegment,
+  keyPathNamespace,
   namespaceNameRejectReason,
-  prefixNamespace,
 } from '#shared/utils/namespace'
 
 /**
- * Ties a Key Prefix to the project's namespaces: which namespace keys generated
- * under it land in, the declared names as one-click fills, and — when the
- * prefix lands in Ungrouped — a way to declare its first segment.
+ * Ties a page's key path to the project's namespaces, whose names are relative
+ * to the project prefix just as the path is: which namespace keys generated
+ * under it land in, the declared names as one-click fills, and — when the path
+ * lands in Ungrouped — a way for an owner to declare its first segment.
  */
 const props = defineProps<{
-  prefix: string
+  path: string
   separator: string
   names: string[]
-  /** Set when the viewer may declare a namespace on an existing project. */
+  /** Set only when the viewer may declare a namespace. */
   projectId?: ID
-  /** A new project declares its prefix's first segment on create. */
-  creating?: boolean
   disabled?: boolean
 }>()
 
@@ -26,15 +25,15 @@ const emit = defineEmits<{
   added: []
 }>()
 
-const prefix = computed(() => props.prefix.trim())
+const path = computed(() => props.path.trim())
 
 const target = computed(() =>
-  prefixNamespace(prefix.value, props.separator, props.names)
+  keyPathNamespace(path.value, props.separator, props.names)
 )
 
 /** The segment to declare, when declaring it would be accepted. */
 const candidate = computed(() => {
-  const name = firstSegment(prefix.value)
+  const name = firstSegment(path.value)
   return namespaceNameRejectReason({ name, takenNames: props.names }) === null
     ? name
     : null
@@ -74,20 +73,16 @@ async function addCandidate() {
         @click="emit('pick', name)"
       />
     </div>
-    <p v-if="!prefix" class="text-muted">
-      No prefix — generated keys group by whatever name the AI picks.
+    <p v-if="!path" class="text-muted">
+      No key path — generated keys group by whatever name the AI picks.
     </p>
     <p v-else-if="target" class="text-muted">
       Generated keys group under
       <code class="text-default">{{ target }}</code>.
     </p>
-    <p v-else-if="creating && candidate" class="text-muted">
-      The namespace <code class="text-default">{{ candidate }}</code> is
-      created with the project.
-    </p>
     <div v-else class="flex flex-wrap items-center gap-2 text-warning">
       <UIcon name="i-lucide:triangle-alert" class="size-3.5 shrink-0" />
-      <span>Keys under this prefix will be Ungrouped.</span>
+      <span>Keys under this path will be Ungrouped.</span>
       <UButton
         v-if="candidate && validID(projectId)"
         size="xs"
@@ -100,6 +95,9 @@ async function addCandidate() {
       >
         Add <code>{{ candidate }}</code> as namespace
       </UButton>
+      <span v-else-if="candidate" class="text-muted">
+        A project owner can add <code>{{ candidate }}</code> as a namespace.
+      </span>
     </div>
   </div>
 </template>

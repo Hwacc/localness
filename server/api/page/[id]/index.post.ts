@@ -2,6 +2,7 @@ import prisma from '#server/libs/prisma'
 import { numericID } from '#server/helper/id'
 import { readZodBody } from '#server/helper/validate'
 import { requirePageTeamMember } from '#server/helper/access'
+import { normalizeKeyPath } from '#server/helper/key-convention'
 import { setEntryReleases, throwReleaseHttp } from '#server/helper/release'
 import { z } from 'zod/v4'
 
@@ -34,6 +35,18 @@ export default defineEventHandler(async (event) => {
     })
   }
 
+  // Absent means "leave the path alone"; validated before any write lands.
+  const keyPath =
+    settings && settings.keyPath !== undefined
+      ? normalizeKeyPath(
+          settings.keyPath,
+          await prisma.projectSettings.findUnique({
+            where: { projectID: access.project.id },
+            select: { keyPrefix: true, keySeparator: true, keyStyle: true, keyMaxDepth: true },
+          })
+        )
+      : undefined
+
   // Absent means "leave the labels alone"; an empty array means "clear them".
   if (releaseIds) {
     try {
@@ -59,12 +72,9 @@ export default defineEventHandler(async (event) => {
         ocrLanguage: settings?.ocrLanguage ?? 'eng',
         ocrEngine: settings?.ocrEngine ?? 1,
         prompt: settings?.prompt ?? '',
-        keyPrefix: settings?.keyPrefix ?? null,
-        keySeparator: settings?.keySeparator ?? null,
-        keyStyle: settings?.keyStyle ?? null,
-        keyMaxDepth: settings?.keyMaxDepth ?? null,
+        keyPath: keyPath ?? null,
       },
-      update: settings,
+      update: { ...settings, keyPath },
     })
   }
   const updatedProject = await prisma.page.update({

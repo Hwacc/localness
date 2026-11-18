@@ -107,12 +107,12 @@
 - **Project metadata** —— `Locales, fallback, the releases and key namespaces you can filter by, and how many keys are published per locale. Add ?project= when the token reaches more than one.`
 - **One locale** —— `Flat { key: text } map of published copy. Missing keys stay missing on purpose.`
 - **Filtered to a release** —— `Narrow to the keys labelled with one release. Accepts the id or the name.`
-- **Filtered to a key namespace** —— `Narrow to one feature area by key name: a namespace s2w holds s2w_title and s2w.menu.open, never s2wx or a bare s2w. Accepts the id or the name, or __ungrouped__ for keys in none. Combines with ?release=.`
+- **Filtered to a key namespace** —— `Narrow to one feature area by key name. Names are relative to the project key prefix: with prefix shop, a namespace login holds shop_login_title and shop.login.open, never shop_loginx; a key without the prefix matches by its full name. Accepts the id or the name, or __ungrouped__ for keys in none. Combines with ?release=.`
 - **Every locale in one bundle** —— `All locales in a single round trip. Same shape, keyed by locale.`
 
 **按发行取**：在任何端点后面加 `?release=`，**id 和名字都收**（`?release=v1` 和 `?release=3` 等价）。名字写错不是退回全量，而是 `Unknown release: v1` 的 404——免得调用方以为自己在看一个发行，其实拿到的是全部。
 
-**按 namespace 取**：`/meta`、`/locales/:locale`、`/bundle`、`/keys` 都收 `?namespace=`，**id 和名字都收**，`?namespace=__ungrouped__` 取不属于任何 namespace 的 key。归属按 key 名算，规则和 Translations 页左栏一样：名字后面紧跟 `_ . - : /` 之一才算（`s2w` 收 `s2w_title`，不收 `s2wx`，也不收恰好叫 `s2w` 的 key）。可以和 `?release=` 叠加。名字写错同样是 `Unknown namespace: x` 的 404。`/meta` 回 `namespaces`（按显示顺序）和当前的 `namespace`。
+**按 namespace 取**：`/meta`、`/locales/:locale`、`/bundle`、`/keys` 都收 `?namespace=`，**id 和名字都收**，`?namespace=__ungrouped__` 取不属于任何 namespace 的 key。归属按 key 名算，规则和 Translations 页左栏一样：**名字相对项目前缀**，去掉前缀后后面紧跟 `_ . - : /` 之一才算（前缀 `shop` 时 `login` 收 `shop_login_title`，不收 `shop_loginx`，也不收恰好叫 `shop_login` 的 key；没带前缀的老 key 按全名匹配）。所以要写 `?namespace=login`，不是 `shop_login`。可以和 `?release=` 叠加。名字写错同样是 `Unknown namespace: x` 的 404。`/meta` 回 `namespaces`（按显示顺序）和当前的 `namespace`。
 
 **覆盖率**是给调用方看的：`meta` 按项目自己的语言列表逐个报数，一条都没发布的语言报 `0`，不会从列表里消失。
 

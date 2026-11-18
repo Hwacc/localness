@@ -5,39 +5,50 @@ import {
   namespaceNameRejectReason,
   namespaceOf,
   namespaceSuggestions,
-  prefixNamespace,
+  keyPathNamespace,
   resolveNamespaceFilterValue,
 } from '#shared/utils/namespace'
 
 describe('namespaceOf', () => {
   it('matches a declared name followed by any boundary', () => {
-    expect(namespaceOf('s2w_hardware_ship_term_3', ['s2w'])).toBe('s2w')
-    expect(namespaceOf('s2w.hardware.title', ['s2w'])).toBe('s2w')
-    expect(namespaceOf('s2w-x', ['s2w'])).toBe('s2w')
-    expect(namespaceOf('s2w:x', ['s2w'])).toBe('s2w')
-    expect(namespaceOf('s2w/x', ['s2w'])).toBe('s2w')
+    expect(namespaceOf('s2w_hardware_ship_term_3', ['s2w'], '')).toBe('s2w')
+    expect(namespaceOf('s2w.hardware.title', ['s2w'], '')).toBe('s2w')
+    expect(namespaceOf('s2w-x', ['s2w'], '')).toBe('s2w')
+    expect(namespaceOf('s2w:x', ['s2w'], '')).toBe('s2w')
+    expect(namespaceOf('s2w/x', ['s2w'], '')).toBe('s2w')
   })
 
   it('never invents a group from an undeclared first segment', () => {
-    expect(namespaceOf('hour_ago', ['s2w'])).toBeNull()
+    expect(namespaceOf('hour_ago', ['s2w'], '')).toBeNull()
   })
 
   it('needs a boundary right after the name', () => {
-    expect(namespaceOf('s2wx_title', ['s2w'])).toBeNull()
-    expect(namespaceOf('s2w', ['s2w'])).toBeNull()
+    expect(namespaceOf('s2wx_title', ['s2w'], '')).toBeNull()
+    expect(namespaceOf('s2w', ['s2w'], '')).toBeNull()
   })
 
   it('is case-sensitive, like keys', () => {
-    expect(namespaceOf('S2W_title', ['s2w'])).toBeNull()
+    expect(namespaceOf('S2W_title', ['s2w'], '')).toBeNull()
   })
 
   it('treats regex and LIKE wildcards literally', () => {
-    expect(namespaceOf('a%b_x', ['a%b'])).toBe('a%b')
-    expect(namespaceOf('axb_x', ['a_b'])).toBeNull()
+    expect(namespaceOf('a%b_x', ['a%b'], '')).toBe('a%b')
+    expect(namespaceOf('axb_x', ['a_b'], '')).toBeNull()
   })
 
   it('prefers the longest name', () => {
-    expect(namespaceOf('s2w_hw_title', ['s2w', 's2w_hw'])).toBe('s2w_hw')
+    expect(namespaceOf('s2w_hw_title', ['s2w', 's2w_hw'], '')).toBe('s2w_hw')
+  })
+
+  it('matches names relative to the project prefix', () => {
+    expect(namespaceOf('shop_login_title', ['login'], 'shop')).toBe('login')
+    expect(namespaceOf('shop.login.title', ['login'], 'shop')).toBe('login')
+    expect(namespaceOf('shop_cart_title', ['login'], 'shop')).toBeNull()
+  })
+
+  it('matches a key without the project prefix by its full name', () => {
+    expect(namespaceOf('login.title', ['login'], 'shop')).toBe('login')
+    expect(namespaceOf('shopping_login_x', ['login'], 'shop')).toBeNull()
   })
 })
 
@@ -79,19 +90,19 @@ describe('namespaceNameRejectReason', () => {
   })
 })
 
-describe('prefixNamespace', () => {
-  it('reads where generated keys would land', () => {
-    expect(prefixNamespace('s2w', '_', ['s2w'])).toBe('s2w')
-    expect(prefixNamespace('s2w_hardware', '_', ['s2w'])).toBe('s2w')
-    expect(prefixNamespace('app', '_', ['s2w'])).toBeNull()
-    expect(prefixNamespace('', '_', ['s2w'])).toBeNull()
+describe('keyPathNamespace', () => {
+  it('reads where keys generated under a page path would land', () => {
+    expect(keyPathNamespace('login', '_', ['login'])).toBe('login')
+    expect(keyPathNamespace('login_form', '_', ['login'])).toBe('login')
+    expect(keyPathNamespace('cart', '_', ['login'])).toBeNull()
+    expect(keyPathNamespace('', '_', ['login'])).toBeNull()
   })
 })
 
 describe('countByNamespace', () => {
   it('counts every key once, the rest as ungrouped', () => {
     expect(
-      countByNamespace(['s2w_a', 's2w.b', 'ota_c', 'hour_ago'], ['s2w', 'ota', 'empty'])
+      countByNamespace(['s2w_a', 's2w.b', 'ota_c', 'hour_ago'], ['s2w', 'ota', 'empty'], '')
     ).toEqual({ byName: { s2w: 2, ota: 1, empty: 0 }, ungrouped: 1 })
   })
 })
@@ -99,11 +110,17 @@ describe('countByNamespace', () => {
 describe('namespaceSuggestions', () => {
   it('suggests shared first segments of ungrouped keys only', () => {
     const keys = ['s2w_a', 'ota_a', 'ota_b', 'ota.c', 'hour_ago', 'single', '__draft_1']
-    expect(namespaceSuggestions(keys, ['s2w'])).toEqual([{ name: 'ota', count: 3 }])
+    expect(namespaceSuggestions(keys, ['s2w'], '')).toEqual([{ name: 'ota', count: 3 }])
+  })
+
+  it('suggests the segment after the project prefix, never the prefix', () => {
+    expect(
+      namespaceSuggestions(['shop_cart_a', 'shop_cart_b', 'shop_x'], [], 'shop')
+    ).toEqual([{ name: 'cart', count: 2 }])
   })
 
   it('skips a candidate that would overlap a declared name', () => {
-    expect(namespaceSuggestions(['s2w_a', 's2w_b'], ['s2w.x'])).toEqual([])
+    expect(namespaceSuggestions(['s2w_a', 's2w_b'], ['s2w.x'], '')).toEqual([])
   })
 })
 

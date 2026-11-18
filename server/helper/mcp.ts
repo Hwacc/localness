@@ -100,7 +100,7 @@ const NAMESPACE_PARAM = z
   .string()
   .optional()
   .describe(
-    `A key namespace name, to narrow to one feature area: keys named "<namespace>" followed by one of _ . - : / and more. "${UNGROUPED_NAMESPACE_PARAM}" selects keys in no namespace. Omit for every key. get_project_info lists the names.`
+    `A key namespace name, to narrow to one feature area: keys whose name after the project key prefix starts with "<namespace>" followed by one of _ . - : / and more (a key without the prefix matches by its full name). "${UNGROUPED_NAMESPACE_PARAM}" selects keys in no namespace. Omit for every key. get_project_info lists the names.`
   )
 
 const OFFSET_PARAM = z

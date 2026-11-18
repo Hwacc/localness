@@ -100,3 +100,51 @@ export function slugKeyPrefix(name: string): string {
     .replace(/[^a-z0-9]+/g, '_')
     .replace(/^_+|_+$/g, '')
 }
+
+export function keyPathDepth(path: string, separator: string): number {
+  return path ? path.split(separator).length : 0
+}
+
+/**
+ * Pure: why a page's key path cannot sit after the project prefix. It must
+ * follow the project's rules and leave at least one segment for the generated
+ * tail, so `depth` means the path alone already uses the whole budget.
+ */
+export function checkKeyPath(
+  path: string,
+  convention: KeyConvention
+): KeyViolation[] {
+  return checkI18nKey(path, {
+    ...convention,
+    prefix: '',
+    maxDepth: convention.maxDepth - 1,
+  })
+}
+
+export function keyPathViolationText(violation: KeyViolation): string {
+  return violation === 'depth'
+    ? 'Leaves no segment for the generated key under the project max depth'
+    : KEY_VIOLATION_TEXT[violation]
+}
+
+/**
+ * The convention a page names keys with: the project's, with the page's path
+ * appended to the prefix and taken out of the depth budget.
+ */
+export function withKeyPath(
+  convention: KeyConvention,
+  path: string | null | undefined
+): KeyConvention {
+  const trimmed = path?.trim()
+  if (!trimmed) return convention
+  return {
+    ...convention,
+    prefix: [convention.prefix, trimmed]
+      .filter(Boolean)
+      .join(convention.separator),
+    maxDepth: Math.max(
+      1,
+      convention.maxDepth - keyPathDepth(trimmed, convention.separator)
+    ),
+  }
+}

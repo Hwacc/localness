@@ -2,6 +2,7 @@ import prisma from '#server/libs/prisma'
 import { readZodBody } from '#server/helper/validate'
 import { numericID } from '#server/helper/id'
 import { requireTeamMember } from '#server/helper/access'
+import { normalizeKeyPath } from '#server/helper/key-convention'
 import {
   assertReleaseIdsInProject,
   setEntryReleases,
@@ -45,6 +46,7 @@ export default defineEventHandler(async (event) => {
   }
 
   // Before the write: a bad label id must not leave a half-created page behind.
+  const keyPath = normalizeKeyPath(settings?.keyPath, belongProject.settings)
   let attachReleaseIds: number[] = []
   try {
     attachReleaseIds = await assertReleaseIdsInProject({
@@ -72,13 +74,7 @@ export default defineEventHandler(async (event) => {
       ocrLanguage:
         settings?.ocrLanguage ?? belongProject.settings?.ocrLanguage ?? 'eng',
       ocrEngine: settings?.ocrEngine ?? belongProject.settings?.ocrEngine ?? 1,
-      // Not copied from the project the way the OCR fields above are: a page
-      // inherits the key convention by *staying* null. Copying would freeze
-      // today's values into the page and stop it following the project.
-      keyPrefix: settings?.keyPrefix ?? null,
-      keySeparator: settings?.keySeparator ?? null,
-      keyStyle: settings?.keyStyle ?? null,
-      keyMaxDepth: settings?.keyMaxDepth ?? null,
+      keyPath,
     },
   })
 

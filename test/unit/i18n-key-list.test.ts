@@ -14,6 +14,9 @@ vi.mock('#server/libs/prisma', () => ({
     keyNamespace: {
       findMany: async () => [{ id: 1, projectId: 7, name: 'hud', sort: 1 }],
     },
+    projectSettings: {
+      findUnique: async () => null,
+    },
     i18nKey: {
       findMany: async ({ where }: any) =>
         db.keys.filter((row) => row.projectId === where.projectId),

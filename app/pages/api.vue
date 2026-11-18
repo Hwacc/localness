@@ -64,7 +64,7 @@ const examples = computed(() => [
   {
     title: 'Filtered to a key namespace',
     description:
-      'Narrow to one feature area by key name: a namespace s2w holds s2w_title and s2w.menu.open, never s2wx or a bare s2w. Accepts the id or the name, or __ungrouped__ for keys in none. Combines with ?release=.',
+      'Narrow to one feature area by key name. Names are relative to the project key prefix: with prefix shop, a namespace login holds shop_login_title and shop.login.open, never shop_loginx; a key without the prefix matches by its full name. Accepts the id or the name, or __ungrouped__ for keys in none. Combines with ?release=.',
     code: curlExample(`/api/v1/bundle?namespace=${NAMESPACE_EXAMPLE}`),
   },
   {

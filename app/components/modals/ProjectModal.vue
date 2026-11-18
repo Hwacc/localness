@@ -144,10 +144,28 @@ async function refreshProject() {
   await projectStore.getProjects()
 }
 
-/** Seeded from the payload so the prefix hint has names before the first read. */
+/** Seeded from the payload so the Namespaces tab has names before the first read. */
 const namespaces = ref<IKeyNamespace[]>(project.namespaces ?? [])
 const namespacesLoading = ref(false)
-const namespaceNames = computed(() => namespaces.value.map((ns) => ns.name))
+
+/** Keys carrying the saved prefix; fetched once, the saved prefix cannot move while open. */
+const savedPrefix = project.settings?.keyPrefix ?? ''
+const savedPrefixKeyCount = ref(0)
+
+async function loadPrefixUsage() {
+  if (!savedPrefix || !validID(project.id)) return
+  const res = await useApi<{ count: number }>(
+    `/api/projects/${project.id}/i18n-keys/prefix-usage`
+  )
+  savedPrefixKeyCount.value = res?.count ?? 0
+}
+
+const prefixChangeWarning = computed(() => {
+  if (mode !== 'edit' || !savedPrefixKeyCount.value) return null
+  if (state.settings.keyPrefix.trim() === savedPrefix) return null
+  const count = savedPrefixKeyCount.value
+  return `${count} existing ${count === 1 ? 'key starts' : 'keys start'} with “${savedPrefix}”. They are not renamed: new keys get the new prefix, and the old ones group by namespace only if their full name starts with one.`
+})
 
 async function loadNamespaces() {
   if (mode !== 'edit' || !validID(project.id)) return
@@ -225,7 +243,7 @@ onMounted(async () => {
     }
     return
   }
-  await Promise.all([loadReleases(), loadNamespaces()])
+  await Promise.all([loadReleases(), loadNamespaces(), loadPrefixUsage()])
 })
 
 // PaddleX has no language option; OCR.space is the only one that reads it.
@@ -424,6 +442,7 @@ async function onSubmit(_: FormSubmitEvent<ZProject>) {
                   class="flex-1"
                   label="Key Prefix"
                   name="settings.keyPrefix"
+                  description="Optional. Namespaces and page key paths sit after it."
                 >
                   <UInput
                     v-model="state.settings.keyPrefix"
@@ -442,14 +461,12 @@ async function onSubmit(_: FormSubmitEvent<ZProject>) {
                   />
                 </UFormField>
               </div>
-              <KeyPrefixNamespaceHint
-                :prefix="state.settings.keyPrefix || prefixPlaceholder"
-                :separator="state.settings.keySeparator"
-                :names="namespaceNames"
-                :project-id="canManageReleases ? project.id : undefined"
-                :creating="mode === 'create'"
-                @pick="state.settings.keyPrefix = $event"
-                @added="refreshNamespaces"
+              <UAlert
+                v-if="prefixChangeWarning"
+                variant="soft"
+                color="warning"
+                icon="i-lucide:triangle-alert"
+                :description="prefixChangeWarning"
               />
               <div class="flex items-center gap-4">
                 <UFormField
@@ -657,6 +674,8 @@ async function onSubmit(_: FormSubmitEvent<ZProject>) {
               :project-id="project.id"
               :namespaces="namespaces"
               :loading="namespacesLoading"
+              :key-prefix="savedPrefix"
+              :separator="project.settings?.keySeparator ?? DEFAULT_KEY_CONVENTION.separator"
               @changed="refreshNamespaces"
             />
           </template>

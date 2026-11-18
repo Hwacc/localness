@@ -75,7 +75,7 @@ export async function buildKeySuggestion(
     params.pageID
       ? prisma.pageSettings.findUnique({
           where: { pageID: params.pageID },
-          select: CONVENTION_COLUMNS,
+          select: { keyPath: true },
         })
       : null,
     prisma.projectSettings.findUnique({

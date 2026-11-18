@@ -8,6 +8,7 @@ const db = vi.hoisted(() => ({
   namespaces: [] as Array<{ id: number; projectId: number; name: string; sort: number }>,
   keys: [] as Array<{ id: number; projectId: number; key: string }>,
   updates: [] as Array<{ id: number; sort: number }>,
+  prefixes: {} as Record<number, string>,
 }))
 
 vi.mock('#server/libs/prisma', () => {
@@ -31,10 +32,15 @@ vi.mock('#server/libs/prisma', () => {
     findMany: async ({ where }: any) =>
       db.keys.filter((row) => row.projectId === where.projectId),
   }
+  const projectSettings = {
+    findUnique: async ({ where }: any) =>
+      where.projectID in db.prefixes ? { keyPrefix: db.prefixes[where.projectID] } : null,
+  }
   return {
     default: {
       keyNamespace,
       i18nKey,
+      projectSettings,
       $transaction: async (ops: Promise<unknown>[]) => Promise.all(ops),
     },
   }
@@ -58,6 +64,7 @@ beforeEach(() => {
     { id: 14, projectId: 7, key: 'S2W_upper' },
   ]
   db.updates = []
+  db.prefixes = {}
 })
 
 describe('namespaceKeyIds', () => {
@@ -76,6 +83,12 @@ describe('namespaceKeyIds', () => {
 
   it('does not restrict when no namespace is picked', async () => {
     expect(await namespaceKeyIds(7, null)).toBeNull()
+  })
+
+  it('matches names relative to the project prefix', async () => {
+    db.prefixes[7] = 'shop'
+    db.keys.push({ id: 15, projectId: 7, key: 'shop_hud_ammo' })
+    expect(await namespaceKeyIds(7, { namespaceId: 2 })).toEqual([13, 15])
   })
 })
 

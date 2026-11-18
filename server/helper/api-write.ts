@@ -256,12 +256,7 @@ export async function createPageWithTags(params: {
         pageID: page.id,
         ocrLanguage: project.settings?.ocrLanguage ?? 'eng',
         ocrEngine: project.settings?.ocrEngine ?? 1,
-        // Left null on purpose: that is how a page inherits the project's key
-        // convention and keeps following it.
-        keyPrefix: null,
-        keySeparator: null,
-        keyStyle: null,
-        keyMaxDepth: null,
+        keyPath: null,
       },
     })
 
