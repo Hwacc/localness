@@ -1,5 +1,5 @@
 import { numericID } from '#server/helper/id'
-import { requireProjectOwner } from '#server/helper/access'
+import { requireTeamMember } from '#server/helper/access'
 import { readZodBody } from '#server/helper/validate'
 import { applyImport, throwImportHttp } from '#server/helper/i18n-import'
 import { zI18nImportApply } from '#shared/schemas'
@@ -19,7 +19,7 @@ export default defineEventHandler(async (event) => {
     })
   }
   const projectId = numericID(id)
-  const { userId } = await requireProjectOwner(event, projectId)
+  const { userId } = await requireTeamMember(event, projectId)
   const body = await readZodBody(event, zI18nImportApply.parse)
   try {
     return await applyImport({

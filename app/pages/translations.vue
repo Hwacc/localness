@@ -1111,7 +1111,6 @@ onMounted(async () => {
           @applied="onAiApplied"
         />
         <ImportKeysSlideover
-          v-if="canManageProjectSettings(curProject)"
           :project-id="curProject.id"
           :locale-codes="localeCodes"
           :source-locale="sourceLocale"
