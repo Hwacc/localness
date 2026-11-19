@@ -2,10 +2,13 @@
 import type { FormSubmitEvent } from '@nuxt/ui'
 import type { ImageUploader } from '#components'
 import { omit } from 'lodash-es'
+import type { KeyViolation } from '#shared/utils/key-convention'
 import {
   DEFAULT_KEY_CONVENTION,
   checkKeyPath,
   keyPathViolationText,
+  keyViolationErrors,
+  keyViolationWarnings,
 } from '#shared/utils/key-convention'
 
 type Mode = 'edit' | 'create' | 'view'
@@ -36,7 +39,9 @@ const previewUrl = computed(() => {
 const projectStore = useProjectStore()
 
 /** A page created while one release is being viewed starts on that release. */
-const defaultReleaseId = defaultReleaseIdForFilter(projectStore.curReleaseFilter)
+const defaultReleaseId = defaultReleaseIdForFilter(
+  projectStore.curReleaseFilter,
+)
 
 /* Not typed `ZPage`: the form holds `''` for "no key path", the API takes null. */
 const state = reactive({
@@ -68,8 +73,7 @@ const projectConvention = computed(() => ({
     projectStore.curProject?.settings?.keySeparator ??
     DEFAULT_KEY_CONVENTION.separator,
   style:
-    projectStore.curProject?.settings?.keyStyle ??
-    DEFAULT_KEY_CONVENTION.style,
+    projectStore.curProject?.settings?.keyStyle ?? DEFAULT_KEY_CONVENTION.style,
   maxDepth:
     projectStore.curProject?.settings?.keyMaxDepth ??
     DEFAULT_KEY_CONVENTION.maxDepth,
@@ -80,14 +84,24 @@ const keyPathLead = computed(() => {
   return prefix ? prefix + separator : ''
 })
 
-const keyPathError = computed(() => {
+const keyPathViolations = computed(() => {
   const path = state.settings.keyPath.trim()
-  if (!path) return undefined
-  const violations = checkKeyPath(path, projectConvention.value)
+  return path ? checkKeyPath(path, projectConvention.value) : []
+})
+
+function violationText(violations: KeyViolation[]) {
   return violations.length
     ? violations.map(keyPathViolationText).join('; ')
     : undefined
-})
+}
+
+const keyPathError = computed(() =>
+  violationText(keyViolationErrors(keyPathViolations.value)),
+)
+
+const keyPathWarning = computed(() =>
+  violationText(keyViolationWarnings(keyPathViolations.value)),
+)
 
 const keyPathExample = computed(() => {
   const path = state.settings.keyPath.trim()
@@ -222,7 +236,7 @@ async function onSubmit(_: FormSubmitEvent<ZPage>) {
             </div>
           </template>
           <template #prompt>
-            <MarkdownPrompt v-model="state.settings.prompt"/>
+            <MarkdownPrompt v-model="state.settings.prompt" />
           </template>
           <template #settings>
             <div class="flex flex-col gap-2.5">
@@ -248,7 +262,11 @@ async function onSubmit(_: FormSubmitEvent<ZPage>) {
                 label="Key Path"
                 name="settings.keyPath"
                 :error="keyPathError"
-                :help="`Generated keys look like ${keyPathExample}`"
+                :help="
+                  keyPathWarning
+                    ? `${keyPathWarning}. Generated keys look like ${keyPathExample}`
+                    : `Generated keys look like ${keyPathExample}`
+                "
               >
                 <UFieldGroup class="w-full">
                   <UBadge
@@ -262,7 +280,9 @@ async function onSubmit(_: FormSubmitEvent<ZPage>) {
                   <UInput
                     v-model="state.settings.keyPath"
                     class="w-full font-mono"
-                    :placeholder="'e.g. ' + (projectStore.curNamespaces[0]?.name ?? 'login')"
+                    :placeholder="
+                      'e.g. ' + (projectStore.curNamespaces[0]?.name ?? 'login')
+                    "
                     :disabled="mode === 'view' || isLoading"
                   />
                 </UFieldGroup>

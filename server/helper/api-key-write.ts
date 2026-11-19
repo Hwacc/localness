@@ -3,7 +3,12 @@ import prisma from '#server/libs/prisma'
 import { LogAction, LogStatus } from '#shared/constants/log'
 import { fpTranslation, isUnnamedKey, UNNAMED_KEY_PREFIX } from '#shared/utils'
 import type { KeyDraftConflict, KeyWriteResult } from '#shared/contract'
-import { keyClashMessage } from '#server/helper/key-convention'
+import { keyClashMessage, toKeyConvention } from '#server/helper/key-convention'
+import {
+  KEY_VIOLATION_TEXT,
+  checkI18nKey,
+  keyViolationErrors,
+} from '#shared/utils/key-convention'
 import {
   sourceLocaleOf,
   sourceTextOf,
@@ -15,7 +20,10 @@ import {
   deliveryKeyState,
   projectLocales,
 } from '#server/helper/api-delivery'
-import { assertReleaseIdsInProject, throwReleaseHttp } from '#server/helper/release'
+import {
+  assertReleaseIdsInProject,
+  throwReleaseHttp,
+} from '#server/helper/release'
 
 /**
  * The key writes behind `/api/v1/keys`: what an IDE plugin needs to turn text in
@@ -33,6 +41,34 @@ async function stateLocales(projectId: number, sourceLocale: string) {
   return configured.includes(sourceLocale)
     ? configured
     : [sourceLocale, ...configured]
+}
+
+/**
+ * A new name must not break the project's convention, the rule import and the
+ * clients' own checks apply. Only errors refuse it: style warnings are advice,
+ * since legacy projects rarely followed one. Names the project already has are
+ * never checked.
+ */
+async function assertKeyConvention(projectId: number, key: string) {
+  const settings = await prisma.projectSettings.findUnique({
+    where: { projectID: projectId },
+    select: {
+      keyPrefix: true,
+      keySeparator: true,
+      keyStyle: true,
+      keyMaxDepth: true,
+    },
+  })
+  const violations = keyViolationErrors(
+    checkI18nKey(key, toKeyConvention(settings)),
+  )
+  if (violations.length === 0) return
+  throw createError({
+    statusCode: 400,
+    statusMessage: `"${key}" breaks the project's key convention: ${violations
+      .map((violation) => KEY_VIOLATION_TEXT[violation].toLowerCase())
+      .join('; ')}`,
+  })
 }
 
 export const CLIENT_HEADER = 'x-localness-client'
@@ -132,6 +168,7 @@ export async function createKeyFromSource(params: {
       ),
     })
   }
+  if (named) await assertKeyConvention(params.projectId, named)
 
   const record = await prisma.i18nKey.create({
     data: {

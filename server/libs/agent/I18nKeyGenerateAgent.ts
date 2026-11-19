@@ -27,7 +27,11 @@ function conventionBlock(convention: KeyConvention): string {
     'Key convention:',
     `prefix: ${convention.prefix || '(none)'}`,
     `separator: ${convention.separator}`,
-    `casing: ${convention.style}`,
+    `casing: ${
+      convention.style === 'none'
+        ? 'none (no rule; use the casing the guidance shows, else snake_case)'
+        : convention.style
+    }`,
     `max depth: ${convention.maxDepth}`,
   ].join('\n')
 }

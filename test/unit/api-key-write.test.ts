@@ -44,7 +44,11 @@ function findKey(where: any) {
 vi.mock('#server/libs/prisma', () => ({
   default: {
     projectSettings: {
-      findUnique: async () => ({ localeFallback: 'en', locales: ['en', 'ja'] }),
+      findUnique: async () => ({
+        localeFallback: 'en',
+        locales: ['en', 'ja'],
+        keySeparator: '.',
+      }),
     },
     i18nKey: {
       findUnique: async ({ where }: any) => loadKey(findKey(where)),
@@ -206,6 +210,31 @@ describe('createKeyFromSource', () => {
         sourceText: 'Hi',
       }),
     ).rejects.toMatchObject({ statusCode: 400 })
+  })
+
+  it('refuses a new name that breaks the key convention', async () => {
+    await expect(
+      createKeyFromSource({
+        projectId: 1,
+        userId: 7,
+        key: 'home..buy',
+        sourceText: 'Buy now',
+      }),
+    ).rejects.toMatchObject({
+      statusCode: 400,
+      statusMessage: expect.stringMatching(/has an empty segment/),
+    })
+    expect(db.keys).toHaveLength(1)
+  })
+
+  it('creates a name that only differs from the suggested style', async () => {
+    const result = await createKeyFromSource({
+      projectId: 1,
+      userId: 7,
+      key: 'home_BuyNow',
+      sourceText: 'Buy now',
+    })
+    expect(result.key.key).toBe('home_BuyNow')
   })
 })
 

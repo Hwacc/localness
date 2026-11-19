@@ -6,26 +6,41 @@
 import type {
   KeyConvention,
   KeyStyle,
-  KeyViolation
+  KeyViolation,
 } from '../contract/key-convention'
 import {
   KEY_STYLE_VALUES,
+  KEY_VIOLATION_LEVEL,
   KEY_VIOLATION_TEXT,
-  checkI18nKey
+  checkI18nKey,
+  keyDepth,
+  keyViolationErrors,
+  keyViolationWarnings,
 } from '../contract/key-convention'
 
-export { KEY_STYLE_VALUES, KEY_VIOLATION_TEXT, checkI18nKey }
+export {
+  KEY_STYLE_VALUES,
+  KEY_VIOLATION_LEVEL,
+  KEY_VIOLATION_TEXT,
+  checkI18nKey,
+  keyDepth,
+  keyViolationErrors,
+  keyViolationWarnings,
+}
 export type { KeyConvention, KeyStyle, KeyViolation }
 
 export const KEY_STYLES: { value: KeyStyle; label: string }[] =
-  KEY_STYLE_VALUES.map((value) => ({ value, label: value }))
+  KEY_STYLE_VALUES.map((value) => ({
+    value,
+    label: value === 'none' ? 'None (any casing)' : value,
+  }))
 
 /** Column defaults. `prefix` stays empty so existing keys are not flagged. */
 export const DEFAULT_KEY_CONVENTION: KeyConvention = {
   prefix: '',
   separator: '_',
   style: 'snake_case',
-  maxDepth: 4
+  maxDepth: 4,
 }
 
 /**
@@ -41,29 +56,25 @@ export function slugKeyPrefix(name: string): string {
     .replace(/^_+|_+$/g, '')
 }
 
-export function keyPathDepth(path: string, separator: string): number {
-  return path ? path.split(separator).length : 0
-}
-
 /**
  * Pure: why a page's key path cannot sit after the project prefix. It must
  * follow the project's rules and leave at least one segment for the generated
- * tail, so `depth` means the path alone already uses the whole budget.
+ * tail, so `depth` means the path alone already uses the whole suggested budget.
  */
 export function checkKeyPath(
   path: string,
-  convention: KeyConvention
+  convention: KeyConvention,
 ): KeyViolation[] {
   return checkI18nKey(path, {
     ...convention,
     prefix: '',
-    maxDepth: convention.maxDepth - 1
+    maxDepth: convention.maxDepth - 1,
   })
 }
 
 export function keyPathViolationText(violation: KeyViolation): string {
   return violation === 'depth'
-    ? 'Leaves no segment for the generated key under the project max depth'
+    ? 'Leaves no level for the generated key under the suggested max depth'
     : KEY_VIOLATION_TEXT[violation]
 }
 
@@ -73,7 +84,7 @@ export function keyPathViolationText(violation: KeyViolation): string {
  */
 export function withKeyPath(
   convention: KeyConvention,
-  path: string | null | undefined
+  path: string | null | undefined,
 ): KeyConvention {
   const trimmed = path?.trim()
   if (!trimmed) return convention
@@ -82,9 +93,6 @@ export function withKeyPath(
     prefix: [convention.prefix, trimmed]
       .filter(Boolean)
       .join(convention.separator),
-    maxDepth: Math.max(
-      1,
-      convention.maxDepth - keyPathDepth(trimmed, convention.separator)
-    )
+    maxDepth: Math.max(1, convention.maxDepth - keyDepth(trimmed, convention)),
   }
 }

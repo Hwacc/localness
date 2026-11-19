@@ -44,8 +44,8 @@ Project Owner 管的是这一个项目：项目设置、发行标签的增删改
 
 只能从**本队成员**里选。被拦下来时会告诉你原因：
 
-| 你看到                                                      | 意思                                           |
-| ----------------------------------------------------------- | ---------------------------------------------- |
+| 你看到                                                    | 意思                                           |
+| --------------------------------------------------------- | ---------------------------------------------- |
 | `Only a Project Owner or Admin can change Project Owners` | 你既不是这个项目的 Project Owner，也不是 Admin |
 | `User is not a member of this team`                       | 那个人不在这个团队里                           |
 | `User is already a Project Owner`                         | 他已经是 Project Owner 了                      |
@@ -74,14 +74,24 @@ Project Owner 管的是这一个项目：项目设置、发行标签的增删改
 
 ### key 命名规范
 
-四个字段：**Key Prefix**、**Key Separator**、**Key Style**（`snake_case` / `camelCase`）、**Key Max Depth**（1–10）。下面那行说明是 `Used when the AI names a key: what the generated key must look like. Leave the prefix empty for none.`
+四个字段：**Key Prefix**、**Key Separator**、**Key Style**（`snake_case` / `camelCase` / `None (any casing)`）、**Key Max Depth**（1–10）。下面那行说明是 `Used when the AI names a key. A new key must start with the prefix (when set) and use only letters, digits, '.', '_' and '-'. Separator, style and max depth are suggestions: a key that differs is flagged, never refused.`
+
+规则分两级，为的是兼容 key 名早就五花八门的老项目：
+
+| 级别       | 规则                                                                                                                                               | 后果                                                 |
+| ---------- | -------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------- |
+| 错误（红） | 设了前缀却没以「前缀 + `.` `_` `-` 或配置的分隔符之一」开头；用了字母、数字、`.` `_` `-`（和配置的分隔符）以外的字符；有空段（`a__b`、结尾的 `_`） | 新 key 不能建（API 报 400，插件和 CLI 的 push 拦下） |
+| 建议（黄） | 用了配置以外的分隔符；大小写不符合 Key Style；层级超过 Key Max Depth                                                                               | 只提示，照样能建                                     |
+
+- **Key Style 选 `None (any casing)`** 就不查大小写，AI 起名时按项目指引的写法、没有指引就用 snake_case。
+- 没设前缀就不查前缀。
 
 - 新建项目时，**Key Prefix** 框里会有一个灰色的提示值，那是从项目名推出来的 slug；不填就用它。前缀留空表示不加前缀。
 - 改项目名**不会**改已经定下的前缀，它是建项目那一刻存下来的。
-- 这套规范管的是 AI 生成的 key 长什么样、以及生成后的合规检查。手写的 key 不会被它挡住，编辑器里会实时提示哪里不合规，但仍然能保存（第 8 章）。
+- 这套规范管的是 AI 生成的 key 长什么样、以及生成后的合规检查。手写的 key 不会被它挡住，编辑器里会实时提示哪里不合规，但仍然能保存（第 8 章）。只有通过 API 新建 key（插件、CLI 的 push）时，错误级的规则才会拦下。
 - 改了规范只影响之后生成的 key，不会回头改已有的。
 - **一条 key 由三段拼成**：项目前缀 + 页面的 Key Path（见下文「页面级设置」）+ AI 起的名字。以前缀 `shop`、页面路径 `login` 为例，生成出来是 `shop_login_title`。前缀说明写着 `Optional. Namespaces and page key paths sit after it.`
-- **Key Max Depth 数的是前缀之后的段数**，页面路径的段也算在里面。
+- **Key Max Depth 数的是前缀之后的层级数**，页面路径的层级也算在里面。`.` `_` `-` 和配置的分隔符都算层级的分界；只有一个例外：Key Style 是 `snake_case`、分隔符又不是 `_` 时，`_` 算词内连接，`login.submit_button` 是两层。
 - **改已有项目的前缀时**，如果有 key 以旧前缀开头，下面会出现一条黄色提示，写明有多少条、它们不会被改名。之后新生成的 key 用新前缀；旧 key 只有在全名本身以某个 namespace 开头时才归组。
 
 ### Namespaces
@@ -128,12 +138,13 @@ API 和 MCP 也能按 namespace 取（第 12 章）。
 
 ## 做错了会怎样
 
-| 你看到                                                      | 原因                                                                   |
-| ----------------------------------------------------------- | ---------------------------------------------------------------------- |
-| 建项目时**Team** 下拉是空的，或弹出 **No team** | 你还没进任何团队（第 3、5 章）                                         |
-| 找不到**Project settings**                            | 你不是这个项目的 Project Owner；Team Owner 身份不带 Project Owner 权限 |
-| **Owners** 里选不到某个人                             | 只能从本队成员里选                                                     |
-| 页面 Key Path 提示 `… segments`，交不上去                   | 路径段数加上 AI 至少一段，超过了项目的 Key Max Depth             |
-| 选了 OCR 语言**Auto**，引擎自己变成 Engine 2 还变灰   | 正常，自动识别语言只有 Engine 2 支持                                   |
-| 改了项目前缀，老的 key 没变                                 | 命名规范只影响之后生成的 key                                           |
-| 找不到改语言集合的地方                                      | 目前没有这个入口，找管理员                                             |
+| 你看到                                                          | 原因                                                                       |
+| --------------------------------------------------------------- | -------------------------------------------------------------------------- |
+| 建项目时**Team** 下拉是空的，或弹出 **No team**                 | 你还没进任何团队（第 3、5 章）                                             |
+| 找不到**Project settings**                                      | 你不是这个项目的 Project Owner；Team Owner 身份不带 Project Owner 权限     |
+| **Owners** 里选不到某个人                                       | 只能从本队成员里选                                                         |
+| 页面 Key Path 下方提示 `Leaves no level for the generated key…` | 路径层级加上 AI 至少一层，超过了项目建议的 Key Max Depth；只是提示，能保存 |
+| 页面 Key Path 标红，交不上去                                    | 路径里有非法字符或空段（错误级规则）                                       |
+| 选了 OCR 语言**Auto**，引擎自己变成 Engine 2 还变灰             | 正常，自动识别语言只有 Engine 2 支持                                       |
+| 改了项目前缀，老的 key 没变                                     | 命名规范只影响之后生成的 key                                               |
+| 找不到改语言集合的地方                                          | 目前没有这个入口，找管理员                                                 |

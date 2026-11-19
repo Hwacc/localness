@@ -5,6 +5,7 @@ import {
   KEY_STYLE_VALUES,
   checkKeyPath,
   keyPathViolationText,
+  keyViolationErrors,
   withKeyPath,
 } from '#shared/utils/key-convention'
 
@@ -26,7 +27,7 @@ function isKeyStyle(value: unknown): value is KeyStyle {
 
 /** One row's worth of convention, with anything unset falling back to defaults. */
 export function toKeyConvention(
-  source: KeyConventionSource | null | undefined
+  source: KeyConventionSource | null | undefined,
 ): KeyConvention {
   if (!source) return DEFAULT_KEY_CONVENTION
   return {
@@ -48,23 +49,25 @@ export function toKeyConvention(
  */
 export function resolveKeyConvention(
   page: { keyPath: string | null } | null | undefined,
-  project: KeyConventionSource | null | undefined
+  project: KeyConventionSource | null | undefined,
 ): KeyConvention {
   return withKeyPath(toKeyConvention(project), page?.keyPath)
 }
 
 /**
- * The page key path to store: trimmed, `null` for none. A path the project's
- * convention rejects is a 400 — the page would hand the AI a start that every
- * key it names then fails.
+ * The page key path to store: trimmed, `null` for none. A path with a
+ * convention error is a 400 — the page would hand the AI a start that every key
+ * it names then fails. Style warnings are the form's to show, not to refuse.
  */
 export function normalizeKeyPath(
   path: string | null | undefined,
-  project: KeyConventionSource | null | undefined
+  project: KeyConventionSource | null | undefined,
 ): string | null {
   const trimmed = path?.trim()
   if (!trimmed) return null
-  const violations = checkKeyPath(trimmed, toKeyConvention(project))
+  const violations = keyViolationErrors(
+    checkKeyPath(trimmed, toKeyConvention(project)),
+  )
   if (violations.length) {
     throw createError({
       statusCode: 400,
@@ -85,7 +88,7 @@ export function normalizeKeyPath(
  */
 export function shapeKeyDuplicates(
   rows: { key: string; sourceText: string }[],
-  text: string
+  text: string,
 ): I18nKeyDuplicate[] {
   const wanted = text.trim()
   return rows.map((row) => ({
@@ -104,7 +107,7 @@ export function shapeKeyDuplicates(
  */
 export function keyClashMessage(
   clash: { key: string; sourceText: string },
-  text: string
+  text: string,
 ): string {
   return clash.sourceText.trim() === text.trim()
     ? `Key "${clash.key}" already exists for the same source text`

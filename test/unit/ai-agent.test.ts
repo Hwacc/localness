@@ -87,14 +87,14 @@ describe('resolveModel', () => {
       resolveModel('i18n-key', {
         NUXT_OPENAI_MODEL: 'shared-model',
         NUXT_OPENAI_I18N_KEY_MODEL: 'feature-model',
-      })
+      }),
     ).toBe('feature-model')
   })
 
   it('falls back to the shared model', () => {
-    expect(resolveModel('i18n-key', { NUXT_OPENAI_MODEL: 'shared-model' })).toBe(
-      'shared-model'
-    )
+    expect(
+      resolveModel('i18n-key', { NUXT_OPENAI_MODEL: 'shared-model' }),
+    ).toBe('shared-model')
   })
 
   it('falls back to the default when nothing is set', () => {
@@ -106,7 +106,7 @@ describe('resolveModel', () => {
       resolveModel('i18n-key', {
         NUXT_OPENAI_MODEL: '  ',
         NUXT_OPENAI_I18N_KEY_MODEL: '  ',
-      })
+      }),
     ).toBe(DEFAULT_MODEL)
   })
 })
@@ -117,7 +117,7 @@ describe('readClientConfig', () => {
       readClientConfig('i18n-key', {
         NUXT_OPENAI_API_KEY: 'shared-key',
         NUXT_OPENAI_BASE_URL: 'https://shared.test/v1',
-      })
+      }),
     ).toEqual({ apiKey: 'shared-key', baseURL: 'https://shared.test/v1' })
   })
 
@@ -128,7 +128,7 @@ describe('readClientConfig', () => {
         NUXT_OPENAI_BASE_URL: 'https://shared.test/v1',
         NUXT_OPENAI_I18N_KEY_API_KEY: 'own-key',
         NUXT_OPENAI_I18N_KEY_BASE_URL: 'https://own.test/v1',
-      })
+      }),
     ).toEqual({ apiKey: 'own-key', baseURL: 'https://own.test/v1' })
   })
 
@@ -139,13 +139,13 @@ describe('readClientConfig', () => {
         NUXT_OPENAI_API_KEY: 'shared-key',
         NUXT_OPENAI_BASE_URL: 'https://shared.test/v1',
         NUXT_OPENAI_I18N_KEY_API_KEY: 'own-key',
-      })
+      }),
     ).toEqual({ apiKey: 'own-key', baseURL: 'https://shared.test/v1' })
   })
 
   it('falls back to the endpoint the transport is written for', () => {
     expect(
-      readClientConfig('i18n-key', { NUXT_OPENAI_API_KEY: 'shared-key' })
+      readClientConfig('i18n-key', { NUXT_OPENAI_API_KEY: 'shared-key' }),
     ).toEqual({
       apiKey: 'shared-key',
       baseURL: 'https://api.siliconflow.cn/v1',
@@ -154,7 +154,9 @@ describe('readClientConfig', () => {
 
   it('reports nothing at all when no key is set', () => {
     expect(
-      readClientConfig('i18n-key', { NUXT_OPENAI_I18N_KEY_BASE_URL: 'https://x' })
+      readClientConfig('i18n-key', {
+        NUXT_OPENAI_I18N_KEY_BASE_URL: 'https://x',
+      }),
     ).toBeNull()
   })
 })
@@ -176,7 +178,7 @@ describe('toWireParams', () => {
         reasoningEffort: 'max',
         enableThinking: false,
         thinkingBudget: 512,
-      })
+      }),
     ).toEqual({
       max_tokens: 256,
       temperature: 0,
@@ -221,7 +223,7 @@ describe('buildI18nKeyUserTurn', () => {
 
   it('says none rather than leaving the prefix blank', () => {
     const payload = JSON.stringify(
-      buildI18nKeyUserTurn({ ...BASE, convention: DEFAULT_KEY_CONVENTION })
+      buildI18nKeyUserTurn({ ...BASE, convention: DEFAULT_KEY_CONVENTION }),
     )
 
     expect(payload).toContain('prefix: (none)')
@@ -242,7 +244,7 @@ describe('buildI18nKeyUserTurn', () => {
         projectPrompt: '  Use the design system vocabulary.  ',
         pagePrompt: 'Checkout page.',
         tagPrompt: 'Submit button.',
-      })
+      }),
     )
 
     expect(payload).toContain('Use the design system vocabulary.')
@@ -259,7 +261,7 @@ describe('buildI18nKeyUserTurn', () => {
         ...BASE,
         tagI18nKey: 'checkout.submit',
         pageImage: 'AAAA',
-      })
+      }),
     )
 
     expect(payload).not.toContain('tag_id')
@@ -278,7 +280,7 @@ describe('extractJson', () => {
 
   it('ignores prose and fences around the value', () => {
     expect(extractJson('Here:\n```json\n[{"a":1}]\n```\nDone.')).toBe(
-      '[{"a":1}]'
+      '[{"a":1}]',
     )
   })
 
@@ -320,15 +322,15 @@ describe('parseI18nKeyContent', () => {
     const content =
       'Sure:\n```json\n[{"source":"Sign in","key":"demo_auth_btn"}]\n```\nDone.'
 
-    expect(parseI18nKeyContent(content, CONVENTION).key).toBe(
-      'demo_auth_btn'
-    )
+    expect(parseI18nKeyContent(content, CONVENTION).key).toBe('demo_auth_btn')
   })
 
   it('accepts a bare object as a one-item answer', () => {
     expect(
-      parseI18nKeyContent('{"source":"Sign in","key":"demo_auth_btn"}', CONVENTION)
-        .key
+      parseI18nKeyContent(
+        '{"source":"Sign in","key":"demo_auth_btn"}',
+        CONVENTION,
+      ).key,
     ).toBe('demo_auth_btn')
   })
 
@@ -359,7 +361,7 @@ describe('parseI18nKeyContent', () => {
     // names a usable key — and anything naming nothing is dropped.
     const alternatives = parseI18nKeyContent(
       '{"key":"demo_a_btn","alternatives":["demo_b_btn",{"key":"demo_c_btn","confidence":0.7},"",42,null]}',
-      CONVENTION
+      CONVENTION,
     ).alternatives
 
     expect(alternatives?.map((one) => one.key)).toEqual([
@@ -374,21 +376,21 @@ describe('parseI18nKeyContent', () => {
     expect(
       parseI18nKeyContent(
         '{"key":"demo_a_btn","reason":"use [x] and {y} literally"}',
-        CONVENTION
-      ).reason
+        CONVENTION,
+      ).reason,
     ).toBe('use [x] and {y} literally')
   })
 
   it('trims the key', () => {
     expect(
-      parseI18nKeyContent('{"key":"  demo_auth_btn  "}', CONVENTION).key
+      parseI18nKeyContent('{"key":"  demo_auth_btn  "}', CONVENTION).key,
     ).toBe('demo_auth_btn')
   })
 
   it('takes an empty key as the documented answer for an unnameable line', () => {
     const result = parseI18nKeyContent(
       '[{"source":"！！！","key":"","confidence":0,"reason":"symbols only"}]',
-      CONVENTION
+      CONVENTION,
     )
 
     expect(result.key).toBe('')
@@ -396,11 +398,11 @@ describe('parseI18nKeyContent', () => {
   })
 
   it('reports convention violations instead of rejecting the key', () => {
-    const result = parseI18nKeyContent('{"key":"auth_Login-Btn"}', CONVENTION)
+    const result = parseI18nKeyContent('{"key":"auth_Login Btn"}', CONVENTION)
 
-    expect(result.key).toBe('auth_Login-Btn')
+    expect(result.key).toBe('auth_Login Btn')
     expect(result.violations).toEqual(
-      expect.arrayContaining(['prefix', 'charset', 'case'])
+      expect.arrayContaining(['prefix', 'charset', 'case']),
     )
   })
 
@@ -408,22 +410,22 @@ describe('parseI18nKeyContent', () => {
     // A missing key is a broken answer; an empty one is a legitimate answer.
     // Reading the two alike would let a malformed reply pass as "cannot name".
     expect(() => parseI18nKeyContent('{"source":"x"}', CONVENTION)).toThrow(
-      /answered without a key/
+      /answered without a key/,
     )
-    expect(() =>
-      parseI18nKeyContent('[{"key":null}]', CONVENTION)
-    ).toThrow(/answered without a key/)
+    expect(() => parseI18nKeyContent('[{"key":null}]', CONVENTION)).toThrow(
+      /answered without a key/,
+    )
   })
 
   it('rejects an answer that holds no JSON at all', () => {
     expect(() =>
-      parseI18nKeyContent('I cannot help with that.', CONVENTION)
+      parseI18nKeyContent('I cannot help with that.', CONVENTION),
     ).toThrow(/did not answer with JSON/)
   })
 
   it('rejects an answer that is not valid JSON', () => {
     expect(() =>
-      parseI18nKeyContent('[{"key":"demo_a",}]', CONVENTION)
+      parseI18nKeyContent('[{"key":"demo_a",}]', CONVENTION),
     ).toThrow(/did not answer with JSON/)
   })
 })
@@ -439,8 +441,8 @@ describe('toOpenAIAgentError', () => {
     expect(
       toOpenAIAgentError(
         new AuthenticationError(401, undefined, 'bad key', headers),
-        'a-model'
-      ).kind
+        'a-model',
+      ).kind,
     ).toBe('config')
   })
 
@@ -448,7 +450,7 @@ describe('toOpenAIAgentError', () => {
     const error = new NotFoundError(404, undefined, 'model not found', headers)
 
     expect(toOpenAIAgentError(error, 'Qwen/Qwen3.8-7B').message).toContain(
-      'Qwen/Qwen3.8-7B'
+      'Qwen/Qwen3.8-7B',
     )
   })
 
@@ -456,8 +458,8 @@ describe('toOpenAIAgentError', () => {
     expect(
       toOpenAIAgentError(
         new RateLimitError(429, undefined, 'slow down', headers),
-        'a-model'
-      ).kind
+        'a-model',
+      ).kind,
     ).toBe('quota')
   })
 
@@ -466,8 +468,8 @@ describe('toOpenAIAgentError', () => {
     expect(
       toOpenAIAgentError(
         new BadRequestError(400, undefined, 'insufficient balance', headers),
-        'a-model'
-      ).kind
+        'a-model',
+      ).kind,
     ).toBe('quota')
   })
 
@@ -475,8 +477,8 @@ describe('toOpenAIAgentError', () => {
     expect(
       toOpenAIAgentError(
         new BadRequestError(400, undefined, 'unexpected field', headers),
-        'a-model'
-      ).kind
+        'a-model',
+      ).kind,
     ).toBe('upstream')
   })
 
@@ -484,14 +486,14 @@ describe('toOpenAIAgentError', () => {
     expect(
       toOpenAIAgentError(
         new APIConnectionError({ message: 'fetch failed' }),
-        'a-model'
-      ).kind
+        'a-model',
+      ).kind,
     ).toBe('upstream')
   })
 
   it('falls back to upstream for a plain throw', () => {
     expect(toOpenAIAgentError(new Error('boom'), 'a-model').kind).toBe(
-      'upstream'
+      'upstream',
     )
   })
 })
@@ -525,7 +527,7 @@ describe('loadAgentPrompt', () => {
 
   it('names the missing file', async () => {
     await expect(
-      loadAgentPrompt('i18n-key', { NUXT_PROMPTS_DIR: join(tmpdir(), 'nope') })
+      loadAgentPrompt('i18n-key', { NUXT_PROMPTS_DIR: join(tmpdir(), 'nope') }),
     ).rejects.toThrow(/i18n-key\.md" is missing/)
   })
 
@@ -534,7 +536,7 @@ describe('loadAgentPrompt', () => {
     try {
       await writeFile(join(dir, 'i18n-key.md'), '\n   \n')
       await expect(
-        loadAgentPrompt('i18n-key', { NUXT_PROMPTS_DIR: dir })
+        loadAgentPrompt('i18n-key', { NUXT_PROMPTS_DIR: dir }),
       ).rejects.toThrow(/is empty/)
     } finally {
       await rm(dir, { recursive: true, force: true })
@@ -547,13 +549,13 @@ describe('loadAgentPrompt', () => {
       const file = join(dir, 'i18n-key.md')
       await writeFile(file, 'Name keys the first way.\n')
       expect(await loadAgentPrompt('i18n-key', { NUXT_PROMPTS_DIR: dir })).toBe(
-        'Name keys the first way.'
+        'Name keys the first way.',
       )
 
       await writeFile(file, 'Name keys the second way.\n')
       await touchLater(file)
       expect(await loadAgentPrompt('i18n-key', { NUXT_PROMPTS_DIR: dir })).toBe(
-        'Name keys the second way.'
+        'Name keys the second way.',
       )
     } finally {
       await rm(dir, { recursive: true, force: true })
@@ -566,13 +568,13 @@ describe('loadAgentPrompt', () => {
       const file = join(dir, 'i18n-key.md')
       await writeFile(file, '   \n')
       await expect(
-        loadAgentPrompt('i18n-key', { NUXT_PROMPTS_DIR: dir })
+        loadAgentPrompt('i18n-key', { NUXT_PROMPTS_DIR: dir }),
       ).rejects.toThrow(/is empty/)
 
       // The failure was not cached, so fixing the file is enough.
       await writeFile(file, 'You name keys.\n')
       expect(await loadAgentPrompt('i18n-key', { NUXT_PROMPTS_DIR: dir })).toBe(
-        'You name keys.'
+        'You name keys.',
       )
     } finally {
       await rm(dir, { recursive: true, force: true })
@@ -628,7 +630,7 @@ describe('I18nKeyGenerateAgent over HTTP', () => {
             created: 0,
             model: 'stub',
             choices: [{ index: 0, finish_reason: 'stop', message: reply }],
-          })
+          }),
         )
       })
     })
@@ -655,7 +657,9 @@ describe('I18nKeyGenerateAgent over HTTP', () => {
 
     expect(result.key).toBe('demo_auth_btn')
     expect(result.source).toBe('Sign in')
-    expect(logged.some((line) => line.startsWith('[agent:i18n-key]'))).toBe(true)
+    expect(logged.some((line) => line.startsWith('[agent:i18n-key]'))).toBe(
+      true,
+    )
   })
 
   it('sends the knobs the OpenAI schema does not declare', async () => {
@@ -688,7 +692,7 @@ describe('I18nKeyGenerateAgent over HTTP', () => {
     reply = { content: '', reasoning_content: 'x'.repeat(300) }
 
     await expect(
-      new I18nKeyGenerateAgent().generateI18nKey(BASE)
+      new I18nKeyGenerateAgent().generateI18nKey(BASE),
     ).rejects.toThrow(/300 chars of reasoning but no answer/)
   })
 })
@@ -727,7 +731,7 @@ describe('parseTranslationContent', () => {
   it('matches answers by id, not by position', () => {
     const results = parseTranslationContent(
       '[{"id":"2","text":"删除 {count} 项？"},{"id":"1","text":"保存"}]',
-      TRANSLATION_ITEMS
+      TRANSLATION_ITEMS,
     )
 
     expect(results).toEqual([
@@ -739,7 +743,7 @@ describe('parseTranslationContent', () => {
   it('costs one item, not the block, when the model skips one', () => {
     const results = parseTranslationContent(
       '[{"id":"1","text":"保存"}]',
-      TRANSLATION_ITEMS
+      TRANSLATION_ITEMS,
     )
 
     expect(results).toEqual([
@@ -751,7 +755,7 @@ describe('parseTranslationContent', () => {
   it('ignores unknown ids, keeps the first answer and reads numeric ids', () => {
     const results = parseTranslationContent(
       '[{"id":9,"text":"?"},{"id":1,"text":"保存"},{"id":"1","text":"存"}]',
-      TRANSLATION_ITEMS
+      TRANSLATION_ITEMS,
     )
 
     expect(results[0]).toEqual({ id: '1', text: '保存' })
@@ -761,7 +765,7 @@ describe('parseTranslationContent', () => {
   it('treats a blanked or non-string text as nothing, except for blank sources', () => {
     const results = parseTranslationContent(
       '[{"id":"1","text":"  "},{"id":"2","text":7},{"id":"3","text":""}]',
-      [...TRANSLATION_ITEMS, { id: '3', source: '  ' }]
+      [...TRANSLATION_ITEMS, { id: '3', source: '  ' }],
     )
 
     expect(results).toEqual([
@@ -774,7 +778,7 @@ describe('parseTranslationContent', () => {
   it('reads through fences and accepts a bare object for one item', () => {
     const results = parseTranslationContent(
       '```json\n{"id":"1","text":"保存"}\n```',
-      [TRANSLATION_ITEMS[0]!]
+      [TRANSLATION_ITEMS[0]!],
     )
 
     expect(results).toEqual([{ id: '1', text: '保存' }])
@@ -782,7 +786,7 @@ describe('parseTranslationContent', () => {
 
   it('throws only when the answer is not JSON at all', () => {
     expect(() =>
-      parseTranslationContent('Sorry, I cannot help.', TRANSLATION_ITEMS)
+      parseTranslationContent('Sorry, I cannot help.', TRANSLATION_ITEMS),
     ).toThrow(AgentError)
   })
 })
@@ -829,10 +833,10 @@ describe('the translation prompt', () => {
       resolveModel('translation', {
         NUXT_OPENAI_TRANSLATION_MODEL: 'big',
         NUXT_OPENAI_MODEL: 'small',
-      })
+      }),
     ).toBe('big')
     expect(
-      readClientConfig('translation', { NUXT_OPENAI_API_KEY: 'shared' })
+      readClientConfig('translation', { NUXT_OPENAI_API_KEY: 'shared' }),
     ).toMatchObject({ apiKey: 'shared' })
   })
 })
@@ -861,10 +865,15 @@ describe('TranslationAgent over HTTP', () => {
                 object: 'chat.completion.chunk',
                 created: 0,
                 model: 'stub',
-                choices: [{ index: 0, delta: piece.startsWith('~')
-                  ? { reasoning_content: piece.slice(1) }
-                  : { content: piece } }],
-              })}\n\n`
+                choices: [
+                  {
+                    index: 0,
+                    delta: piece.startsWith('~')
+                      ? { reasoning_content: piece.slice(1) }
+                      : { content: piece },
+                  },
+                ],
+              })}\n\n`,
           )
           response.end(`${frames.join('')}data: [DONE]\n\n`)
           return
@@ -883,7 +892,7 @@ describe('TranslationAgent over HTTP', () => {
                 message: { content: answer },
               },
             ],
-          })
+          }),
         )
       })
     })
@@ -909,7 +918,10 @@ describe('TranslationAgent over HTTP', () => {
   it('translates a block and sends the settings a translation needs', async () => {
     const results = await new TranslationAgent().translate(params)
 
-    expect(results.map((one) => one.text)).toEqual(['保存', '删除 {count} 项？'])
+    expect(results.map((one) => one.text)).toEqual([
+      '保存',
+      '删除 {count} 项？',
+    ])
     expect(sent[0]!.response_format).toEqual({ type: 'json_object' })
     expect(sent[0]!.enable_thinking).toBe(false)
     expect(sent[0]!.messages[1].content).toContain('Target locale: zh_cn')
@@ -941,7 +953,7 @@ describe('TranslationAgent over HTTP', () => {
 
   it('reports an empty request as bad params', async () => {
     await expect(
-      new TranslationAgent().translate({ ...params, items: [] })
+      new TranslationAgent().translate({ ...params, items: [] }),
     ).rejects.toMatchObject({ kind: 'bad-params' })
   })
 })

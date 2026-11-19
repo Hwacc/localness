@@ -47,7 +47,7 @@ const teams = ref<ITeam[]>([])
 const ownedTeams = computed(() =>
   teams.value
     .filter((t) => Boolean(t.role))
-    .map((t) => ({ label: t.name, value: t.id }))
+    .map((t) => ({ label: t.name, value: t.id })),
 )
 
 const state = reactive({
@@ -58,8 +58,7 @@ const state = reactive({
     ocrLanguage: project.settings?.ocrLanguage ?? 'eng',
     ocrEngine: project.settings?.ocrEngine ?? 1,
     prompt: project.settings?.prompt ?? '',
-    localeFallback:
-      project.settings?.localeFallback ?? DEFAULT_LOCALE_FALLBACK,
+    localeFallback: project.settings?.localeFallback ?? DEFAULT_LOCALE_FALLBACK,
     keyPrefix: project.settings?.keyPrefix ?? '',
     keySeparator:
       project.settings?.keySeparator ?? DEFAULT_KEY_CONVENTION.separator,
@@ -71,14 +70,14 @@ const state = reactive({
       lintRuleCatalog.map(({ id }) => [
         id,
         project.settings?.lintRules?.[id] ?? true,
-      ])
+      ]),
     ),
     i18nDialect: project.settings?.i18nDialect ?? DEFAULT_I18N_DIALECT,
     ruleSeverity: Object.fromEntries(
       severityRuleCatalog.map(({ id }) => [
         id,
         project.settings?.ruleSeverity?.[id] ?? 'error',
-      ])
+      ]),
     ) as Record<string, RuleSeverity>,
     aiTranslate: project.settings?.aiTranslate ?? false,
     aiDailyLimit: project.settings?.aiDailyLimit ?? null,
@@ -88,7 +87,7 @@ const state = reactive({
 const dialectDescription = computed(
   () =>
     i18nDialectItems.find((item) => item.value === state.settings.i18nDialect)
-      ?.description
+      ?.description,
 )
 
 /**
@@ -96,7 +95,7 @@ const dialectDescription = computed(
  * would be rather than an empty box that fills itself in after saving.
  */
 const prefixPlaceholder = computed(() =>
-  mode === 'create' ? slugKeyPrefix(state.name) : ''
+  mode === 'create' ? slugKeyPrefix(state.name) : '',
 )
 
 /**
@@ -105,9 +104,10 @@ const prefixPlaceholder = computed(() =>
  */
 const localeItems = computed(() =>
   parseLocales(project.settings?.locales).map((code) => ({
-    label: TRANSLATION_LANGUAGES.find((lang) => lang.value === code)?.label ?? code,
+    label:
+      TRANSLATION_LANGUAGES.find((lang) => lang.value === code)?.label ?? code,
     value: code,
-  }))
+  })),
 )
 
 /*
@@ -115,7 +115,7 @@ const localeItems = computed(() =>
  * a ProjectOwner row, not a team role.
  */
 const canManageReleases = computed(
-  () => mode === 'edit' && canManageProjectSettings(project)
+  () => mode === 'edit' && canManageProjectSettings(project),
 )
 
 const releases = ref<IProjectRelease[]>([])
@@ -131,7 +131,7 @@ async function loadReleases() {
   try {
     releases.value =
       (await useApi<IProjectRelease[]>(
-        `/api/projects/${project.id}/releases`
+        `/api/projects/${project.id}/releases`,
       )) ?? []
   } finally {
     releasesLoading.value = false
@@ -155,7 +155,7 @@ const savedPrefixKeyCount = ref(0)
 async function loadPrefixUsage() {
   if (!savedPrefix || !validID(project.id)) return
   const res = await useApi<{ count: number }>(
-    `/api/projects/${project.id}/i18n-keys/prefix-usage`
+    `/api/projects/${project.id}/i18n-keys/prefix-usage`,
   )
   savedPrefixKeyCount.value = res?.count ?? 0
 }
@@ -173,7 +173,7 @@ async function loadNamespaces() {
   try {
     namespaces.value =
       (await useApi<IKeyNamespace[]>(
-        `/api/projects/${project.id}/namespaces`
+        `/api/projects/${project.id}/namespaces`,
       )) ?? []
   } finally {
     namespacesLoading.value = false
@@ -327,7 +327,7 @@ const emit = defineEmits<{
     Pick<IProject, 'name' | 'description' | 'settings' | 'teamId'>,
     {
       close: () => void
-    }
+    },
   ]
 }>()
 
@@ -346,7 +346,7 @@ async function onSubmit(_: FormSubmitEvent<ZProject>) {
     state as Pick<IProject, 'name' | 'description' | 'settings' | 'teamId'>,
     {
       close: () => emit('close', true),
-    }
+    },
   )
 }
 </script>
@@ -379,11 +379,7 @@ async function onSubmit(_: FormSubmitEvent<ZProject>) {
                   autoresize
                 />
               </UFormField>
-              <UFormField
-                v-if="mode === 'create'"
-                label="Team"
-                name="teamId"
-              >
+              <UFormField v-if="mode === 'create'" label="Team" name="teamId">
                 <USelect
                   v-model="state.teamId"
                   class="w-full"
@@ -401,7 +397,7 @@ async function onSubmit(_: FormSubmitEvent<ZProject>) {
             </div>
           </template>
           <template #prompt>
-            <MarkdownPrompt v-model="state.settings.prompt"/>
+            <MarkdownPrompt v-model="state.settings.prompt" />
           </template>
           <template #settings>
             <div class="flex flex-col gap-2.5">
@@ -498,7 +494,7 @@ async function onSubmit(_: FormSubmitEvent<ZProject>) {
                 variant="soft"
                 color="neutral"
                 icon="i-lucide:info"
-                description="Used when the AI names a key: what the generated key must look like. Leave the prefix empty for none."
+                description="Used when the AI names a key. A new key must start with the prefix (when set) and use only letters, digits, '.', '_' and '-'. Separator, style and max depth are suggestions: a key that differs is flagged, never refused."
               />
             </div>
           </template>
@@ -604,9 +600,7 @@ async function onSubmit(_: FormSubmitEvent<ZProject>) {
           </template>
           <template #releases>
             <div class="flex flex-col gap-2.5">
-              <p v-if="releasesLoading" class="text-xs text-muted">
-                Loading…
-              </p>
+              <p v-if="releasesLoading" class="text-xs text-muted">Loading…</p>
               <p v-else-if="releases.length === 0" class="text-xs text-muted">
                 No releases yet. Create one to group pages and translations by
                 the version they shipped in.
@@ -675,12 +669,18 @@ async function onSubmit(_: FormSubmitEvent<ZProject>) {
               :namespaces="namespaces"
               :loading="namespacesLoading"
               :key-prefix="savedPrefix"
-              :separator="project.settings?.keySeparator ?? DEFAULT_KEY_CONVENTION.separator"
+              :separator="
+                project.settings?.keySeparator ??
+                DEFAULT_KEY_CONVENTION.separator
+              "
               @changed="refreshNamespaces"
             />
           </template>
           <template #danger>
-            <ProjectDangerPanel :project="project" @deleted="onProjectDeleted" />
+            <ProjectDangerPanel
+              :project="project"
+              @deleted="onProjectDeleted"
+            />
           </template>
         </SettingsTabs>
         <div class="w-full flex justify-end gap-6 mt-4">

@@ -17,7 +17,8 @@ import type { KeyWriteResult } from '#shared/contract'
  * @description Create a key from text in code. A named key publishes the text
  * as its source language — it is already live in that code. Without `key` it
  * is the text's `__unnamed_` key, a draft only, reused if the text already has
- * one; a named key the project already has is a 409. `releaseId` labels the
+ * one; a named key the project already has is a 409, and a new name that
+ * breaks the project's key convention a 400. `releaseId` labels the
  * key only when this request creates it.
  */
 export default defineEventHandler(async (event): Promise<KeyWriteResult> => {

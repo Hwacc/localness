@@ -1,5 +1,6 @@
 import { z } from 'zod/v4'
 import { deliveryKeyStateSchema } from './delivery'
+import { KEY_VIOLATION_VALUES } from './key-convention'
 
 /**
  * Response shapes of the key write routes an IDE plugin uses: create a key from
@@ -35,13 +36,7 @@ export const keyDraftConflictSchema = z.object({
 })
 export type KeyDraftConflict = z.infer<typeof keyDraftConflictSchema>
 
-export const keyViolationSchema = z.enum([
-  'prefix',
-  'charset',
-  'segment',
-  'case',
-  'depth',
-])
+export const keyViolationSchema = z.enum(KEY_VIOLATION_VALUES)
 
 /**
  * `POST /api/v1/keys/suggest-name` — the web app's AI key naming, under the

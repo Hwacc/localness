@@ -60,7 +60,9 @@ vi.mock('#server/libs/prisma', () => {
       upsert: async ({ where, create, update }: any) => {
         const { i18nKeyId, locale } = where.i18nKeyId_locale
         const row = db.keys.find((candidate) => candidate.id === i18nKeyId)!
-        const stored = row.locales.find((candidate) => candidate.locale === locale)
+        const stored = row.locales.find(
+          (candidate) => candidate.locale === locale,
+        )
         if (stored) Object.assign(stored, update)
         else row.locales.push({ locale: create.locale, ...update })
         return {}
@@ -88,7 +90,7 @@ vi.mock('#server/libs/prisma', () => {
     projectRelease: {
       findFirst: async ({ where }: any) =>
         db.releases.find(
-          (row) => row.id === where.id && row.projectId === where.projectId
+          (row) => row.id === where.id && row.projectId === where.projectId,
         ) ?? null,
     },
     projectLog: {
@@ -112,15 +114,17 @@ vi.mock('#server/libs/prisma', () => {
 })
 
 vi.mock('#server/helper/release', () => ({
-  setReleaseMembership: async (params: { releaseId: number; ids: number[] }) => {
+  setReleaseMembership: async (params: {
+    releaseId: number
+    ids: number[]
+  }) => {
     db.membership.push({ releaseId: params.releaseId, ids: params.ids })
     return { ok: true, changed: params.ids.length }
   },
 }))
 
-const { classifyImport, applyImport, ImportError } = await import(
-  '#server/helper/i18n-import'
-)
+const { classifyImport, applyImport, ImportError } =
+  await import('#server/helper/i18n-import')
 
 const PROJECT = 1
 const LOCALES = ['en', 'zh_cn', 'ja']
@@ -144,7 +148,10 @@ function existing(id: number, key: string, locales: LocaleRow[]): KeyRow {
   }
 }
 
-function classify(payload: Record<string, Record<string, string>>, keys: KeyRow[] = []) {
+function classify(
+  payload: Record<string, Record<string, string>>,
+  keys: KeyRow[] = [],
+) {
   return classifyImport({
     payload,
     projectLocales: LOCALES,
@@ -181,15 +188,12 @@ describe('classifyImport', () => {
   })
 
   it('lists per-locale changes and flags an unpublished draft', () => {
-    const preview = classify(
-      { en: { ok: 'OK' }, zh_cn: { ok: '好的' } },
-      [
-        existing(1, 'ok', [
-          { locale: 'en', draftText: 'OK', publishedText: 'OK' },
-          { locale: 'zh_cn', draftText: '确认', publishedText: '确定' },
-        ]),
-      ]
-    )
+    const preview = classify({ en: { ok: 'OK' }, zh_cn: { ok: '好的' } }, [
+      existing(1, 'ok', [
+        { locale: 'en', draftText: 'OK', publishedText: 'OK' },
+        { locale: 'zh_cn', draftText: '确认', publishedText: '确定' },
+      ]),
+    ])
     expect(preview.rows[0]).toMatchObject({
       kind: 'changed',
       hasUnpublishedDraft: true,
@@ -201,7 +205,9 @@ describe('classifyImport', () => {
     const preview = classify({ zh_cn: { fresh: '新', known: '已知' } }, [
       existing(1, 'known', published({ en: 'Known' })),
     ])
-    expect(preview.skipped).toEqual([{ key: 'fresh', reason: 'no-source-text' }])
+    expect(preview.skipped).toEqual([
+      { key: 'fresh', reason: 'no-source-text' },
+    ])
     expect(preview.rows).toEqual([
       expect.objectContaining({ key: 'known', kind: 'changed' }),
     ])
@@ -225,12 +231,15 @@ describe('classifyImport', () => {
   it('reports naming violations without refusing the key', () => {
     const preview = classify({ en: { 'login.title': 'Sign in' } })
     expect(preview.rows[0]!.kind).toBe('new')
-    expect(preview.rows[0]!.violations).toContain('charset')
+    expect(preview.rows[0]!.violations).toContain('separator')
   })
 
   it('detects mixed placeholder syntax across the payload', () => {
     const preview = classify({ en: { a: 'Hi {name}', b: 'Bye {{name}}' } })
-    expect(preview.interpolationStyles).toEqual(['single-brace', 'double-brace'])
+    expect(preview.interpolationStyles).toEqual([
+      'single-brace',
+      'double-brace',
+    ])
   })
 })
 
@@ -290,7 +299,12 @@ describe('applyImport', () => {
     })
     expect(db.keys[0]!.locales).toEqual([
       { locale: 'en', draftText: 'A', publishedText: 'A' },
-      { locale: 'ja', draftText: 'エー', publishedText: 'エー', sourceFingerprint: '' },
+      {
+        locale: 'ja',
+        draftText: 'エー',
+        publishedText: 'エー',
+        sourceFingerprint: '',
+      },
     ])
     // The original text did not change, so neither does its fingerprint.
     expect(db.keys[0]!.fingerprint).toBe('')
@@ -319,7 +333,7 @@ describe('applyImport', () => {
         payload: { en: { ok: 'OK' } },
         overwriteKeys: [],
         releaseId: 5,
-      })
+      }),
     ).rejects.toBeInstanceOf(ImportError)
     expect(db.keys).toEqual([])
   })
@@ -332,7 +346,7 @@ describe('applyImport', () => {
         userId: 7,
         payload: { en: { a: 'A', b: 'B' } },
         overwriteKeys: [],
-      })
+      }),
     ).rejects.toThrow('insert exploded')
     expect(db.keys).toEqual([])
     expect(db.logs).toEqual([

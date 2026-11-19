@@ -18,12 +18,12 @@
 
 ## 能取到什么，取不到什么
 
-|                               |                                                                                                                         |
-| ----------------------------- | ----------------------------------------------------------------------------------------------------------------------- |
-| **只有已发布**          | 草稿一律取不到。某条词条在这个语言还没发布，它就**不出现**，而不是返回空字符串                                    |
-| **不做回退**            | 缺失的 key**不会**用源语言或别的语言补上。调用方要自己决定缺了怎么显示——直接把 key 名露在界面上是最糟的那种处理 |
-| **只能按 release 和 namespace 收窄** | 没有别的筛选参数                                                                                                        |
-| **写入面服务于创作**   | 只有 `write` token 能建页面、画 Tag、把图层文字写入源语言、给 page / 词条挂发行、**建词条和改词条草稿**（`/keys`，见下）。设计稿再导入时，具名 key 的源语言草稿和已发布文案一起改成图层上的句子；`__unnamed_` 只写草稿，并清掉已发布源文。**句子没变就整个不写**，所以手工 Unpublish 过的源文不会被一次重复导入悄悄带回来。其他语言的译文不动。`/keys` 只写草稿、从不发布。`/bundle` 和 `/locales` 仍只返回已发布文案。建发行标签本身要 Project Owner |
+|                                      |                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
+| ------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **只有已发布**                       | 草稿一律取不到。某条词条在这个语言还没发布，它就**不出现**，而不是返回空字符串                                                                                                                                                                                                                                                                                                                                                                        |
+| **不做回退**                         | 缺失的 key**不会**用源语言或别的语言补上。调用方要自己决定缺了怎么显示——直接把 key 名露在界面上是最糟的那种处理                                                                                                                                                                                                                                                                                                                                       |
+| **只能按 release 和 namespace 收窄** | 没有别的筛选参数                                                                                                                                                                                                                                                                                                                                                                                                                                      |
+| **写入面服务于创作**                 | 只有 `write` token 能建页面、画 Tag、把图层文字写入源语言、给 page / 词条挂发行、**建词条和改词条草稿**（`/keys`，见下）。设计稿再导入时，具名 key 的源语言草稿和已发布文案一起改成图层上的句子；`__unnamed_` 只写草稿，并清掉已发布源文。**句子没变就整个不写**，所以手工 Unpublish 过的源文不会被一次重复导入悄悄带回来。其他语言的译文不动。`/keys` 只写草稿、从不发布。`/bundle` 和 `/locales` 仍只返回已发布文案。建发行标签本身要 Project Owner |
 
 **token 属于你，不属于项目**：一枚 token 可以指定它能碰**哪些**项目。只指定一个时，请求里根本不用写项目名——**改动之前发的 token 全都是这种**，行为和以前一模一样。
 
@@ -33,12 +33,12 @@
 
 ## token 的规矩
 
-| 动作                     | 谁能做                                                                                                                                                            |
-| ------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 建                       | **任何 Team Member**，但只能勾选**自己所在 Team 的项目**——token 不能给你自己没有的权限                                                                     |
-| 看列表                   | 在 **API** 页只看得到**自己建的**。项目侧那一列（谁能碰到我这个项目）由 Project Owner 在项目里看                                                          |
-| 吊销 / 硬删（Delete）    | **建的人自己**，或**平台管理员**。硬删只对**已经吊销**的行，它会连「这枚凭证存在过」的记录一起抹掉                                                       |
-| 把某个项目从 token 摘掉  | 该项目的 **Project Owner**，或 token 的主人。这条**只影响这一个项目**，token 在别处照旧。它是 Owner 遇到「成员不肯吊销自己的 token」时的杠杆 |
+| 动作                    | 谁能做                                                                                                                                       |
+| ----------------------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
+| 建                      | **任何 Team Member**，但只能勾选**自己所在 Team 的项目**——token 不能给你自己没有的权限                                                       |
+| 看列表                  | 在 **API** 页只看得到**自己建的**。项目侧那一列（谁能碰到我这个项目）由 Project Owner 在项目里看                                             |
+| 吊销 / 硬删（Delete）   | **建的人自己**，或**平台管理员**。硬删只对**已经吊销**的行，它会连「这枚凭证存在过」的记录一起抹掉                                           |
+| 把某个项目从 token 摘掉 | 该项目的 **Project Owner**，或 token 的主人。这条**只影响这一个项目**，token 在别处照旧。它是 Owner 遇到「成员不肯吊销自己的 token」时的杠杆 |
 
 **离队即失效。** 每请求都会核对「token 主人现在还是不是该项目 Team 的成员」。把人移出 Team，他那些指定了该项目的 token 立刻不能用，不需要谁去逐个吊销——列表里会标出来。
 
@@ -69,30 +69,30 @@
 
 ## HTTP 端点
 
-| 端点                            | 返回                                                                               |
-| ------------------------------- | ---------------------------------------------------------------------------------- |
-| `GET /api/v1/projects`        | **这枚 token 现在能碰哪些项目**。只凭 token 的调用方从这里开始                     |
-| `GET /api/v1/meta`            | 语言列表、`localeFallback`、可用的 release 和 namespace、项目的 key 命名规范 `keyConvention`（`prefix`、`separator`、`style`、`maxDepth` 和项目命名指引 `guidance`，给本地起名、按 namespace 分组的客户端），以及**每个语言有多少条已发布** |
-| `GET /api/v1/locales/:locale` | 一个语言的扁平`{ key: text }`                                                    |
-| `GET /api/v1/bundle`          | 一次拿到全部语言：`{ locale: { key: text } }`。只有已发布 |
-| `GET /api/v1/outdated`        | 哪些语言的哪些 key 译文是对着旧源文翻的。只是标记，句子仍在 `/bundle` |
-| `GET /api/v1/keys/search?q=`  | 给绑定下拉用。key 和源文，**含草稿**，分页 |
-| `GET /api/v1/keys/states`     | **按 key、按语言**返回 `draftText` / `publishedText` / `state`（`draft`、`published`、`outdated`、`unpublished`），**含草稿文案**。read token 即可；`?locales=en,ja`（缺省为项目全部语言）、`?keys=a.b,c.d`（只返回这些 key，查不到的名字直接略去）、`release`、`namespace`、`offset`、`limit`（上限 5000），按 key 升序。meta 另带 `sourceLocale` |
-| `POST /api/v1/match`          | 一批图层文字对上哪些已有词条：图层文字等于草稿或已发布任一份都算命中。命中的 `sourceText` 是草稿（没有草稿时用已发布），`draft` 表示该词条源语言还没有发布过 |
-| `GET /api/v1/pages/:id`       | Capture 读：这一页的 tag、草稿源文、page 和词条上的发行标签。Preview 只读这份绑定，不在这里改 key |
-| `POST /api/v1/releases`       | 新建发行标签。Project Owner，write token |
-| `POST /api/v1/release-membership` | 给 page 或词条追加 / 摘掉一个发行，写 token 即可。body `{ releaseId, kind: 'page' \| 'key', ids, mode: 'add' \| 'remove' }`，重复追加不报错。不删内容 |
-| `POST /api/v1/keys`           | 从一句硬编码文字建词条，写 token。body `{ key?, sourceText, releaseId? }`：给了 `key` 时源语言**直接发布**（这句话本来就在代码里上线了，不发布反而让页面显示 key 名），之后的修改都是草稿。不给 `key` 时建一条 `__unnamed_` 占位，只写草稿、不发布（同一句话再建会复用，返回 `created: false`）；给的名字已被占用报 409。`releaseId` 只给本次**新建**的词条打发行标签，复用的占位不动标签；不是本项目的发行报 400。返回 `{ sourceLocale, created, key }`，`key` 是和 `/keys/states` 同形的一条状态 |
-| `PATCH /api/v1/keys`          | 改一条词条的草稿，写 token，**已发布的也能改**。body `{ key, locales: { <语言>: { text, expected } } }`。`expected` 是你上次读到的草稿（没有就填 `""`），任何一个语言对不上就整单 409，`data` 里是 `{ locales: [对不上的语言], key: 当前状态 }`，什么都不写。源语言不能清空。返回同 `POST` |
-| `POST /api/v1/keys/suggest-name` | 按项目的命名规范让 AI 给一句话起 key 名，写 token（花项目的 AI 额度），不落库 |
+| 端点                              | 返回                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
+| --------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `GET /api/v1/projects`            | **这枚 token 现在能碰哪些项目**。只凭 token 的调用方从这里开始                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
+| `GET /api/v1/meta`                | 语言列表、`localeFallback`、可用的 release 和 namespace、项目的 key 命名规范 `keyConvention`（`prefix`、`separator`、`style`、`maxDepth` 和项目命名指引 `guidance`，给本地起名、按 namespace 分组的客户端），以及**每个语言有多少条已发布**                                                                                                                                                                                                                                                                                                                                                                                                                               |
+| `GET /api/v1/locales/:locale`     | 一个语言的扁平`{ key: text }`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
+| `GET /api/v1/bundle`              | 一次拿到全部语言：`{ locale: { key: text } }`。只有已发布                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
+| `GET /api/v1/outdated`            | 哪些语言的哪些 key 译文是对着旧源文翻的。只是标记，句子仍在 `/bundle`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
+| `GET /api/v1/keys/search?q=`      | 给绑定下拉用。key 和源文，**含草稿**，分页                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
+| `GET /api/v1/keys/states`         | **按 key、按语言**返回 `draftText` / `publishedText` / `state`（`draft`、`published`、`outdated`、`unpublished`），**含草稿文案**。read token 即可；`?locales=en,ja`（缺省为项目全部语言）、`?keys=a.b,c.d`（只返回这些 key，查不到的名字直接略去）、`release`、`namespace`、`offset`、`limit`（上限 5000），按 key 升序。meta 另带 `sourceLocale`                                                                                                                                                                                                                                                                                                                        |
+| `POST /api/v1/match`              | 一批图层文字对上哪些已有词条：图层文字等于草稿或已发布任一份都算命中。命中的 `sourceText` 是草稿（没有草稿时用已发布），`draft` 表示该词条源语言还没有发布过                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
+| `GET /api/v1/pages/:id`           | Capture 读：这一页的 tag、草稿源文、page 和词条上的发行标签。Preview 只读这份绑定，不在这里改 key                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
+| `POST /api/v1/releases`           | 新建发行标签。Project Owner，write token                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
+| `POST /api/v1/release-membership` | 给 page 或词条追加 / 摘掉一个发行，写 token 即可。body `{ releaseId, kind: 'page' \| 'key', ids, mode: 'add' \| 'remove' }`，重复追加不报错。不删内容                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
+| `POST /api/v1/keys`               | 从一句硬编码文字建词条，写 token。body `{ key?, sourceText, releaseId? }`：给了 `key` 时源语言**直接发布**（这句话本来就在代码里上线了，不发布反而让页面显示 key 名），之后的修改都是草稿。不给 `key` 时建一条 `__unnamed_` 占位，只写草稿、不发布（同一句话再建会复用，返回 `created: false`）；给的名字已被占用报 409；新名字违反项目命名规范的错误级规则（`/v1/meta` 的 `keyConvention`：缺前缀、非法字符、空段）报 400，消息里列出原因；分隔符、大小写、层级只是建议，不拦；已有名字不检查。`releaseId` 只给本次**新建**的词条打发行标签，复用的占位不动标签；不是本项目的发行报 400。返回 `{ sourceLocale, created, key }`，`key` 是和 `/keys/states` 同形的一条状态 |
+| `PATCH /api/v1/keys`              | 改一条词条的草稿，写 token，**已发布的也能改**。body `{ key, locales: { <语言>: { text, expected } } }`。`expected` 是你上次读到的草稿（没有就填 `""`），任何一个语言对不上就整单 409，`data` 里是 `{ locales: [对不上的语言], key: 当前状态 }`，什么都不写。源语言不能清空。返回同 `POST`                                                                                                                                                                                                                                                                                                                                                                                |
+| `POST /api/v1/keys/suggest-name`  | 按项目的命名规范让 AI 给一句话起 key 名，写 token（花项目的 AI 额度），不落库                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
 
 **什么时候要带 `?project=`：数这枚 token 当初被指定了**几个**项目**（不是"现在还能碰到几个"）。
 
-| token 被指定了 | 要带吗 |
-| --- | --- |
-| **1 个** | **哪儿都不用带**。改动前发的 token 全是这种，行为和以前一模一样 |
-| **2 个及以上** | 凡是**请求本身推不出项目**的都要带：三个读端点、`POST /pages`、MCP 的 URL。不带报 400，并让你去看 `/api/v1/projects` |
-| **0 个**（项目被删光） | 带不带都是 403，这枚 token 已经没用 |
+| token 被指定了         | 要带吗                                                                                                               |
+| ---------------------- | -------------------------------------------------------------------------------------------------------------------- |
+| **1 个**               | **哪儿都不用带**。改动前发的 token 全是这种，行为和以前一模一样                                                      |
+| **2 个及以上**         | 凡是**请求本身推不出项目**的都要带：三个读端点、`POST /pages`、MCP 的 URL。不带报 400，并让你去看 `/api/v1/projects` |
+| **0 个**（项目被删光） | 带不带都是 403，这枚 token 已经没用                                                                                  |
 
 `/api/v1/projects` 和 `POST /api/v1/uploads` **永远不带** —— 前者就是回答"能碰哪些"的那个答案本身，后者与项目无关。
 
@@ -150,17 +150,17 @@ token 指定了多个项目、URL 又没写 `?project=` 时，握手照常成功
 
 **九个工具，全部只读**：
 
-| 工具                      | 干什么                                                                                                              |
-| ------------------------- | ------------------------------------------------------------------------------------------------------------------- |
-| `get_project_info`      | token 服务的是哪个项目、有哪些语言、回退是哪个、每个语言发布了多少条。**起点**                                |
-| `get_translations`      | 一个语言的已发布文案，形状和`/locales/:locale` 一样                                                               |
-| `get_all_translations`  | 全部语言一次拿到，形状和`/bundle` 一样                                                                            |
-| `get_translation`       | 单语言、单 key。知道 key 之后用这个，比拉整个语言省                                                                 |
-| `get_key`               | 一个 key 的**全部语言**；未发布的语言**不省略**，明确回 `published: false`                            |
-| `search_keys`           | 按 key 名子串找，只返回名字                                                                                         |
+| 工具                    | 干什么                                                                                                          |
+| ----------------------- | --------------------------------------------------------------------------------------------------------------- |
+| `get_project_info`      | token 服务的是哪个项目、有哪些语言、回退是哪个、每个语言发布了多少条。**起点**                                  |
+| `get_translations`      | 一个语言的已发布文案，形状和`/locales/:locale` 一样                                                             |
+| `get_all_translations`  | 全部语言一次拿到，形状和`/bundle` 一样                                                                          |
+| `get_translation`       | 单语言、单 key。知道 key 之后用这个，比拉整个语言省                                                             |
+| `get_key`               | 一个 key 的**全部语言**；未发布的语言**不省略**，明确回 `published: false`                                      |
+| `search_keys`           | 按 key 名子串找，只返回名字                                                                                     |
 | `search_by_text`        | 按某个语言的已发布正文反查 key 名（`exact` / `contains`）。同一句话可能对应多条，返回的是一个列表而不是一个答案 |
-| `list_keys`             | 官方目录的 key 名，分页。**拿它和业务仓的语言 JSON 做 diff**                                                  |
-| `list_unpublished_keys` | 官方目录里某个语言**还没发布**的 key，分页                                                                    |
+| `list_keys`             | 官方目录的 key 名，分页。**拿它和业务仓的语言 JSON 做 diff**                                                    |
+| `list_unpublished_keys` | 官方目录里某个语言**还没发布**的 key，分页                                                                      |
 
 三条要点：
 
@@ -172,27 +172,27 @@ token 指定了多个项目、URL 又没写 `?project=` 时，握手照常成功
 
 ## 做错了会怎样
 
-| 你看到                                       | 原因                                                                                                                                                        |
-| -------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `Missing API token`                        | 请求里没带`Authorization: Bearer <token>`                                                                                                                 |
-| `Invalid API token`                        | token 抄错了，或者根本不是这个实例发出的                                                                                                                    |
-| `API token revoked`                        | 这枚 token 被吊销了。自己重发一枚，或找平台管理员                                                                                                            |
-| `This API token is read-only`              | 用了 `read` token 调写入端点。建 token 时选 **Read & write**                                                                                                 |
-| `This token addresses several projects; pass ?project=` | 这枚 token 指定了多个项目，请求里必须写清楚是哪个。能填什么看`/api/v1/projects`                                                                     |
-| `?project= names a different project than page … belongs to` | 按 page id 寻址的路由不该带`?project=`。项目从 page 推，带了又和它对不上就是自相矛盾——去掉这个参数 |
-| `Project name "x" is ambiguous for this token` | 它指定的项目里有重名。改用项目 id                                                                                                                        |
-| `This token's owner is no longer a member of this project's team` | 建这枚 token 的人已经不在该项目的 Team 里了。这就是「离队即失效」                                                                        |
-| `This token is not attached to any project` | 它指定的项目被删光了。已经做不了任何事，重新建一枚                                                                                                          |
-| `Unknown release: v1`                      | `?release=` 的名字这个项目里没有。名字写错不会退回全量                                                                                                    |
-| `Unknown namespace: x`                     | `?namespace=` 的名字这个项目里没有。去 Project Settings → Namespaces 看，或调 `/meta`                                                                         |
-| 调`/meta` 返回的项目名不是你要的           | `?project=` 写错了——**名字必须唯一命中**，有重名就得用 id。别猜，先调`/api/v1/projects`                                                            |
-| 关掉弹窗后 token 找不到了                    | 明文只有创建那一次。吊销重发                                                                                                                                |
-| 某条词条在 `/bundle` 里查不到                       | 它在这个语言还没**发布**。草稿走 `GET /api/v1/pages/:id`、`GET /api/v1/keys/search` 和 `GET /api/v1/keys/states`，不走 bundle |
-| 某个语言少了半截 key                         | 那些 key 在这个语言没发布，API**不会**拿别的语言补上                                                                                                  |
-| **Revoke** 点错了                      | 没有二次确认，撤不回来。重新建一枚，名字里带上用途                                                                                                          |
-| 已经吊销的行点**Delete** 没反应        | 只有 token 的主人本人或平台管理员能硬删                                                                                                                      |
-| token 列表里有一行标着「No projects」         | 它指定的项目被删了。这枚 token 已经没用，可以删掉                                                                                                            |
-| token 列表里有一行标着「You are no longer on the team」 | 你离开了它指定的 Team。它已经不工作；把项目重新加回来（或新建一枚）才能继续用                                                                      |
-| 配置里能读到 token，但浏览器里打不开那个地址 | 实例要挂在 HTTPS 后面；纯 HTTP 上跑 token 等于把凭证明文扔在线路上                                                                                          |
-| agent 说「没有这个 release」                 | 它没先调`get_project_info`。工具描述里写着 release 名从那里取                                                                                             |
-| agent 一直说找不到项目                       | MCP 的`url` 里没写 `?project=`，而这枚 token 指定了多个项目                                                                                              |
+| 你看到                                                            | 原因                                                                                                                          |
+| ----------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------- |
+| `Missing API token`                                               | 请求里没带`Authorization: Bearer <token>`                                                                                     |
+| `Invalid API token`                                               | token 抄错了，或者根本不是这个实例发出的                                                                                      |
+| `API token revoked`                                               | 这枚 token 被吊销了。自己重发一枚，或找平台管理员                                                                             |
+| `This API token is read-only`                                     | 用了 `read` token 调写入端点。建 token 时选 **Read & write**                                                                  |
+| `This token addresses several projects; pass ?project=`           | 这枚 token 指定了多个项目，请求里必须写清楚是哪个。能填什么看`/api/v1/projects`                                               |
+| `?project= names a different project than page … belongs to`      | 按 page id 寻址的路由不该带`?project=`。项目从 page 推，带了又和它对不上就是自相矛盾——去掉这个参数                            |
+| `Project name "x" is ambiguous for this token`                    | 它指定的项目里有重名。改用项目 id                                                                                             |
+| `This token's owner is no longer a member of this project's team` | 建这枚 token 的人已经不在该项目的 Team 里了。这就是「离队即失效」                                                             |
+| `This token is not attached to any project`                       | 它指定的项目被删光了。已经做不了任何事，重新建一枚                                                                            |
+| `Unknown release: v1`                                             | `?release=` 的名字这个项目里没有。名字写错不会退回全量                                                                        |
+| `Unknown namespace: x`                                            | `?namespace=` 的名字这个项目里没有。去 Project Settings → Namespaces 看，或调 `/meta`                                         |
+| 调`/meta` 返回的项目名不是你要的                                  | `?project=` 写错了——**名字必须唯一命中**，有重名就得用 id。别猜，先调`/api/v1/projects`                                       |
+| 关掉弹窗后 token 找不到了                                         | 明文只有创建那一次。吊销重发                                                                                                  |
+| 某条词条在 `/bundle` 里查不到                                     | 它在这个语言还没**发布**。草稿走 `GET /api/v1/pages/:id`、`GET /api/v1/keys/search` 和 `GET /api/v1/keys/states`，不走 bundle |
+| 某个语言少了半截 key                                              | 那些 key 在这个语言没发布，API**不会**拿别的语言补上                                                                          |
+| **Revoke** 点错了                                                 | 没有二次确认，撤不回来。重新建一枚，名字里带上用途                                                                            |
+| 已经吊销的行点**Delete** 没反应                                   | 只有 token 的主人本人或平台管理员能硬删                                                                                       |
+| token 列表里有一行标着「No projects」                             | 它指定的项目被删了。这枚 token 已经没用，可以删掉                                                                             |
+| token 列表里有一行标着「You are no longer on the team」           | 你离开了它指定的 Team。它已经不工作；把项目重新加回来（或新建一枚）才能继续用                                                 |
+| 配置里能读到 token，但浏览器里打不开那个地址                      | 实例要挂在 HTTPS 后面；纯 HTTP 上跑 token 等于把凭证明文扔在线路上                                                            |
+| agent 说「没有这个 release」                                      | 它没先调`get_project_info`。工具描述里写着 release 名从那里取                                                                 |
+| agent 一直说找不到项目                                            | MCP 的`url` 里没写 `?project=`，而这枚 token 指定了多个项目                                                                   |
