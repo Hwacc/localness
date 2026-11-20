@@ -70,6 +70,7 @@ export function publicGitSyncBinding(row: {
   ownsUntagged: boolean
   credentialKind: string
   token: string
+  autoPull: boolean
   lastPulledAt: Date | null
   lastPushedAt: Date | null
 }) {
@@ -86,6 +87,7 @@ export function publicGitSyncBinding(row: {
     ownsUntagged: row.ownsUntagged,
     credentialKind: row.credentialKind,
     tokenConfigured: Boolean(row.token),
+    autoPull: row.autoPull,
     lastPulledAt: row.lastPulledAt,
     lastPushedAt: row.lastPushedAt,
   }

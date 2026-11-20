@@ -550,6 +550,7 @@ export const zGitSyncBindingPut = z.object({
     GitCredentialKind.API_TOKEN,
   ]),
   token: z.string().optional(),
+  autoPull: z.boolean().optional(),
 })
 export type ZGitSyncBindingPut = z.infer<typeof zGitSyncBindingPut>
 

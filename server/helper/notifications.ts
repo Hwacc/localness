@@ -28,6 +28,72 @@ export type TeamInvitePayload = {
   invitedByName: string
 }
 
+export type GitPullReadyPayload = {
+  projectId: number
+  projectName: string
+  applyTheirs: number
+  conflicts: number
+}
+
+/**
+ * One row per owner and project, refreshed in place: a remote that keeps
+ * moving while nobody pulls must not stack a row per poll.
+ */
+export async function notifyGitPullReady(params: {
+  projectId: number
+  applyTheirs: number
+  conflicts: number
+}) {
+  const project = await prisma.project.findUnique({
+    where: { id: params.projectId },
+    select: { name: true, owners: { select: { userId: true } } },
+  })
+  if (!project?.owners.length) return
+  const payload: GitPullReadyPayload = {
+    projectId: params.projectId,
+    projectName: project.name,
+    applyTheirs: params.applyTheirs,
+    conflicts: params.conflicts,
+  }
+  const parts = [
+    params.applyTheirs ? `${params.applyTheirs} to pull` : '',
+    params.conflicts ? `${params.conflicts} conflicts` : '',
+  ].filter(Boolean)
+  const title = `Git changes in ${project.name}`
+  const body = `${parts.join(', ')}. Open Git sync and run Pull to review.`
+  const existing = await prisma.notification.findMany({
+    where: {
+      type: NotificationType.GIT_PULL_READY,
+      userId: { in: project.owners.map((owner) => owner.userId) },
+    },
+  })
+  for (const { userId } of project.owners) {
+    const row = existing.find(
+      (item) =>
+        item.userId === userId &&
+        (item.payload as Partial<GitPullReadyPayload> | null)?.projectId ===
+          params.projectId
+    )
+    if (row) {
+      await prisma.notification.update({
+        where: { id: row.id },
+        data: { title, body, payload, readAt: null, createdAt: new Date() },
+      })
+      continue
+    }
+    await prisma.notification.create({
+      data: {
+        userId,
+        type: NotificationType.GIT_PULL_READY,
+        title,
+        body,
+        payload,
+        action: NotificationAction.NONE,
+      },
+    })
+  }
+}
+
 export function throwNotificationHttp(error: unknown): never {
   if (error instanceof NotificationError) {
     throw createError({

@@ -79,6 +79,10 @@ export default defineEventHandler(async (event) => {
       : GitSyncFolderMode.EXCLUSIVE)
   const save = () =>
     prisma.$transaction(async (tx) => {
+      const autoPull = body.autoPull ?? existing?.autoPull ?? false
+      // Empty = not baselined: the poller records the head without previewing,
+      // so switching it on does not turn history into a preview.
+      const resetBaseline = moved || autoPull !== (existing?.autoPull ?? false)
       const folder = planFolderBinding({
         adapter,
         mode: folderMode,
@@ -108,6 +112,7 @@ export default defineEventHandler(async (event) => {
           ...folder,
           credentialKind: body.credentialKind,
           token,
+          autoPull,
         },
         update: {
           enabled: body.enabled ?? true,
@@ -119,6 +124,8 @@ export default defineEventHandler(async (event) => {
           ...folder,
           credentialKind: body.credentialKind,
           ...(body.token && body.token.trim() ? { token: body.token.trim() } : {}),
+          autoPull,
+          ...(resetBaseline ? { lastRemoteSha: '' } : {}),
         },
       })
       if (moved) await resetGitSyncState(projectId, tx)

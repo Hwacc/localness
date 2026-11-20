@@ -84,6 +84,7 @@ export interface GitSyncBindingPublic {
   ownsUntagged: boolean
   credentialKind: string
   tokenConfigured: boolean
+  autoPull: boolean
   lastPulledAt: string | null
   lastPushedAt: string | null
 }

@@ -84,6 +84,7 @@ const bulkResolving = ref(false)
 
 const form = reactive({
   enabled: true,
+  autoPull: false,
   adapter: GitSyncAdapter.LILT_SWBU,
   product: '',
   folderMode: GitSyncFolderMode.EXCLUSIVE,
@@ -141,6 +142,7 @@ const credentialItems = [
 
 function applyBindingToForm(binding: GitSyncBindingPublic | null) {
   form.enabled = binding?.enabled ?? true
+  form.autoPull = binding?.autoPull ?? false
   form.adapter =
     binding?.adapter === GitSyncAdapter.LOCALE_FILES
       ? GitSyncAdapter.LOCALE_FILES
@@ -364,6 +366,7 @@ async function saveBinding() {
       method: 'PUT',
       body: {
         enabled: form.enabled,
+        autoPull: form.autoPull,
         adapter: form.adapter,
         product: form.product.trim(),
         folderMode: isLilt.value ? form.folderMode : GitSyncFolderMode.EXCLUSIVE,
@@ -1855,6 +1858,13 @@ function openHistory() {
               :show-discover-hint="isHttpsRemoteUrl(form.remoteUrl) && !canDiscover"
               @load-products="loadProducts"
             />
+            <UFormField
+              label="Auto pull"
+              name="autoPull"
+              help="Checks the remote on a schedule (every 2 hours by default) and prepares the conflict cards when it changes. Nothing is applied until you run Pull."
+            >
+              <USwitch v-model="form.autoPull" />
+            </UFormField>
             <p v-if="configured" class="text-xs text-muted">
               Changing the remote, branch, layout or folder resets sync
               history: open conflicts are dropped and the next pull and push

@@ -17,6 +17,8 @@ export enum NotificationType {
   TEAM_JOIN_REQUEST = 'TEAM_JOIN_REQUEST',
   TEAM_JOIN_APPROVED = 'TEAM_JOIN_APPROVED',
   TEAM_JOIN_REJECTED = 'TEAM_JOIN_REJECTED',
+  // Informational (action NONE): auto pull found remote changes to review.
+  GIT_PULL_READY = 'GIT_PULL_READY',
 }
 
 export enum JoinRequestStatus {
@@ -193,6 +195,12 @@ export enum GitSyncPushReason {
 
 /** A preview snapshot is only trusted for this long. */
 export const GIT_SYNC_PREVIEW_TTL_MS = 15 * 60 * 1000
+
+/** `createdBy` of previews made by the auto-pull poller. */
+export const GIT_SYNC_AUTO_ACTOR = 'auto'
+export const GIT_AUTO_PULL_DEFAULT_MINUTES = 120
+/** Failed remote checks back off up to this long, or one interval if longer. */
+export const GIT_AUTO_PULL_MAX_BACKOFF_MS = 30 * 60 * 1000
 
 /**
  * How long a project's sync lease holds without a heartbeat before anyone may

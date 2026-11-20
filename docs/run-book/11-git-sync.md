@@ -31,6 +31,7 @@
 | **Token**      | 粘进去就行，占位文字写着`Paste token (never shown again)`——**存下之后再打开这一页是看不到的**，所以要换只能在 **Rotate token** 里粘一个新的             |
 | **Remote URL** | 必须是**HTTPS 的 clone 地址**（以 `.git` 结尾）。帮助文字：`Git clone HTTPS URL ending in .git. A Bitbucket /src/… browser page is converted automatically.` |
 | **Branch**     | 默认`main`                                                                                                                                                            |
+| **Auto pull**  | 开关，默认关，只有 Project Owner 能改。见下文「自动检查远端」                                                                                                          |
 | **Layout**     | **LILT product folder**（只增不改的批次文件）或 **Locale files**（每个语言一个 JSON，原地更新）                                                                    |
 | **Product**    | 仅 LILT：这个仓里哪个 product 目录。先点**Load products** 才会列出候选                                                                                                |
 | **Used by**    | 仅 LILT：**This project only**（默认，整个 product 目录归这个项目）或 **This project and others**（几个项目共用一个 product 目录，见下文）                             |
@@ -49,6 +50,19 @@
 **一个项目只能绑一处**，换地方就是在 Settings 里改。切换 Layout 会清空 Product / Directory，要重新选或填。
 
 绑好之后卡片标题：LILT 显示 product 名字；Locale files 显示 `目录/文件模板`，比如 `src/locales/{locale}.json`。
+
+### 自动检查远端（Auto pull）
+
+打开 **Auto pull** 后，服务器按固定间隔（默认 **120 分钟**，部署时用 `NUXT_GIT_AUTO_PULL_MINUTES` 改，设 `0` 整个关掉）用 `git ls-remote` 看一眼远端分支有没有新提交。**它从不自动 Apply**，只做这几件事：
+
+- 远端没变：什么都不做。变了：跑一次 Pull 预览，把需要裁决的冲突建成卡片，然后丢掉这份预览。
+- 预览里有要拉的行或冲突时，给这个项目的每个 Project Owner 发一条站内通知 `Git changes in <项目名>`，写明多少行待拉、多少个冲突。同一个项目反复变化只刷新这一条，不会堆叠。
+- 之后你要自己进 **Git** 页点 **Pull**，用新的预览确认和 Apply。
+- 同一个远端地址（含分支和凭证）被几个项目共用时，每轮只问一次。
+
+几种情况这一轮会跳过这个项目，下一轮再看：有人正在 Apply 或改绑定、有人手动做的 Pull 预览还没过期。远端连不上时只在服务器日志里写 `[git-auto-pull]`，不会弹提示，并且逐步拉长重试间隔。
+
+**第一次打开开关，或改了远端、分支、布局时，第一轮只记下当时的远端位置，不出预览**——这个时间点之前的变化请自己点一次 **Pull**。
 
 ## 远端长什么样
 

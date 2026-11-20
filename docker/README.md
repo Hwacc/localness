@@ -218,6 +218,14 @@ Repo secrets (Actions → Secrets): `DOCKERHUB_USERNAME`, `DOCKERHUB_TOKEN`
 `NUXT_SALT_SIZE` is fixed at `10` in the release workflow; do not change it
 after go-live.
 
+## Auto pull (optional)
+
+Projects with **Auto pull** switched on in Git settings are checked with
+`git ls-remote` every `NUXT_GIT_AUTO_PULL_MINUTES` minutes (default `120`;
+`0` turns the poller off). It never applies anything: a moved head only
+prepares conflict cards and notifies the project owners. Failures are logged
+as `[git-auto-pull] ...` in `docker compose logs localness`.
+
 ## Backup and restore
 
 ### Scheduled backup to a network share (optional)

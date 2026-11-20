@@ -451,6 +451,11 @@ model GitSyncBinding {
   /// Whether this binding reads files no binding on the folder tagged: batches
   /// pushed before tags existed, or written by another tool. At most one per folder.
   ownsUntagged   Boolean   @default(true) @map("owns_untagged")
+  /// Polls the remote head and prepares a pull preview when it moves. Never applies.
+  autoPull       Boolean   @default(false) @map("auto_pull")
+  /// Remote head at the last auto-pull check. Empty means "not baselined yet":
+  /// the next round records the head without previewing.
+  lastRemoteSha  String    @default("") @map("last_remote_sha")
   project        Project   @relation(fields: [projectId], references: [id], onDelete: Cascade)
 
   @@unique([adapter, remoteUrl, product, batchTag])
