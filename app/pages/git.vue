@@ -510,7 +510,7 @@ const pushReasonLabel: Record<string, string> = {
   [GitSyncPushReason.NOT_PUBLISHED]: 'No published source text',
   [GitSyncPushReason.DRAFT_KEY]: 'Auto draft key',
   [GitSyncPushReason.UNWRITABLE]:
-    'Cannot be written — clashes with an existing key path in the file',
+    'Cannot be written — clashes with an existing key path or array in the file',
   [GitSyncPushReason.REMOTE_CHANGED]: 'Git is ahead — check to overwrite',
   [GitSyncPushReason.CONFLICT]: 'Conflict with Git source',
 }

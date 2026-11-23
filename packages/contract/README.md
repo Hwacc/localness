@@ -33,6 +33,10 @@ const { entries } = readLocaleFile(source)
 const next = writeLocaleFile(source, { 'home.title': 'Welcome', 'old.key': null }, 'nested-json')
 ```
 
+Arrays are read by index: `{"steps":[{"title":"A"}],"tips":["x"]}` gives the keys `steps.0.title` and `tips.0`. Such a key can only be updated in place. `unwritableKeys` refuses a new key under an array (`steps.1.title` while `steps` has one element, `tips.x`), and a `null` for a key inside an array is ignored, so no write ever adds or removes an element and shifts the keys after it. `inArray(path)` tells such a key apart: `inArray(readLocaleFile(source).paths.get(key)!)`.
+
+`paths` and `blocked` hold `LocaleKeyPath` (`(string | number)[]`, a number per array index), and `arrays` lists the path of every array. Before 0.6.0 they were `string[]` and arrays were only `blocked`.
+
 ## Versioning
 
 Independent of the Localness server version.

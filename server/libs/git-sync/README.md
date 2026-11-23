@@ -96,7 +96,7 @@ layout 只负责一件事：**在已经 clone 好的目录里，按自己的约�
 - **`readLocales(ctx, files)`**：把文件读成 `locale → key → text`，同时返回 `origin`（`` `${locale}\0${key}` `` → 来源 `relPath`），用于冲突卡片显示来源。坏文件跳过，不要抛错。
 - **`readSource(ctx, sourceLocale)`**：仓库里当前的 source 文本，即 Push 三方合并的 theirs。source 文件本身格式错误时抛 422，并在信息里带上路径，避免覆盖用户手写的文件。
 - **`sourceTextFor(ctx, files, sourceLocale)`**：如果你的布局能知道某个译文是基于哪一版 source 翻译的（LILT 靠批次 id 配对），返回查询函数，否则返回 `() => null`。返回 null 只会让 UI 不显示「Older source」提示，其他功能不受影响。
-- **`unwritableKeys(ctx, sourceLocale, keys)`**：文件格式装不下的 key（比如 nested JSON 里 `a` 已是字符串，又要写 `a.b`）。这些 key 在预览中标为 `UNWRITABLE`，不会推送。
+- **`unwritableKeys(ctx, sourceLocale, keys)`**：文件格式装不下的 key（比如 nested JSON 里 `a` 已是字符串，又要写 `a.b`；或新 key 落在数组下面，如数组只有 4 项时的 `list.4.title`，数组只更新已有元素）。这些 key 在预览中标为 `UNWRITABLE`，不会推送。
 - **`writeSource(ctx, sourceLocale, entries)`**：把 `entries`（只含本次要推送的 key）写进工作区，返回：
   - `relPath`：写入的文件
   - `sha`：写入后的 blob sha，会记进 `seenFiles`，下一次 Pull 就不会把自己写的文件当成新文件。返回 `''` 表示「已见过，内容不追踪」，适合每次都新建文件的追加式布局

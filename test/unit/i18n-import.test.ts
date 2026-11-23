@@ -60,14 +60,23 @@ describe('parseLocaleJson', () => {
     expect(duplicates).toEqual([])
   })
 
-  it('skips arrays with the line they are on', () => {
-    const { entries, warnings } = parseLocaleJson(
-      json('{', '  "x": "y",', '  "items": ["a", "b"]', '}')
+  it('reads arrays by index, skipping null elements', () => {
+    const { entries, warnings, duplicates } = parseLocaleJson(
+      json(
+        '{',
+        '  "x": "y",',
+        '  "items": ["a", null, "c"],',
+        '  "how": [',
+        '    { "title": "T" }',
+        '  ],',
+        '  "items.2": "C"',
+        '}'
+      )
     )
-    expect({ ...entries }).toEqual({ x: 'y' })
-    expect(warnings).toEqual([{ kind: 'array-value', key: 'items', line: 3 }])
-    expect(importWarningText(warnings[0]!)).toBe(
-      '"items" (line 3) is an array and was skipped.'
+    expect({ ...entries }).toEqual({ x: 'y', 'items.0': 'a', 'items.2': 'C', 'how.0.title': 'T' })
+    expect(warnings).toEqual([])
+    expect(importDuplicateText(duplicates[0]!)).toBe(
+      '"items.2" is defined twice: line 3 as nested keys (items → 2), line 7 as the key "items.2". The later one is kept: "C".'
     )
   })
 

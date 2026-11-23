@@ -96,17 +96,32 @@ export function localeFilePath(
   return `${dir}/${pattern.replace(LOCALE_PLACEHOLDER, localeFileName(locale, localeMap))}`
 }
 
+/** JSON path of a value: property names, and a number for each array index. */
+export type LocaleKeyPath = (string | number)[]
+
 /**
  * Keys are read the same way Translations import reads them — nested objects
  * joined with `.` — and every key remembers the property path it came from, so
  * a write lands on that exact property even in a file that mixes flat and
  * nested keys.
+ *
+ * Arrays are read by index: `{"list":[{"title":"A"}]}` is the key
+ * `list.0.title`. A key inside an array (see `inArray`) can only be updated:
+ * no write adds or removes an array element, since that would shift the keys
+ * of the elements after it.
  */
 export type LocaleFileContent = {
   entries: Record<string, string>
-  paths: Map<string, string[]>
-  /** Paths holding something other than an object or text (arrays, null). */
-  blocked: string[][]
+  paths: Map<string, LocaleKeyPath>
+  /** Paths holding something other than an object, array or text (null). */
+  blocked: LocaleKeyPath[]
+  /** Path of every array, empty ones included. */
+  arrays: LocaleKeyPath[]
+}
+
+/** True when the path runs through an array, so its key may be updated but never added or removed. */
+export function inArray(path: readonly (string | number)[]): boolean {
+  return path.some((segment) => typeof segment === 'number')
 }
 
 export function readLocaleFile(source: string): LocaleFileContent {
@@ -118,44 +133,46 @@ export function readLocaleFile(source: string): LocaleFileContent {
     throw new Error('The JSON file must contain an object at the top level')
   }
   const entries = emptyEntries()
-  const paths = new Map<string, string[]>()
-  const blocked: string[][] = []
-  const walk = (node: JsonNode, path: string[]) => {
-    for (const property of node.children ?? []) {
-      const [nameNode, valueNode] = property.children ?? []
-      if (!nameNode || !valueNode) continue
-      const segments = [...path, String(nameNode.value)]
-      switch (valueNode.type) {
-        case 'object':
-          walk(valueNode, segments)
-          break
-        case 'string':
-        case 'number':
-        case 'boolean': {
-          const key = segments.join(LOCALE_KEY_SEPARATOR)
-          paths.set(key, segments)
-          const text = normalizeLocaleText(valueNode.value)
-          if (text !== null) entries[key] = text
-          break
+  const paths = new Map<string, LocaleKeyPath>()
+  const blocked: LocaleKeyPath[] = []
+  const arrays: LocaleKeyPath[] = []
+  const visit = (node: JsonNode, segments: LocaleKeyPath) => {
+    switch (node.type) {
+      case 'object':
+        for (const property of node.children ?? []) {
+          const [nameNode, valueNode] = property.children ?? []
+          if (nameNode && valueNode) visit(valueNode, [...segments, String(nameNode.value)])
         }
-        case 'array':
-        case 'null':
-        case 'property':
-          blocked.push(segments)
-          break
-        default: {
-          const unreachable: never = valueNode.type
-          throw new Error(`Unknown JSON node type: ${unreachable}`)
-        }
+        break
+      case 'array':
+        arrays.push(segments)
+        node.children?.forEach((element, index) => visit(element, [...segments, index]))
+        break
+      case 'string':
+      case 'number':
+      case 'boolean': {
+        const key = segments.join(LOCALE_KEY_SEPARATOR)
+        paths.set(key, segments)
+        const text = normalizeLocaleText(node.value)
+        if (text !== null) entries[key] = text
+        break
+      }
+      case 'null':
+      case 'property':
+        blocked.push(segments)
+        break
+      default: {
+        const unreachable: never = node.type
+        throw new Error(`Unknown JSON node type: ${unreachable}`)
       }
     }
   }
-  walk(root, [])
-  return { entries, paths, blocked }
+  visit(root, [])
+  return { entries, paths, blocked, arrays }
 }
 
-function isPrefix(a: string[], b: string[]): boolean {
-  return a.length <= b.length && a.every((segment, i) => segment === b[i])
+function isPrefix(a: LocaleKeyPath, b: LocaleKeyPath): boolean {
+  return a.length <= b.length && a.every((segment, i) => String(segment) === String(b[i]))
 }
 
 function newKeyPath(key: string, format: LocaleFileFormat): string[] {
@@ -176,7 +193,9 @@ function newKeyPath(key: string, format: LocaleFileFormat): string[] {
  * place. A new nested key is not when its path runs into an existing value
  * (`a` is text, so `a.b` has nowhere to go), would replace an object, has an
  * empty segment, or collides that way with another new key — then neither of
- * the two is written, since there is no right one to pick.
+ * the two is written, since there is no right one to pick. In either format a
+ * new key under an array (`list.4` when `list` has four elements, `list.x`) is
+ * not writable: arrays only take updates to the elements they already have.
  */
 export function unwritableKeys(
   file: LocaleFileContent,
@@ -184,7 +203,8 @@ export function unwritableKeys(
   format: LocaleFileFormat
 ): Set<string> {
   const out = new Set<string>()
-  const occupied = [...file.paths.values(), ...file.blocked]
+  const occupied = [...file.paths.values(), ...file.blocked, ...file.arrays]
+  const arrayKeys = file.arrays.map((path) => path.join(LOCALE_KEY_SEPARATOR))
   const fresh = keys
     .filter((key) => !file.paths.has(key))
     .map((key) => ({ key, path: newKeyPath(key, format) }))
@@ -193,7 +213,10 @@ export function unwritableKeys(
       out.add(item.key)
       continue
     }
-    const hitsFile = occupied.some(
+    const underArray = arrayKeys.some(
+      (prefix) => item.key === prefix || item.key.startsWith(`${prefix}${LOCALE_KEY_SEPARATOR}`)
+    )
+    const hitsFile = underArray || occupied.some(
       (path) => isPrefix(path, item.path) || isPrefix(item.path, path)
     )
     const hitsFresh = fresh.some(
@@ -216,8 +239,9 @@ function detectIndent(source: string): { insertSpaces: boolean; tabSize: number 
 /**
  * Sets each entry in place and leaves everything else byte-for-byte: key
  * order, indentation, comments and line endings. A new key goes to the end of
- * its parent object. A `null` value removes the key. `source` null creates the
- * file. Callers must drop `unwritableKeys` first.
+ * its parent object. A `null` value removes the key, except a key inside an
+ * array, which is left as it is. `source` null creates the file. Callers must
+ * drop `unwritableKeys` first.
  */
 export function writeLocaleFile(
   source: string | null,
@@ -237,7 +261,7 @@ export function writeLocaleFile(
       set(known ?? newKeyPath(key, format), value)
       continue
     }
-    if (!known) continue
+    if (!known || inArray(known)) continue
     set(known, undefined)
     // A nested object the removal left empty goes too, up to the top level.
     for (let depth = known.length - 1; depth > 0; depth--) {

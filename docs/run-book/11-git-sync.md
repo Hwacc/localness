@@ -165,7 +165,7 @@ LILT 不会为新项目建新目录时，把几个项目的 **Used by** 都设�
 | **Unchanged since last push**          | 和远端一样，没什么可推                                   | 否，默认不显示 |
 | **No published source text**           | 这条 key 的源语言还没发布                                | 否，默认不显示 |
 | **Auto draft key**                     | `__unnamed_` 占位 key，永远不推                          | 否，默认不显示 |
-| **Cannot be written — clashes with an existing key path in the file** | 仅 Locale files：这条**新** key 在文件里放不下。比如文件里 `home` 是一句文案，新 key `home.sub` 就没地方写；或者 `home` 和 `home.sub` 两个新 key 互相冲突（两条都不写）。改 key 名或改 Format | 否，不能勾 |
+| **Cannot be written — clashes with an existing key path or array in the file** | 仅 Locale files：这条**新** key 在文件里放不下。比如文件里 `home` 是一句文案，新 key `home.sub` 就没地方写；或者 `home` 和 `home.sub` 两个新 key 互相冲突（两条都不写）；或者新 key 落在数组下面（数组按下标读成 `list.0.title` 这类 key，只更新已有元素，`list` 只有 4 项时 `list.4.title` 要手动加进文件）。改 key 名、改 Format，或手动改数组 | 否，不能勾 |
 | **Git is ahead — check to overwrite** | Git 那边改了而平台没动。**勾上就是用平台覆盖 Git** | 否，但可以勾   |
 | **Conflict with Git source**           | 两边都改了，在 **Conflicts** 标签处理                     | 不在 Changes 里 |
 

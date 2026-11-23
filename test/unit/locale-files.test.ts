@@ -141,6 +141,21 @@ describe('locale files on disk', () => {
     )
   })
 
+  it('reads array texts by index and pushes only into elements that exist', async () => {
+    const source = '{\n  "steps": [\n    { "title": "One" }\n  ],\n  "tips": ["a", "b"]\n}\n'
+    const abs = join(repoRoot, 'locales', 'en.json')
+    await writeFile(abs, source)
+    const { maps } = await readLocaleFileMaps(repoRoot, await listLocaleFiles(ctx()))
+    expect(maps.get('en')?.get('steps.0.title')).toBe('One')
+    expect(
+      await unwritableSourceKeys(ctx(), 'en', ['steps.0.title', 'steps.1.title', 'tips.2'])
+    ).toEqual(new Set(['steps.1.title', 'tips.2']))
+    await writeLocaleFileSource(ctx(), 'en', { 'steps.0.title': 'First', 'tips.1': 'B' })
+    expect(await readFile(abs, 'utf8')).toBe(
+      source.replace('"One"', '"First"').replace('"b"', '"B"')
+    )
+  })
+
   it('creates a missing source file, including folders from the pattern', async () => {
     const c = ctx({ options: parseLocaleFilesOptions({ pattern: '{locale}/messages.json' }) })
     expect((await readLocaleFileSource(c, 'en')).size).toBe(0)
