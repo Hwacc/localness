@@ -4,6 +4,7 @@ import {
   GitSyncAdapter,
   GitSyncConflictStatus,
   GitSyncFileFormat,
+  GitSyncFolderMode,
 } from '#shared/constants'
 
 export function isHttpsRemoteUrl(value: string): boolean {
@@ -82,6 +83,8 @@ export const zGitSyncBindingPut = z.object({
     .refine(isHttpsRemoteUrl, 'Remote URL must be an https Git remote'),
   branch: z.string().min(1).optional(),
   product: z.string().trim().min(1),
+  /** `shared` is accepted for `lilt-swbu` only. Absent keeps the saved mode. */
+  folderMode: z.enum(GitSyncFolderMode).optional(),
   /** `locale-files` only; ignored by `lilt-swbu`. */
   options: z
     .object({
@@ -94,6 +97,7 @@ export const zGitSyncBindingPut = z.object({
     GitCredentialKind.API_TOKEN,
   ]),
   token: z.string().optional(),
+  autoPull: z.boolean().optional(),
 })
 export type ZGitSyncBindingPut = z.infer<typeof zGitSyncBindingPut>
 
@@ -125,3 +129,12 @@ export const zGitSyncConflictResolve = z.object({
   newKey: z.string().trim().min(1).optional(),
 })
 export type ZGitSyncConflictResolve = z.infer<typeof zGitSyncConflictResolve>
+
+/** Bulk Use Git / Use platform. Merge and rename need a person per card. */
+export const zGitSyncConflictResolveBulk = z.object({
+  ids: z.array(z.number().int().positive()).min(1).max(1000),
+  action: z.enum([GitSyncConflictStatus.OURS, GitSyncConflictStatus.THEIRS]),
+})
+export type ZGitSyncConflictResolveBulk = z.infer<
+  typeof zGitSyncConflictResolveBulk
+>

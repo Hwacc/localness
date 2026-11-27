@@ -31,8 +31,10 @@
 | **Token**      | 粘进去就行，占位文字写着`Paste token (never shown again)`——**存下之后再打开这一页是看不到的**，所以要换只能在 **Rotate token** 里粘一个新的             |
 | **Remote URL** | 必须是**HTTPS 的 clone 地址**（以 `.git` 结尾）。帮助文字：`Git clone HTTPS URL ending in .git. A Bitbucket /src/… browser page is converted automatically.` |
 | **Branch**     | 默认`main`                                                                                                                                                            |
+| **Auto pull**  | 开关，默认关，只有 Project Owner 能改。见下文「自动检查远端」                                                                                                          |
 | **Layout**     | **LILT product folder**（只增不改的批次文件）或 **Locale files**（每个语言一个 JSON，原地更新）                                                                    |
 | **Product**    | 仅 LILT：这个仓里哪个 product 目录。先点**Load products** 才会列出候选                                                                                                |
+| **Used by**    | 仅 LILT：**This project only**（默认，整个 product 目录归这个项目）或 **This project and others**（几个项目共用一个 product 目录，见下文）                             |
 | **Directory**  | 仅 Locale files：放语言文件的目录，相对仓根，比如 `src/locales`。手填，没有 Load 按钮                                                                                   |
 | **File pattern** | 仅 Locale files：文件名模板，必须含一次 `{locale}`、以 `.json` 结尾。默认 `{locale}.json`，也可以是 `{locale}/messages.json`                                         |
 | **Format**     | 仅 Locale files：**Nested JSON**（`{ "home": { "title": … } }`）或 **Flat JSON**（`{ "home.title": … }`）。只影响文件里还没有的 key 写成什么样                         |
@@ -49,6 +51,19 @@
 
 绑好之后卡片标题：LILT 显示 product 名字；Locale files 显示 `目录/文件模板`，比如 `src/locales/{locale}.json`。
 
+### 自动检查远端（Auto pull）
+
+打开 **Auto pull** 后，服务器按固定间隔（默认 **120 分钟**，部署时用 `NUXT_GIT_AUTO_PULL_MINUTES` 改，设 `0` 整个关掉）用 `git ls-remote` 看一眼远端分支有没有新提交。**它从不自动 Apply**，只做这几件事：
+
+- 远端没变：什么都不做。变了：跑一次 Pull 预览，把需要裁决的冲突建成卡片，然后丢掉这份预览。
+- 预览里有要拉的行或冲突时，给这个项目的每个 Project Owner 发一条站内通知 `Git changes in <项目名>`，写明多少行待拉、多少个冲突。同一个项目反复变化只刷新这一条，不会堆叠。
+- 之后你要自己进 **Git** 页点 **Pull**，用新的预览确认和 Apply。
+- 同一个远端地址（含分支和凭证）被几个项目共用时，每轮只问一次。
+
+几种情况这一轮会跳过这个项目，下一轮再看：有人正在 Apply 或改绑定、有人手动做的 Pull 预览还没过期。远端连不上时只在服务器日志里写 `[git-auto-pull]`，不会弹提示，并且逐步拉长重试间隔。
+
+**第一次打开开关，或改了远端、分支、布局时，第一轮只记下当时的远端位置，不出预览**——这个时间点之前的变化请自己点一次 **Pull**。
+
 ## 远端长什么样
 
 ### LILT product folder
@@ -61,6 +76,15 @@
 两边都是**扁平 JSON**（`{ "key": "文案" }`），而且**只增不改**：一次 Push 就是往 `source/` 里放一个**新文件**，只装这次推上去的那些 key，不重写老文件。下游写出 `translated/` 时会把前缀原样带过来，只换语言那一段。
 
 远端 locale 用的是带地区的写法（`en-US`、`de-DE`），平台的代码是短的（`en`、`de`），中间有一张默认对照表，认不出来的时候，Pull 的文件列表里会写成 `unmapped (de-DE)`，这种文件不参与这次 Pull。
+
+#### 几个项目共用一个 product 目录
+
+LILT 不会为新项目建新目录时，把几个项目的 **Used by** 都设成 **This project and others**、选同一个 Product。
+
+- 批次 id 是 24 位十六进制：前 8 位是时间，**中间 8 位是项目的标签**，后 8 位随机。Push 写出的文件都带本项目标签，LILT 在 `translated/` 里原样保留。
+- Pull 只读带本项目标签的批次。共用之前就在目录里的旧文件，只归**第一个**加入的项目。
+- 目录被 **This project only** 的项目占着时，别的项目保存会报 `Another project uses this folder on its own`；反过来目录已经有共用项目时，选 **This project only** 会报 `Other projects share this folder — choose Shared folder to join them`。
+- 只切换 Folder 模式不清同步历史；换 Product 才会。
 
 ### Locale files
 
@@ -77,14 +101,20 @@
 
 ## Pull：先预览，再落地
 
-点 **Pull** 不会直接改任何东西，先出一块 **Review pull** 面板：
+点 **Pull** 不会直接改任何东西，页面顶部先出一条蓝色的 **Review pull** 栏：
 
-- 标题下面写着这次的范围：`3 of 5 file(s) · 8 of 12 change(s) selected.`
 - `Remote <commit 前 8 位> · expires <时间>`——预览有有效期，过期要重新拉。
+- ⓘ 悬停能看到这次操作的说明。
+- 右边是 **Cancel** 和 **Apply pull (n)**，n 是勾了几行。
 
-**Files**：这次涉及的远端文件，一条一个勾选框，后面写着来源和对应的平台语言（`New file` / `Content changed` / `Already pulled`）。**不勾的文件不会落地，下次 Pull 还会是候选**，不会被悄悄标记成「看过了」。
+**Files**（栏里的按钮）：这次涉及的远端文件，一条一个勾选框，后面写着来源和对应的平台语言（`New file` / `Content changed` / `Already pulled`）。**不勾的文件不会落地，下次 Pull 还会是候选**，不会被悄悄标记成「看过了」。Changes 和 Conflicts 两个标签都按它过滤。
 
-**Changes**：逐条 key 的变更，列是 **Key** / **Locale** / **Reason**（裁决结果）/ **Text**（Git 那边的文案）。可以按 key 或文案搜，也可以按裁决筛。展开一行能看到 **Git** 和 **Platform draft** 两份文案对照。
+左侧列表分两个标签：
+
+- **Changes**：除冲突外的逐条变更。勾选 = 交给 **Apply pull**。
+- **Conflicts**：两边都改了的行。勾选 = 交给批量的 **Use Git** / **Use platform**（见下面「冲突」一节）。
+
+两个标签的勾选各自保存，栏右边只显示当前标签的按钮。有冲突时默认打开 **Conflicts**，冲突处理完自动切回 **Changes**。列表头部有搜索（两个标签共用）和一个下拉：Changes 里按裁决筛，Conflicts 里按语言或 **Older source only** 筛。点一行，右边能看到 **Git** 和 **Platform draft** 两份文案对照。
 
 ![1790221324119](image/11-git-sync/1790221324119.png)
 
@@ -95,7 +125,7 @@
 | **Apply Git text**      | 只有 Git 改了，平台这边没动 | 能勾，这是唯一能勾的一种     |
 | **Keep platform draft** | 只有平台改了，Git 没动      | 不能勾，本来就不会动它       |
 | **Align base only**     | 两边一样                    | 不能勾，只是把基线记上       |
-| **Conflict**            | 两边都改了，而且不一样      | 不能勾，去下面的冲突卡片处理 |
+| **Conflict**            | 两边都改了，而且不一样      | 在 **Conflicts** 标签里处理 |
 
 勾完点 **Apply pull**：
 
@@ -118,15 +148,13 @@
 - 选 **Use Git**：落地后同样显示为过期；
 - 选 **Edit** 并保存你改过的文本：视为已按当前源文处理，不显示过期。
 
-**有没解决的冲突时 Apply pull 是按不动的**，先把卡片处理掉。
+**同一条 key 在任何语言有没解决的冲突，它的其他语言也要等**：这些行留在 Changes 里，标着 **Waiting on conflict**，不能勾。冲突处理掉以后它们自动解锁并勾上。其余的行现在就能 Apply。
 
 **远端在你预览之后又变了**（别人推了一版），点 Apply 会告诉你 `Remote changed since preview — run a new preview`，这次预览作废，重新点一次 Pull。
 
 ## Push：先预览，再提交
 
-点 **Push** 同样先出 **Review push** 面板：
-
-> `3 of 7 source key(s) selected (en). Nothing is committed until you confirm. Git-ahead keys stay on Git unless you check them (overwrites Git). Both-changed keys cannot be checked — use the conflict cards below.`
+点 **Push** 同样先出一条 **Review push** 栏（带源语言徽章），右边是 **Cancel** 和 **Commit push (n)**。在你确认之前什么都不会提交。列表同样分 **Changes** / **Conflicts** 两个标签。
 
 推的是**已发布的源语言**文案。每条 key 有一个原因：
 
@@ -136,12 +164,12 @@
 | **Changed**                            | 平台改过，Git 那边没动                                   | 是             |
 | **Unchanged since last push**          | 和远端一样，没什么可推                                   | 否，默认不显示 |
 | **No published source text**           | 这条 key 的源语言还没发布                                | 否，默认不显示 |
-| **Auto draft key**                     | `__draft_` 占位 key，永远不推                          | 否，默认不显示 |
-| **Cannot be written — clashes with an existing key path in the file** | 仅 Locale files：这条**新** key 在文件里放不下。比如文件里 `home` 是一句文案，新 key `home.sub` 就没地方写；或者 `home` 和 `home.sub` 两个新 key 互相冲突（两条都不写）。改 key 名或改 Format | 否，不能勾 |
+| **Auto draft key**                     | `__unnamed_` 占位 key，永远不推                          | 否，默认不显示 |
+| **Cannot be written — clashes with an existing key path or array in the file** | 仅 Locale files：这条**新** key 在文件里放不下。比如文件里 `home` 是一句文案，新 key `home.sub` 就没地方写；或者 `home` 和 `home.sub` 两个新 key 互相冲突（两条都不写）；或者新 key 落在数组下面（数组按下标读成 `list.0.title` 这类 key，只更新已有元素，`list` 只有 4 项时 `list.4.title` 要手动加进文件）。改 key 名、改 Format，或手动改数组 | 否，不能勾 |
 | **Git is ahead — check to overwrite** | Git 那边改了而平台没动。**勾上就是用平台覆盖 Git** | 否，但可以勾   |
-| **Conflict with Git source**           | 两边都改了，不能勾，去冲突卡片                           | 不能勾         |
+| **Conflict with Git source**           | 两边都改了，在 **Conflicts** 标签处理                     | 不在 Changes 里 |
 
-上面那张表里写「默认不显示」的几种，要用右上角的原因筛选专门挑出来才看得到；默认视图只给你**要推的**和**要你决定的**。
+上面那张表里写「默认不显示」的几种，要用列表头部的原因筛选专门挑出来才看得到；默认视图只给你**要推的**和**要你决定的**。
 
 展开一行能看到 **Published source**（平台要推的）、**Git source**（远端现在的）和 **Last pushed**（上次推的是什么）。
 
@@ -152,11 +180,22 @@
 - 没有可推的：`Nothing to push`
 - 远端其实已经有一模一样的批次了：`Already on Git — records updated` / `3 keys had already landed; platform records are now in sync`
 
-**有没解决的冲突时，连 Push 按钮本身都按不动**（卡片上方会写着 `N open conflict(s). Resolve the cards below before Apply pull or Push.`）。
+**有没解决的冲突时，连 Push 按钮本身都按不动**。没有预览时，页面顶部是一条琥珀色的 **Open conflicts** 栏，列表里就是所有打开的冲突。
 
 ## 冲突卡片
 
-**冲突就是同一条 key 的同一种语言，Git 和平台两边都改了，而且改得不一样。** 每次都发生在预览的时候——只要你点过 Pull 或 Push 的预览，有冲突就出现在页面下方的 **Conflicts** 区，没冲突时那里写着 `No open conflicts.`
+**冲突就是同一条 key 的同一种语言，Git 和平台两边都改了，而且改得不一样。** 每次都发生在预览的时候。预览里它们在 **Conflicts** 标签；没有预览时，列表本身就是冲突列表，没冲突时写着 `No open conflicts. Pull or Push to review changes.`
+
+### 批量处理
+
+冲突多的时候，用栏右边的 **Use platform** / **Use Git**：
+
+- 勾了行，就只处理勾选的、并且当前筛选还看得见的行，按钮写 `Use Git (n)`。
+- 一行都没勾，就处理当前筛选下的全部行，按钮写 `Use Git for all (n)`。
+- 点了先弹确认框，写明条数、涉及哪些语言；**Use Git** 还会写明会覆盖几条平台文案、几条翻的是旧源文（落地后显示为过期）、几条 Git 没有文案（会跳过）。
+- 做完弹一条汇总：处理了几条；预览之后平台又改过的行不处理，要逐条看；Git 没文案的跳过。
+
+批量只有这两种。**Edit**、**Rename** 还是一条一条来。
 
 一张卡片长这样：
 
@@ -215,7 +254,7 @@
 | 裁完冲突再 Pull，那张卡又回来了                       | 不该发生。真出现说明中间有人又改了 Git 那边——重新看一遍卡片上的两份文案                               |
 | 想换 product，下拉里只有当前那一个                    | 候选是**Load products** 现列出来的，换之前再点一次 **Load products**                        |
 | Pull 的下拉里某个文件写着`unmapped (de-DE)`         | 远端这个语言在平台的对照表里找不到，这个文件不参与 Pull                                                 |
-| 词条表里某条 key 不出现在 Push 预览里                 | 它的 Git 同步开关关着（第 9 章），或者它是个`__draft_` 占位 key                                       |
+| 词条表里某条 key 不出现在 Push 预览里                 | 它的 Git 同步开关关着（第 9 章），或者它是个`__unnamed_` 占位 key                                       |
 | Pull 下来的文案马上就出现在导出里了                   | 正常，Pull 的**Apply Git text** 写的是草稿 + 已发布                                               |
 | 远端`translated/` 里的语言一直不更新                | 那一侧由下游（LILT）写，平台只推`source/`                                                             |
 | Locale files：Push 预览里有 **Cannot be written**     | 新 key 和文件里已有的结构撞了（见上面 Push 原因表）。改 key 名，或者换 Flat JSON                         |

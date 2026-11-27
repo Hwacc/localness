@@ -36,16 +36,20 @@ describe('matchCaptureTexts', () => {
     expectContract(captureMatchSchema, result)
   })
 
-  it('prefers the draft when both sides exist, and keeps every ambiguous hit', () => {
+  it('matches a key on its draft and on its published text, and keeps every ambiguous hit', () => {
     const result = matchCaptureTexts(
       [
         row({ id: 1, key: 'a', draftText: 'Hello', publishedText: 'Old' }),
         row({ id: 2, key: 'b', draftText: 'Hello' }),
+        row({ id: 3, key: 'c', draftText: 'Same', publishedText: 'Same' }),
       ],
-      ['Hello', 'Old']
+      ['Hello', 'Old', 'Same']
     )
     expect(result.matches[0]?.keys.map((hit) => hit.key).sort()).toEqual(['a', 'b'])
-    expect(result.matches[1]?.keys).toEqual([])
+    expect(result.matches[1]?.keys).toEqual([
+      { id: 1, key: 'a', sourceText: 'Hello', draft: false, releaseIds: [] },
+    ])
+    expect(result.matches[2]?.keys.map((hit) => hit.key)).toEqual(['c'])
   })
 
   it('ignores line breaks when comparing', () => {
@@ -232,8 +236,8 @@ describe('capture writes', () => {
   })
 
   it('writes a placeholder key when no name was given, and reuses it for the same sentence', async () => {
-    const { fpTranslation, DRAFT_KEY_PREFIX } = await import('#shared/utils')
-    const key = `${DRAFT_KEY_PREFIX}${fpTranslation('Save')}`
+    const { fpTranslation, UNNAMED_KEY_PREFIX } = await import('#shared/utils')
+    const key = `${UNNAMED_KEY_PREFIX}${fpTranslation('Save')}`
     const first = await createPageWithTags({
       projectId: 7,
       name: 'Home',
@@ -315,9 +319,9 @@ describe('capture writes', () => {
   })
 
   it('keeps a draft key the request named instead of hashing the layer text', async () => {
-    const { fpTranslation, DRAFT_KEY_PREFIX } = await import('#shared/utils')
-    const requested = `${DRAFT_KEY_PREFIX}${fpTranslation('test')}`
-    const fromText = `${DRAFT_KEY_PREFIX}${fpTranslation('Hello')}`
+    const { fpTranslation, UNNAMED_KEY_PREFIX } = await import('#shared/utils')
+    const requested = `${UNNAMED_KEY_PREFIX}${fpTranslation('test')}`
+    const fromText = `${UNNAMED_KEY_PREFIX}${fpTranslation('Hello')}`
     const existing = {
       id: 3,
       pageID: 12,

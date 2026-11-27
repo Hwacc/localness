@@ -3,7 +3,7 @@ import {
   touchApiToken,
 } from '#server/helper/api-token'
 import { resolveTokenProject } from '#server/helper/api-token-project'
-import { deliveryLocale, resolveReleaseParam } from '#server/helper/api-delivery'
+import { deliveryLocale, resolveDeliveryScope } from '#server/helper/api-delivery'
 import type { DeliveryLocale } from '#shared/contract'
 
 /** Public read-only delivery API, token-scoped. See `meta.get.ts`. */
@@ -18,9 +18,9 @@ export default defineEventHandler(async (event): Promise<DeliveryLocale> => {
   )
   const query = getQuery(event)
   const projectId = await resolveTokenProject(token, query.project)
-  const releaseId = await resolveReleaseParam(projectId, query.release)
+  const scope = await resolveDeliveryScope(projectId, query)
 
-  const entries = await deliveryLocale(projectId, locale, releaseId)
+  const entries = await deliveryLocale(projectId, locale, scope)
 
   await touchApiToken(token)
   return entries

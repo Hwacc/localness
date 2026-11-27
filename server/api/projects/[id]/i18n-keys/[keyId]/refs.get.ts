@@ -34,7 +34,12 @@ export default defineEventHandler(async (event) => {
     where: { i18nKeyId: nKeyId, page: { projectID: nID } },
     include: {
       page: {
-        select: { id: true, name: true, image: true },
+        select: {
+          id: true,
+          name: true,
+          image: true,
+          settings: { select: { ocrLanguage: true } },
+        },
       },
       settings: {
         select: { style: true, labelStyle: true, locked: true },
@@ -49,6 +54,7 @@ export default defineEventHandler(async (event) => {
       id: number
       name: string
       image: string | null
+      ocrLanguage: string | null
       tags: {
         id: number
         x: number
@@ -69,6 +75,7 @@ export default defineEventHandler(async (event) => {
         id: page.id,
         name: page.name,
         image: page.image,
+        ocrLanguage: page.settings?.ocrLanguage ?? null,
         tags: [],
       }
       byPage.set(page.id, group)

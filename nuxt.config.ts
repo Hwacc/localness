@@ -57,6 +57,8 @@ export default defineNuxtConfig({
     public: {
       ossEngine: process.env.NUXT_PUBLIC_OSS_ENGINE || 'LOCAL',
       ossBaseUrl: process.env.NUXT_PUBLIC_OSS_BASE_URL || '/upload/',
+      // 'ocrspace' | 'paddlex'; the UI hides OCR options the provider ignores.
+      ocrProvider: process.env.NUXT_PUBLIC_OCR_PROVIDER || 'ocrspace',
       appVersion: pkg.version,
       appCommit: buildCommit(),
     },
@@ -74,6 +76,17 @@ export default defineNuxtConfig({
     clientBundle: {
       scan: true,
       sizeLimitKb: 256,
+      // Skill "Works with" logos are chosen from data, so `scan` cannot see them.
+      icons: [
+        'simple-icons:claude',
+        'simple-icons:openai',
+        'simple-icons:githubcopilot',
+        'simple-icons:cursor',
+        'simple-icons:googlegemini',
+        'logos:hermes-agent',
+        'lucide:globe',
+        'lucide:bot',
+      ],
     },
   },
   imports: {

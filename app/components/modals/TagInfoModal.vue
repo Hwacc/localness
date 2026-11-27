@@ -88,8 +88,10 @@ const emit = defineEmits<{
       prompt?: string
     }
   ]
-  /** The entry was reverted to draft here, so the tag has to be picked up again. */
+  /** The entry was unpublished here, so the tag has to be picked up again. */
   reverted: []
+  /** AI wrote, accepted or reverted a draft on the entry; the tag is now stale. */
+  aiChanged: []
 }>()
 
 const overlay = useOverlay()
@@ -160,8 +162,69 @@ const isSourceTextChanged = computed(() => {
   return edited !== original.trim()
 })
 
-/** Published entries refuse writes server-side, so the fields are disabled. */
-const isPublished = computed(() => tag.value.translation?.dirty === false)
+/**
+ * Text edits on a published entry land as drafts, served once published again.
+ * Only the key is fixed: code and delivery look it up by name.
+ */
+const isPublished = computed(() => state.translation?.published === true)
+
+const { status: aiStatus } = useAiTranslateStatus(
+  computed(() => projectStore.curProject?.id)
+)
+const aiReady = computed(() =>
+  Boolean(
+    aiStatus.value?.enabled &&
+      aiStatus.value.configured &&
+      validID(tag.value.translationID)
+  )
+)
+
+function storedText(locale: string) {
+  return String(
+    (tag.value.translation?.vue as Record<string, string> | undefined)?.[
+      locale
+    ] ?? ''
+  )
+}
+
+const ai = useAiCell({
+  projectId: computed(() => projectStore.curProject?.id),
+  keyId: () => tag.value.translationID,
+  writable: () => true,
+  getText: (locale) =>
+    String(
+      (state.translation?.vue as Record<string, string> | undefined)?.[
+        locale
+      ] ?? ''
+    ),
+  setText: setLocaleDraft,
+  original: storedText,
+  onChanged: () => emit('aiChanged'),
+})
+const aiResult = computed(() => ai.resultFor(selectedLanguage.value)[0])
+
+/** A proposal nobody accepted is not the user's text, so Save must not write it. */
+function withoutProposals<T extends object>(map: T | null | undefined) {
+  const pending = Object.keys(ai.results.value).filter(
+    (locale) => ai.results.value[locale]?.proposal
+  )
+  return map ? omit(map, pending) : map
+}
+
+/** AI writes straight to the entry, so an unsaved edit in the field would be lost. */
+const hasUnsavedLocaleEdit = computed(
+  () =>
+    !aiResult.value &&
+    ai.run.value?.code !== selectedLanguage.value &&
+    editableTranslationContent.value !== storedText(selectedLanguage.value)
+)
+const aiButtonHint = computed(() => {
+  if (ai.run.value?.code === selectedLanguage.value) return 'Stop'
+  if (hasUnsavedLocaleEdit.value) return 'Save your edits first'
+  return storedText(selectedLanguage.value)
+    ? 'Re-translate with AI'
+    : 'Translate with AI'
+})
 
 const i18nKeyDisplay = computed({
   get: () => formatI18nKeyDisplay(state.i18nKey),
@@ -269,6 +332,8 @@ async function onSubmit() {
       translation: {
         id: tag.value.translationID,
         ...state.translation,
+        vue: withoutProposals(state.translation?.vue),
+        react: withoutProposals(state.translation?.react),
       },
       close: () => emit('close', true),
     })
@@ -328,19 +393,19 @@ async function onCreateI18nKey() {
   })
 }
 
-const revertModal = overlay.create(AlertModal)
+const unpublishModal = overlay.create(AlertModal)
 
 /** Lives here rather than with the save flow: nothing about the tag is written. */
-function onRevertToDraft() {
-  revertModal.open({
+function onUnpublish() {
+  unpublishModal.open({
     mode: 'warning',
-    title: 'Revert to draft',
-    message: `Revert “${formatI18nKeyDisplay(
+    title: 'Unpublish',
+    message: `Unpublish “${formatI18nKeyDisplay(
       tag.value.i18nKey ?? ''
-    )}” to draft? It will drop out of published export until you publish again.`,
-    okText: 'Revert',
+    )}”? Its published text is withdrawn from export and delivery until you publish again; drafts stay.`,
+    okText: 'Unpublish',
     onOk: async (_mode, { close }) => {
-      revertModal.patch({ loading: true })
+      unpublishModal.patch({ loading: true })
       try {
         await useApi(`/api/projects/${projectStore.curProject.id}/unpublish`, {
           method: 'POST',
@@ -349,7 +414,7 @@ function onRevertToDraft() {
         close()
         emit('reverted')
       } finally {
-        revertModal.patch({ loading: false })
+        unpublishModal.patch({ loading: false })
       }
     },
   })
@@ -437,9 +502,9 @@ const previewLabelStyle = computed(() => {
 
 <template>
   <UModal
-    class="max-w-200"
     title="Tag Info"
     :dismissible="!loading"
+    :ui="{ content: 'sm:max-w-3xl' }"
     @update:open="(isOpen) => !isOpen && emit('close', false)"
   >
     <template #body>
@@ -450,11 +515,7 @@ const previewLabelStyle = computed(() => {
         @submit="onSubmit"
         @error="(e) => console.error('error', e)"
       >
-        <UTabs
-          :items="tabsItems"
-          variant="link"
-          :ui="{ trigger: 'grow', content: 'mt-2' }"
-        >
+        <SettingsTabs :items="tabsItems">
           <template #basic>
             <div class="flex flex-col gap-2.5">
               <UFormField label="Tag Clip">
@@ -654,18 +715,22 @@ const previewLabelStyle = computed(() => {
                   class="size-4 shrink-0 text-muted"
                 />
                 <p class="text-xs text-muted">
-                  Published, so its text is read-only. Revert it to draft to
-                  edit.
+                  Published. Text edits are saved as drafts and go live when
+                  you publish; unpublish to change the key.
                 </p>
                 <UButton
                   class="ml-auto shrink-0"
                   size="xs"
                   color="warning"
                   variant="soft"
-                  label="Revert to draft"
-                  @click="onRevertToDraft"
+                  label="Unpublish"
+                  @click="onUnpublish"
                 />
               </div>
+              <p v-else class="text-xs text-muted">
+                Not published yet; export and the API include it only after you
+                publish.
+              </p>
               <UFormField label="I18n Key">
                 <div class="w-full flex flex-col gap-2">
                   <div class="w-full flex items-center gap-2.5">
@@ -700,7 +765,7 @@ const previewLabelStyle = computed(() => {
               >
                 <ReleaseSelect
                   v-model="state.releaseIds"
-                  :disabled="loading || isPublished"
+                  :disabled="loading"
                 />
               </UFormField>
               <UFormField
@@ -751,7 +816,6 @@ const previewLabelStyle = computed(() => {
                     class="w-full"
                     :maxrows="4"
                     autoresize
-                    :disabled="isPublished"
                   />
                 </template>
               </UFormField>
@@ -773,7 +837,29 @@ const previewLabelStyle = computed(() => {
                         </div>
                       </template>
                     </USelect>
-                    <AIButton class="[&>span]:h-6 [&>span]:leading-1" />
+                    <UTooltip v-if="aiReady" :text="aiButtonHint">
+                      <UButton
+                        v-if="ai.run.value?.code !== selectedLanguage"
+                        size="xs"
+                        color="neutral"
+                        variant="soft"
+                        icon="i-lucide:wand-sparkles"
+                        aria-label="Translate with AI"
+                        :disabled="
+                          Boolean(ai.run.value) || hasUnsavedLocaleEdit
+                        "
+                        @click="ai.translate(selectedLanguage)"
+                      />
+                      <UButton
+                        v-else
+                        size="xs"
+                        color="neutral"
+                        variant="soft"
+                        icon="i-lucide:square"
+                        aria-label="Stop"
+                        @click="ai.run.value?.controller.abort()"
+                      />
+                    </UTooltip>
                     <!-- Vue / React switch hidden: both copies hold the same set. -->
                   </div>
                 </template>
@@ -783,13 +869,72 @@ const previewLabelStyle = computed(() => {
                     class="w-full"
                     :maxrows="4"
                     autoresize
-                    :disabled="isPublished"
+                    :disabled="ai.run.value?.code === selectedLanguage"
                   />
+                  <div
+                    v-if="aiResult"
+                    class="mt-1.5 flex items-center gap-1.5 text-xs text-muted"
+                  >
+                    <UTooltip
+                      :text="
+                        aiResult.done.status === 'fail'
+                          ? 'Breaks a rule, cannot be accepted'
+                          : 'AI generated'
+                      "
+                    >
+                      <UIcon
+                        name="i-lucide:wand-sparkles"
+                        class="size-3.5"
+                        :class="aiResult.done.status === 'fail' ? 'text-error' : ''"
+                      />
+                    </UTooltip>
+                    <span>{{ aiResult.done.model }}</span>
+                    <div
+                      v-if="aiResult.proposal || aiResult.done.batchId"
+                      class="ml-auto flex items-center gap-1"
+                    >
+                      <template v-if="aiResult.proposal">
+                        <UTooltip
+                          v-if="aiResult.done.status !== 'fail'"
+                          text="Accept as draft"
+                        >
+                          <UButton
+                            size="xs"
+                            color="primary"
+                            variant="soft"
+                            icon="i-lucide:check"
+                            aria-label="Accept as draft"
+                            @click="ai.accept(selectedLanguage)"
+                          />
+                        </UTooltip>
+                        <UTooltip text="Discard">
+                          <UButton
+                            size="xs"
+                            color="neutral"
+                            variant="ghost"
+                            icon="i-lucide:x"
+                            aria-label="Discard"
+                            @click="ai.discard(selectedLanguage)"
+                          />
+                        </UTooltip>
+                      </template>
+                      <UTooltip v-else text="Undo">
+                        <UButton
+                          size="xs"
+                          color="neutral"
+                          variant="ghost"
+                          icon="i-lucide:undo-2"
+                          aria-label="Undo"
+                          @click="ai.undo(selectedLanguage)"
+                        />
+                      </UTooltip>
+                    </div>
+                  </div>
                 </template>
               </UFormField>
             </div>
           </template>
-        </UTabs>
+        </SettingsTabs>
         <div class="w-full flex justify-end gap-6 mt-6">
           <UButton
             color="neutral"

@@ -4,6 +4,7 @@ import {
   GitSyncAdapter,
   GitSyncConflictStatus,
   GitSyncFileFormat,
+  GitSyncFolderMode,
   NotificationAction,
   OCR_LANGUAGES,
   TeamRole,
@@ -72,6 +73,9 @@ export const zProject = z.object({
     i18nDialect: z.enum(I18N_DIALECTS).optional(),
     /** Consistency severity overrides by ruleId; absent = rule default. */
     ruleSeverity: z.record(z.string(), z.enum(RULE_SEVERITY_VALUES)).optional(),
+    aiTranslate: z.boolean().optional(),
+    /** Null lifts the daily cap. */
+    aiDailyLimit: z.number().int().min(1).nullable().optional(),
   }),
 })
 export type ZProject = z.infer<typeof zProject>
@@ -83,12 +87,9 @@ export const zPage = z.object({
     ocrLanguage: z.string(),
     ocrEngine: z.number(),
     prompt: zNilable(z.string()),
-    // Nilable, unlike the project's: on a page `null` means "inherit", and the
-    // form writes all four or leaves all four alone.
-    keyPrefix: zNilable(z.string()),
-    keySeparator: zNilable(z.string().min(1, 'separator cannot be empty')),
-    keyStyle: zNilable(z.enum(KEY_STYLE_VALUES)),
-    keyMaxDepth: zNilable(z.number().int().min(1).max(10)),
+    // Checked against the project's convention on the server; the schema
+    // cannot see it.
+    keyPath: zNilable(z.string().trim()),
   }),
   /** Release labels to attach. Omitted leaves them untouched on update. */
   releaseIds: z.array(z.number().int().positive()).optional(),
@@ -182,10 +183,7 @@ export const zPageSetting = z.object(
       })
     ),
     prompt: zNilable(z.string()),
-    keyPrefix: zNilable(z.string()),
-    keySeparator: zNilable(z.string().min(1, 'separator cannot be empty')),
-    keyStyle: zNilable(z.enum(KEY_STYLE_VALUES)),
-    keyMaxDepth: zNilable(z.number().int().min(1).max(10)),
+    keyPath: zNilable(z.string().trim()),
   },
   'Page setting parameters validate failed'
 )
@@ -538,6 +536,8 @@ export const zGitSyncBindingPut = z.object({
     .refine(isHttpsRemoteUrl, 'Remote URL must be an https Git remote'),
   branch: z.string().min(1).optional(),
   product: z.string().trim().min(1),
+  /** `shared` is accepted for `lilt-swbu` only. Absent keeps the saved mode. */
+  folderMode: z.enum(GitSyncFolderMode).optional(),
   /** `locale-files` only; ignored by `lilt-swbu`. */
   options: z
     .object({
@@ -550,6 +550,7 @@ export const zGitSyncBindingPut = z.object({
     GitCredentialKind.API_TOKEN,
   ]),
   token: z.string().optional(),
+  autoPull: z.boolean().optional(),
 })
 export type ZGitSyncBindingPut = z.infer<typeof zGitSyncBindingPut>
 

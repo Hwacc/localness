@@ -29,6 +29,10 @@ export const zProject = z.object({
     i18nDialect: z.enum(I18N_DIALECTS).optional(),
     /** Consistency severity overrides by ruleId; absent = rule default. */
     ruleSeverity: z.record(z.string(), z.enum(RULE_SEVERITY_VALUES)).optional(),
+    /** AI pre-translation on the Translations page. */
+    aiTranslate: z.boolean().optional(),
+    /** Cells AI may translate per day; null = no limit. */
+    aiDailyLimit: z.number().int().min(1).nullable().optional(),
   }),
 })
 export type ZProject = z.infer<typeof zProject>

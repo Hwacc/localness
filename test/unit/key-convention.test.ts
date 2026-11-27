@@ -3,7 +3,10 @@ import type { KeyConvention } from '#shared/utils/key-convention'
 import {
   DEFAULT_KEY_CONVENTION,
   checkI18nKey,
+  checkKeyPath,
+  keyViolationErrors,
   slugKeyPrefix,
+  withKeyPath,
 } from '#shared/utils/key-convention'
 import {
   keyClashMessage,
@@ -36,8 +39,16 @@ describe('checkI18nKey', () => {
     )
   })
 
-  it('flags a prefix that is not followed by the separator', () => {
+  it('flags a prefix that is not followed by a boundary character', () => {
     expect(checkI18nKey('democheckout_order_btn', SNAKE)).toContain('prefix')
+    expect(checkI18nKey('demo', SNAKE)).toContain('prefix')
+  })
+
+  it('accepts a prefix joined by any boundary character', () => {
+    expect(
+      keyViolationErrors(checkI18nKey('demo.checkout_btn', SNAKE)),
+    ).toEqual([])
+    expect(keyViolationErrors(checkI18nKey('demo-checkout', SNAKE))).toEqual([])
   })
 
   it('leaves the configured prefix out of the rules it enforces', () => {
@@ -48,13 +59,36 @@ describe('checkI18nKey', () => {
     expect(checkI18nKey('my-app_checkout_btn', convention)).toEqual([])
   })
 
-  it('flags a separator the convention does not use', () => {
-    expect(checkI18nKey('demo_checkout.order_btn', SNAKE)).toContain('charset')
+  it('only warns about a separator the convention does not use', () => {
+    expect(checkI18nKey('demo_checkout.order_btn', SNAKE)).toEqual([
+      'separator',
+    ])
+  })
+
+  it('treats the underscore as part of a word in a dotted snake_case project', () => {
+    const dotted: KeyConvention = { ...DOTTED, style: 'snake_case' }
+
+    expect(checkI18nKey('login.submit_button', dotted)).toEqual([])
+    expect(checkI18nKey('login-form.submit', dotted)).toEqual(['separator'])
+  })
+
+  it('refuses characters outside letters, digits and the boundaries', () => {
+    expect(checkI18nKey('demo_checkout order', SNAKE)).toContain('charset')
+    expect(checkI18nKey('demo_结账', SNAKE)).toContain('charset')
   })
 
   it('flags the wrong casing for the style', () => {
     expect(checkI18nKey('demo_Checkout_btn', SNAKE)).toContain('case')
     expect(checkI18nKey('Checkout_btn', DOTTED)).toContain('case')
+  })
+
+  it('ignores casing when the style is none', () => {
+    const none: KeyConvention = { ...SNAKE, style: 'none' }
+
+    expect(checkI18nKey('demo_checkout_ShippingAddress', none)).toEqual([])
+    expect(checkI18nKey('demo_checkout_ShippingAddress', SNAKE)).toEqual([
+      'case',
+    ])
   })
 
   it('accepts camelCase inside a segment when that is the style', () => {
@@ -66,9 +100,16 @@ describe('checkI18nKey', () => {
     expect(checkI18nKey('demo_checkout_btn_', SNAKE)).toContain('segment')
   })
 
-  it('flags a key deeper than the convention allows', () => {
+  it('flags a key deeper than the convention allows, as a warning', () => {
     expect(checkI18nKey('demo_a_b_c_d', SNAKE)).toEqual([])
-    expect(checkI18nKey('demo_a_b_c_d_e', SNAKE)).toContain('depth')
+    expect(checkI18nKey('demo_a_b_c_d_e', SNAKE)).toEqual(['depth'])
+    expect(checkI18nKey('demo_a_b.c-d_e', SNAKE)).toContain('depth')
+  })
+
+  it('blocks on errors only', () => {
+    expect(
+      keyViolationErrors(checkI18nKey('checkout.Apply_coupon__x', SNAKE)),
+    ).toEqual(['prefix', 'segment'])
   })
 
   it('reports nothing when there is no separator to split on', () => {
@@ -110,7 +151,7 @@ describe('toKeyConvention', () => {
         keySeparator: '.',
         keyStyle: 'camelCase',
         keyMaxDepth: 3,
-      })
+      }),
     ).toEqual({
       prefix: 'cortex',
       separator: '.',
@@ -132,7 +173,7 @@ describe('toKeyConvention', () => {
         keySeparator: '_',
         keyStyle: 'SCREAMING',
         keyMaxDepth: 4,
-      }).style
+      }).style,
     ).toBe(DEFAULT_KEY_CONVENTION.style)
   })
 
@@ -143,7 +184,7 @@ describe('toKeyConvention', () => {
         keySeparator: '',
         keyStyle: 'snake_case',
         keyMaxDepth: 4,
-      }).separator
+      }).separator,
     ).toBe(DEFAULT_KEY_CONVENTION.separator)
   })
 })
@@ -155,54 +196,32 @@ describe('resolveKeyConvention', () => {
     keyStyle: 'snake_case',
     keyMaxDepth: 4,
   }
-  const NOTHING = {
-    keyPrefix: null,
-    keySeparator: null,
-    keyStyle: null,
-    keyMaxDepth: null,
-  }
 
-  it('uses the project when the page sets nothing', () => {
-    expect(resolveKeyConvention(NOTHING, PROJECT)).toEqual({
+  it('uses the project when the page has no key path', () => {
+    const expected = {
       prefix: 'cortex',
       separator: '_',
       style: 'snake_case',
       maxDepth: 4,
+    }
+    expect(resolveKeyConvention({ keyPath: null }, PROJECT)).toEqual(expected)
+    expect(resolveKeyConvention({ keyPath: '  ' }, PROJECT)).toEqual(expected)
+  })
+
+  it('nests the page path under the project prefix and spends its depth', () => {
+    expect(resolveKeyConvention({ keyPath: 'login_form' }, PROJECT)).toEqual({
+      prefix: 'cortex_login_form',
+      separator: '_',
+      style: 'snake_case',
+      maxDepth: 2,
     })
   })
 
-  it('lets the page override the project', () => {
+  it('makes the path the whole prefix when the project has none', () => {
     expect(
-      resolveKeyConvention(
-        {
-          keyPrefix: 'app',
-          keySeparator: '.',
-          keyStyle: 'camelCase',
-          keyMaxDepth: 3,
-        },
-        PROJECT
-      )
-    ).toEqual({
-      prefix: 'app',
-      separator: '.',
-      style: 'camelCase',
-      maxDepth: 3,
-    })
-  })
-
-  it('keeps an empty prefix from the page instead of inheriting', () => {
-    // The whole reason the page columns are nullable: `''` means "no prefix",
-    // so it has to survive as a value rather than falling back to the project's.
-    expect(
-      resolveKeyConvention({ ...NOTHING, keyPrefix: '' }, PROJECT).prefix
-    ).toBe('')
-  })
-
-  it('falls back field by field when a row only sets some', () => {
-    expect(
-      resolveKeyConvention({ ...NOTHING, keyPrefix: 'app' }, PROJECT)
-        .separator
-    ).toBe('_')
+      resolveKeyConvention({ keyPath: 'login' }, { ...PROJECT, keyPrefix: '' })
+        .prefix,
+    ).toBe('login')
   })
 
   it('ends at the built-in defaults when neither level has anything', () => {
@@ -216,7 +235,7 @@ describe('resolveKeyConvention', () => {
         keySeparator: '',
         keyStyle: 'SCREAMING',
         keyMaxDepth: 0,
-      })
+      }),
     ).toEqual({
       prefix: 'a',
       separator: DEFAULT_KEY_CONVENTION.separator,
@@ -226,13 +245,38 @@ describe('resolveKeyConvention', () => {
   })
 })
 
+describe('checkKeyPath', () => {
+  const PROJECT: KeyConvention = {
+    prefix: 'shop',
+    separator: '_',
+    style: 'snake_case',
+    maxDepth: 3,
+  }
+
+  it('accepts a path that leaves room for the generated tail', () => {
+    expect(checkKeyPath('login_form', PROJECT)).toEqual([])
+  })
+
+  it('counts every boundary when it spends the page path depth', () => {
+    expect(withKeyPath(PROJECT, 'login.form').maxDepth).toBe(1)
+  })
+
+  it('rejects a path that uses the whole depth budget', () => {
+    expect(checkKeyPath('a_b_c', PROJECT)).toEqual(['depth'])
+  })
+
+  it('applies the project style to the path itself', () => {
+    expect(checkKeyPath('loginForm', PROJECT)).toEqual(['case'])
+  })
+})
+
 describe('shapeKeyDuplicates', () => {
   it('calls a hit with the same text a reuse', () => {
     expect(
       shapeKeyDuplicates(
         [{ key: 'demo_a_btn', sourceText: 'Sign in' }],
-        'Sign in'
-      )
+        'Sign in',
+      ),
     ).toEqual([
       { key: 'demo_a_btn', sourceText: 'Sign in', sameSourceText: true },
     ])
@@ -242,8 +286,8 @@ describe('shapeKeyDuplicates', () => {
     expect(
       shapeKeyDuplicates(
         [{ key: 'demo_a_btn', sourceText: 'Sign out' }],
-        'Sign in'
-      )
+        'Sign in',
+      ),
     ).toEqual([
       { key: 'demo_a_btn', sourceText: 'Sign out', sameSourceText: false },
     ])
@@ -253,8 +297,8 @@ describe('shapeKeyDuplicates', () => {
     expect(
       shapeKeyDuplicates(
         [{ key: 'demo_a_btn', sourceText: '  Sign in  ' }],
-        'Sign in'
-      )[0]?.sameSourceText
+        'Sign in',
+      )[0]?.sameSourceText,
     ).toBe(true)
   })
 
@@ -266,13 +310,13 @@ describe('shapeKeyDuplicates', () => {
 describe('keyClashMessage', () => {
   it('points at the entry that already holds the same text', () => {
     expect(
-      keyClashMessage({ key: 'a_btn', sourceText: 'Sign in' }, 'Sign in')
+      keyClashMessage({ key: 'a_btn', sourceText: 'Sign in' }, 'Sign in'),
     ).toContain('same source text')
   })
 
   it('names the other text when the clash is a different one', () => {
     expect(
-      keyClashMessage({ key: 'a_btn', sourceText: 'Sign out' }, 'Sign in')
+      keyClashMessage({ key: 'a_btn', sourceText: 'Sign out' }, 'Sign in'),
     ).toContain('Sign out')
   })
 })

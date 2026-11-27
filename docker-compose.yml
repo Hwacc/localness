@@ -17,6 +17,9 @@ services:
       # Optional: replace the AI prompts baked into the image. The mount must be
       # readable by uid 1000, which is the image's `node` user.
       # - ./prompts:/app/prompts:ro
+      # Optional: scheduled backups. A directory outside the volume, e.g. a
+      # mounted network share; see docker/README.md "Backup and restore".
+      # - /mnt/nas-backup:/app/backup
     healthcheck:
       test:
         - CMD

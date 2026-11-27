@@ -1,5 +1,7 @@
 import { z } from 'zod/v4'
 import { projectReleaseSchema } from './release'
+import { keyNamespaceSchema } from './namespace'
+import { KEY_STYLE_VALUES } from './key-convention'
 
 /**
  * Response shapes of the public `/api/v1` delivery API. Callers outside the
@@ -26,15 +28,41 @@ export const deliveryOutdatedSchema = z.object({
 })
 export type DeliveryOutdated = z.infer<typeof deliveryOutdatedSchema>
 
+/**
+ * The project's key naming rules, for clients that name keys themselves and
+ * group them by namespace (`checkI18nKey` and `namespaceOf` in `/rules`).
+ * `prefix` is without its trailing separator; `''` means no prefix.
+ */
+export const deliveryKeyConventionSchema = z.object({
+  prefix: z.string(),
+  separator: z.string(),
+  style: z.enum(KEY_STYLE_VALUES),
+  maxDepth: z.number(),
+  /** The project's naming guidance, or null when unset. */
+  guidance: z.string().nullable(),
+})
+export type DeliveryKeyConvention = z.infer<typeof deliveryKeyConventionSchema>
+
 /** `GET /api/v1/meta` — what a caller holding only a token learns first. */
 export const deliveryMetaSchema = z.object({
   project: z.object({ id: z.number(), name: z.string() }),
   locales: z.array(z.string()),
+  /** The project's source locale. Optional: servers before it omit it. */
+  sourceLocale: z.string().optional(),
   localeFallback: z.string(),
   /** The release the response is scoped to, or null for all keys. */
   release: z.number().nullable(),
   /** The names `?release=` accepts, which a caller cannot otherwise discover. */
   releases: z.array(projectReleaseSchema),
+  /**
+   * The namespace the response is scoped to — its name, or `__ungrouped__` —
+   * or null for all keys. Optional: servers before namespaces omit it.
+   */
+  namespace: z.string().nullable().optional(),
+  /** The names `?namespace=` accepts, in display order. */
+  namespaces: z.array(keyNamespaceSchema).optional(),
+  /** Optional: servers before it omit it. */
+  keyConvention: deliveryKeyConventionSchema.optional(),
   coverage: z.object({
     keys: z.number(),
     projectKeys: z.number(),
@@ -88,3 +116,48 @@ export const deliveryKeysSchema = z.object({
   generatedAt: z.string(),
 })
 export type DeliveryKeys = z.infer<typeof deliveryKeysSchema>
+
+export const deliveryLocaleStateNameSchema = z.enum([
+  'draft',
+  'published',
+  'outdated',
+  'unpublished',
+])
+export type DeliveryLocaleStateName = z.infer<
+  typeof deliveryLocaleStateNameSchema
+>
+
+/** One key as `/keys/states` lists it; the key write routes answer with it too. */
+export const deliveryKeyStateSchema = z.object({
+  id: z.number(),
+  key: z.string(),
+  releaseIds: z.array(z.number()),
+  /** True while the key still has unpublished edits or was never published. */
+  draft: z.boolean(),
+  locales: z.record(
+    z.string(),
+    z.object({
+      draftText: z.string().nullable(),
+      publishedText: z.string().nullable(),
+      state: deliveryLocaleStateNameSchema,
+    })
+  ),
+})
+export type DeliveryKeyState = z.infer<typeof deliveryKeyStateSchema>
+
+/**
+ * `GET /api/v1/keys/states` — per-key, per-locale state, drafts included.
+ * Unlike every other delivery shape this carries draft text: a read token sees
+ * what the editor sees.
+ */
+export const deliveryKeyStatesSchema = z.object({
+  sourceLocale: z.string(),
+  keys: z.array(deliveryKeyStateSchema),
+  /** Keys in scope, before paging. */
+  total: z.number(),
+  offset: z.number(),
+  limit: z.number(),
+  /** ISO 8601. */
+  generatedAt: z.string(),
+})
+export type DeliveryKeyStates = z.infer<typeof deliveryKeyStatesSchema>

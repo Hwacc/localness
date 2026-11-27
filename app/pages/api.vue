@@ -29,6 +29,7 @@ const baseUrl = computed(() =>
  * reader cannot see, since this page shows no project.
  */
 const RELEASE_EXAMPLE = 'v1'
+const NAMESPACE_EXAMPLE = 's2w'
 
 function curlExample(path: string) {
   return `curl -H "Authorization: Bearer <token>" \\
@@ -45,7 +46,7 @@ const examples = computed(() => [
   {
     title: 'Project metadata',
     description:
-      'Locales, fallback, the releases you can filter by, and how many keys are published per locale. Add ?project= when the token was given several — see Authentication above for when that is.',
+      'Locales, fallback, the releases and key namespaces you can filter by, and how many keys are published per locale. Add ?project= when the token was given several — see Authentication above for when that is.',
     code: curlExample('/api/v1/meta'),
   },
   {
@@ -59,6 +60,18 @@ const examples = computed(() => [
     description:
       'Narrow to the keys labelled with one release. Accepts the id or the name.',
     code: curlExample(`/api/v1/locales/en?release=${RELEASE_EXAMPLE}`),
+  },
+  {
+    title: 'Filtered to a key namespace',
+    description:
+      'Narrow to one feature area by key name. Names are relative to the project key prefix: with prefix shop, a namespace login holds shop_login_title and shop.login.open, never shop_loginx; a key without the prefix matches by its full name. Accepts the id or the name, or __ungrouped__ for keys in none. Combines with ?release=.',
+    code: curlExample(`/api/v1/bundle?namespace=${NAMESPACE_EXAMPLE}`),
+  },
+  {
+    title: 'Per-key, per-locale state (includes drafts)',
+    description:
+      'draftText, publishedText and a state (draft, published, outdated, unpublished) for every key and locale. Unlike the other read routes this returns unpublished draft text to a read token. Narrow with ?locales=en,ja, ?release=, ?namespace=; page with ?offset= and ?limit= (max 5000).',
+    code: curlExample('/api/v1/keys/states?locales=en,ja&limit=100'),
   },
   {
     title: 'Every locale in one bundle',
@@ -103,6 +116,33 @@ curl -X POST -H "Authorization: Bearer <token>" \\
       'What an importer fetches before deciding what to update. A page the token was not granted looks exactly like one that does not exist.',
     code: curlExample('/api/v1/pages/12/tags'),
   },
+  {
+    title: 'Create a key from hardcoded text',
+    description:
+      'A named key publishes the source sentence, since the code already shows it; edits after that are drafts. Leave out `key` to get an unpublished `__unnamed_` key named later; an existing name is a 409.',
+    code: `curl -X POST -H "Authorization: Bearer <token>" \\
+  -H "Content-Type: application/json" \\
+  -d '{"key":"home.title","sourceText":"Welcome back"}' \\
+  "${baseUrl.value}/api/v1/keys?project=<id-or-name>"`,
+  },
+  {
+    title: 'Edit a key’s drafts',
+    description:
+      'Published keys too: the edit is a draft, and the published text is served until someone publishes again. `expected` is the draft you last read (`""` for none); if any locale changed meanwhile the whole request is a 409 with the current state in `data`.',
+    code: `curl -X PATCH -H "Authorization: Bearer <token>" \\
+  -H "Content-Type: application/json" \\
+  -d '{"key":"home.title","locales":{"en":{"text":"Welcome back!","expected":"Welcome back"}}}' \\
+  "${baseUrl.value}/api/v1/keys?project=<id-or-name>"`,
+  },
+  {
+    title: 'Suggest a key name',
+    description:
+      'An AI name for a sentence, following the project’s key convention. Nothing is written.',
+    code: `curl -X POST -H "Authorization: Bearer <token>" \\
+  -H "Content-Type: application/json" \\
+  -d '{"sourceText":"Welcome back"}' \\
+  "${baseUrl.value}/api/v1/keys/suggest-name?project=<id-or-name>"`,
+  },
 ])
 
 const fetchExample = computed(
@@ -146,8 +186,14 @@ async function copy(value: string, label: string) {
       <header class="flex flex-col gap-2">
         <h1 class="text-xl font-semibold">API</h1>
         <p class="text-sm text-muted">
-          Access to published copy. Drafts are never reachable with a token, and
-          versioned by <code class="text-xs">release</code> only. A token is
+          Access to published copy, narrowed by
+          <code class="text-xs">release</code> and key
+          <code class="text-xs">namespace</code> only. Drafts are not reachable
+          with a token except through
+          <code class="text-xs">/keys/states</code> (and
+          <code class="text-xs">/keys/search</code>,
+          <code class="text-xs">/pages/:id</code>), which return draft text to a
+          read token. A token is
           read-only unless you mint it as
           <span class="text-default">write</span>, which also lets a design tool
           import a frame as a page.
@@ -230,8 +276,8 @@ async function copy(value: string, label: string) {
           <span class="text-default">/bundle</span> and
           <span class="text-default">/locales</span> return it — but only when
           the wording changes; a repeat import never re-publishes, so a source
-          you reverted to draft stays reverted. A
-          <span class="text-default">__draft_</span> key stays unpublished.
+          you unpublished stays unpublished. A
+          <span class="text-default">__unnamed_</span> key stays unpublished.
           Other languages stay as they were.
         </p>
         <div
@@ -303,10 +349,10 @@ async function copy(value: string, label: string) {
           <code class="text-xs">?project=</code>, so the tool list an agent reads
           stays the same however many projects the token reaches, and one entry
           here means one project. Omit it when the token reaches exactly one.
-          Every tool except the first can also be narrowed to a single release,
-          the same way <code class="text-xs">?release=</code> does above. Omit
-          release when proofreading a product locale folder against the full
-          catalog.
+          Every tool except the first can also be narrowed to a single release
+          or key namespace, the same way <code class="text-xs">?release=</code>
+          and <code class="text-xs">?namespace=</code> do above. Omit both when
+          proofreading a product locale folder against the full catalog.
         </p>
         <pre
           class="rounded-lg border border-default bg-elevated/50 p-3 text-xs overflow-x-auto"

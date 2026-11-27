@@ -99,6 +99,7 @@ const {
   isUserOnProjectTeam,
   listTokenProjects,
   resolveProjectParam,
+  resolveMcpProject,
   resolveTokenProject,
   requireTokenPageAccess,
 } = await import('#server/helper/api-token-project')
@@ -260,6 +261,30 @@ describe('authorizeTokenProject', () => {
     grant(1, [20])
     await expect(
       authorizeTokenProject({ id: 1, createdBy: OWNER }, 20)
+    ).rejects.toMatchObject({ statusCode: 403 })
+  })
+})
+
+describe('resolveMcpProject', () => {
+  it('returns null, not an error, for a multi-project token that names none', async () => {
+    seedProject(10, 'Web', 1, [OWNER])
+    seedProject(11, 'Admin', 1, [OWNER])
+    grant(1, [10, 11])
+    await expect(
+      resolveMcpProject({ id: 1, createdBy: OWNER }, undefined)
+    ).resolves.toBeNull()
+  })
+
+  it('behaves like resolveTokenProject otherwise', async () => {
+    seedProject(10, 'Web', 1, [OWNER])
+    seedProject(11, 'Admin', 1, [OWNER])
+    grant(1, [10, 11])
+    await expect(resolveMcpProject({ id: 1, createdBy: OWNER }, '11')).resolves.toBe(11)
+    await expect(
+      resolveMcpProject({ id: 1, createdBy: OWNER }, '99')
+    ).rejects.toMatchObject({ statusCode: 404 })
+    await expect(
+      resolveMcpProject({ id: 2, createdBy: OWNER }, undefined)
     ).rejects.toMatchObject({ statusCode: 403 })
   })
 })

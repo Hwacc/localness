@@ -23,42 +23,42 @@ export interface CaptureSourceRow {
   releaseIds: number[]
 }
 
-/** Draft wins. A published sentence is still a match when no draft has replaced it. */
-export function sourceWording(row: Pick<CaptureSourceRow, 'draftText' | 'publishedText'>): {
-  text: string
-  draft: boolean
-} | null {
-  const draft = row.draftText?.trim()
-  if (draft) return { text: draft, draft: true }
-  const published = row.publishedText?.trim()
-  if (published) return { text: published, draft: false }
-  return null
-}
-
+/**
+ * `sourceText` is the draft, else the published text. `draft` means nothing is
+ * published yet — a published key keeps its draft row, so the presence of a
+ * draft says nothing on its own.
+ */
 export function toCaptureHit(row: CaptureSourceRow): CaptureKeyHit {
-  const wording = sourceWording(row)
+  const draft = row.draftText?.trim()
+  const published = row.publishedText?.trim()
   return {
     id: row.id,
     key: row.key,
-    sourceText: wording?.text ?? '',
-    draft: wording ? wording.draft : true,
+    sourceText: draft || published || '',
+    draft: !published,
     releaseIds: [...row.releaseIds].sort((a, b) => a - b),
   }
 }
 
 /**
- * Each submitted text keeps its place. Several keys sharing one wording all
- * come back — settling that is the person's job, not a release label's.
+ * Each submitted text keeps its place. A key answers to its draft and to its
+ * published text, so a layer still showing the published sentence finds the
+ * key someone has since edited in Localness. Several keys sharing one wording
+ * all come back — settling that is the person's job, not a release label's.
  */
 export function matchCaptureTexts(rows: CaptureSourceRow[], texts: string[]): CaptureMatch {
   const byText = new Map<string, CaptureKeyHit[]>()
   for (const row of rows) {
     const hit = toCaptureHit(row)
-    const normalized = normalizeCaptureText(hit.sourceText)
-    if (!normalized) continue
-    const bucket = byText.get(normalized)
-    if (bucket) bucket.push(hit)
-    else byText.set(normalized, [hit])
+    const wordings = new Set(
+      [row.draftText, row.publishedText].map((text) => normalizeCaptureText(text ?? ''))
+    )
+    for (const normalized of wordings) {
+      if (!normalized) continue
+      const bucket = byText.get(normalized)
+      if (bucket) bucket.push(hit)
+      else byText.set(normalized, [hit])
+    }
   }
   return {
     matches: texts.map((text) => ({

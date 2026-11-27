@@ -75,6 +75,12 @@ export {
 } from './plural'
 export { partitionIgnored, type IgnoreRow } from './ignore'
 export {
+  GATE_RULE_IDS,
+  gateTranslation,
+  type GateIssue,
+  type GateResult,
+} from './gate'
+export {
   autoFix,
   isPublishedKey,
   lintAutoFix,

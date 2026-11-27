@@ -32,6 +32,12 @@ To author a new migration: generate the SQL with `pnpm exec prisma migrate diff 
 
 ## Verify
 
+### Local test
+
+```bash
+pnpm test   # vitest run
+```
+
 `pnpm typecheck` + `pnpm test`. Do not run `pnpm test:api` or `pnpm build` to check work. Do not drive the browser. After UI changes, list short manual test points (route, click, expected).
 
 `pnpm typecheck` reads the generated `.nuxt/tsconfig.*.json` and does not run `nuxt prepare`. After changing `nuxt.config`, modules, auto-imports, or the Prisma schema, run `pnpm typecheck:full` (or `pnpm exec nuxt prepare`) first so `.nuxt` types are refreshed. CI uses `typecheck:full`. `typecheck:fast` (server/shared/node only, TS 7 via the `typescript-7` alias) is a partial check; never treat it as a full pass. Keep `typescript` on 5.x — vue-tsc needs its JS API.

@@ -47,7 +47,7 @@ const teams = ref<ITeam[]>([])
 const ownedTeams = computed(() =>
   teams.value
     .filter((t) => Boolean(t.role))
-    .map((t) => ({ label: t.name, value: t.id }))
+    .map((t) => ({ label: t.name, value: t.id })),
 )
 
 const state = reactive({
@@ -58,8 +58,7 @@ const state = reactive({
     ocrLanguage: project.settings?.ocrLanguage ?? 'eng',
     ocrEngine: project.settings?.ocrEngine ?? 1,
     prompt: project.settings?.prompt ?? '',
-    localeFallback:
-      project.settings?.localeFallback ?? DEFAULT_LOCALE_FALLBACK,
+    localeFallback: project.settings?.localeFallback ?? DEFAULT_LOCALE_FALLBACK,
     keyPrefix: project.settings?.keyPrefix ?? '',
     keySeparator:
       project.settings?.keySeparator ?? DEFAULT_KEY_CONVENTION.separator,
@@ -71,22 +70,24 @@ const state = reactive({
       lintRuleCatalog.map(({ id }) => [
         id,
         project.settings?.lintRules?.[id] ?? true,
-      ])
+      ]),
     ),
     i18nDialect: project.settings?.i18nDialect ?? DEFAULT_I18N_DIALECT,
     ruleSeverity: Object.fromEntries(
       severityRuleCatalog.map(({ id }) => [
         id,
         project.settings?.ruleSeverity?.[id] ?? 'error',
-      ])
+      ]),
     ) as Record<string, RuleSeverity>,
+    aiTranslate: project.settings?.aiTranslate ?? false,
+    aiDailyLimit: project.settings?.aiDailyLimit ?? null,
   },
 })
 
 const dialectDescription = computed(
   () =>
     i18nDialectItems.find((item) => item.value === state.settings.i18nDialect)
-      ?.description
+      ?.description,
 )
 
 /**
@@ -94,7 +95,7 @@ const dialectDescription = computed(
  * would be rather than an empty box that fills itself in after saving.
  */
 const prefixPlaceholder = computed(() =>
-  mode === 'create' ? slugKeyPrefix(state.name) : ''
+  mode === 'create' ? slugKeyPrefix(state.name) : '',
 )
 
 /**
@@ -103,9 +104,10 @@ const prefixPlaceholder = computed(() =>
  */
 const localeItems = computed(() =>
   parseLocales(project.settings?.locales).map((code) => ({
-    label: TRANSLATION_LANGUAGES.find((lang) => lang.value === code)?.label ?? code,
+    label:
+      TRANSLATION_LANGUAGES.find((lang) => lang.value === code)?.label ?? code,
     value: code,
-  }))
+  })),
 )
 
 /*
@@ -113,7 +115,7 @@ const localeItems = computed(() =>
  * a ProjectOwner row, not a team role.
  */
 const canManageReleases = computed(
-  () => mode === 'edit' && canManageProjectSettings(project)
+  () => mode === 'edit' && canManageProjectSettings(project),
 )
 
 const releases = ref<IProjectRelease[]>([])
@@ -129,7 +131,7 @@ async function loadReleases() {
   try {
     releases.value =
       (await useApi<IProjectRelease[]>(
-        `/api/projects/${project.id}/releases`
+        `/api/projects/${project.id}/releases`,
       )) ?? []
   } finally {
     releasesLoading.value = false
@@ -139,6 +141,48 @@ async function loadReleases() {
 /** Labels live on the project payload too, so the bar's filter refreshes. */
 async function refreshProject() {
   await loadReleases()
+  await projectStore.getProjects()
+}
+
+/** Seeded from the payload so the Namespaces tab has names before the first read. */
+const namespaces = ref<IKeyNamespace[]>(project.namespaces ?? [])
+const namespacesLoading = ref(false)
+
+/** Keys carrying the saved prefix; fetched once, the saved prefix cannot move while open. */
+const savedPrefix = project.settings?.keyPrefix ?? ''
+const savedPrefixKeyCount = ref(0)
+
+async function loadPrefixUsage() {
+  if (!savedPrefix || !validID(project.id)) return
+  const res = await useApi<{ count: number }>(
+    `/api/projects/${project.id}/i18n-keys/prefix-usage`,
+  )
+  savedPrefixKeyCount.value = res?.count ?? 0
+}
+
+const prefixChangeWarning = computed(() => {
+  if (mode !== 'edit' || !savedPrefixKeyCount.value) return null
+  if (state.settings.keyPrefix.trim() === savedPrefix) return null
+  const count = savedPrefixKeyCount.value
+  return `${count} existing ${count === 1 ? 'key starts' : 'keys start'} with “${savedPrefix}”. They are not renamed: new keys get the new prefix, and the old ones group by namespace only if their full name starts with one.`
+})
+
+async function loadNamespaces() {
+  if (mode !== 'edit' || !validID(project.id)) return
+  namespacesLoading.value = true
+  try {
+    namespaces.value =
+      (await useApi<IKeyNamespace[]>(
+        `/api/projects/${project.id}/namespaces`,
+      )) ?? []
+  } finally {
+    namespacesLoading.value = false
+  }
+}
+
+/** The Translations list reads namespaces off the project payload. */
+async function refreshNamespaces() {
+  await loadNamespaces()
   await projectStore.getProjects()
 }
 
@@ -199,20 +243,11 @@ onMounted(async () => {
     }
     return
   }
-  await loadReleases()
+  await Promise.all([loadReleases(), loadNamespaces(), loadPrefixUsage()])
 })
 
-watch(
-  () => state.settings.ocrLanguage,
-  (value) => {
-    if (value === 'auto') {
-      state.settings.ocrEngine = 2
-    }
-  }
-)
-const showAlert = computed(() => {
-  return state.settings.ocrLanguage === 'auto'
-})
+// PaddleX has no language option; OCR.space is the only one that reads it.
+const showOcrLanguage = useRuntimeConfig().public.ocrProvider === 'ocrspace'
 
 const title = computed(() => {
   switch (mode) {
@@ -252,6 +287,12 @@ const tabsItems = computed(() => [
           slot: 'consistency',
           value: 'consistency',
         },
+        {
+          label: 'AI translation',
+          icon: 'i-lucide:wand-sparkles',
+          slot: 'ai-translation',
+          value: 'ai-translation',
+        },
       ]
     : []),
   // Only for an existing project (a new one has no id yet) and only for a
@@ -264,6 +305,18 @@ const tabsItems = computed(() => [
           slot: 'releases',
           value: 'releases',
         },
+        {
+          label: 'Namespaces',
+          icon: 'i-lucide:folder-tree',
+          slot: 'namespaces',
+          value: 'namespaces',
+        },
+        {
+          label: 'Danger zone',
+          icon: 'i-lucide:triangle-alert',
+          slot: 'danger',
+          value: 'danger',
+        },
       ]
     : []),
 ])
@@ -274,9 +327,15 @@ const emit = defineEmits<{
     Pick<IProject, 'name' | 'description' | 'settings' | 'teamId'>,
     {
       close: () => void
-    }
+    },
   ]
 }>()
+
+async function onProjectDeleted() {
+  // The refresh drops the missing project and repicks a fallback.
+  await projectStore.getProjects()
+  emit('close', true)
+}
 
 async function onSubmit(_: FormSubmitEvent<ZProject>) {
   if (mode === 'create' && !state.teamId) {
@@ -287,7 +346,7 @@ async function onSubmit(_: FormSubmitEvent<ZProject>) {
     state as Pick<IProject, 'name' | 'description' | 'settings' | 'teamId'>,
     {
       close: () => emit('close', true),
-    }
+    },
   )
 }
 </script>
@@ -295,7 +354,7 @@ async function onSubmit(_: FormSubmitEvent<ZProject>) {
 <template>
   <UModal
     :title="title"
-    :ui="{ content: 'sm:max-w-2xl' }"
+    :ui="{ content: 'sm:max-w-4xl' }"
     @update:open="(isOpen) => !isOpen && emit('close', false)"
   >
     <template #body>
@@ -305,12 +364,7 @@ async function onSubmit(_: FormSubmitEvent<ZProject>) {
         :state="state"
         @submit="onSubmit"
       >
-        <UTabs
-          v-model="activeTab"
-          :items="tabsItems"
-          variant="link"
-          :ui="{ trigger: 'grow' }"
-        >
+        <SettingsTabs v-model="activeTab" :items="tabsItems">
           <template #basic>
             <div class="flex flex-col gap-2.5">
               <UFormField label="Name" name="name">
@@ -325,11 +379,7 @@ async function onSubmit(_: FormSubmitEvent<ZProject>) {
                   autoresize
                 />
               </UFormField>
-              <UFormField
-                v-if="mode === 'create'"
-                label="Team"
-                name="teamId"
-              >
+              <UFormField v-if="mode === 'create'" label="Team" name="teamId">
                 <USelect
                   v-model="state.teamId"
                   class="w-full"
@@ -347,7 +397,7 @@ async function onSubmit(_: FormSubmitEvent<ZProject>) {
             </div>
           </template>
           <template #prompt>
-            <MarkdownPrompt v-model="state.settings.prompt"/>
+            <MarkdownPrompt v-model="state.settings.prompt" />
           </template>
           <template #settings>
             <div class="flex flex-col gap-2.5">
@@ -356,39 +406,16 @@ async function onSubmit(_: FormSubmitEvent<ZProject>) {
                 already use, so a heading in those clothes reads as one more
                 label rather than as a section.
               -->
-              <h3 class="text-xs font-medium text-muted uppercase">OCR</h3>
-              <div class="flex items-center gap-4">
-                <UFormField
-                  class="flex-1"
-                  label="OCR Language"
-                  name="settings.ocrLanguage"
-                >
+              <template v-if="showOcrLanguage">
+                <h3 class="text-xs font-medium text-muted uppercase">OCR</h3>
+                <UFormField label="OCR Language" name="settings.ocrLanguage">
                   <OCRLanguageSelect
                     v-model="state.settings.ocrLanguage"
                     class="w-full"
                     default-value="eng"
                   />
                 </UFormField>
-                <UFormField
-                  class="flex-1"
-                  label="OCR Engine"
-                  name="settings.ocrEngine"
-                >
-                  <OCREngineSelect
-                    v-model="state.settings.ocrEngine"
-                    class="w-full"
-                    :disabled="showAlert"
-                    :default-value="1"
-                  />
-                </UFormField>
-              </div>
-              <UAlert
-                v-if="showAlert"
-                variant="soft"
-                color="warning"
-                title="Warning"
-                description="Auto language detection is only supported by Engine 2."
-              />
+              </template>
               <h3 class="text-xs font-medium text-muted uppercase">
                 Languages
               </h3>
@@ -411,6 +438,7 @@ async function onSubmit(_: FormSubmitEvent<ZProject>) {
                   class="flex-1"
                   label="Key Prefix"
                   name="settings.keyPrefix"
+                  description="Optional. Namespaces and page key paths sit after it."
                 >
                   <UInput
                     v-model="state.settings.keyPrefix"
@@ -429,6 +457,13 @@ async function onSubmit(_: FormSubmitEvent<ZProject>) {
                   />
                 </UFormField>
               </div>
+              <UAlert
+                v-if="prefixChangeWarning"
+                variant="soft"
+                color="warning"
+                icon="i-lucide:triangle-alert"
+                :description="prefixChangeWarning"
+              />
               <div class="flex items-center gap-4">
                 <UFormField
                   class="flex-1"
@@ -459,7 +494,7 @@ async function onSubmit(_: FormSubmitEvent<ZProject>) {
                 variant="soft"
                 color="neutral"
                 icon="i-lucide:info"
-                description="Used when the AI names a key: what the generated key must look like. Leave the prefix empty for none."
+                description="Used when the AI names a key. A new key must start with the prefix (when set) and use only letters, digits, '.', '_' and '-'. Separator, style and max depth are suggestions: a key that differs is flagged, never refused."
               />
             </div>
           </template>
@@ -531,11 +566,41 @@ async function onSubmit(_: FormSubmitEvent<ZProject>) {
               />
             </div>
           </template>
+          <template #ai-translation>
+            <div class="flex flex-col gap-4">
+              <USwitch
+                v-model="state.settings.aiTranslate"
+                label="AI pre-translation"
+                description="Adds AI pre-translation to the Translations page. Results are only ever saved as drafts."
+              />
+              <UFormField
+                label="Daily limit"
+                name="settings.aiDailyLimit"
+                description="Translations AI may write per day, for the whole project. Leave empty for no limit."
+              >
+                <UInput
+                  :model-value="String(state.settings.aiDailyLimit ?? '')"
+                  type="number"
+                  class="w-40"
+                  :min="1"
+                  placeholder="No limit"
+                  @update:model-value="
+                    state.settings.aiDailyLimit =
+                      String($event) === '' ? null : Number($event)
+                  "
+                />
+              </UFormField>
+              <UAlert
+                variant="soft"
+                color="neutral"
+                icon="i-lucide:info"
+                description="Source text is sent to the AI model your server is configured with. The model itself is set by the server, not here."
+              />
+            </div>
+          </template>
           <template #releases>
             <div class="flex flex-col gap-2.5">
-              <p v-if="releasesLoading" class="text-xs text-muted">
-                Loading…
-              </p>
+              <p v-if="releasesLoading" class="text-xs text-muted">Loading…</p>
               <p v-else-if="releases.length === 0" class="text-xs text-muted">
                 No releases yet. Create one to group pages and translations by
                 the version they shipped in.
@@ -598,7 +663,26 @@ async function onSubmit(_: FormSubmitEvent<ZProject>) {
               </p>
             </div>
           </template>
-        </UTabs>
+          <template #namespaces>
+            <ProjectNamespacesPanel
+              :project-id="project.id"
+              :namespaces="namespaces"
+              :loading="namespacesLoading"
+              :key-prefix="savedPrefix"
+              :separator="
+                project.settings?.keySeparator ??
+                DEFAULT_KEY_CONVENTION.separator
+              "
+              @changed="refreshNamespaces"
+            />
+          </template>
+          <template #danger>
+            <ProjectDangerPanel
+              :project="project"
+              @deleted="onProjectDeleted"
+            />
+          </template>
+        </SettingsTabs>
         <div class="w-full flex justify-end gap-6 mt-4">
           <UButton
             color="neutral"

@@ -47,11 +47,17 @@ export const timestampFilename = (file: File) => {
 
 import { formatI18nKeyDisplay } from '../contract/rules'
 
-export { DRAFT_KEY_PREFIX, fpTranslation, formatI18nKeyDisplay } from '../contract/rules'
+export {
+  UNNAMED_KEY_PREFIX,
+  LEGACY_DRAFT_KEY_PREFIX,
+  isUnnamedKey,
+  fpTranslation,
+  formatI18nKeyDisplay,
+} from '../contract/rules'
 
 /**
  * The key to save when it was typed into a field showing the display form, or
- * null when nothing changed. Without it, saving an untouched `__draft_…` field
+ * null when nothing changed. Without it, saving an untouched `__unnamed_…` field
  * would write its five-character preview over the full fingerprint.
  */
 export function resolveEditedKey(
@@ -64,15 +70,23 @@ export function resolveEditedKey(
   return next
 }
 
+/**
+ * Any locale published. Such a key's name is live — code and `/bundle` read it —
+ * so renaming and deleting wait for an unpublish, even while edited drafts sit
+ * on top of the published text.
+ */
+export function hasPublishedLocale(
+  locales: Array<{ publishedText?: string | null }>
+): boolean {
+  return locales.some((locale) => (locale.publishedText ?? '') !== '')
+}
+
 /** Draft = never published, or any locale draft differs from published. */
 export function isI18nKeyDraft(
   locales: Array<{ draftText: string | null; publishedText?: string | null }>
 ) {
   if (!locales.length) return true
-  const hasPublished = locales.some(
-    (locale) => (locale.publishedText ?? '') !== ''
-  )
-  if (!hasPublished) return true
+  if (!hasPublishedLocale(locales)) return true
   return locales.some(
     (locale) => (locale.draftText ?? '') !== (locale.publishedText ?? '')
   )
@@ -90,6 +104,19 @@ export function hasUnpublishedDraft(
   return locales.some(
     (locale) => (locale.draftText ?? '') !== (locale.publishedText ?? '')
   )
+}
+
+/**
+ * What a key's badge says. `edited` is the draft overlay: published text is
+ * still what export and delivery serve, with unpublished edits on top.
+ */
+export type I18nKeyStatus = 'draft' | 'edited' | 'published'
+
+export function i18nKeyStatus(
+  locales: Array<{ draftText: string | null; publishedText?: string | null }>
+): I18nKeyStatus {
+  if (!hasPublishedLocale(locales)) return 'draft'
+  return hasUnpublishedDraft(locales) ? 'edited' : 'published'
 }
 
 export type LocaleDraftWrite =

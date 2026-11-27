@@ -59,7 +59,7 @@ git-sync/
 - 绑定的 adapter、remote、branch、目录或文件规则变了，`resetGitSyncState` 清掉 base、`seenFiles`、未解决卡片和待应用预览。
 - Pull 只处理项目已配置的 locale，其余放进 `ignoredLocales`。
 - 补记已推送的批次时，base 取那个提交里的实际文本。
-- Pull 预览记下绑定目录的 tree id（`scopeTree`）。apply 时分支 head 变了但目录 tree 没变（别的 product 有提交），快照照常可用。
+- Pull 预览记下绑定目录的 tree id（`scopeTree`）。apply 时分支 head 变了但目录 tree 没变（别的 product 有提交），快照照常可用。共享目录里别的项目推了批次也会改 tree，这时改为比对本绑定自己的文件列表（`relPath` + `sha`）。
 - Pull apply 只跳过「同 key 有 open 卡」的行（任一 locale），返回在 `blocked` 里；其余照常应用。全部被挡才 409。
 - Push 三方判定里，远端没有的 key 视为「Git 没意见」（theirs = base），不会因为远端删除或换目录而判成冲突。Git 一侧为空的卡不能选 `theirs`。
 
@@ -86,6 +86,7 @@ layout 只负责一件事：**在已经 clone 好的目录里，按自己的约�
 | `options`       | `GitSyncBinding.options` 原始 JSON。layout 自己解析，不要信任它的形状               |
 | `localeMap`     | 用户填的 locale 改名表（`zh_cn → zh-Hans`），可能为 null                           |
 | `loadLocales()` | 项目的 locale 列表。按需调用，会查数据库                                              |
+| `share`         | 共享目录里哪些批次属于本绑定（`FolderShare`）。追加式布局用它过滤文件、给新批次打标签 |
 
 方法：
 
@@ -95,7 +96,7 @@ layout 只负责一件事：**在已经 clone 好的目录里，按自己的约�
 - **`readLocales(ctx, files)`**：把文件读成 `locale → key → text`，同时返回 `origin`（`` `${locale}\0${key}` `` → 来源 `relPath`），用于冲突卡片显示来源。坏文件跳过，不要抛错。
 - **`readSource(ctx, sourceLocale)`**：仓库里当前的 source 文本，即 Push 三方合并的 theirs。source 文件本身格式错误时抛 422，并在信息里带上路径，避免覆盖用户手写的文件。
 - **`sourceTextFor(ctx, files, sourceLocale)`**：如果你的布局能知道某个译文是基于哪一版 source 翻译的（LILT 靠批次 id 配对），返回查询函数，否则返回 `() => null`。返回 null 只会让 UI 不显示「Older source」提示，其他功能不受影响。
-- **`unwritableKeys(ctx, sourceLocale, keys)`**：文件格式装不下的 key（比如 nested JSON 里 `a` 已是字符串，又要写 `a.b`）。这些 key 在预览中标为 `UNWRITABLE`，不会推送。
+- **`unwritableKeys(ctx, sourceLocale, keys)`**：文件格式装不下的 key（比如 nested JSON 里 `a` 已是字符串，又要写 `a.b`；或新 key 落在数组下面，如数组只有 4 项时的 `list.4.title`，数组只更新已有元素）。这些 key 在预览中标为 `UNWRITABLE`，不会推送。
 - **`writeSource(ctx, sourceLocale, entries)`**：把 `entries`（只含本次要推送的 key）写进工作区，返回：
   - `relPath`：写入的文件
   - `sha`：写入后的 blob sha，会记进 `seenFiles`，下一次 Pull 就不会把自己写的文件当成新文件。返回 `''` 表示「已见过，内容不追踪」，适合每次都新建文件的追加式布局
@@ -105,7 +106,7 @@ layout 只负责一件事：**在已经 clone 好的目录里，按自己的约�
 
 - Push 只写 source locale。译文永远由 TMS 写、由 Pull 读回。
 - 同步不表达删除。Localness 删掉的 key 不会从仓库删除，仓库里消失的 key 也不会删掉 Localness 里的 key。
-- `[adapter, remoteUrl, product]` 唯一：同一个仓库目录只能绑定一个项目。
+- `[adapter, remoteUrl, product, batchTag]` 唯一。同一目录能否多个项目绑定由 `engine/folder.ts` 判定：`exclusive` 绑定独占目录、读全部文件；`shared` 绑定可以共存，靠批次 id 第 5–8 字节的标签（`batchTag`）区分，只读自己标签的批次，外加「不属于任何绑定标签」的旧文件（仅 `ownsUntagged` 的那一个）。规则加在 `engine/folder.ts`，不要写进 handler。
 - 不要在 layout 里缓存跨请求的状态。每次同步都是全新 clone。
 
 ## 新增一个 layout：步骤

@@ -43,6 +43,8 @@ export interface II18nKeyRefPage {
   id: ID
   name: string
   image: string | null
+  /** The page's OCR language; null means fall back to the project's. */
+  ocrLanguage: string | null
   tags: II18nKeyRefTag[]
 }
 

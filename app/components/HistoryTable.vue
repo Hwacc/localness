@@ -1,7 +1,7 @@
 <script setup lang="tsx" generic="T extends ILog<Record<string, any>>">
 import type { TableColumn } from '@nuxt/ui'
 import type { ComponentProps } from 'vue-component-type-helpers'
-import { UBadge, UserAvatar } from '#components'
+import { UBadge, UTooltip, UserAvatar } from '#components'
 import { LogAction, LogStatus } from '~~/shared/constants/log'
 import dayjs from 'dayjs'
 
@@ -12,6 +12,30 @@ const props = defineProps<{
   afterDataRenderer?: (data: T['afterData']) => VNode
 }>()
 const { history } = toRefs(props)
+
+const CLIENT_NAMES: Record<string, string> = {
+  cli: 'CLI',
+  vscode: 'VS Code',
+  figma: 'Figma',
+}
+
+/**
+ * Token writes carry the tool that made them (`cli/0.1.0`), and whether an
+ * agent drove it; the badge names both, the tooltip the exact version.
+ */
+function clientBadge(row: object) {
+  const { client, agent } = row as { client?: string | null; agent?: boolean }
+  if (!client) return null
+  const name = client.split('/')[0]!
+  const label = CLIENT_NAMES[name] ?? name
+  return (
+    <UTooltip text={`${client}${agent ? ' (agent)' : ''}`}>
+      <UBadge color={agent ? 'warning' : 'neutral'} variant="subtle" size="sm">
+        {agent ? `${label} · Agent` : label}
+      </UBadge>
+    </UTooltip>
+  )
+}
 
 const computedColumns = computed<TableColumn<T>[]>(() => [
   // default columns
@@ -97,6 +121,7 @@ const computedColumns = computed<TableColumn<T>[]>(() => [
             size="md"
           />
           <span>{user?.nickname ?? user?.username}</span>
+          {clientBadge(row.original)}
         </div>
       )
     },

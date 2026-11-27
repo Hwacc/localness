@@ -15,6 +15,7 @@ import {
   throwReleaseHttp,
 } from '#server/helper/release'
 import { keyClashMessage } from '#server/helper/key-convention'
+import { UNNAMED_KEY_PREFIX } from '#shared/utils'
 
 /**
  * @route POST /api/translation
@@ -58,7 +59,7 @@ export default defineEventHandler(async (event) => {
   }
 
   let fingerprint = body.fingerprint || fpTranslation(sourceText)
-  const key = (body.key && String(body.key).trim()) || `__draft_${fingerprint}`
+  const key = (body.key && String(body.key).trim()) || `${UNNAMED_KEY_PREFIX}${fingerprint}`
 
   const existing = await prisma.i18nKey.findUnique({
     where: {
@@ -99,12 +100,12 @@ export default defineEventHandler(async (event) => {
       where: {
         projectId_key: {
           projectId: body.projectId,
-          key: body.force && existing ? `__draft_${fingerprint}` : key,
+          key: body.force && existing ? `${UNNAMED_KEY_PREFIX}${fingerprint}` : key,
         },
       },
       create: {
         projectId: body.projectId,
-        key: body.force && existing ? `__draft_${fingerprint}` : key,
+        key: body.force && existing ? `${UNNAMED_KEY_PREFIX}${fingerprint}` : key,
         fingerprint,
       },
       update: {

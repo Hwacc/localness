@@ -6,7 +6,7 @@ import { resolveTokenProject } from '#server/helper/api-token-project'
 import {
   deliveryBundle,
   projectLocales,
-  resolveReleaseParam,
+  resolveDeliveryScope,
 } from '#server/helper/api-delivery'
 import type { DeliveryBundle } from '#shared/contract'
 
@@ -17,9 +17,9 @@ export default defineEventHandler(async (event): Promise<DeliveryBundle> => {
   )
   const query = getQuery(event)
   const projectId = await resolveTokenProject(token, query.project)
-  const releaseId = await resolveReleaseParam(projectId, query.release)
+  const scope = await resolveDeliveryScope(projectId, query)
   const locales = await projectLocales(projectId)
 
   await touchApiToken(token)
-  return deliveryBundle(projectId, releaseId, locales)
+  return deliveryBundle(projectId, scope, locales)
 })

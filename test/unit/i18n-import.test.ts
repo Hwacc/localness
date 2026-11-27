@@ -8,12 +8,12 @@ import {
   importWarningText,
   isLosslessDuplicate,
   localeLabelFromFilename,
-  normalizeImportText,
   parseLocaleJson,
   readXlsxSheet,
   restrictSheetDuplicate,
   type ImportSheetDuplicate,
 } from '#shared/utils/i18n-import'
+import { normalizeLocaleText } from '#shared/contract/locale-file'
 
 const LOCALES = ['en', 'zh_cn', 'zh_tw', 'ja', 'pt']
 
@@ -22,24 +22,24 @@ function json(...lines: string[]): string {
   return lines.join('\n')
 }
 
-describe('normalizeImportText', () => {
+describe('normalizeLocaleText', () => {
   it('unifies line endings and trims the ends only', () => {
-    expect(normalizeImportText('  a\r\nb\rc  ')).toBe('a\nb\nc')
-    expect(normalizeImportText('a  b')).toBe('a  b')
+    expect(normalizeLocaleText('  a\r\nb\rc  ')).toBe('a\nb\nc')
+    expect(normalizeLocaleText('a  b')).toBe('a  b')
   })
 
   it('stringifies numbers and booleans', () => {
-    expect(normalizeImportText(1)).toBe('1')
-    expect(normalizeImportText(false)).toBe('false')
+    expect(normalizeLocaleText(1)).toBe('1')
+    expect(normalizeLocaleText(false)).toBe('false')
   })
 
   it('treats null, empty and whitespace as no translation', () => {
-    expect(normalizeImportText(null)).toBeNull()
-    expect(normalizeImportText(undefined)).toBeNull()
-    expect(normalizeImportText('')).toBeNull()
-    expect(normalizeImportText('   ')).toBeNull()
-    expect(normalizeImportText(Number.NaN)).toBeNull()
-    expect(normalizeImportText({})).toBeNull()
+    expect(normalizeLocaleText(null)).toBeNull()
+    expect(normalizeLocaleText(undefined)).toBeNull()
+    expect(normalizeLocaleText('')).toBeNull()
+    expect(normalizeLocaleText('   ')).toBeNull()
+    expect(normalizeLocaleText(Number.NaN)).toBeNull()
+    expect(normalizeLocaleText({})).toBeNull()
   })
 })
 
@@ -60,14 +60,23 @@ describe('parseLocaleJson', () => {
     expect(duplicates).toEqual([])
   })
 
-  it('skips arrays with the line they are on', () => {
-    const { entries, warnings } = parseLocaleJson(
-      json('{', '  "x": "y",', '  "items": ["a", "b"]', '}')
+  it('reads arrays by index, skipping null elements', () => {
+    const { entries, warnings, duplicates } = parseLocaleJson(
+      json(
+        '{',
+        '  "x": "y",',
+        '  "items": ["a", null, "c"],',
+        '  "how": [',
+        '    { "title": "T" }',
+        '  ],',
+        '  "items.2": "C"',
+        '}'
+      )
     )
-    expect({ ...entries }).toEqual({ x: 'y' })
-    expect(warnings).toEqual([{ kind: 'array-value', key: 'items', line: 3 }])
-    expect(importWarningText(warnings[0]!)).toBe(
-      '"items" (line 3) is an array and was skipped.'
+    expect({ ...entries }).toEqual({ x: 'y', 'items.0': 'a', 'items.2': 'C', 'how.0.title': 'T' })
+    expect(warnings).toEqual([])
+    expect(importDuplicateText(duplicates[0]!)).toBe(
+      '"items.2" is defined twice: line 3 as nested keys (items → 2), line 7 as the key "items.2". The later one is kept: "C".'
     )
   })
 

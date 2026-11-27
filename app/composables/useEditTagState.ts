@@ -121,6 +121,7 @@ export function useEditTagState(tag: MaybeRef<ITag>) {
         vue: translation?.vue ?? {},
         react: translation?.react ?? {},
         dirty: translation?.dirty,
+        published: translation?.published,
       }
     }
   )

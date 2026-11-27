@@ -4,6 +4,8 @@ import { isEmpty } from 'lodash-es'
 type TagModalOptions = {
   tag: ITag
   clip: string
+  /** The clip re-cut for OCR (cropped to text, even margins); `clip` is for display. */
+  ocrImage: () => Promise<string>
   onSave?: (updatedTag: ITag | undefined) => void
   onCreateTranslation?: (updatedTag: ITag | undefined) => void
   onClose?: (isOK: boolean) => void
@@ -18,6 +20,8 @@ export function useTagModal() {
       suggestion: null,
       onSave: () => {},
       onCreateTrans: () => {},
+      onReverted: () => {},
+      onAiChanged: () => {},
       onClose: () => {},
     },
   })
@@ -35,6 +39,8 @@ export function useTagModal() {
   const translationGenerator = useTranslationGenerator()
 
   function open(opt: TagModalOptions) {
+    /* AI saves to the entry behind the dialog's back, so the tag is re-read on close. */
+    let aiTouched = false
     tagModal.open({
       tag: opt.tag,
       clip: opt.clip,
@@ -42,9 +48,8 @@ export function useTagModal() {
       onSave: async ({ tag, settings, translation }) => {
         try {
           tagModal.patch({ loading: true })
-          /* Refused on a published entry; a failure would lose the whole save. */
-          const textEditable = translation?.dirty !== false
-          if (translation && textEditable) {
+          /* Published entries take text as drafts too; publishing stays separate. */
+          if (translation) {
             /* Edits land on the bound entry; `New` is what creates another. */
             /* One request: `vue` and `react` hold the same set either way. */
             const content = translation.vue ?? translation.react
@@ -102,7 +107,7 @@ export function useTagModal() {
           if (type === 'ocr') {
             // ocr -> create translation -> update tag
             const createdTrans = await translationGenerator.ocr({
-              image: opt.clip,
+              image: await opt.ocrImage(),
               releaseIds,
             })
             await handleUpdateTag(createdTrans)
@@ -161,7 +166,14 @@ export function useTagModal() {
           opt.onSave?.(refreshed)
         }
       },
-      onClose: (isOK: boolean) => {
+      onAiChanged: () => {
+        aiTouched = true
+      },
+      onClose: async (isOK: boolean) => {
+        if (aiTouched) {
+          const refreshed = await tagStore.refreshTag(opt.tag.id)
+          if (refreshed) opt.onSave?.(refreshed)
+        }
         opt.onClose?.(isOK)
       },
     })

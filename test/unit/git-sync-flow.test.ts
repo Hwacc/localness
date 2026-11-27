@@ -2,7 +2,7 @@ import { execFileSync } from 'node:child_process'
 import { mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
-import { pathToFileURL } from 'node:url'
+import { fileURLToPath, pathToFileURL } from 'node:url'
 import Database from 'better-sqlite3'
 import { afterAll, describe, expect, it, vi } from 'vitest'
 import {
@@ -83,6 +83,7 @@ async function createProject(params: {
   remoteUrl: string
   product?: string
   locales?: string[]
+  folder?: { folderMode: string; batchTag: string; ownsUntagged: boolean }
 }) {
   projectCount += 1
   const team = await prisma.team.create({ data: { name: `team-${projectCount}` } })
@@ -106,6 +107,7 @@ async function createProject(params: {
           product: params.product ?? 'cortex',
           credentialKind: GitCredentialKind.REPO_ACCESS_TOKEN,
           token: 'token',
+          ...params.folder,
         },
       },
     },
@@ -363,6 +365,54 @@ describe('git sync flow', { timeout: 60_000 }, () => {
     expect((await localeRow(projectId, 'greeting'))!.publishedText).toBe('Hello there')
   })
 
+  it('keeps projects sharing one folder apart by batch tag', async () => {
+    const remote = createRemote()
+    const fromB = 'cortex/source/20260103-69580f00bbbbbbbb00000001_en-US.json'
+    remote.commit({ [SOURCE_V1]: { greeting: 'Hello there' } })
+    const a = await createProject({
+      remoteUrl: remote.url,
+      folder: { folderMode: 'shared', batchTag: 'aaaaaaaa', ownsUntagged: true },
+    })
+    const b = await createProject({
+      remoteUrl: remote.url,
+      folder: { folderMode: 'shared', batchTag: 'bbbbbbbb', ownsUntagged: false },
+    })
+    await seedKey({ projectId: a, key: 'greeting', draft: 'Hello', published: 'Hello', base: 'Hello' })
+    await seedKey({ projectId: b, key: 'greeting', draft: 'Hello', published: 'Hello', base: 'Hello' })
+
+    const previewA = await previewPull(a, 'tester')
+    // B's batch moves the shared folder; A's own files did not change.
+    remote.commit({ [fromB]: { greeting: 'From B' } })
+    const previewB = await previewPull(b, 'tester')
+    const result = await applyPull({
+      projectId: a,
+      triggeredBy: 'tester',
+      previewId: previewA.previewId,
+      selectedFiles: [SOURCE_V1],
+      selectedKeys: ['greeting\0en'],
+    })
+
+    expect(previewA.files.map((f) => f.relPath)).toEqual([SOURCE_V1])
+    expect(previewB.files.map((f) => f.relPath)).toEqual([fromB])
+    expect(result.applied).toBe(1)
+    expect((await localeRow(a, 'greeting'))!.publishedText).toBe('Hello there')
+  })
+
+  it('writes the binding tag into a pushed batch id', async () => {
+    const remote = createRemote()
+    remote.commit({ [SOURCE_V1]: { other: 'Other' } })
+    const projectId = await createProject({
+      remoteUrl: remote.url,
+      folder: { folderMode: 'shared', batchTag: 'cafef00d', ownsUntagged: true },
+    })
+    await seedKey({ projectId, key: 'k1', draft: 'New', published: 'New' })
+
+    const preview = await previewPush(projectId, 'tester')
+    await applyPush({ projectId, previewId: preview.previewId, selectedKeys: ['k1'], triggeredBy: 'tester' })
+
+    const names = git(root, ['--git-dir', fileURLToPath(remote.url), 'ls-tree', '-r', '--name-only', 'main'])
+    expect(names.split('\n').filter((n) => /^cortex\/source\/\d{8}-[0-9a-f]{8}cafef00d[0-9a-f]{8}_en-US\.json$/.test(n))).toHaveLength(1)
+  })
   it('applies other keys while a conflict is open, and holds rows of the conflicted key', async () => {
     const remote = createRemote()
     const translated = 'cortex/translated/20260101-aaaaaaaaaaaaaaaaaaaaaaaa_zh-CN.json'

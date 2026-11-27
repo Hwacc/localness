@@ -105,7 +105,7 @@ const LINKED_PATTERN =
  */
 const NESTING_PATTERN = /\$t\(\s*([^\s,()]+)\s*(?:,[^()]*)?\)/g
 
-/** snake_case identifiers (key names, `__draft_x`): their digits are not content. */
+/** snake_case identifiers (key names, `__unnamed_x`): their digits are not content. */
 const IDENTIFIER_PATTERN = /\w*_\w*/g
 
 /**

@@ -342,7 +342,7 @@ class Editor extends EditorInteraction {
     if (isEmpty(this.app.editor.list)) return
     const selectedOne = this.app.editor.list[0] as EditorTag
     const { x, y, width, height } = selectedOne
-    const image = await Editor.imageClipper.clip({
+    const image = await Editor.imageClipper.clipForOcr({
       x: x ?? 0,
       y: y ?? 0,
       width: width ?? 0,

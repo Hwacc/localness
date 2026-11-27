@@ -10,7 +10,6 @@ import {
   sourceLocaleOf,
   upsertLocaleDrafts,
   writeSourceText,
-  assertI18nKeyWritable,
 } from '#server/helper/i18n'
 
 /**
@@ -55,7 +54,6 @@ export default defineEventHandler(async (event) => {
       statusMessage: 'Translation not found',
     })
   }
-  assertI18nKeyWritable(existing.locales)
 
   const before = localesToContent(existing.locales)
   try {

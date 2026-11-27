@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { TRANSLATION_LANGUAGES } from '#shared/constants'
-import { DRAFT_KEY_PREFIX, formatI18nKeyDisplay } from '#shared/utils'
+import { isUnnamedKey, formatI18nKeyDisplay } from '#shared/utils'
 import { localeCoverageState } from '#shared/utils/coverage'
 
 /**
@@ -185,22 +185,15 @@ watch(focused, async (id) => {
               {{ formatI18nKeyDisplay(row.key) }}
             </code>
             <UTooltip
-              v-if="row.key.startsWith(DRAFT_KEY_PREFIX)"
+              v-if="isUnnamedKey(row.key)"
               text="Placeholder name from the editor — give it a real one"
             >
               <UIcon
-                name="i-lucide:sparkles"
+                name="i-lucide:file-question"
                 class="size-3 shrink-0 text-warning"
               />
             </UTooltip>
-            <UBadge
-              class="ml-auto shrink-0"
-              :color="row.dirty ? 'warning' : 'success'"
-              variant="subtle"
-              size="sm"
-            >
-              {{ row.dirty ? 'Draft' : 'Published' }}
-            </UBadge>
+            <I18nKeyStatusBadge class="ml-auto shrink-0" :locales="row.locales" />
           </div>
           <div class="flex items-center gap-2">
             <p

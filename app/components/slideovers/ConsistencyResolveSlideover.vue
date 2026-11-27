@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { AlertModal } from '#components'
+import { AlertModal, LocaleBadge } from '#components'
 import { formatI18nKeyDisplay } from '#shared/utils'
 import {
   findingIssueViews,
@@ -191,12 +191,12 @@ watch(
   }
 )
 
-function revertToDraft(member: MemberData) {
+function unpublish(member: MemberData) {
   confirmModal.open({
     mode: 'warning',
-    title: 'Revert to draft',
-    message: `“${formatI18nKeyDisplay(member.key)}” stops being published in every language — the delivery API and Git no longer serve it. Do this only if no code reads this key name, or you are about to merge it into another key.`,
-    okText: 'Revert to draft',
+    title: 'Unpublish',
+    message: `“${formatI18nKeyDisplay(member.key)}” stops being published in every language — the delivery API and Git no longer serve it; drafts stay. Do this only if no code reads this key name, or you are about to merge it into another key.`,
+    okText: 'Unpublish',
     onOk: async (_mode, { close }) => {
       try {
         await useApi(`/api/projects/${props.projectId}/unpublish`, {
@@ -348,7 +348,7 @@ function outdatedOnSave(locale: string): number {
     sourceLocale: sourceLocale.value,
     fingerprint: member.fingerprint,
     locales: member.locales,
-    text: texts.value[locale] ?? '',
+    texts: { [locale]: texts.value[locale] ?? '' },
   })
 }
 
@@ -382,15 +382,39 @@ function applyAutoFix(locale: string) {
 
 const canAutoFix = (locale: string) => autoFixOf(locale) !== null
 
-async function saveAndPublish(locale: string) {
+const autoFixableLocales = computed(() => issueLocales.value.filter(canAutoFix))
+const editedLocales = computed(() =>
+  issueLocales.value.filter(
+    (locale) => isEdited(locale) && (texts.value[locale] ?? '').trim() !== ''
+  )
+)
+
+/** Fill every editor that has a fix; nothing is written until Save & publish. */
+function autoFixAll() {
+  const next = { ...texts.value }
+  for (const locale of autoFixableLocales.value) {
+    next[locale] = autoFixOf(locale) ?? next[locale] ?? ''
+  }
+  texts.value = next
+  autoFixPreview.value = {}
+}
+
+async function publishTexts(locales: string[]) {
   const member = lead.value
-  const text = texts.value[locale] ?? ''
-  if (!member || !text.trim() || busy.value) return
+  if (!member || !locales.length || busy.value) return
   busy.value = true
   try {
     const res = await useApi<{ fingerprint: string; locales: FingerprintedLocale[] }>(
       `/api/projects/${props.projectId}/consistency/fix`,
-      { method: 'POST', body: { keyId: member.keyId, locale, text } }
+      {
+        method: 'POST',
+        body: {
+          keyId: member.keyId,
+          texts: Object.fromEntries(
+            locales.map((locale) => [locale, texts.value[locale] ?? ''])
+          ),
+        },
+      }
     )
     if (res?.locales) {
       members.value = members.value.map((m) =>
@@ -399,16 +423,101 @@ async function saveAndPublish(locale: string) {
           : m
       )
     }
-    savedLocales.value = [...new Set([...savedLocales.value, locale])]
+    savedLocales.value = [...new Set([...savedLocales.value, ...locales])]
     touched.value = true
     toast.add({
-      title: `${locale} published`,
+      title:
+        locales.length === 1
+          ? `${locales[0]} published`
+          : `${locales.length} languages published`,
       color: 'success',
       icon: 'i-lucide:circle-check',
     })
   } finally {
     busy.value = false
   }
+}
+
+/** Back to the published text; locales already saved keep their badge. */
+function resetEdits() {
+  texts.value = Object.fromEntries(
+    issueLocales.value.map((locale) => [locale, publishedOf(lead.value, locale)])
+  )
+  autoFixPreview.value = {}
+}
+
+/** What a batch publish would do that deserves a second look; empty = no confirm. */
+function bulkPublishRisks(locales: string[]) {
+  const member = lead.value
+  const failing = locales.filter((locale) => liveIssue(locale))
+  const outdated = member
+    ? outdatedOnSourceSave({
+        sourceLocale: sourceLocale.value,
+        fingerprint: member.fingerprint,
+        locales: member.locales,
+        texts: Object.fromEntries(
+          locales.map((locale) => [locale, texts.value[locale] ?? ''])
+        ),
+      })
+    : 0
+  const draftsLost = locales.filter((locale) => {
+    const row = member?.locales.find((r) => r.locale === locale)
+    return !!row && (row.draftText ?? '') !== (row.publishedText ?? '')
+  })
+  return { failing, outdated, draftsLost }
+}
+
+function riskGroup(label: string, locales: string[]) {
+  return h('div', { class: 'flex flex-col gap-1' }, [
+    h('p', label),
+    h(
+      'div',
+      { class: 'flex flex-wrap gap-1' },
+      locales.map((locale) => h(LocaleBadge, { locale }))
+    ),
+  ])
+}
+
+function saveAndPublishAll() {
+  const locales = editedLocales.value
+  if (!locales.length || busy.value) return
+  const { failing, outdated, draftsLost } = bulkPublishRisks(locales)
+  if (!failing.length && !outdated && !draftsLost.length) {
+    return publishTexts(locales)
+  }
+  confirmModal.open({
+    mode: 'warning',
+    title: `Publish ${locales.length} languages?`,
+    okText: 'Save & publish',
+    slots: {
+      body: () =>
+        h('div', { class: 'flex flex-col gap-3 text-sm' }, [
+          failing.length
+            ? riskGroup('Still fail this check — they are published anyway:', failing)
+            : null,
+          outdated
+            ? h(
+                'p',
+                `The source text changes, so ${outdated} other ${
+                  outdated === 1 ? 'language' : 'languages'
+                } of this key ${outdated === 1 ? 'turns' : 'turn'} Outdated.`
+              )
+            : null,
+          draftsLost.length
+            ? riskGroup('Have an unpublished draft that is overwritten:', draftsLost)
+            : null,
+        ]),
+    },
+    onOk: async (_mode: unknown, { close }: { close: () => void }) => {
+      confirmModal.patch({ loading: true })
+      try {
+        await publishTexts(locales)
+      } finally {
+        confirmModal.patch({ loading: false })
+        close()
+      }
+    },
+  })
 }
 
 // ── Orphan ─────────────────────────────────────────────────────────────────
@@ -652,9 +761,9 @@ const title = computed(() => {
                       color="warning"
                       variant="soft"
                       class="ml-auto shrink-0"
-                      @click="revertToDraft(member)"
+                      @click="unpublish(member)"
                     >
-                      Revert to draft
+                      Unpublish
                     </UButton>
                   </div>
                   <UCheckbox
@@ -777,15 +886,15 @@ const title = computed(() => {
               class="flex items-center gap-2 text-xs text-warning"
             >
               <UIcon name="i-lucide:lock" class="shrink-0" />
-              <span>Published — code may read this key name. Revert it to draft before deleting.</span>
+              <span>Published — code may read this key name. Unpublish it before deleting.</span>
               <UButton
                 size="xs"
                 color="warning"
                 variant="soft"
                 class="ml-auto shrink-0"
-                @click="revertToDraft(lead)"
+                @click="unpublish(lead)"
               >
-                Revert to draft
+                Unpublish
               </UButton>
             </div>
             <UButton
@@ -810,6 +919,44 @@ const title = computed(() => {
                 Edit the published text and publish it. Other languages are not
                 touched.
               </p>
+            </div>
+            <div
+              v-if="autoFixableLocales.length > 1 || editedLocales.length > 1"
+              class="flex items-center gap-2"
+            >
+              <UButton
+                v-if="autoFixableLocales.length > 1"
+                size="xs"
+                color="neutral"
+                variant="soft"
+                icon="i-lucide:wand-sparkles"
+                :disabled="busy"
+                @click="autoFixAll"
+              >
+                Auto-fix all ({{ autoFixableLocales.length }})
+              </UButton>
+              <UButton
+                v-if="editedLocales.length"
+                size="xs"
+                color="neutral"
+                variant="ghost"
+                icon="i-lucide:undo-2"
+                :disabled="busy"
+                @click="resetEdits"
+              >
+                Reset
+              </UButton>
+              <UButton
+                v-if="editedLocales.length > 1"
+                size="xs"
+                color="primary"
+                icon="i-lucide:upload"
+                class="ml-auto"
+                :loading="busy"
+                @click="saveAndPublishAll"
+              >
+                Save &amp; publish all ({{ editedLocales.length }})
+              </UButton>
             </div>
             <div
               v-for="locale in issueLocales"
@@ -913,7 +1060,7 @@ const title = computed(() => {
                   class="ml-auto"
                   :disabled="!isEdited(locale) || !texts[locale]?.trim()"
                   :loading="busy"
-                  @click="saveAndPublish(locale)"
+                  @click="publishTexts([locale])"
                 >
                   Save &amp; publish {{ locale }}
                 </UButton>

@@ -248,6 +248,8 @@ All configuration is environment-based; in Docker it comes from `.env.docker`
 | `NUXT_OPENAI_API_KEY` / `BASE_URL` / `MODEL` | Shared OpenAI-compatible endpoint for AI features                 |
 | `NUXT_OPENAI_I18N_KEY_*`                         | Per-feature overrides for the key-naming AI                       |
 | `NUXT_OCR_API_KEY` / `NUXT_OCR_API_URL`        | OCR.Space configuration                                           |
+| `NUXT_PUBLIC_OCR_PROVIDER`                       | `ocrspace` (default) or `paddlex`                                 |
+| `NUXT_OCR_PADDLEX_URL` / `NUXT_OCR_PADDLEX_KEY`  | Self-hosted PaddleX OCR (`POST /ocr`), used when provider is `paddlex` |
 | `NUXT_OAUTH_ATLASSIAN_*`                         | Optional Atlassian OAuth client                                   |
 | `NUXT_ATLASSIAN_ALLOWED_EMAIL_DOMAINS`           | Email-domain allowlist — empty means deny everyone               |
 

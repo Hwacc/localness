@@ -1,6 +1,6 @@
 import { omit } from 'lodash-es'
 import prisma from '#server/libs/prisma'
-import { isI18nKeyDraft } from '#shared/utils'
+import { hasPublishedLocale, isI18nKeyDraft, isUnnamedKey } from '#shared/utils'
 import { DEFAULT_LOCALE_FALLBACK } from '#shared/constants'
 import { isProjectSteward } from '#server/helper/project-owner'
 
@@ -98,6 +98,11 @@ export const projectDetailInclude = {
     select: { id: true, name: true, sort: true },
     orderBy: [{ sort: 'asc' as const }, { id: 'asc' as const }],
   },
+  // Key namespaces, in display order. Keys join them by name, so no key list.
+  namespaces: {
+    select: { id: true, name: true, sort: true },
+    orderBy: [{ sort: 'asc' as const }, { id: 'asc' as const }],
+  },
 }
 
 export function localesToContent(
@@ -149,8 +154,10 @@ export function shapeI18nKey(
     updatedAt: record.updatedAt,
     vue: content,
     react: { ...content },
-    /** True while a draft; published entries are read-only and refuse writes. */
+    /** True while anything is unpublished; drives status, not writability. */
     dirty: isI18nKeyDraft(record.locales ?? []),
+    /** Ever published: text still takes drafts, but the name is fixed. */
+    published: hasPublishedLocale(record.locales ?? []),
     /** Labels as plain ids, for the same reason pages carry them that way. */
     releaseIds: (record.releases ?? []).map((release) => release.releaseId),
   }
@@ -197,13 +204,14 @@ export function shapeI18nKeyRow(
   }
 }
 
-export function assertI18nKeyWritable(
-  locales: Array<{ draftText: string | null; publishedText: string | null }>
+/** Name fixed while anything is published; see `hasPublishedLocale`. */
+export function assertI18nKeyRenamable(
+  locales: Array<{ publishedText: string | null }>
 ) {
-  if (!isI18nKeyDraft(locales)) {
+  if (hasPublishedLocale(locales)) {
     throw createError({
       statusCode: 409,
-      statusMessage: 'Published translations are read-only',
+      statusMessage: 'Published keys cannot be renamed; unpublish first',
     })
   }
 }
@@ -310,7 +318,7 @@ export async function deleteUnusedDraftI18nKey(id: number) {
     where: { id },
     select: { key: true, _count: { select: { tags: true } } },
   })
-  if (!record || !record.key.startsWith('__draft_') || record._count.tags > 0) {
+  if (!record || !isUnnamedKey(record.key) || record._count.tags > 0) {
     return
   }
   await prisma.translationLog.updateMany({
@@ -396,13 +404,13 @@ export async function writeSourceText(
     sourceLocale?: string
     /**
      * Also write `publishedText`. Capture does this for a named key so the
-     * public API and Git push see the source sentence. `__draft_` keys pass
+     * public API and Git push see the source sentence. `__unnamed_` keys pass
      * `clearPublished` instead and stay unpublished. Only ever applied when
      * this call actually changes the wording: capture publishes its own
-     * edits, never re-publishes one a human reverted to draft.
+     * edits, never re-publishes one a human unpublished.
      */
     publish?: boolean
-    /** Drop published source text. Capture uses this for `__draft_` keys. */
+    /** Drop published source text. Capture uses this for `__unnamed_` keys. */
     clearPublished?: boolean
   },
   db: Pick<typeof prisma, 'localeValue'> = prisma

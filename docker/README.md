@@ -218,7 +218,80 @@ Repo secrets (Actions → Secrets): `DOCKERHUB_USERNAME`, `DOCKERHUB_TOKEN`
 `NUXT_SALT_SIZE` is fixed at `10` in the release workflow; do not change it
 after go-live.
 
+## Auto pull (optional)
+
+Projects with **Auto pull** switched on in Git settings are checked with
+`git ls-remote` every `NUXT_GIT_AUTO_PULL_MINUTES` minutes (default `120`;
+`0` turns the poller off). It never applies anything: a moved head only
+prepares conflict cards and notifies the project owners. Failures are logged
+as `[git-auto-pull] ...` in `docker compose logs localness`.
+
 ## Backup and restore
+
+### Scheduled backup to a network share (optional)
+
+Set `NUXT_BACKUP_DIR` and the app snapshots the database and local uploads
+once a day into `<dir>/localness-YYYYMMDD-HHmmss/`, keeping the newest three.
+It is off while the variable is empty. The snapshot goes through SQLite's
+`VACUUM INTO` and is integrity-checked before it is written out, so it is
+consistent while the app keeps running.
+
+The app only writes to a path; mounting the share is the host's job, so no
+credentials ever reach the container. On a Linux host, for an SMB share:
+
+```bash
+sudo apt install cifs-utils
+sudo mkdir -p /mnt/nas-backup
+# /etc/localness-nas.cred, chmod 600:  username=...  password=...  (domain=... if needed)
+# /etc/fstab, one line:
+//NAS-HOST/SHARE/localness-backup /mnt/nas-backup cifs credentials=/etc/localness-nas.cred,uid=1000,gid=1000,vers=3.0,_netdev,nofail 0 0
+sudo mount /mnt/nas-backup
+touch /mnt/nas-backup/.localness-backup
+```
+
+`uid=1000,gid=1000` is the image's `node` user; without it the container
+cannot write. Use a dedicated service account that can only touch that folder, not a
+personal one: a personal account reaches everything you can, and its password
+is usually rotated on a schedule, which silently stops the backups until
+someone updates the credentials file and remounts. Then in `docker-compose.yml` mount it, and in `.env.docker` set the
+variables:
+
+```yaml
+    volumes:
+      - /mnt/nas-backup:/app/backup
+```
+
+```
+NUXT_BACKUP_DIR=/app/backup
+TZ=Asia/Shanghai
+```
+
+`TZ` matters: the schedule is the container's local time, which is UTC by
+default. Optional: `NUXT_BACKUP_TIME` (HH:MM, default `03:00`) and
+`NUXT_BACKUP_KEEP` (default `3`).
+
+The `.localness-backup` file is a safety check. If the share is not mounted
+the host leaves an empty directory in its place; without the marker the app
+refuses to write there, rather than quietly filling the host's disk. A refused
+or failed run shows up in `docker compose logs localness` as `[backup] ...`
+(`FAILED` for errors); the previous backups are left untouched.
+
+To check a new mount without waiting for the schedule, run one backup now with
+the same settings:
+
+```bash
+docker compose exec localness tsx scripts/backup-now.ts
+```
+
+It prints the snapshot path, or the reason it refused, and exits non-zero on
+failure.
+
+Restore: stop the container, copy `localness.db` from a snapshot to
+`/app/runtime/db/localness.db` in the volume and `uploads/` over
+`/app/runtime/uploads`, then start it. `migrate deploy` brings an older snapshot
+up to the current schema on boot. Try a restore once before you need one.
+
+### Manual copy of the whole volume
 
 SQLite is a file inside the volume. Stop the container first so no write is in
 flight:

@@ -3,6 +3,7 @@ import type {
   GitCredentialKind,
   GitSyncAdapter,
   GitSyncFileFormat,
+  GitSyncFolderMode,
 } from '#shared/constants'
 
 /**
@@ -13,6 +14,7 @@ export interface IGitSettingsForm {
   enabled: boolean
   adapter: GitSyncAdapter
   product: string
+  folderMode: GitSyncFolderMode
   pattern: string
   format: GitSyncFileFormat
   credentialKind: GitCredentialKind
@@ -76,6 +78,7 @@ const form = defineModel<IGitSettingsForm>('form', { required: true })
         <GitSyncLayoutFields
           v-model:adapter="form.adapter"
           v-model:product="form.product"
+          v-model:folder-mode="form.folderMode"
           v-model:pattern="form.pattern"
           v-model:format="form.format"
           :product-items="productItems"

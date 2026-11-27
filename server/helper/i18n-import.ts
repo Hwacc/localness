@@ -4,16 +4,13 @@ import { toKeyConvention } from '#server/helper/key-convention'
 import { setReleaseMembership } from '#server/helper/release'
 import { LogAction, LogStatus } from '#shared/constants/log'
 import { DEFAULT_LOCALE_FALLBACK } from '#shared/constants'
-import { DRAFT_KEY_PREFIX, fpTranslation, parseLocales } from '#shared/utils'
+import { fpTranslation, isUnnamedKey, parseLocales } from '#shared/utils'
 import {
   checkI18nKey,
   type KeyConvention,
 } from '#shared/utils/key-convention'
-import {
-  detectInterpolationStyles,
-  emptyEntries,
-  normalizeImportText,
-} from '#shared/utils/i18n-import'
+import { detectInterpolationStyles } from '#shared/utils/i18n-import'
+import { emptyEntries, normalizeLocaleText } from '#shared/contract/locale-file'
 import type {
   I18nImportRowKind,
   II18nImportChange,
@@ -80,7 +77,7 @@ function textsByKey(
     }
     for (const [rawKey, rawText] of Object.entries(entries)) {
       const key = rawKey.trim()
-      const text = normalizeImportText(rawText)
+      const text = normalizeLocaleText(rawText)
       let texts = byKey.get(key)
       if (!texts) {
         texts = emptyEntries()
@@ -134,7 +131,7 @@ export function classifyImport(input: {
       preview.skipped.push({ key, reason: 'empty-key' })
       continue
     }
-    if (key.startsWith(DRAFT_KEY_PREFIX)) {
+    if (isUnnamedKey(key)) {
       preview.skipped.push({ key, reason: 'reserved-prefix' })
       continue
     }

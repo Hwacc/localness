@@ -17,6 +17,8 @@ export enum NotificationType {
   TEAM_JOIN_REQUEST = 'TEAM_JOIN_REQUEST',
   TEAM_JOIN_APPROVED = 'TEAM_JOIN_APPROVED',
   TEAM_JOIN_REJECTED = 'TEAM_JOIN_REJECTED',
+  // Informational (action NONE): auto pull found remote changes to review.
+  GIT_PULL_READY = 'GIT_PULL_READY',
 }
 
 export enum JoinRequestStatus {
@@ -32,10 +34,13 @@ export enum NotificationAction {
   NONE = 'none',
 }
 
-/** Status filter on the translations table. Not stored — a query option only. */
+/** Status filter on the translations table, matching the key badge. Not stored — a query option only. */
 export enum I18nKeyStatusFilter {
   ALL = 'all',
+  /** Never published. */
   DRAFT = 'draft',
+  /** Published, with unpublished edits. */
+  EDITED = 'edited',
   PUBLISHED = 'published',
   OUTDATED = 'outdated',
 }
@@ -97,14 +102,22 @@ export enum GitSyncAdapter {
   LOCALE_FILES = 'locale-files',
 }
 
-/** Key layout inside a `locale-files` JSON file. Reading accepts both. */
-export enum GitSyncFileFormat {
-  FLAT_JSON = 'flat-json',
-  NESTED_JSON = 'nested-json',
+/**
+ * Whether a Git binding has its folder to itself. `shared` is LILT only: LILT
+ * does not create a folder per project, so several projects push into one and
+ * tell their batches apart by the tag in the batch id.
+ */
+export enum GitSyncFolderMode {
+  EXCLUSIVE = 'exclusive',
+  SHARED = 'shared',
 }
 
-export const GIT_SYNC_LOCALE_PLACEHOLDER = '{locale}'
-export const GIT_SYNC_DEFAULT_PATTERN = `${GIT_SYNC_LOCALE_PLACEHOLDER}.json`
+/** Key layout inside a `locale-files` JSON file. Reading accepts both. */
+export {
+  LocaleFileFormat as GitSyncFileFormat,
+  LOCALE_PLACEHOLDER as GIT_SYNC_LOCALE_PLACEHOLDER,
+  DEFAULT_LOCALE_FILE_PATTERN as GIT_SYNC_DEFAULT_PATTERN,
+} from '../contract/locale-file'
 
 export enum GitCredentialKind {
   REPO_ACCESS_TOKEN = 'repo_access_token',
@@ -182,6 +195,12 @@ export enum GitSyncPushReason {
 
 /** A preview snapshot is only trusted for this long. */
 export const GIT_SYNC_PREVIEW_TTL_MS = 15 * 60 * 1000
+
+/** `createdBy` of previews made by the auto-pull poller. */
+export const GIT_SYNC_AUTO_ACTOR = 'auto'
+export const GIT_AUTO_PULL_DEFAULT_MINUTES = 120
+/** Failed remote checks back off up to this long, or one interval if longer. */
+export const GIT_AUTO_PULL_MAX_BACKOFF_MS = 30 * 60 * 1000
 
 /**
  * How long a project's sync lease holds without a heartbeat before anyone may

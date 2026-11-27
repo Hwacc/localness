@@ -21,8 +21,10 @@ export interface ITranslation extends Record<string, any> {
   updatedAt?: string
   vue?: TranslationContent
   react?: TranslationContent
-  /** False once published: the entry is read-only until it is reverted to draft. */
+  /** True while any locale has unpublished text. */
   dirty?: boolean
+  /** Some locale is published: text edits land as drafts, the key cannot be renamed. */
+  published?: boolean
   /** Release labels of this entry. Absent on the client means "not loaded". */
   releaseIds?: number[]
 }
@@ -37,4 +39,8 @@ export class Translation implements ITranslation {
 export interface ITranslationLog extends ILog<ITranslation> {
   translationID: ID
   translation?: ITranslation | null
+  /** The tool behind a token write (`cli/0.1.0`); null for the web app. */
+  client: string | null
+  /** The tool reported that a coding agent drove it. */
+  agent: boolean
 }

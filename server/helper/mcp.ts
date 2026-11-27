@@ -2,6 +2,10 @@ import { createMcpHandler, McpServer } from '@modelcontextprotocol/server'
 import type { AuthInfo } from '@modelcontextprotocol/server'
 import { z } from 'zod'
 import { listReleases } from '#server/helper/release'
+import { listTokenProjects } from '#server/helper/api-token-project'
+import type { TokenIdentity } from '#server/helper/api-token-project'
+import { listNamespaces } from '#server/helper/namespace'
+import { UNGROUPED_NAMESPACE_PARAM } from '#shared/utils/namespace'
 import {
   deliveryBundle,
   deliveryKey,
@@ -11,10 +15,13 @@ import {
   listDeliveryKeys,
   listUnpublishedDeliveryKeys,
   projectLocales,
+  resolveNamespaceParam,
   resolveReleaseParam,
   searchDeliveryKeys,
   searchDeliveryKeysByText,
+  WHOLE_PROJECT,
 } from '#server/helper/api-delivery'
+import type { DeliveryScope } from '#server/helper/api-delivery'
 
 /**
  * The MCP face of the delivery API, served at `/mcp`.
@@ -24,7 +31,8 @@ import {
  * reaches, and one MCP server entry means one project. The route resolves it
  * once, from `?project=` when the token reaches several, and passes it through
  * `authInfo.extra` — so the tools never re-derive it and cannot disagree with
- * what was actually authorized.
+ * what was actually authorized. When a multi-project token names none, the
+ * route passes `null` and only `list_projects` is served.
  *
  * Every tool delegates to the same `api-delivery` helpers the REST endpoints
  * use. That is deliberate — two ways to fetch copy that could drift is exactly
@@ -32,15 +40,18 @@ import {
  */
 
 /** Set by the route from the authenticated token row. */
-type ProjectScope = { projectId?: number }
+type ProjectScope = {
+  projectId?: number | null
+  token?: TokenIdentity
+}
 
-function projectIdFrom(authInfo: AuthInfo | undefined): number {
-  const projectId = (authInfo?.extra as ProjectScope | undefined)?.projectId
-  if (typeof projectId !== 'number') {
+function scopeFrom(authInfo: AuthInfo | undefined) {
+  const scope = authInfo?.extra as ProjectScope | undefined
+  if (scope?.projectId === undefined || !scope.token) {
     // Unreachable unless the route stops passing it, which is a wiring bug.
     throw new Error('MCP request arrived without a project scope')
   }
-  return projectId
+  return { projectId: scope.projectId, token: scope.token }
 }
 
 const text = (value: unknown) => ({
@@ -48,18 +59,28 @@ const text = (value: unknown) => ({
 })
 
 /**
- * A release name that does not exist is a mistake the caller can fix, so it has
- * to say so. Widening to the whole project instead would look filtered and not
- * be, and the caller has no way to notice.
+ * A release or namespace name that does not exist is a mistake the caller can
+ * fix, so it has to say so. Widening to the whole project instead would look
+ * filtered and not be, and the caller has no way to notice.
  */
-async function releaseIdOf(projectId: number, raw: string | undefined) {
-  try {
-    return await resolveReleaseParam(projectId, raw)
-  } catch {
-    throw new Error(
-      `No release named "${raw}" in this project. Call get_project_info to list the release names.`
-    )
-  }
+async function scopeOf(
+  projectId: number,
+  release: string | undefined,
+  namespace: string | undefined
+): Promise<DeliveryScope> {
+  const [releaseId, namespaceScope] = await Promise.all([
+    resolveReleaseParam(projectId, release).catch(() => {
+      throw new Error(
+        `No release named "${release}" in this project. Call get_project_info to list the release names.`
+      )
+    }),
+    resolveNamespaceParam(projectId, namespace).catch(() => {
+      throw new Error(
+        `No namespace named "${namespace}" in this project. Call get_project_info to list the namespace names.`
+      )
+    }),
+  ])
+  return { releaseId, ...namespaceScope }
 }
 
 /**
@@ -75,6 +96,13 @@ const RELEASE_PARAM = z
     'A release name or id, to narrow to what shipped in that version. Omit for everything published — omit when proofreading a product locale folder against the full catalog. get_project_info lists the names.'
   )
 
+const NAMESPACE_PARAM = z
+  .string()
+  .optional()
+  .describe(
+    `A key namespace name, to narrow to one feature area: keys whose name after the project key prefix starts with "<namespace>" followed by one of _ . - : / and more (a key without the prefix matches by its full name). "${UNGROUPED_NAMESPACE_PARAM}" selects keys in no namespace. Omit for every key. get_project_info lists the names.`
+  )
+
 const OFFSET_PARAM = z
   .number()
   .optional()
@@ -85,23 +113,64 @@ const LIST_LIMIT_PARAM = z
   .optional()
   .describe('Page size. Default 1000, max 5000.')
 
-function missingKeyError(key: string, release: string | undefined) {
+function missingKeyError(
+  key: string,
+  release: string | undefined,
+  namespace: string | undefined
+) {
+  const narrowed = [
+    release && `release "${release}"`,
+    namespace && `namespace "${namespace}"`,
+  ].filter(Boolean)
   return new Error(
-    release
-      ? `No key "${key}" in release "${release}". It may exist outside that release — list_keys or search_keys without a release will say.`
+    narrowed.length
+      ? `No key "${key}" in ${narrowed.join(' and ')}. It may exist outside that scope — list_keys or search_keys without release or namespace will say.`
       : `No key "${key}" in this project. Use list_keys or search_keys to find the right one.`
   )
 }
 
 export const mcpHandler = createMcpHandler(
   async ({ authInfo }) => {
-    const projectId = projectIdFrom(authInfo)
+    const { projectId: scopedProjectId, token } = scopeFrom(authInfo)
+
+    if (scopedProjectId === null) {
+      // A multi-project token that named no project. Answering the handshake
+      // with a tool list that fails on every call would look like a broken
+      // server; one tool that says what to do is a usable one.
+      const unscoped = new McpServer({ name: 'localness', version: '1.0.0' })
+      unscoped.registerTool(
+        'list_projects',
+        {
+          title: 'List projects',
+          description:
+            'This token reaches several projects and the MCP URL names none, so no dictionary tools are available. Returns the projects the token can address. Then add `?project=<id-or-name>` to the MCP server URL in the client config (one entry per project) and reconnect.',
+        },
+        async () => {
+          const projects = await listTokenProjects(token)
+          return text({
+            projects,
+            next: 'Append ?project=<id-or-name> to the MCP server URL, then reconnect.',
+          })
+        }
+      )
+      return unscoped
+    }
+    // Re-bound so the narrowing survives into the tool callbacks below.
+    const projectId: number = scopedProjectId
 
     // Fetched per request purely so `get_project_info`'s description can name
     // the releases: an agent cannot call a scope it has never heard of, and a
     // description is the only place it can hear about one before calling. One
     // small `findMany` per request buys that; a cache would buy staleness.
-    const releases = await listReleases(projectId)
+    const [releases, namespaces] = await Promise.all([
+      listReleases(projectId),
+      listNamespaces(projectId),
+    ])
+    const namespaceHint = namespaces.length
+      ? `They can also be narrowed to one key namespace: ${namespaces
+          .map((namespace) => namespace.name)
+          .join(', ')}, or ${UNGROUPED_NAMESPACE_PARAM} for keys in none.`
+      : 'This project declares no key namespaces.'
     const releaseHint = releases.length
       ? `The other tools can be narrowed to one of this project's releases: ${releases
           .map((release) => release.name)
@@ -115,9 +184,9 @@ export const mcpHandler = createMcpHandler(
       {
         title: 'Project info',
         description:
-          `Which project this token serves, its locales, fallback locale, and how many keys are published per locale. ${releaseHint} For a full-catalog proofread omit release on the other tools; use list_keys, get_key, search_by_text, and list_unpublished_keys for dictionary facts. Start here.`,
+          `Which project this token serves, its locales, fallback locale, and how many keys are published per locale. ${releaseHint} ${namespaceHint} For a full-catalog proofread omit release on the other tools; use list_keys, get_key, search_by_text, and list_unpublished_keys for dictionary facts. Start here.`,
       },
-      async () => text(await deliveryMeta(projectId, null))
+      async () => text(await deliveryMeta(projectId, WHOLE_PROJECT))
     )
 
     server.registerTool(
@@ -131,11 +200,12 @@ export const mcpHandler = createMcpHandler(
             .string()
             .describe('Locale code, such as "en". See get_project_info.'),
           release: RELEASE_PARAM,
+          namespace: NAMESPACE_PARAM,
         }),
       },
-      async ({ locale, release }) => {
-        const releaseId = await releaseIdOf(projectId, release)
-        return text(await deliveryLocale(projectId, locale, releaseId))
+      async ({ locale, release, namespace }) => {
+        const scope = await scopeOf(projectId, release, namespace)
+        return text(await deliveryLocale(projectId, locale, scope))
       }
     )
 
@@ -145,12 +215,15 @@ export const mcpHandler = createMcpHandler(
         title: 'Every locale in one bundle',
         description:
           'All locales at once, keyed by locale: { locale: { key: text } }. One call for a whole runtime bundle.',
-        inputSchema: z.object({ release: RELEASE_PARAM }),
+        inputSchema: z.object({
+          release: RELEASE_PARAM,
+          namespace: NAMESPACE_PARAM,
+        }),
       },
-      async ({ release }) => {
-        const releaseId = await releaseIdOf(projectId, release)
+      async ({ release, namespace }) => {
+        const scope = await scopeOf(projectId, release, namespace)
         const locales = await projectLocales(projectId)
-        return text(await deliveryBundle(projectId, releaseId, locales))
+        return text(await deliveryBundle(projectId, scope, locales))
       }
     )
 
@@ -164,13 +237,14 @@ export const mcpHandler = createMcpHandler(
           key: z.string().describe('The i18n key, exactly as a bundle spells it.'),
           locale: z.string(),
           release: RELEASE_PARAM,
+          namespace: NAMESPACE_PARAM,
         }),
       },
-      async ({ key, locale, release }) => {
-        const releaseId = await releaseIdOf(projectId, release)
-        const result = await deliveryKey(projectId, key, locale, releaseId)
+      async ({ key, locale, release, namespace }) => {
+        const scope = await scopeOf(projectId, release, namespace)
+        const result = await deliveryKey(projectId, key, locale, scope)
         if (result.state === 'missing') {
-          throw missingKeyError(key, release)
+          throw missingKeyError(key, release, namespace)
         }
         // A key that exists but has no published text here is an answer, not a
         // failure: it says this locale needs work. Returning `text: ''` would
@@ -194,11 +268,12 @@ export const mcpHandler = createMcpHandler(
             .string()
             .describe('Substring of the key name, such as "login".'),
           release: RELEASE_PARAM,
+          namespace: NAMESPACE_PARAM,
         }),
       },
-      async ({ query, release }) => {
-        const releaseId = await releaseIdOf(projectId, release)
-        return text(await searchDeliveryKeys(projectId, query, releaseId))
+      async ({ query, release, namespace }) => {
+        const scope = await scopeOf(projectId, release, namespace)
+        return text(await searchDeliveryKeys(projectId, query, scope))
       }
     )
 
@@ -212,11 +287,12 @@ export const mcpHandler = createMcpHandler(
           offset: OFFSET_PARAM,
           limit: LIST_LIMIT_PARAM,
           release: RELEASE_PARAM,
+          namespace: NAMESPACE_PARAM,
         }),
       },
-      async ({ offset, limit, release }) => {
-        const releaseId = await releaseIdOf(projectId, release)
-        return text(await listDeliveryKeys(projectId, releaseId, offset, limit))
+      async ({ offset, limit, release, namespace }) => {
+        const scope = await scopeOf(projectId, release, namespace)
+        return text(await listDeliveryKeys(projectId, scope, offset, limit))
       }
     )
 
@@ -229,13 +305,14 @@ export const mcpHandler = createMcpHandler(
         inputSchema: z.object({
           key: z.string().describe('The i18n key, exactly as a bundle spells it.'),
           release: RELEASE_PARAM,
+          namespace: NAMESPACE_PARAM,
         }),
       },
-      async ({ key, release }) => {
-        const releaseId = await releaseIdOf(projectId, release)
-        const result = await deliveryKeyLocales(projectId, key, releaseId)
+      async ({ key, release, namespace }) => {
+        const scope = await scopeOf(projectId, release, namespace)
+        const result = await deliveryKeyLocales(projectId, key, scope)
         if (result.state === 'missing') {
-          throw missingKeyError(key, release)
+          throw missingKeyError(key, release, namespace)
         }
         return text({ key: result.key, locales: result.locales })
       }
@@ -257,17 +334,18 @@ export const mcpHandler = createMcpHandler(
             .optional()
             .describe('exact (default) for hardcoded replacement; contains for a substring.'),
           release: RELEASE_PARAM,
+          namespace: NAMESPACE_PARAM,
         }),
       },
-      async ({ locale, query, mode, release }) => {
-        const releaseId = await releaseIdOf(projectId, release)
+      async ({ locale, query, mode, release, namespace }) => {
+        const scope = await scopeOf(projectId, release, namespace)
         return text(
           await searchDeliveryKeysByText(
             projectId,
             locale,
             query,
             mode ?? 'exact',
-            releaseId
+            scope
           )
         )
       }
@@ -286,15 +364,16 @@ export const mcpHandler = createMcpHandler(
           offset: OFFSET_PARAM,
           limit: LIST_LIMIT_PARAM,
           release: RELEASE_PARAM,
+          namespace: NAMESPACE_PARAM,
         }),
       },
-      async ({ locale, offset, limit, release }) => {
-        const releaseId = await releaseIdOf(projectId, release)
+      async ({ locale, offset, limit, release, namespace }) => {
+        const scope = await scopeOf(projectId, release, namespace)
         return text(
           await listUnpublishedDeliveryKeys(
             projectId,
             locale,
-            releaseId,
+            scope,
             offset,
             limit
           )

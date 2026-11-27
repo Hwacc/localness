@@ -5,10 +5,39 @@ import {
   releaseWhereFragment,
   listReleases,
 } from '#server/helper/release'
+import { listNamespaces, namespaceKeyIds } from '#server/helper/namespace'
+import { sourceLocaleOf } from '#server/helper/i18n'
+import { toKeyConvention } from '#server/helper/key-convention'
 import { DEFAULT_LOCALE_FALLBACK } from '#shared/constants'
-import type { DeliveryBundle, DeliveryMeta } from '#shared/contract'
+import { isI18nKeyDraft } from '#shared/utils'
+import { isTranslationOutdated } from '#shared/utils/outdated'
+import { UNGROUPED_NAMESPACE_PARAM } from '#shared/utils/namespace'
+import type {
+  DeliveryBundle,
+  DeliveryKeyState,
+  DeliveryKeyStates,
+  DeliveryLocaleStateName,
+  DeliveryMeta,
+} from '#shared/contract'
 
 export type { DeliveryBundle, DeliveryMeta }
+
+/**
+ * What a read is narrowed to. `namespace` is the name the caller asked for (or
+ * `__ungrouped__`), echoed by `meta`; `namespaceKeyIds` is its membership,
+ * resolved once from key names because SQL `LIKE` cannot express the rule.
+ */
+export type DeliveryScope = {
+  releaseId: number | null
+  namespace: string | null
+  namespaceKeyIds: number[] | null
+}
+
+export const WHOLE_PROJECT: DeliveryScope = {
+  releaseId: null,
+  namespace: null,
+  namespaceKeyIds: null,
+}
 
 const DELIVERY_API_PREFIX = '/api/v1/'
 
@@ -80,11 +109,11 @@ function clampSearchLimit(limit: number | undefined): number {
 }
 
 /** The published-copy catalog the dictionary tools share with `searchDeliveryKeys`. */
-function catalogWhere(projectId: number, releaseId: number | null) {
+function catalogWhere(projectId: number, scope: DeliveryScope) {
   return {
     projectId,
     locales: { some: PUBLISHED_TEXT },
-    ...releaseWhere(releaseId),
+    ...scopeWhere(scope),
   }
 }
 
@@ -128,10 +157,68 @@ export async function resolveReleaseParam(
   return match.id
 }
 
-/** Reuses the UI filter fragment so the API and the translations table cannot disagree. */
-export function releaseWhere(releaseId: number | null) {
-  if (releaseId == null) return {}
-  return releaseWhereFragment(parseReleaseFilter({ releaseId }))
+/** Reuses the UI filter fragments so the API and the translations table cannot disagree. */
+export function scopeWhere(scope: DeliveryScope) {
+  return {
+    ...(scope.releaseId == null
+      ? {}
+      : releaseWhereFragment(parseReleaseFilter({ releaseId: scope.releaseId }))),
+    ...(scope.namespaceKeyIds ? { id: { in: scope.namespaceKeyIds } } : {}),
+  }
+}
+
+/**
+ * `?namespace=` takes a name or an id like `?release=`, plus
+ * `__ungrouped__` for the keys in none. Membership is read from key names by
+ * the same rule as the Translations list. An unknown name is a 404 for the same
+ * reason an unknown release is.
+ */
+export async function resolveNamespaceParam(
+  projectId: number,
+  raw: unknown
+): Promise<Pick<DeliveryScope, 'namespace' | 'namespaceKeyIds'>> {
+  const value = raw == null ? '' : String(raw).trim()
+  if (!value) return { namespace: null, namespaceKeyIds: null }
+  if (value === UNGROUPED_NAMESPACE_PARAM) {
+    return {
+      namespace: value,
+      namespaceKeyIds: await namespaceKeyIds(projectId, 'ungrouped'),
+    }
+  }
+
+  const match = await prisma.keyNamespace.findFirst({
+    where: {
+      projectId,
+      // A name may be all digits too, so a number matches either.
+      ...(/^\d+$/.test(value)
+        ? { OR: [{ id: Number(value) }, { name: value }] }
+        : { name: value }),
+    },
+    orderBy: { id: 'asc' },
+    select: { id: true, name: true },
+  })
+  if (!match) {
+    throw createError({
+      statusCode: 404,
+      statusMessage: `Unknown namespace: ${value}`,
+    })
+  }
+  return {
+    namespace: match.name,
+    namespaceKeyIds: await namespaceKeyIds(projectId, { namespaceId: match.id }),
+  }
+}
+
+/** Both narrowing params at once, the way every read endpoint takes them. */
+export async function resolveDeliveryScope(
+  projectId: number,
+  query: { release?: unknown; namespace?: unknown }
+): Promise<DeliveryScope> {
+  const [releaseId, namespace] = await Promise.all([
+    resolveReleaseParam(projectId, query.release),
+    resolveNamespaceParam(projectId, query.namespace),
+  ])
+  return { releaseId, ...namespace }
 }
 
 /**
@@ -144,11 +231,11 @@ export function releaseWhere(releaseId: number | null) {
  */
 function publishedKeyRows(
   projectId: number,
-  releaseId: number | null,
+  scope: DeliveryScope,
   locales: string[]
 ) {
   return prisma.i18nKey.findMany({
-    where: { projectId, ...releaseWhere(releaseId) },
+    where: { projectId, ...scopeWhere(scope) },
     orderBy: { key: 'asc' },
     select: {
       key: true,
@@ -167,31 +254,34 @@ function publishedKeyRows(
  */
 export async function deliveryMeta(
   projectId: number,
-  releaseId: number | null,
+  scope: DeliveryScope,
   canManageReleases = false
 ): Promise<DeliveryMeta | null> {
   // Resolved before the fan-out because the coverage groupBy filters on it.
   const locales = await projectLocales(projectId)
-  const filter = releaseWhere(releaseId)
+  const filter = scopeWhere(scope)
 
-  const [project, scopedKeys, totalKeys, releases, published] = await Promise.all([
-    prisma.project.findUnique({
-      where: { id: projectId },
-      select: { id: true, name: true, settings: true },
-    }),
-    prisma.i18nKey.count({ where: { projectId, ...filter } }),
-    prisma.i18nKey.count({ where: { projectId } }),
-    listReleases(projectId),
-    prisma.localeValue.groupBy({
-      by: ['locale'],
-      where: {
-        locale: { in: locales },
-        i18nKey: { projectId, ...filter },
-        ...PUBLISHED_TEXT,
-      },
-      _count: { _all: true },
-    }),
-  ])
+  const [project, scopedKeys, totalKeys, releases, namespaces, published, sourceLocale] =
+    await Promise.all([
+      prisma.project.findUnique({
+        where: { id: projectId },
+        select: { id: true, name: true, settings: true },
+      }),
+      prisma.i18nKey.count({ where: { projectId, ...filter } }),
+      prisma.i18nKey.count({ where: { projectId } }),
+      listReleases(projectId),
+      listNamespaces(projectId),
+      prisma.localeValue.groupBy({
+        by: ['locale'],
+        where: {
+          locale: { in: locales },
+          i18nKey: { projectId, ...filter },
+          ...PUBLISHED_TEXT,
+        },
+        _count: { _all: true },
+      }),
+      sourceLocaleOf(projectId),
+    ])
   if (!project) return null
 
   // Keyed off `locales`, not off the grouped rows, so a locale with nothing
@@ -205,11 +295,19 @@ export async function deliveryMeta(
   return {
     project: { id: project.id, name: project.name },
     locales,
+    sourceLocale,
     localeFallback:
       project.settings?.localeFallback || DEFAULT_LOCALE_FALLBACK,
-    release: releaseId,
+    release: scope.releaseId,
     /** The names `?release=` accepts, which a caller cannot otherwise discover. */
     releases,
+    namespace: scope.namespace,
+    /** The names `?namespace=` accepts, in display order. */
+    namespaces,
+    keyConvention: {
+      ...toKeyConvention(project.settings),
+      guidance: project.settings?.prompt || null,
+    },
     coverage: {
       keys: scopedKeys,
       projectKeys: totalKeys,
@@ -224,9 +322,9 @@ export async function deliveryMeta(
 export async function deliveryLocale(
   projectId: number,
   locale: string,
-  releaseId: number | null
+  scope: DeliveryScope
 ): Promise<Record<string, string>> {
-  const rows = await publishedKeyRows(projectId, releaseId, [locale])
+  const rows = await publishedKeyRows(projectId, scope, [locale])
 
   const entries: Record<string, string> = {}
   for (const row of rows) {
@@ -244,10 +342,10 @@ export async function deliveryLocale(
  */
 export async function deliveryBundle(
   projectId: number,
-  releaseId: number | null,
+  scope: DeliveryScope,
   locales: string[]
 ): Promise<DeliveryBundle> {
-  const rows = await publishedKeyRows(projectId, releaseId, locales)
+  const rows = await publishedKeyRows(projectId, scope, locales)
 
   const byLocale = new Map<string, Record<string, string>>()
   for (const row of rows) {
@@ -276,10 +374,10 @@ export async function deliveryBundle(
  */
 export async function deliveryKeys(
   projectId: number,
-  releaseId: number | null
+  scope: DeliveryScope
 ): Promise<string[]> {
   const rows = await prisma.i18nKey.findMany({
-    where: catalogWhere(projectId, releaseId),
+    where: catalogWhere(projectId, scope),
     orderBy: { key: 'asc' },
     select: { key: true },
   })
@@ -301,10 +399,10 @@ export async function deliveryKey(
   projectId: number,
   key: string,
   locale: string,
-  releaseId: number | null
+  scope: DeliveryScope
 ): Promise<DeliveryKeyResult> {
   const row = await prisma.i18nKey.findFirst({
-    where: { projectId, key, ...releaseWhere(releaseId) },
+    where: { projectId, key, ...scopeWhere(scope) },
     select: {
       locales: { where: { locale }, select: { publishedText: true } },
     },
@@ -329,7 +427,7 @@ export async function deliveryKey(
 export async function searchDeliveryKeys(
   projectId: number,
   query: string,
-  releaseId: number | null,
+  scope: DeliveryScope,
   limit = 25
 ): Promise<string[]> {
   const rows = await prisma.i18nKey.findMany({
@@ -337,7 +435,7 @@ export async function searchDeliveryKeys(
       projectId,
       key: { contains: query },
       locales: { some: PUBLISHED_TEXT },
-      ...releaseWhere(releaseId),
+      ...scopeWhere(scope),
     },
     orderBy: { key: 'asc' },
     take: limit,
@@ -362,11 +460,11 @@ export type DeliveryKeyLocalesResult =
 export async function deliveryKeyLocales(
   projectId: number,
   key: string,
-  releaseId: number | null
+  scope: DeliveryScope
 ): Promise<DeliveryKeyLocalesResult> {
   const locales = await projectLocales(projectId)
   const row = await prisma.i18nKey.findFirst({
-    where: { projectId, key, ...releaseWhere(releaseId) },
+    where: { projectId, key, ...scopeWhere(scope) },
     select: {
       key: true,
       locales: {
@@ -393,13 +491,13 @@ export async function deliveryKeyLocales(
 /** Official catalog key names, paginated. Draft-only keys are not in the catalog. */
 export async function listDeliveryKeys(
   projectId: number,
-  releaseId: number | null,
+  scope: DeliveryScope,
   offset?: number,
   limit?: number
 ): Promise<DeliveryKeyPage> {
   const skip = clampOffset(offset)
   const take = clampListLimit(limit)
-  const where = catalogWhere(projectId, releaseId)
+  const where = catalogWhere(projectId, scope)
   const [total, rows] = await Promise.all([
     prisma.i18nKey.count({ where }),
     prisma.i18nKey.findMany({
@@ -413,6 +511,128 @@ export async function listDeliveryKeys(
   return { keys: rows.map((row) => row.key), total, offset: skip, limit: take }
 }
 
+/** What `deliveryKeyState` reads from a key; select it with `DELIVERY_KEY_STATE_SELECT`. */
+export const DELIVERY_KEY_STATE_SELECT = {
+  id: true,
+  key: true,
+  fingerprint: true,
+  releases: { select: { releaseId: true } },
+  locales: {
+    select: {
+      locale: true,
+      draftText: true,
+      publishedText: true,
+      sourceFingerprint: true,
+    },
+  },
+} as const
+
+export interface DeliveryKeyStateRow {
+  id: number
+  key: string
+  fingerprint: string
+  releases: { releaseId: number }[]
+  locales: {
+    locale: string
+    draftText: string | null
+    publishedText: string | null
+    sourceFingerprint: string
+  }[]
+}
+
+/** One key in the `/keys/states` shape; the rules are on `deliveryKeyStates`. */
+export function deliveryKeyState(
+  row: DeliveryKeyStateRow,
+  sourceLocale: string,
+  wanted: string[]
+): DeliveryKeyState {
+  const keyIsDraft = isI18nKeyDraft(row.locales)
+  const byLocale = new Map(row.locales.map((value) => [value.locale, value]))
+  const locales: DeliveryKeyState['locales'] = {}
+  for (const locale of wanted) {
+    const value = byLocale.get(locale)
+    const draftText = value?.draftText ?? null
+    const publishedText = value?.publishedText ?? null
+    let state: DeliveryLocaleStateName
+    if (!hasPublishedText(publishedText)) {
+      state = 'unpublished'
+    } else if (
+      isTranslationOutdated({
+        locale,
+        sourceLocale,
+        draftText,
+        publishedText,
+        sourceFingerprint: value?.sourceFingerprint ?? '',
+        keyFingerprint: row.fingerprint,
+        keyIsDraft,
+      })
+    ) {
+      state = 'outdated'
+    } else if ((draftText ?? '') !== publishedText) {
+      state = 'draft'
+    } else {
+      state = 'published'
+    }
+    locales[locale] = { draftText, publishedText, state }
+  }
+  return {
+    id: row.id,
+    key: row.key,
+    releaseIds: row.releases.map((release) => release.releaseId),
+    draft: keyIsDraft,
+    locales,
+  }
+}
+
+/**
+ * Per-key, per-locale draft/published/outdated state, drafts included. The one
+ * read-scope route that exposes draft text; every other delivery shape is
+ * published-only. `draft` and `outdated` are judged on all of a key's locales,
+ * not just the requested ones, so narrowing `locales` never changes them.
+ * Per locale, the first match wins: no published text → `unpublished`; stale
+ * against the source sentence → `outdated`; draft differs from published →
+ * `draft`; otherwise `published`.
+ */
+export async function deliveryKeyStates(
+  projectId: number,
+  scope: DeliveryScope,
+  params: { locales?: string[]; keys?: string[]; offset?: number; limit?: number }
+): Promise<DeliveryKeyStates> {
+  const skip = clampOffset(params.offset)
+  const take = clampListLimit(params.limit)
+  const [sourceLocale, configured] = await Promise.all([
+    sourceLocaleOf(projectId),
+    projectLocales(projectId),
+  ])
+  const wanted = params.locales?.length ? params.locales : configured
+  const where = {
+    projectId,
+    ...scopeWhere(scope),
+    ...(params.keys?.length ? { key: { in: params.keys } } : {}),
+  }
+  const [total, rows] = await Promise.all([
+    prisma.i18nKey.count({ where }),
+    prisma.i18nKey.findMany({
+      where,
+      orderBy: { key: 'asc' },
+      skip,
+      take,
+      select: DELIVERY_KEY_STATE_SELECT,
+    }),
+  ])
+
+  const keys = rows.map((row) => deliveryKeyState(row, sourceLocale, wanted))
+
+  return {
+    sourceLocale,
+    keys,
+    total,
+    offset: skip,
+    limit: take,
+    generatedAt: new Date().toISOString(),
+  }
+}
+
 /**
  * Keys that are in the official catalog but have no published text in `locale`.
  * "Unpublished" is not "missing": missing means the key is not in scope.
@@ -420,14 +640,14 @@ export async function listDeliveryKeys(
 export async function listUnpublishedDeliveryKeys(
   projectId: number,
   locale: string,
-  releaseId: number | null,
+  scope: DeliveryScope,
   offset?: number,
   limit?: number
 ): Promise<DeliveryKeyPage> {
   const skip = clampOffset(offset)
   const take = clampListLimit(limit)
   const where = {
-    ...catalogWhere(projectId, releaseId),
+    ...catalogWhere(projectId, scope),
     NOT: {
       locales: {
         some: {
@@ -473,7 +693,7 @@ export async function searchDeliveryKeysByText(
   locale: string,
   query: string,
   mode: SearchTextMode,
-  releaseId: number | null,
+  scope: DeliveryScope,
   limit?: number
 ): Promise<string[]> {
   const needle = query.trim()
@@ -487,7 +707,7 @@ export async function searchDeliveryKeysByText(
   const rows = await prisma.i18nKey.findMany({
     where: {
       projectId,
-      ...releaseWhere(releaseId),
+      ...scopeWhere(scope),
       locales: {
         some: {
           locale,

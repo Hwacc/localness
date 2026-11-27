@@ -1,4 +1,5 @@
 import type { GitSyncPullReason } from '#shared/constants'
+import type { FolderShare } from '../engine/folder'
 
 /** Locale -> key -> text, as read from the remote. */
 export type RemoteLocaleMap = Map<string, Map<string, string>>
@@ -25,6 +26,11 @@ export type GitSyncLayoutContext = {
   /** `GitSyncBinding.options`, raw. Each adapter parses its own. */
   options: unknown
   localeMap: Record<string, string> | null
+  /**
+   * Which files in the folder are this binding's. Only layouts that tag what
+   * they write (LILT batch ids) can honour a shared folder.
+   */
+  share: FolderShare
   /** Project locales, loaded only by adapters that look files up per locale. */
   loadLocales: () => Promise<string[]>
 }

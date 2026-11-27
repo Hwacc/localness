@@ -5,6 +5,7 @@ import {
   I18nKeyStatusFilter,
 } from '#shared/constants'
 import { formatI18nKeyDisplay, parseLocales } from '#shared/utils'
+import { resolveProjectLink } from '#shared/utils/project-link'
 import type { TranslationsKeyDetail } from '#components'
 import {
   AlertModal,
@@ -28,7 +29,9 @@ const { $dayjs } = useNuxtApp()
 const route = useRoute()
 const projectStore = useProjectStore()
 const pageStore = usePageStore()
-const { curProject, curReleases, curReleaseFilter } = storeToRefs(projectStore)
+const { curProject, curReleases, curReleaseFilter, curNamespaces } =
+  storeToRefs(projectStore)
+const { openSettings } = useProjectActions()
 
 /*
  * A Consistency "Find" deep link may widen this visit (`?scope=all`) without
@@ -54,6 +57,9 @@ const sourceLocale = computed(
     curProject.value.settings?.localeFallback || DEFAULT_LOCALE_FALLBACK
 )
 
+/** Page-local and remembered per project with the other list filters. */
+const namespaceFilter = ref<NamespaceFilterValue>('all')
+
 /**
  * The shared query owns the request — filters, paging, rows. What stays here is
  * everything particular to this page: remembering the filters per project,
@@ -62,8 +68,9 @@ const sourceLocale = computed(
 const query = useI18nKeyQuery({
   projectId: computed(() => curProject.value.id),
   releaseFilter: listReleaseFilter,
+  namespaceFilter,
   limit: 50,
-  // The key table shows auto draft keys; see the option's own note.
+  // Every key, placeholders included: the rail's Unnamed group sorts them out.
   includeDraftKeys: true,
 })
 
@@ -76,7 +83,6 @@ const releaseFilterLabel = computed(() => {
   return curReleases.value.find((release) => release.id === value)?.name ?? 'your filter'
 })
 const statusFilter = query.status
-const includeDraftKeys = query.includeDraftKeys
 const hasDateRange = query.hasDateRange
 
 const publishing = ref(false)
@@ -106,26 +112,54 @@ function clearDateRange() {
 const statusItems = [
   { label: 'All statuses', value: I18nKeyStatusFilter.ALL },
   { label: 'Draft', value: I18nKeyStatusFilter.DRAFT },
+  { label: 'Edited', value: I18nKeyStatusFilter.EDITED },
   { label: 'Published', value: I18nKeyStatusFilter.PUBLISHED },
   { label: 'Outdated', value: I18nKeyStatusFilter.OUTDATED },
 ]
 
-/** Selected rows split by status — bulk actions only apply to one side each. */
+/**
+ * Selected rows split by status. Delete needs a never-published key; publish
+ * and unpublish apply to whatever has something to change.
+ */
 const selectedRows = computed<II18nKeyRow[]>(() =>
   rows.value.filter((r) => rowSelection.value[String(r.id)]),
 )
 const selectedDraftIds = computed<number[]>(() =>
-  selectedRows.value.filter((r) => r.dirty).map((r) => Number(r.id)),
+  selectedRows.value
+    .filter((r) => !hasPublishedLocale(r.locales))
+    .map((r) => Number(r.id)),
 )
-/** Selected drafts the endpoint would actually change; the rest report zero. */
+/** Selected keys the endpoint would actually change; the rest report zero. */
 const selectedPublishableIds = computed<number[]>(() =>
   selectedRows.value
-    .filter((r) => r.dirty && hasUnpublishedDraft(r.locales))
+    .filter((r) => hasUnpublishedDraft(r.locales))
     .map((r) => Number(r.id)),
 )
 const selectedPublishedIds = computed<number[]>(() =>
-  selectedRows.value.filter((r) => !r.dirty).map((r) => Number(r.id)),
+  selectedRows.value
+    .filter((r) => hasPublishedLocale(r.locales))
+    .map((r) => Number(r.id)),
 )
+
+const { status: aiStatus, refresh: refreshAiStatus } = useAiTranslateStatus(
+  computed(() => curProject.value.id),
+  computed(() => curProject.value.settings?.aiTranslate),
+)
+/** A selection wins; otherwise the page the list is showing. */
+const aiKeyIds = computed(() =>
+  (selectedRows.value.length ? selectedRows.value : rows.value).map((r) =>
+    Number(r.id),
+  ),
+)
+const aiScopeLabel = computed(() =>
+  selectedRows.value.length
+    ? `${selectedRows.value.length} selected key(s)`
+    : `${rows.value.length} key(s) on this page`,
+)
+
+async function onAiApplied() {
+  await Promise.all([loadKeys(), refreshAiStatus()])
+}
 
 const overlay = useOverlay()
 const createModal = overlay.create(I18nKeyModal)
@@ -184,14 +218,33 @@ const focusedRow = computed(
 /** The inspected key is not in the list that is on screen. */
 const offPage = computed(() => !listRow.value && Boolean(focusedRow.value))
 
+/**
+ * Set by a filter change. Holding the key only makes sense after a save pushed
+ * it off its page — "Show in list" brings it back there. A key the new filter
+ * leaves out cannot be shown, so focus moves to the first row instead.
+ */
+let refocusOnLoad = false
+function reloadForFilter(load: () => Promise<unknown>) {
+  refocusOnLoad = true
+  page.value = 1
+  load()
+}
+
 /** A focused key that no longer exists falls back to the first one. */
 watch(loadCount, async () => {
+  const refocus = refocusOnLoad
+  refocusOnLoad = false
   const id = focusedId.value
   if (id == null) {
     focusedId.value = rows.value[0]?.id ?? null
     return
   }
   if (listRow.value) return
+  if (refocus) {
+    heldRow.value = null
+    focusedId.value = rows.value[0]?.id ?? null
+    return
+  }
   const [row] = await query.fetchByIds([id])
   // The user may have moved on while the read was in flight.
   if (String(focusedId.value) !== String(id)) return
@@ -267,12 +320,12 @@ onMounted(() => window.addEventListener('keydown', onKeydown))
 onUnmounted(() => window.removeEventListener('keydown', onKeydown))
 
 function openUnpublish(row: II18nKeyRow) {
-  if (row.dirty || !validID(curProject.value.id)) return
+  if (!hasPublishedLocale(row.locales) || !validID(curProject.value.id)) return
   unpublishModal.open({
     mode: 'warning',
-    title: 'Revert to draft',
-    message: `Revert “${formatI18nKeyDisplay(row.key)}” to draft? It will drop out of published export until you publish again.`,
-    okText: 'Revert',
+    title: 'Unpublish',
+    message: `Unpublish “${formatI18nKeyDisplay(row.key)}”? Its published text is withdrawn from export and delivery until you publish again; drafts stay.`,
+    okText: 'Unpublish',
     onOk: async (_mode, { close }) => {
       unpublishModal.patch({ loading: true })
       try {
@@ -374,8 +427,8 @@ const bulkMenuItems = computed<DropdownMenuItem[][]>(() => [
   [
     {
       label: selectedPublishedIds.value.length
-        ? `Revert ${selectedPublishedIds.value.length} published`
-        : 'Revert published',
+        ? `Unpublish ${selectedPublishedIds.value.length}`
+        : 'Unpublish',
       icon: 'i-lucide:undo-2',
       disabled: !selectedPublishedIds.value.length || publishing.value,
       onSelect: () => openBulkUnpublish(),
@@ -395,7 +448,9 @@ const bulkMenuItems = computed<DropdownMenuItem[][]>(() => [
 ])
 
 function openBulkDelete() {
-  const targets = selectedRows.value.filter((r) => r.dirty)
+  const targets = selectedRows.value.filter(
+    (r) => !hasPublishedLocale(r.locales),
+  )
   if (!targets.length) return
   const tagTotal = targets.reduce((sum, r) => sum + (r.tagCount ?? 0), 0)
   const tagHint =
@@ -447,8 +502,8 @@ function openBulkUnpublish() {
   if (!ids.length) return
   unpublishModal.open({
     mode: 'delete',
-    title: 'Revert to draft',
-    message: `Revert ${ids.length} published key(s) to draft? They will drop out of the published export until published again.`,
+    title: 'Unpublish',
+    message: `Unpublish ${ids.length} key(s)? Their published text is withdrawn from export and delivery until published again; drafts stay.`,
     onOk: async (_mode, { close }) => {
       unpublishModal.patch({ loading: true })
       try {
@@ -533,7 +588,7 @@ const transferableProjects = computed(() =>
 
 /** A copy of a published key lands published, so the confirmation says so. */
 const selectionHasPublished = computed(() =>
-  selectedRows.value.some((row) => !row.dirty)
+  selectedRows.value.some((row) => hasPublishedLocale(row.locales))
 )
 
 /** Both modes act on the whole selection — drafts and published alike. */
@@ -639,7 +694,7 @@ function reportTransfer(result: II18nTransferResult, mode: 'copy' | 'move') {
 }
 
 function openDelete(row: II18nKeyRow) {
-  if (!row.dirty) return
+  if (hasPublishedLocale(row.locales)) return
   const tagHint =
     row.tagCount > 0
       ? ` This will also delete ${row.tagCount} bound tag(s).`
@@ -677,14 +732,29 @@ function openDelete(row: II18nKeyRow) {
  * The inspector refills its fields off `loadCount`, which is bumped only when
  * rows actually land.
  */
-async function loadKeys() {
+async function loadRows() {
   rowSelection.value = {}
   await query.load()
 }
 
+const namespaceCounts = ref<I18nKeyRailCounts | null>(null)
+let countsRequest = 0
+
+/** Only the latest request lands: a project switch can overtake a slow one. */
+async function loadNamespaceCounts() {
+  const request = ++countsRequest
+  const res = await query.namespaceCounts()
+  if (request === countsRequest) namespaceCounts.value = res ?? null
+}
+
+/** Rows and the rail's counts — anything that can change what a key counts toward. */
+async function loadKeys() {
+  await Promise.all([loadRows(), loadNamespaceCounts()])
+}
+
 function onPageChange(next: number) {
   page.value = next
-  loadKeys()
+  loadRows()
 }
 
 function movePage(delta: -1 | 1) {
@@ -701,10 +771,7 @@ function onRowToggleGitSync(row: II18nKeyRow) {
   setGitSync(row, !row.gitSyncEnabled)
 }
 
-const searchDebounced = useDebounceFn(() => {
-  page.value = 1
-  loadKeys()
-}, 300)
+const searchDebounced = useDebounceFn(() => reloadForFilter(loadKeys), 300)
 
 /**
  * Filters are remembered per project, so switching away and back restores what
@@ -719,10 +786,9 @@ const qWatch = watchIgnorable(q, () => {
 })
 
 // Status is a discrete choice, not typing — apply it immediately.
-const statusWatch = watchIgnorable([statusFilter, includeDraftKeys], () => {
+const statusWatch = watchIgnorable(statusFilter, () => {
   persistFilters()
-  page.value = 1
-  loadKeys()
+  reloadForFilter(loadKeys)
 })
 
 // Range calendars emit twice (start, then end). Reload on both so a single
@@ -731,8 +797,7 @@ const dateWatch = watchIgnorable(
   () => [dateRange.value.start, dateRange.value.end],
   () => {
     persistFilters()
-    page.value = 1
-    loadKeys()
+    reloadForFilter(loadKeys)
   },
 )
 
@@ -742,10 +807,67 @@ function persistFilters() {
   writeTranslationsFilterForProject(curProject.value.id, {
     q: q.value,
     status: statusFilter.value,
-    includeDraftKeys: includeDraftKeys.value,
     from: start ? formatRangeDay(start) : undefined,
     to: end ? formatRangeDay(end) : undefined,
+    namespace:
+      namespaceFilter.value === 'all' ? undefined : namespaceFilter.value,
   })
+}
+
+// Counts do not depend on the namespace picked, so only the rows reload.
+const namespaceWatch = watchIgnorable(namespaceFilter, () => {
+  persistFilters()
+  reloadForFilter(loadRows)
+})
+
+/**
+ * Namespaces change from Project Settings or the rail's suggestions. The
+ * picked one may be gone, and every count may have moved. A project switch
+ * changes them too, but that watcher reloads everything itself.
+ */
+watch(
+  () => [curProject.value.id, curNamespaces.value] as const,
+  ([id], [prevId]) => {
+    if (id !== prevId) return
+    namespaceFilter.value = resolveNamespaceFilterValue(
+      namespaceFilter.value,
+      curNamespaces.value,
+    )
+    loadNamespaceCounts()
+  },
+)
+
+const canManageNamespaces = computed(() =>
+  canManageProjectSettings(curProject.value),
+)
+
+/**
+ * Hidden until there is something to group by, an owner could start, or the
+ * editor left placeholder keys — Unnamed is the only way to list just those.
+ */
+const showNamespaceNav = computed(
+  () =>
+    curNamespaces.value.length > 0 ||
+    Boolean(namespaceCounts.value?.unnamed) ||
+    namespaceFilter.value === 'unnamed' ||
+    (canManageNamespaces.value &&
+      Boolean(namespaceCounts.value?.suggestions.length)),
+)
+
+const addingNamespace = ref(false)
+
+async function addNamespace(name: string) {
+  if (!validID(curProject.value.id)) return
+  addingNamespace.value = true
+  try {
+    const created = await useApi(
+      `/api/projects/${curProject.value.id}/namespaces`,
+      { method: 'POST', body: { name } },
+    )
+    if (created) await projectStore.getProjects()
+  } finally {
+    addingNamespace.value = false
+  }
 }
 
 function restoreFilters(projectId: ID) {
@@ -754,9 +876,14 @@ function restoreFilters(projectId: ID) {
   qWatch.ignoreUpdates(() => {
     q.value = saved.q
   })
+  namespaceWatch.ignoreUpdates(() => {
+    namespaceFilter.value = resolveNamespaceFilterValue(
+      saved.namespace,
+      curNamespaces.value,
+    )
+  })
   statusWatch.ignoreUpdates(() => {
     statusFilter.value = saved.status
-    includeDraftKeys.value = saved.includeDraftKeys
   })
   dateWatch.ignoreUpdates(() => {
     // `parseDate` hands back our copy's `DateValue`; the calendar's model type
@@ -794,7 +921,7 @@ watch(
 /*
  * A Consistency link names keys the report found regardless of any filter, so
  * for this visit it searches its own text and lifts every list filter that
- * could hide them — status, draft keys, dates. Written through the ignorables:
+ * could hide them — status, namespace, dates. Written through the ignorables:
  * nothing reloads twice, nothing is persisted until the user edits a filter.
  * Applied once, to the first real project (a hard load sets it after mount).
  */
@@ -812,14 +939,16 @@ function applyDeepLink(projectId: ID) {
   }
   statusWatch.ignoreUpdates(() => {
     statusFilter.value = I18nKeyStatusFilter.ALL
-    includeDraftKeys.value = true
+  })
+  namespaceWatch.ignoreUpdates(() => {
+    namespaceFilter.value = 'all'
   })
   dateWatch.ignoreUpdates(() => {
     dateRange.value = { start: undefined, end: undefined } as typeof dateRange.value
   })
 }
 
-watch(
+const projectWatch = watchIgnorable(
   () => curProject.value.id,
   (id) => {
     // The outgoing project is already saved — every filter change writes.
@@ -841,7 +970,7 @@ watch(
 
 // Always scoped to explicit keys. The endpoint also accepts an empty body to
 // publish the whole project, but no UI offers that — bulk actions cover it.
-async function publishKeys(keyIds: number[]) {
+async function publishKeys(keyIds: number[], locales?: string[]) {
   if (!validID(curProject.value.id) || keyIds.length === 0) return
   publishing.value = true
   try {
@@ -851,7 +980,7 @@ async function publishKeys(keyIds: number[]) {
       `/api/projects/${curProject.value.id}/publish`,
       {
         method: 'POST',
-        body: { keyIds },
+        body: { keyIds, ...(locales?.length ? { locales } : {}) },
       },
     )
     // `useApi` has already reported a failed request.
@@ -900,14 +1029,14 @@ async function unpublishKeys(keyIds: number[]) {
     if (!res) return
     if (res.updated === 0) {
       toast.add({
-        title: 'Nothing to revert',
+        title: 'Nothing to unpublish',
         description: 'The selected rows have no published text to withdraw.',
         color: 'warning',
         icon: 'i-lucide:circle-alert',
       })
     } else {
       toast.add({
-        title: 'Reverted to draft',
+        title: 'Unpublished',
         description: `${res.updated} locale row(s) unpublished`,
         color: 'success',
         icon: 'i-lucide:undo-2',
@@ -919,10 +1048,43 @@ async function unpublishKeys(keyIds: number[]) {
   }
 }
 
+/*
+ * `?project=` names the project a link's `?key=` belongs to (a VS Code link, a
+ * shared one). It is consumed once: switched through the store's own
+ * `setCurrentProject` (as the Workspace Bar does) before the page reads its
+ * filters, then dropped from the URL — unlike `key`, it is not page state, and
+ * a stale one would pull a refresh back after the user picked another project.
+ * The switch is ignored by the project watch, which would otherwise treat it as
+ * a user switch and discard the link's key and scope.
+ */
+function applyProjectLink() {
+  const result = resolveProjectLink(
+    route.query.project,
+    projectStore.projects,
+    curProject.value.id,
+  )
+  if (result.kind === 'none') return
+  if (result.kind === 'switch') {
+    projectWatch.ignoreUpdates(() => {
+      projectStore.setCurrentProject(result.project)
+    })
+  } else if (result.kind === 'unavailable') {
+    toast.add({
+      title: 'Project not available',
+      description: `You cannot open project "${result.requested}" — it does not exist or you are not a member. Showing the current project.`,
+      color: 'warning',
+      icon: 'i-lucide:circle-alert',
+    })
+  }
+  const { project: _project, ...rest } = route.query
+  router.replace({ query: rest })
+}
+
 onMounted(async () => {
   if (loggedIn.value && projectStore.projects.length === 0) {
     await projectStore.getProjects()
   }
+  applyProjectLink()
   // Before the first load, so a reload keeps this project's filters too.
   restoreFilters(curProject.value.id)
   applyDeepLink(curProject.value.id)
@@ -938,8 +1100,17 @@ onMounted(async () => {
     >
       <h1 class="text-xl font-semibold tracking-tight">Translations</h1>
       <div class="ml-auto shrink-0 flex items-center gap-2">
+        <AiTranslateSlideover
+          v-if="aiStatus?.enabled && aiStatus.configured"
+          :project-id="curProject.id"
+          :key-ids="aiKeyIds"
+          :scope-label="aiScopeLabel"
+          :locale-codes="localeCodes"
+          :source-locale="sourceLocale"
+          :status="aiStatus"
+          @applied="onAiApplied"
+        />
         <ImportKeysSlideover
-          v-if="canManageProjectSettings(curProject)"
           :project-id="curProject.id"
           :locale-codes="localeCodes"
           :source-locale="sourceLocale"
@@ -1033,17 +1204,6 @@ onMounted(async () => {
           </div>
         </template>
       </UPopover>
-      <UTooltip
-        text="Placeholder keys the editor creates for an unbound tag (__draft_…). Uncheck to hide them. This is not the Draft status filter."
-        :content="{ side: 'top' }"
-      >
-        <UCheckbox
-          v-model="includeDraftKeys"
-          label="Show __draft_ keys"
-          class="items-center"
-          :ui="{ label: 'text-xs whitespace-nowrap' }"
-        />
-      </UTooltip>
       <div class="ml-auto flex items-center gap-2">
         <UButton
           size="sm"
@@ -1165,20 +1325,35 @@ onMounted(async () => {
 
     <!-- Stacks below `lg`, like the Consistency review. -->
     <div class="flex-1 min-h-0 min-w-0 flex flex-col lg:flex-row">
-      <TranslationsKeyList
-        v-model:focused="focusedId"
-        v-model:row-selection="rowSelection"
-        class="max-h-[45%] lg:max-h-none lg:w-96 shrink-0 border-b lg:border-b-0 lg:border-r border-default"
-        :page="page"
-        :project-id="curProject.id"
-        :rows="rows"
-        :loading="loading"
-        :total="total"
-        :limit="limit"
-        :locale-codes="localeCodes"
-        :source-locale="sourceLocale"
-        @update:page="onPageChange"
-      />
+      <div
+        class="max-h-[45%] lg:max-h-none lg:w-96 shrink-0 min-h-0 flex flex-col border-b lg:border-b-0 lg:border-r border-default"
+      >
+        <TranslationsNamespaceNav
+          v-if="showNamespaceNav"
+          v-model="namespaceFilter"
+          class="shrink-0 border-b border-default"
+          :namespaces="curNamespaces"
+          :counts="namespaceCounts"
+          :can-manage="canManageNamespaces"
+          :adding="addingNamespace"
+          @manage="openSettings(undefined, 'namespaces')"
+          @add="addNamespace"
+        />
+        <TranslationsKeyList
+          v-model:focused="focusedId"
+          v-model:row-selection="rowSelection"
+          class="flex-1"
+          :page="page"
+          :project-id="curProject.id"
+          :rows="rows"
+          :loading="loading"
+          :total="total"
+          :limit="limit"
+          :locale-codes="localeCodes"
+          :source-locale="sourceLocale"
+          @update:page="onPageChange"
+        />
+      </div>
       <main class="flex-1 min-h-0 min-w-0 flex flex-col bg-default">
         <div
           v-if="offPage"
@@ -1210,9 +1385,11 @@ onMounted(async () => {
             :publishing="publishing"
             :load-count="loadCount + heldTick"
             @publish="onRowPublish"
+            @publish-locale="(row, locale) => publishKeys([Number(row.id)], [locale])"
             @unpublish="openUnpublish"
             @delete="openDelete"
             @toggle-git-sync="onRowToggleGitSync"
+            @ai-changed="loadKeys"
           />
         </div>
         <footer

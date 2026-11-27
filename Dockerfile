@@ -93,6 +93,8 @@ COPY --from=build /app/shared ./shared
 # The Consistency scan worker runs from source through tsx (not bundled by
 # Nitro); it imports only `shared/` by relative path.
 COPY --from=build /app/server/workers ./server/workers
+# `scripts/backup-now.ts` runs the same backup code as the daily schedule.
+COPY --from=build /app/server/libs/backup.ts ./server/libs/backup.ts
 # The AI prompts are read from disk at runtime, and `server/` never reaches this
 # stage, so the defaults are copied out on their own. Mount a directory over
 # /app/prompts to replace them without rebuilding.

@@ -1,4 +1,4 @@
-import { DRAFT_KEY_PREFIX, fpTranslation } from '../index'
+import { fpTranslation, isUnnamedKey } from '../index'
 import { allRules } from './rules'
 import {
   extractPlaceholders,
@@ -46,11 +46,9 @@ function publishedLocaleCount(candidate: MergeCandidate) {
   return candidate.locales.filter((row) => hasText(row.publishedText)).length
 }
 
-const isDraftKeyName = (key: string) => key.startsWith(DRAFT_KEY_PREFIX)
-
 /**
  * The key to keep, and why — in priority order: published (code references
- * its name), a named key over a `__draft_` placeholder, more tags, more
+ * its name), a named key over a `__unnamed_` placeholder, more tags, more
  * published languages, older. Reasons list what the winner actually has, so
  * the drawer can say "Suggested: published · 12 tags · 5 languages".
  */
@@ -61,7 +59,7 @@ export function suggestKeeper(
   const ranked = [...candidates].sort(
     (a, b) =>
       Number(isPublishedKey(b)) - Number(isPublishedKey(a)) ||
-      Number(isDraftKeyName(a.key)) - Number(isDraftKeyName(b.key)) ||
+      Number(isUnnamedKey(a.key)) - Number(isUnnamedKey(b.key)) ||
       b.tagCount - a.tagCount ||
       publishedLocaleCount(b) - publishedLocaleCount(a) ||
       a.createdAt.localeCompare(b.createdAt) ||
@@ -70,7 +68,7 @@ export function suggestKeeper(
   const winner = ranked[0]!
   const reasons: string[] = []
   if (isPublishedKey(winner)) reasons.push('published')
-  if (!isDraftKeyName(winner.key)) reasons.push('named key')
+  if (!isUnnamedKey(winner.key)) reasons.push('named key')
   if (winner.tagCount)
     reasons.push(`${winner.tagCount} ${winner.tagCount === 1 ? 'tag' : 'tags'}`)
   const languages = publishedLocaleCount(winner)
@@ -81,7 +79,7 @@ export function suggestKeeper(
 
 /**
  * Why a member cannot be merged away, or null. A published key must be
- * reverted to draft first — deleting it would break whatever reads its name.
+ * unpublished first — deleting it would break whatever reads its name.
  */
 export function mergeBlockReason(
   candidate: Pick<MergeCandidate, 'locales'>
@@ -383,28 +381,37 @@ export interface FingerprintedLocale extends ScanKeyLocale {
 }
 
 /**
- * How many translations turn Outdated if the source locale is saved & published
- * as `text` (the fix endpoint writes both columns). Mirrors the Outdated
- * predicate: the fingerprint must actually change (it ignores whitespace), the
- * key must not be a draft afterwards, and only translations with text that are
- * currently up to date count — already-outdated rows don't change state.
+ * How many translations turn Outdated if `texts` are saved & published (the
+ * fix endpoint writes both columns). Zero unless the source locale is among
+ * them. Mirrors the Outdated predicate: the fingerprint must actually change
+ * (it ignores whitespace), the key must not be a draft afterwards, and only
+ * translations with text that are currently up to date count — already-outdated
+ * rows don't change state, and translations saved in the same batch are
+ * stamped against the new source.
  */
 export function outdatedOnSourceSave(input: {
   sourceLocale: string
   fingerprint: string
   locales: FingerprintedLocale[]
-  text: string
+  texts: Record<string, string>
 }): number {
-  const { sourceLocale, fingerprint, text } = input
-  if (fpTranslation(text) === fingerprint) return 0
-  const after = input.locales.some((row) => row.locale === sourceLocale)
-    ? input.locales.map((row) =>
-        row.locale === sourceLocale ? { ...row, draftText: text, publishedText: text } : row
-      )
-    : [
-        ...input.locales,
-        { locale: sourceLocale, draftText: text, publishedText: text, sourceFingerprint: '' },
-      ]
+  const { sourceLocale, fingerprint, texts } = input
+  const text = texts[sourceLocale]
+  if (text === undefined || fpTranslation(text) === fingerprint) return 0
+  const saved = (row: FingerprintedLocale): FingerprintedLocale => {
+    const next = texts[row.locale]
+    return next === undefined
+      ? row
+      : { ...row, draftText: next, publishedText: next, sourceFingerprint: '' }
+  }
+  const after = [
+    ...input.locales.map(saved),
+    ...Object.keys(texts)
+      .filter((locale) => !input.locales.some((row) => row.locale === locale))
+      .map((locale) =>
+        saved({ locale, draftText: null, publishedText: null, sourceFingerprint: '' })
+      ),
+  ]
   const isDraft =
     !after.some((row) => (row.publishedText ?? '') !== '') ||
     after.some((row) => (row.draftText ?? '') !== (row.publishedText ?? ''))

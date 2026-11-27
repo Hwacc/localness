@@ -64,6 +64,7 @@ const {
 const statusItems = [
   { label: 'All statuses', value: I18nKeyStatusFilter.ALL },
   { label: 'Draft', value: I18nKeyStatusFilter.DRAFT },
+  { label: 'Edited', value: I18nKeyStatusFilter.EDITED },
   { label: 'Published', value: I18nKeyStatusFilter.PUBLISHED },
 ]
 
@@ -220,12 +221,12 @@ onMounted(() => query.load())
         </template>
       </UPopover>
       <UTooltip
-        text="Placeholder keys the editor creates for an unbound tag (__draft_…). They almost never have published text, so they stay hidden. This is not the Draft status filter."
+        text="Placeholder keys the editor creates for an unbound tag (__unnamed_…). They almost never have published text, so they stay hidden. This is not the Draft status filter."
         :content="{ side: 'top' }"
       >
         <UCheckbox
           v-model="includeDraftKeys"
-          label="Show __draft_ keys"
+          label="Show __unnamed_ keys"
           :ui="{ label: 'text-xs whitespace-nowrap' }"
         />
       </UTooltip>
@@ -297,12 +298,11 @@ onMounted(() => query.load())
         </template>
         <template #status-cell="{ row }">
           <div class="flex items-center gap-1">
-            <UBadge
-              variant="subtle"
-              :color="row.original.dirty ? 'neutral' : 'success'"
-            >
-              {{ row.original.dirty ? 'Draft' : 'Published' }}
-            </UBadge>
+            <I18nKeyStatusBadge
+              :locales="row.original.locales"
+              size="md"
+              draft-color="neutral"
+            />
             <UBadge
               v-if="!hasPublished(row.original)"
               variant="subtle"

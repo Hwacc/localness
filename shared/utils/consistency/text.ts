@@ -38,7 +38,7 @@ export function publishedWritings(key: ScanKeyInput): Array<{
 /**
  * The source wording every check and card uses: what is live. A key that was
  * ever published uses its published source; one that never was (including
- * `__draft_` placeholders, which never publish) falls back to its draft.
+ * `__unnamed_` placeholders, which never publish) falls back to its draft.
  * `pendingSourceText` is an unpublished edit on top of the live wording —
  * shown beside the card, never judged, so editing a draft can't regroup it.
  */

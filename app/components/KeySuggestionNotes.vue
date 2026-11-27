@@ -1,13 +1,26 @@
 <script setup lang="ts">
-import { KEY_VIOLATION_TEXT } from '#shared/utils/key-convention'
+import type { KeyViolation } from '#shared/utils/key-convention'
+import {
+  KEY_VIOLATION_TEXT,
+  keyViolationErrors,
+  keyViolationWarnings,
+} from '#shared/utils/key-convention'
 
-defineProps<{
+const props = defineProps<{
   suggestion: I18nKeySuggestion
   /** The selected candidate, when the project already has that key. */
   duplicate?: I18nKeyDuplicate | null
   /** The model echoed the source text back changed. */
   echoDiffers: boolean
 }>()
+
+const describe = (violations: KeyViolation[]) =>
+  violations.map((one) => KEY_VIOLATION_TEXT[one]).join('; ')
+
+const errors = computed(() => keyViolationErrors(props.suggestion.violations))
+const warnings = computed(() =>
+  keyViolationWarnings(props.suggestion.violations),
+)
 </script>
 
 <template>
@@ -17,14 +30,20 @@ defineProps<{
   -->
   <KeyDuplicateNote v-if="duplicate" :duplicate="duplicate" />
   <UAlert
-    v-if="suggestion.violations.length"
+    v-if="errors.length"
+    color="error"
+    variant="soft"
+    icon="i-lucide:circle-x"
+    title="Breaks the key convention"
+    :description="describe(errors)"
+  />
+  <UAlert
+    v-if="warnings.length"
     color="warning"
     variant="soft"
     icon="i-lucide:triangle-alert"
-    title="Does not match the key convention"
-    :description="
-      suggestion.violations.map((one) => KEY_VIOLATION_TEXT[one]).join('; ')
-    "
+    title="Differs from the suggested key style"
+    :description="describe(warnings)"
   />
   <UAlert
     v-if="echoDiffers"

@@ -3,7 +3,7 @@ import { numericID } from '#server/helper/id'
 import { requireTeamMember } from '#server/helper/access'
 import { readZodBody } from '#server/helper/validate'
 import {
-  assertI18nKeyWritable,
+  assertI18nKeyRenamable,
   shapeI18nKeyRow,
   sourceLocaleOf,
   sourceTextOf,
@@ -39,10 +39,9 @@ export default defineEventHandler(async (event) => {
       statusMessage: 'Key not found',
     })
   }
-  assertI18nKeyWritable(existing.locales)
-
   const nextKey = body.key?.trim()
   if (nextKey && nextKey !== existing.key) {
+    assertI18nKeyRenamable(existing.locales)
     const clash = await prisma.i18nKey.findUnique({
       where: {
         projectId_key: { projectId: nID, key: nextKey },

@@ -3,11 +3,10 @@ import { mkdtemp, mkdir, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { GitSyncFileFormat, GitSyncPullReason } from '#shared/constants'
+import { localeFileName, localeFilesScopeError } from '#shared/contract/locale-file'
 import { blobSha } from '#server/libs/git-sync/engine/seen-files'
 import {
   listLocaleFiles,
-  localeFileName,
-  localeFilesScopeError,
   parseLocaleFilesOptions,
   readLocaleFileMaps,
   readLocaleFileSource,
@@ -32,7 +31,7 @@ describe('parseLocaleFilesOptions', () => {
 })
 
 describe('localeFilesScopeError', () => {
-  const ok = parseLocaleFilesOptions(null)
+  const ok = '{locale}.json'
 
   it('accepts a relative directory', () => {
     expect(localeFilesScopeError('src/locales', ok)).toBeNull()
@@ -45,8 +44,7 @@ describe('localeFilesScopeError', () => {
   })
 
   it('requires exactly one {locale} and a .json name', () => {
-    const at = (pattern: string) =>
-      localeFilesScopeError('locales', parseLocaleFilesOptions({ pattern }))
+    const at = (pattern: string) => localeFilesScopeError('locales', pattern)
     expect(at('all.json')).toMatch(/exactly once/)
     expect(at('{locale}/{locale}.json')).toMatch(/exactly once/)
     expect(at('{locale}.yaml')).toMatch(/\.json/)
@@ -140,6 +138,21 @@ describe('locale files on disk', () => {
     expect(written).toEqual({ relPath: 'locales/en.json', sha: await blobSha(abs) })
     expect(await readFile(abs, 'utf8')).toBe(
       '{\n  "home": {\n    "title": "Start",\n    "sub": "Welcome"\n  }\n}\n'
+    )
+  })
+
+  it('reads array texts by index and pushes only into elements that exist', async () => {
+    const source = '{\n  "steps": [\n    { "title": "One" }\n  ],\n  "tips": ["a", "b"]\n}\n'
+    const abs = join(repoRoot, 'locales', 'en.json')
+    await writeFile(abs, source)
+    const { maps } = await readLocaleFileMaps(repoRoot, await listLocaleFiles(ctx()))
+    expect(maps.get('en')?.get('steps.0.title')).toBe('One')
+    expect(
+      await unwritableSourceKeys(ctx(), 'en', ['steps.0.title', 'steps.1.title', 'tips.2'])
+    ).toEqual(new Set(['steps.1.title', 'tips.2']))
+    await writeLocaleFileSource(ctx(), 'en', { 'steps.0.title': 'First', 'tips.1': 'B' })
+    expect(await readFile(abs, 'utf8')).toBe(
+      source.replace('"One"', '"First"').replace('"b"', '"B"')
     )
   })
 

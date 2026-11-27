@@ -5,6 +5,11 @@ import {
   type ParseError,
 } from 'jsonc-parser'
 import { TRANSLATION_LANGUAGES } from '../constants'
+import {
+  LOCALE_KEY_SEPARATOR,
+  emptyEntries,
+  normalizeLocaleText,
+} from '../contract/locale-file'
 
 /**
  * Parsing for the translations import. Runs in the browser — the server only
@@ -17,9 +22,6 @@ import { TRANSLATION_LANGUAGES } from '../constants'
  * collapsed into a one-line warning.
  */
 
-/** Nested JSON joins its path with this. Not the project's key separator: see `parseLocaleJson`. */
-export const IMPORT_KEY_SEPARATOR = '.'
-
 /** Distinct keys one import may carry. Headroom for real locale files, a stop for runaway ones. */
 export const IMPORT_MAX_KEYS = 20_000
 
@@ -30,7 +32,6 @@ const NON_LOCALE_COLUMNS = new Set(['id', 'key_id', 'pic'])
 const QUOTE_MAX = 60
 
 export type ImportParseWarning =
-  | { kind: 'array-value'; key: string; line: number }
   | { kind: 'unsupported-value'; key: string; line: number }
   | { kind: 'missing-key'; row: number }
   | {
@@ -48,7 +49,7 @@ export type ImportJsonDefinition = {
   text: string
   /** The key as written, spaces and all — for a nested one, the joined path. */
   written: string
-  /** Path segments when the key came from nesting; null for a key written in one piece. */
+  /** Path segments, array indices as digits, when the key came from nesting; null for a key written in one piece. */
   nested: string[] | null
 }
 
@@ -105,8 +106,6 @@ function timesText(count: number): string {
 
 export function importWarningText(warning: ImportParseWarning): string {
   switch (warning.kind) {
-    case 'array-value':
-      return `"${warning.key}" (line ${warning.line}) is an array and was skipped.`
     case 'unsupported-value':
       return `"${warning.key}" (line ${warning.line}) is not text and was skipped.`
     case 'missing-key':
@@ -213,26 +212,6 @@ export function importDuplicateDropped(duplicate: ImportDuplicate): string[] {
   }
 }
 
-/**
- * The text to store, or null for "no translation". Only line endings and the
- * ends are touched: inner whitespace is copy, and the fingerprint already
- * ignores it for matching.
- */
-export function normalizeImportText(value: unknown): string | null {
-  let text: string
-  if (typeof value === 'string') text = value
-  else if (typeof value === 'number' && Number.isFinite(value)) text = String(value)
-  else if (typeof value === 'boolean') text = String(value)
-  else return null
-  const normalized = text.replace(/\r\n?/g, '\n').trim()
-  return normalized === '' ? null : normalized
-}
-
-/** No prototype, so a key named `__proto__` is stored like any other. */
-export function emptyEntries(): Record<string, string> {
-  return Object.create(null) as Record<string, string>
-}
-
 /** 1-based line of each offset, by binary search over the line starts. */
 function lineLocator(source: string): (offset: number) => number {
   const starts = [0]
@@ -252,7 +231,8 @@ function lineLocator(source: string): (offset: number) => number {
 }
 
 /**
- * Parses one locale file into `a.b.c` keys. Always `.`, whatever the project's
+ * Parses one locale file into `a.b.c` keys, arrays by index (`list.0.title`)
+ * as the locale-file contract reads them. Always `.`, whatever the project's
  * separator: that is the path the calling code already passes to `t()`, and a
  * `_` join would fold `{a:{b_c}}` and `{a_b:{c}}` into one key.
  *
@@ -277,49 +257,49 @@ export function parseLocaleJson(source: string): ImportParsed {
   const warnings: ImportParseWarning[] = []
   const byKey = new Map<string, ImportJsonDefinition[]>()
 
-  const walk = (node: JsonNode, path: string[]) => {
-    for (const property of node.children ?? []) {
-      const [nameNode, valueNode] = property.children ?? []
-      if (!nameNode || !valueNode) continue
-      const segments = [...path, String(nameNode.value)]
-      const written = segments.join(IMPORT_KEY_SEPARATOR)
-      const line = lineOf(property.offset)
-      switch (valueNode.type) {
-        case 'object':
-          walk(valueNode, segments)
-          break
-        case 'array':
-          warnings.push({ kind: 'array-value', key: written, line })
-          break
-        case 'null':
-          break
-        case 'property':
-          warnings.push({ kind: 'unsupported-value', key: written, line })
-          break
-        case 'string':
-        case 'number':
-        case 'boolean': {
-          const text = normalizeImportText(valueNode.value)
-          if (text === null) break
-          const key = written.trim()
-          const definitions = byKey.get(key) ?? []
-          definitions.push({
-            line,
-            text,
-            written,
-            nested: segments.length > 1 ? segments : null,
-          })
-          byKey.set(key, definitions)
-          break
+  const visit = (node: JsonNode, segments: string[], line: number) => {
+    const written = segments.join(LOCALE_KEY_SEPARATOR)
+    switch (node.type) {
+      case 'object':
+        for (const property of node.children ?? []) {
+          const [nameNode, valueNode] = property.children ?? []
+          if (!nameNode || !valueNode) continue
+          visit(valueNode, [...segments, String(nameNode.value)], lineOf(property.offset))
         }
-        default: {
-          const unreachable: never = valueNode.type
-          throw new Error(`Unknown JSON node type: ${unreachable}`)
-        }
+        break
+      case 'array':
+        node.children?.forEach((element, index) =>
+          visit(element, [...segments, String(index)], lineOf(element.offset))
+        )
+        break
+      case 'null':
+        break
+      case 'property':
+        warnings.push({ kind: 'unsupported-value', key: written, line })
+        break
+      case 'string':
+      case 'number':
+      case 'boolean': {
+        const text = normalizeLocaleText(node.value)
+        if (text === null) break
+        const key = written.trim()
+        const definitions = byKey.get(key) ?? []
+        definitions.push({
+          line,
+          text,
+          written,
+          nested: segments.length > 1 ? segments : null,
+        })
+        byKey.set(key, definitions)
+        break
+      }
+      default: {
+        const unreachable: never = node.type
+        throw new Error(`Unknown JSON node type: ${unreachable}`)
       }
     }
   }
-  walk(root, [])
+  visit(root, [], 1)
 
   const entries = emptyEntries()
   const duplicates: ImportJsonDuplicate[] = []
@@ -440,7 +420,7 @@ export function readXlsxSheet(rows: unknown[][]): ImportSheetResult {
     const row = offset + 2
     const written = rawCellText(cells?.[keyColumn])
     const key = written.trim()
-    const texts = columns.map((column) => normalizeImportText(cells?.[column.index]))
+    const texts = columns.map((column) => normalizeLocaleText(cells?.[column.index]))
     if (!key) {
       if (texts.some((text) => text !== null)) {
         warnings.push({ kind: 'missing-key', row })
